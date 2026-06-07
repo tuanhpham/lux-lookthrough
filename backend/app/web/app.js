@@ -116,17 +116,76 @@ function resultsTable(rows) {
 }
 
 // ── tabs ────────────────────────────────────────────────────────────────────
+const TABS = ["picks", "screener", "watchlist", "sectors", "learn"];
 function setTab(name) {
   $$("[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
-  ["screener", "watchlist", "sectors", "learn"].forEach((t) =>
-    $("#tab-" + t).classList.toggle("hidden", t !== name)
-  );
+  TABS.forEach((t) => $("#tab-" + t).classList.toggle("hidden", t !== name));
   if (name === "watchlist") loadWatchlist();
   if (name === "learn") renderLearn();
   if (name === "sectors") loadSectors();
+  if (name === "picks") loadPicks();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 $$("[data-tab]").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+// ── Landing / theme ───────────────────────────────────────────────────────────
+let appEntered = false;
+function enterApp() {
+  appEntered = true;
+  $("#landing").style.display = "none";
+  // Now that the user is in, populate whatever tab is active.
+  const active = $$("[data-tab].active")[0]?.dataset.tab;
+  if (active) setTab(active);
+}
+$("#enter-app")?.addEventListener("click", enterApp);
+$("#logo-home")?.addEventListener("click", () => { $("#landing").style.display = ""; window.scrollTo({ top: 0 }); });
+
+function setTheme(theme) {
+  const isLight = theme === "light";
+  document.documentElement.classList.toggle("light", isLight);
+  document.documentElement.classList.toggle("dark", !isLight);
+  localStorage.setItem("theme", theme);
+  // Charts read CSS colors at creation, so redraw the ones currently visible.
+  if (typeof refreshChartsForTheme === "function") refreshChartsForTheme();
+}
+function toggleTheme() {
+  const isLight = document.documentElement.classList.contains("light");
+  setTheme(isLight ? "dark" : "light");
+}
+["#theme-toggle", "#theme-toggle-landing", "#theme-toggle-mobile"].forEach((sel) =>
+  $(sel)?.addEventListener("click", toggleTheme)
+);
+
+// Read a CSS custom property (theme variable) as a concrete color for charts.
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined;
+}
+
+// Shared lightweight-charts options that follow the current theme.
+function chartTheme(extra) {
+  const grid = cssVar("--border-soft");
+  const axis = cssVar("--border");
+  return Object.assign({
+    localization: { locale: "en-US" },
+    layout: { background: { color: "transparent" }, textColor: cssVar("--subtext"), fontFamily: "Inter" },
+    grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+    rightPriceScale: { borderColor: axis },
+    timeScale: { borderColor: axis, timeVisible: false },
+    crosshair: { mode: 1 },
+  }, extra || {});
+}
+
+// Redraw any open charts so they pick up the new theme's colors.
+function refreshChartsForTheme() {
+  if (!$("#modal").classList.contains("hidden") && detailState.candles?.length) {
+    drawChart(detailState.candles, detailState.pattern);
+    drawFundChart();
+  }
+  Object.keys(sectorCharts || {}).forEach((sec) => {
+    const panel = $(`[data-sector-detail="${sec}"]`);
+    if (panel && !panel.classList.contains("hidden")) drawSectorChart(sec);
+  });
+}
 
 // ── Learn page ─────────────────────────────────────────────────────────────────
 function renderLearn() {
@@ -446,16 +505,10 @@ async function drawSectorChart(sector) {
       return;
     }
     el.innerHTML = "";
-    const chart = LightweightCharts.createChart(el, {
-      layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
-      grid: { vertLines: { color: "#1c2431" }, horzLines: { color: "#1c2431" } },
-      rightPriceScale: { borderColor: "#232c3b" },
-      timeScale: { borderColor: "#232c3b", timeVisible: false },
-      crosshair: { mode: 1 },
-      width: el.clientWidth, height: 180,
-    });
+    const chart = LightweightCharts.createChart(el, chartTheme({ width: el.clientWidth, height: 180 }));
+    const ac = cssVar("--accent") || "#00d49b";
     const area = chart.addAreaSeries({
-      lineColor: "#00d49b", topColor: "#00d49b44", bottomColor: "#00d49b08", lineWidth: 2,
+      lineColor: ac, topColor: ac + "44", bottomColor: ac + "08", lineWidth: 2,
       priceFormat: { type: "volume" },
     });
     area.setData(res.points.map((p) => ({ time: p.date, value: p.volume })));
@@ -476,10 +529,67 @@ window.screenSector = (sector) => {
   $("#run-screen").click();
 };
 
+// ── Top Picks (recommendations) ──────────────────────────────────────────────
+let picksStrategy = "breakout";
+let picksLoadedOnce = false;
+
+function picksCard(r) {
+  const sc = scoreColor(r.score);
+  return `
+    <div class="rec-card fade-in" onclick="openStock('${r.symbol}')">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-lg">${r.symbol}</span>
+          ${signalBadge(r.signal)}
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="scorebar w-16"><span style="width:${r.score}%;background:${sc}"></span></div>
+          <span style="color:${sc};font-weight:800">${num(r.score, 0)}</span>
+        </div>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-subtext">${stageBadge(r.stage, r.stage_label)}</span>
+        <span class="text-faint">$${num(r.price)}</span>
+      </div>
+      <div class="grid grid-cols-4 gap-1.5 mt-3 text-center">
+        <div><div class="text-faint text-[10px] uppercase">Entry</div><div class="text-sm font-semibold">${r.entry_price ? "$" + num(r.entry_price) : "—"}</div></div>
+        <div><div class="text-faint text-[10px] uppercase">Stop</div><div class="text-sm font-semibold text-danger">${r.stop_loss ? "$" + num(r.stop_loss) : "—"}</div></div>
+        <div><div class="text-faint text-[10px] uppercase">Target</div><div class="text-sm font-semibold text-accent">${r.target_price ? "$" + num(r.target_price) : "—"}</div></div>
+        <div><div class="text-faint text-[10px] uppercase">R:R</div><div class="text-sm font-semibold">${r.risk_reward ? num(r.risk_reward, 1) + "R" : "—"}</div></div>
+      </div>
+      <div class="text-faint text-[11px] mt-2">${r.distance_to_pivot_pct != null ? num(r.distance_to_pivot_pct, 1) + "% to pivot" : ""}${r.vcp_contractions ? " · VCP " + r.vcp_contractions : ""}</div>
+    </div>`;
+}
+
+async function loadPicks(force = false) {
+  if (!appEntered) return;          // don't scan until the user enters the app
+  if (picksLoadedOnce && !force) return;
+  const broad = $("#picks-broad").checked;
+  $("#picks-status").innerHTML = `<span class="spinner"></span> Ranking the ${broad ? "broad universe — this can take a minute on first run" : "market"}…`;
+  $("#picks-results").innerHTML = "";
+  try {
+    const data = await api(`/api/screener/recommend?strategy=${picksStrategy}&broad=${broad}&limit=30`);
+    $("#picks-status").textContent = `${data.matched} ${data.strategy_label} setup(s) from ${data.scanned} scanned.`;
+    $("#picks-results").innerHTML = data.results.length
+      ? `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">` + data.results.map(picksCard).join("") + `</div>`
+      : `<div class="bg-card border border-border rounded-2xl text-subtext text-sm text-center py-12">No setups matched this strategy right now. Try another strategy.</div>`;
+    picksLoadedOnce = true;
+  } catch (e) { $("#picks-status").innerHTML = `<span class="text-danger">Error: ${e.message}</span>`; }
+}
+
+$$("#picks-strategy .range-btn").forEach((b) => {
+  b.addEventListener("click", () => {
+    picksStrategy = b.dataset.strategy;
+    $$("#picks-strategy .range-btn").forEach((x) => x.classList.toggle("active", x === b));
+    loadPicks(true);
+  });
+});
+$("#picks-refresh").addEventListener("click", () => loadPicks(true));
+$("#picks-broad").addEventListener("change", () => loadPicks(true));
+
 // ── Stock detail modal (chart + fundamentals + pattern) ──────────────────────────
 const modal = $("#modal");
 let chart = null;
-let fundChart = null;          // fundamentals (EPS/revenue/profit) chart
 let emaSeries = {};            // period -> lightweight-charts line series
 
 const CHART_RANGES = [
@@ -526,7 +636,7 @@ function computeEMA(closes, period) {
 
 function destroyCharts() {
   if (chart) { chart.remove(); chart = null; }
-  if (fundChart) { fundChart.remove(); fundChart = null; }
+  emaSeries = {};
 }
 function closeModal() { modal.classList.add("hidden"); destroyCharts(); }
 $("#modal-close").addEventListener("click", closeModal);
@@ -706,14 +816,7 @@ function drawChart(candles, pattern) {
     return;
   }
   el.innerHTML = "";
-  chart = LightweightCharts.createChart(el, {
-    layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
-    grid: { vertLines: { color: "#1c2431" }, horzLines: { color: "#1c2431" } },
-    rightPriceScale: { borderColor: "#232c3b" },
-    timeScale: { borderColor: "#232c3b", timeVisible: false },
-    crosshair: { mode: 1 },
-    width: el.clientWidth, height: 280,
-  });
+  chart = LightweightCharts.createChart(el, chartTheme({ width: el.clientWidth, height: 280 }));
   const candleSeries = chart.addCandlestickSeries({
     upColor: "#00d49b", downColor: "#ff5260", borderVisible: false,
     wickUpColor: "#00d49b", wickDownColor: "#ff5260",
@@ -832,44 +935,89 @@ function wireFundamentalsCharts() {
   drawFundChart();
 }
 
+// Compact period label for the fundamentals bars (e.g. "2023" or "Q3 '24").
+function fundPeriodLabel(period, freq) {
+  const d = new Date(period);
+  if (isNaN(d.getTime())) return period;
+  const yy = String(d.getFullYear()).slice(2);
+  if (freq === "annual") return String(d.getFullYear());
+  const q = Math.floor(d.getMonth() / 3) + 1;
+  return `Q${q} '${yy}`;
+}
+
+// Format a fundamentals value: money → $1.2B, EPS → $1.23.
+function fundValueLabel(v, money) {
+  if (money) return (v < 0 ? "-$" : "$") + fmtBig(Math.abs(v));
+  return (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2);
+}
+
+// A custom, dependency-free SVG bar chart. Histogram series from
+// lightweight-charts pack bars edge-to-edge (built for dense daily volume);
+// for a handful of annual/quarterly periods we want real spacing + labels.
 function drawFundChart() {
   const el = $("#fund-chart");
-  if (!el || !window.LightweightCharts) return;
-  if (fundChart) { fundChart.remove(); fundChart = null; }
+  if (!el) return;
 
   let series = (detailState.financials?.[detailState.freq] || [])
     .filter((pt) => pt[detailState.metric] !== null && pt[detailState.metric] !== undefined);
-  // Quarterly: keep the most recent ~12 quarters (the points are oldest→newest).
+  // Quarterly: keep the most recent ~12 quarters (points are oldest→newest).
   if (detailState.freq === "quarterly" && series.length > 12) series = series.slice(-12);
 
+  const meta = FUND_META[detailState.metric];
   if (!series.length) {
-    el.innerHTML = `<div class="text-faint text-sm text-center py-12">No ${FUND_META[detailState.metric].label.toLowerCase()} data available.</div>`;
+    el.innerHTML = `<div class="text-faint text-sm text-center py-12">No ${meta.label.toLowerCase()} data available.</div>`;
     return;
   }
-  el.innerHTML = "";
-  fundChart = LightweightCharts.createChart(el, {
-    layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
-    grid: { vertLines: { color: "transparent" }, horzLines: { color: "#1c2431" } },
-    rightPriceScale: { borderColor: "#232c3b", scaleMargins: { top: 0.15, bottom: 0.05 } },
-    timeScale: { borderColor: "#232c3b", timeVisible: false },
-    crosshair: { mode: 1 },
-    width: el.clientWidth, height: 150,
-  });
-  const meta = FUND_META[detailState.metric];
-  const bars = fundChart.addHistogramSeries({
-    priceFormat: meta.money
-      ? { type: "volume" }
-      : { type: "price", precision: 2, minMove: 0.01 },
-  });
-  bars.setData(series.map((pt) => {
+
+  const values = series.map((pt) => pt[detailState.metric]);
+  const maxV = Math.max(...values, 0);
+  const minV = Math.min(...values, 0);
+  const span = (maxV - minV) || 1;
+
+  const W = Math.max(el.clientWidth || 600, series.length * 44);
+  const H = 150;
+  const padTop = 18, padBottom = 22;
+  const plotH = H - padTop - padBottom;
+  const zeroY = padTop + (maxV / span) * plotH;     // y of the zero baseline
+  const slot = W / series.length;
+  const barW = Math.min(slot * 0.6, 46);
+
+  const bars = series.map((pt, i) => {
     const v = pt[detailState.metric];
-    return { time: pt.period, value: v, color: v >= 0 ? "#00d49b88" : "#ff526088" };
-  }));
-  fundChart.timeScale().fitContent();
-  new ResizeObserver(() => fundChart && fundChart.applyOptions({ width: el.clientWidth })).observe(el);
+    const cx = i * slot + slot / 2;
+    const h = (Math.abs(v) / span) * plotH;
+    const y = v >= 0 ? zeroY - h : zeroY;
+    const color = v >= 0 ? "#00d49b" : "#ff5260";
+    const valLabel = fundValueLabel(v, meta.money);
+    const perLabel = fundPeriodLabel(pt.period, detailState.freq);
+    return `
+      <g>
+        <rect x="${cx - barW / 2}" y="${y}" width="${barW}" height="${Math.max(h, 1)}"
+              rx="3" fill="${color}" opacity="0.85">
+          <title>${perLabel}: ${valLabel}</title>
+        </rect>
+        <text x="${cx}" y="${(v >= 0 ? y - 4 : y + h + 11)}" text-anchor="middle"
+              font-size="9" fill="#aab3c4" font-weight="600">${valLabel}</text>
+        <text x="${cx}" y="${H - 7}" text-anchor="middle" font-size="9" fill="#5b6577">${perLabel}</text>
+      </g>`;
+  }).join("");
+
+  // Zero baseline (only when there are negatives to separate).
+  const baseline = minV < 0
+    ? `<line x1="0" y1="${zeroY}" x2="${W}" y2="${zeroY}" stroke="#2f3a4d" stroke-width="1" />`
+    : "";
+
+  el.innerHTML = `
+    <div style="overflow-x:auto;width:100%">
+      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:100%">
+        ${baseline}${bars}
+      </svg>
+    </div>`;
 }
 
 // ── init ────────────────────────────────────────────────────────────────────
-setTab("screener");
+// Land on Top Picks (the hero CTA reveals the app over this). Picks only fetch
+// lazily once the user enters and the tab is shown.
+setTab("picks");
 loadSectorOptions();
 attachTips();

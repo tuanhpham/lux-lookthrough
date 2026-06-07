@@ -31,8 +31,13 @@ Then open **http://localhost:8000** in your browser. That's it.
 
 A professional, fully responsive dashboard (sidebar on desktop, bottom nav on mobile):
 
+A polished **landing page** (hero + feature highlights) greets you first; click
+**Launch the Screener** to enter the app. A **dark / light theme toggle** lives in
+the sidebar (and on the landing page), and the whole UI uses a consistent SVG icon set.
+
 | Tab | What it does |
 |-----|--------------|
+| **Top Picks** | Auto-ranked best setups across the market by the built-in strategy. Switch between **Breakout-ready**, **Stage-2 momentum**, and **Tight VCP near pivot**; optionally scan the broad universe. Results are cached ~30 min. |
 | **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors via toggle chips, then filter by min score, signal, stage, and sort. Tick **broad universe** to scan the full S&P 1500+ list per sector instead of the curated default. Click any row to open the stock detail view. |
 | **Watchlists** | Organize favorites into **multiple named lists** (persisted in SQLite), switch between them, and screen each in one click. Click a symbol to expand its chart + fundamentals. |
 | **Sectors** | Auto-loads on open: 11 sectors ranked by volume change (3m vs 6m). Click a sector to expand a **weekly/monthly volume-trend chart** (6M/1Y/2Y) or screen its stocks. |
@@ -53,6 +58,7 @@ annual ⇄ quarterly — up to ~12 quarters), the full pattern breakdown, and **
 |--------|------|-------------|
 | POST | `/api/screener/screen` | Screen a custom universe (symbols and/or sectors) with filters |
 | GET | `/api/screener/universe` | Available sector presets |
+| GET | `/api/screener/recommend` | Top picks by strategy (`strategy=breakout\|momentum\|vcp`, `broad`) |
 | GET/POST/PATCH/DELETE | `/api/screener/watchlists[/{id}]` | Manage multiple named watchlists |
 | POST | `/api/screener/watchlists/{id}/screen` | Run the screener over a specific watchlist |
 | GET/POST/DELETE | `/api/screener/watchlist` | Manage symbols in a watchlist (`?watchlist_id=`) |

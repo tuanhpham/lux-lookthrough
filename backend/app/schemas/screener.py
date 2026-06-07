@@ -54,6 +54,15 @@ class ScreenResponse(BaseModel):
     results: list[ScreenRow]
 
 
+class RecommendResponse(BaseModel):
+    strategy: str
+    strategy_label: str
+    universe: int
+    scanned: int
+    matched: int
+    results: list[ScreenRow]
+
+
 # ── Watchlist ─────────────────────────────────────────────────────────────────
 
 class WatchlistAdd(BaseModel):

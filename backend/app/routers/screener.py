@@ -13,6 +13,7 @@ from app.models.watchlist import (
     WatchlistItem,
 )
 from app.schemas.screener import (
+    RecommendResponse,
     ScreenRequest,
     ScreenResponse,
     WatchlistAdd,
@@ -21,7 +22,7 @@ from app.schemas.screener import (
     WatchlistItemOut,
     WatchlistRename,
 )
-from app.services.screener import run_screen
+from app.services.screener import recommend, run_screen
 
 router = APIRouter()
 
@@ -30,6 +31,19 @@ router = APIRouter()
 async def universe() -> dict:
     """Return the available sector universe so the UI can offer presets."""
     return {"sectors": ALL_SECTORS}
+
+
+@router.get("/recommend", response_model=RecommendResponse, tags=["Screener"])
+async def recommend_picks(
+    strategy: str = "breakout", broad: bool = True, limit: int = 30
+) -> RecommendResponse:
+    """Return the best setups for a named strategy across the universe.
+
+    Strategies: breakout | momentum | vcp. The underlying market scan is cached
+    for ~30 min so switching strategies is instant.
+    """
+    result = await recommend(strategy=strategy, broad=broad, limit=limit)
+    return RecommendResponse(**result)
 
 
 @router.post("/screen", response_model=ScreenResponse, tags=["Screener"])

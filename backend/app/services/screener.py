@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from app.core.constants import SECTOR_STOCKS
+import time
+
+from app.core.constants import ALL_SECTORS, SECTOR_STOCKS
 from app.services.data_fetcher import fetch_multiple
 from app.services.pattern_engine import scan_stock
 from app.services.universe import get_full_universe
@@ -149,4 +151,119 @@ async def run_screen(
         "scanned": len(data),
         "matched": len(rows),
         "results": rows[:limit],
+    }
+
+
+# ── Recommendations (best setups by strategy) ───────────────────────────────────
+
+# Each strategy is a filter/sort preset over the pattern-engine output. They all
+# screen the same scan; only the post-filters and ordering differ.
+STRATEGIES: dict[str, dict[str, Any]] = {
+    "breakout": {
+        "label": "Breakout-ready",
+        "min_score": 70,
+        "signals": {"BREAKOUT_IMMINENT"},
+        "sort": lambda r: (r["score"], -(r["distance_to_pivot_pct"] or 1e9)),
+    },
+    "momentum": {
+        "label": "Stage-2 momentum",
+        "min_score": 55,
+        "stages": {2},
+        "sort": lambda r: (r["score"],),
+    },
+    "vcp": {
+        "label": "Tight VCP near pivot",
+        "min_score": 60,
+        "min_vcp": 2,
+        "sort": lambda r: (r["vcp_contractions"] or 0, -(r["distance_to_pivot_pct"] or 1e9)),
+    },
+}
+
+# Cache scan results briefly so flipping strategies / re-opening the tab is fast.
+_recommend_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_RECOMMEND_TTL = 1800  # 30 min
+
+
+async def _scan_universe(symbols: list[str], period: str) -> list[dict[str, Any]]:
+    """Run the pattern engine over a symbol list and return all result rows."""
+    data = await fetch_multiple(symbols, period=period, max_concurrent=16)
+    rows: list[dict[str, Any]] = []
+    for sym, df in data.items():
+        if df is None or len(df) < 60:
+            continue
+        r = scan_stock(sym, df)
+        rows.append({
+            "symbol": r.symbol,
+            "sector": None,
+            "stage": r.stage.stage,
+            "stage_label": r.stage.label,
+            "price": r.stage.price,
+            "score": r.score,
+            "signal": r.signal,
+            "entry_price": r.entry_price,
+            "stop_loss": r.stop_loss,
+            "target_price": r.target_price,
+            "risk_reward": r.risk_reward,
+            "pivot_high": r.pivot.pivot_high,
+            "distance_to_pivot_pct": r.pivot.distance_to_pivot_pct,
+            "price_range_pct": r.consolidation.price_range_pct,
+            "atr_contraction_pct": r.consolidation.atr_contraction_pct,
+            "volume_dry_up_pct": r.consolidation.volume_dry_up_pct,
+            "vcp_contractions": r.consolidation.vcp_contractions,
+            "days_in_base": r.consolidation.days_in_base,
+        })
+    return rows
+
+
+async def recommend(
+    strategy: str = "breakout",
+    *,
+    broad: bool = True,
+    limit: int = 30,
+    period: str = "1y",
+) -> dict[str, Any]:
+    """Return the best setups for a named strategy across the whole universe.
+
+    The expensive part — scanning every symbol — is cached for 30 minutes and
+    keyed by (broad, period), so switching strategies only re-filters in memory.
+    """
+    if strategy not in STRATEGIES:
+        strategy = "breakout"
+    cfg = STRATEGIES[strategy]
+
+    # Build the universe (broad = S&P 1500+, else curated), de-duplicated.
+    if broad:
+        full = await get_full_universe()
+        symbols = _dedupe([s for stocks in full.values() for s in stocks])
+    else:
+        symbols = _dedupe([s for stocks in SECTOR_STOCKS.values() for s in stocks])
+
+    cache_key = f"{int(broad)}:{period}"
+    cached = _recommend_cache.get(cache_key)
+    if cached is not None and time.time() - cached[0] <= _RECOMMEND_TTL:
+        rows = cached[1]
+        scanned = len(rows)
+    else:
+        rows = await _scan_universe(symbols, period)
+        _recommend_cache[cache_key] = (time.time(), rows)
+        scanned = len(rows)
+
+    # Apply the strategy filters.
+    picks = [r for r in rows if r["score"] >= cfg["min_score"]]
+    if cfg.get("signals"):
+        picks = [r for r in picks if r["signal"] in cfg["signals"]]
+    if cfg.get("stages"):
+        picks = [r for r in picks if r["stage"] in cfg["stages"]]
+    if cfg.get("min_vcp"):
+        picks = [r for r in picks if (r["vcp_contractions"] or 0) >= cfg["min_vcp"]]
+
+    picks.sort(key=cfg["sort"], reverse=True)
+
+    return {
+        "strategy": strategy,
+        "strategy_label": cfg["label"],
+        "universe": len(symbols),
+        "scanned": scanned,
+        "matched": len(picks),
+        "results": picks[:limit],
     }
