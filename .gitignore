@@ -1,0 +1,24 @@
+# IDE / Editor
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+venv/
+.env
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Outputs
+outputs/*.xlsx
+
+# Local per-user email recipient overrides — the shared default lives in
+# emailer.py (_DEFAULT_RECIPIENTS). Tracking this file would let one user's
+# in-app edit overwrite everyone's default on push.
+documents/email_recipients.json
