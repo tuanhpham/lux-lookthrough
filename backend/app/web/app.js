@@ -152,17 +152,51 @@ function renderLearn() {
 }
 
 // ── Screener ───────────────────────────────────────────────────────────────────
+const selectedSectors = new Set();
+
+function syncSectorClear() {
+  $("#sector-clear").classList.toggle("hidden", selectedSectors.size === 0);
+}
+
 async function loadSectorOptions() {
   try {
     const { sectors } = await api("/api/screener/universe");
-    const sel = $("#sector-select");
-    sel.size = Math.min(sectors.length, 5);
-    sel.innerHTML = sectors.map((s) => `<option value="${s}">${s}</option>`).join("");
+    const wrap = $("#sector-chips");
+    wrap.innerHTML = sectors
+      .map(
+        (s) => `<button type="button" class="sector-chip" data-sector="${s}">
+          <span class="dot"></span>${s}</button>`
+      )
+      .join("");
+    $$(".sector-chip", wrap).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const s = btn.dataset.sector;
+        if (selectedSectors.has(s)) { selectedSectors.delete(s); btn.classList.remove("active"); }
+        else { selectedSectors.add(s); btn.classList.add("active"); }
+        syncSectorClear();
+      });
+    });
   } catch (_) {}
 }
+
+$("#sector-clear").addEventListener("click", () => {
+  selectedSectors.clear();
+  $$(".sector-chip").forEach((b) => b.classList.remove("active"));
+  syncSectorClear();
+});
+
+function setSelectedSectors(names) {
+  selectedSectors.clear();
+  names.forEach((n) => selectedSectors.add(n));
+  $$(".sector-chip").forEach((b) =>
+    b.classList.toggle("active", selectedSectors.has(b.dataset.sector))
+  );
+  syncSectorClear();
+}
+
 function buildScreenPayload() {
   const symbols = $("#sym-input").value.split(",").map((s) => s.trim()).filter(Boolean);
-  const sectors = Array.from($("#sector-select").selectedOptions).map((o) => o.value);
+  const sectors = Array.from(selectedSectors);
   const signal = $("#signal-filter").value;
   const stage = $("#stage-filter").value;
   return {
@@ -189,38 +223,111 @@ $("#run-screen").addEventListener("click", async () => {
   } catch (e) { $("#screen-status").textContent = "Error: " + e.message; }
 });
 
-// ── Watchlist ──────────────────────────────────────────────────────────────────
+// ── Watchlists (multiple named lists) ────────────────────────────────────────────
+let watchlists = [];           // [{id, name, count, items}]
+let activeWatchlistId = null;
+
+function activeWatchlist() {
+  return watchlists.find((w) => w.id === activeWatchlistId) || watchlists[0] || null;
+}
+
 async function loadWatchlist() {
   try {
-    const items = await api("/api/screener/watchlist");
-    $("#wl-chips").innerHTML = items.length
-      ? items.map((i) => `
-        <span class="chip">
-          <span onclick="openStock('${i.symbol}')" class="cursor-pointer">${i.symbol}</span>
-          <button data-sym="${i.symbol}" class="wl-del" title="Remove">×</button>
-        </span>`).join("")
-      : `<span class="text-subtext text-sm">No symbols yet — add some above.</span>`;
-    $$(".wl-del").forEach((b) => b.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await api("/api/screener/watchlist/" + b.dataset.sym, { method: "DELETE" });
-      loadWatchlist();
-    }));
-  } catch (e) { $("#wl-chips").innerHTML = `<span class="text-danger text-sm">${e.message}</span>`; }
+    watchlists = await api("/api/screener/watchlists");
+    if (!watchlists.length) { renderWatchlistTabs(); renderWatchlistChips(); return; }
+    if (!watchlists.some((w) => w.id === activeWatchlistId)) {
+      activeWatchlistId = watchlists[0].id;
+    }
+    renderWatchlistTabs();
+    renderWatchlistChips();
+  } catch (e) {
+    $("#wl-chips").innerHTML = `<span class="text-danger text-sm">${e.message}</span>`;
+  }
 }
+
+function renderWatchlistTabs() {
+  $("#wl-tabs").innerHTML = watchlists.map((w) => `
+    <span class="wl-tab ${w.id === activeWatchlistId ? "active" : ""}" data-id="${w.id}">
+      <span class="wl-name cursor-pointer">${w.name}</span>
+      <span class="wl-count">${w.count ?? (w.items ? w.items.length : 0)}</span>
+      <button class="wl-edit" data-act="rename" title="Rename">✎</button>
+      ${watchlists.length > 1 ? `<button class="wl-edit" data-act="delete" title="Delete list">×</button>` : ""}
+    </span>`).join("");
+
+  $$("#wl-tabs .wl-tab").forEach((tab) => {
+    const id = parseInt(tab.dataset.id);
+    tab.querySelector(".wl-name").addEventListener("click", () => {
+      activeWatchlistId = id; renderWatchlistTabs(); renderWatchlistChips(); $("#wl-results").innerHTML = "";
+    });
+    tab.querySelector('[data-act="rename"]')?.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const w = watchlists.find((x) => x.id === id);
+      const name = prompt("Rename watchlist:", w?.name || "");
+      if (!name || !name.trim()) return;
+      try {
+        await api("/api/screener/watchlists/" + id, { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
+        await loadWatchlist();
+      } catch (err) { alert(err.message); }
+    });
+    tab.querySelector('[data-act="delete"]')?.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const w = watchlists.find((x) => x.id === id);
+      if (!confirm(`Delete watchlist "${w?.name}" and its symbols?`)) return;
+      try {
+        await api("/api/screener/watchlists/" + id, { method: "DELETE" });
+        if (activeWatchlistId === id) activeWatchlistId = null;
+        await loadWatchlist();
+        $("#wl-results").innerHTML = "";
+      } catch (err) { alert(err.message); }
+    });
+  });
+}
+
+function renderWatchlistChips() {
+  const wl = activeWatchlist();
+  const items = wl?.items || [];
+  $("#wl-chips").innerHTML = items.length
+    ? items.map((i) => `
+      <span class="chip">
+        <span onclick="openStock('${i.symbol}')" class="cursor-pointer">${i.symbol}</span>
+        <button data-sym="${i.symbol}" class="wl-del" title="Remove">×</button>
+      </span>`).join("")
+    : `<span class="text-subtext text-sm">No symbols yet — add some above.</span>`;
+  $$(".wl-del").forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    await api(`/api/screener/watchlist/${b.dataset.sym}?watchlist_id=${activeWatchlistId}`, { method: "DELETE" });
+    loadWatchlist();
+  }));
+}
+
+$("#wl-new").addEventListener("click", async () => {
+  const name = prompt("Name your new watchlist:", "");
+  if (!name || !name.trim()) return;
+  try {
+    const created = await api("/api/screener/watchlists", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
+    activeWatchlistId = created.id;
+    await loadWatchlist();
+  } catch (e) { alert(e.message); }
+});
+
 $("#wl-add").addEventListener("click", async () => {
   const sym = $("#wl-symbol").value.trim().toUpperCase();
   if (!sym) return;
   try {
-    await api("/api/screener/watchlist", { method: "POST", body: JSON.stringify({ symbol: sym }) });
+    await api("/api/screener/watchlist", {
+      method: "POST",
+      body: JSON.stringify({ symbol: sym, watchlist_id: activeWatchlistId }),
+    });
     $("#wl-symbol").value = "";
     loadWatchlist();
   } catch (e) { alert(e.message); }
 });
 $("#wl-symbol").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#wl-add").click(); });
 $("#wl-screen").addEventListener("click", async () => {
+  if (!activeWatchlistId) return;
   $("#wl-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> Screening watchlist…</div>`;
   try {
-    const data = await api("/api/screener/watchlist/screen", { method: "POST", body: JSON.stringify({ sort_by: "score", limit: 200 }) });
+    const data = await api(`/api/screener/watchlists/${activeWatchlistId}/screen`, { method: "POST", body: JSON.stringify({ sort_by: "score", limit: 200 }) });
     $("#wl-results").innerHTML = resultsTable(data.results);
     attachTips($("#wl-results"));
   } catch (e) { $("#wl-results").innerHTML = `<div class="text-danger text-sm py-6">${e.message}</div>`; }
@@ -252,15 +359,28 @@ $("#load-sectors").addEventListener("click", async () => {
 window.screenSector = (sector) => {
   setTab("screener");
   $("#sym-input").value = "";
-  const sel = $("#sector-select");
-  Array.from(sel.options).forEach((o) => (o.selected = o.value === sector));
+  setSelectedSectors([sector]);
   $("#run-screen").click();
 };
 
 // ── Stock detail modal (chart + fundamentals + pattern) ──────────────────────────
 const modal = $("#modal");
 let chart = null;
-function closeModal() { modal.classList.add("hidden"); if (chart) { chart.remove(); chart = null; } }
+let fundChart = null;          // fundamentals (EPS/revenue/profit) chart
+let detailState = { symbol: null, pattern: null, period: "1y", financials: null, metric: "revenue", freq: "annual" };
+
+const CHART_RANGES = [
+  { label: "6M", period: "6mo" },
+  { label: "1Y", period: "1y" },
+  { label: "2Y", period: "2y" },
+  { label: "5Y", period: "5y" },
+];
+
+function destroyCharts() {
+  if (chart) { chart.remove(); chart = null; }
+  if (fundChart) { fundChart.remove(); fundChart = null; }
+}
+function closeModal() { modal.classList.add("hidden"); destroyCharts(); }
 $("#modal-close").addEventListener("click", closeModal);
 $("#modal-backdrop").addEventListener("click", closeModal);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -270,13 +390,18 @@ window.openStock = async function (symbol) {
   modal.classList.remove("hidden");
   $("#modal-title").textContent = symbol;
   $("#modal-body").innerHTML = `<div class="py-16 text-center text-subtext"><span class="spinner"></span> Loading ${symbol}…</div>`;
+  detailState = { symbol, pattern: null, period: "1y", financials: null, metric: "revenue", freq: "annual" };
 
   try {
-    const [fund, ohlcv, pattern] = await Promise.all([
+    const [fund, ohlcv, pattern, financials] = await Promise.all([
       api(`/api/stocks/${symbol}/fundamentals`).catch(() => ({ symbol })),
-      api(`/api/stocks/${symbol}/ohlcv?period=6mo`).catch(() => ({ candles: [] })),
+      api(`/api/stocks/${symbol}/ohlcv?period=${detailState.period}`).catch(() => ({ candles: [] })),
       api(`/api/patterns/scan/${symbol}`).catch(() => null),
+      api(`/api/stocks/${symbol}/financials`).catch(() => ({ annual: [], quarterly: [] })),
     ]);
+
+    detailState.pattern = pattern;
+    detailState.financials = financials;
 
     $("#modal-title").innerHTML = `${symbol} <span class="text-subtext font-normal text-sm">${fund.name || ""}</span>`;
 
@@ -284,12 +409,15 @@ window.openStock = async function (symbol) {
     $("#modal-body").innerHTML = renderStockDetail(symbol, fund, pattern, onWatch);
     attachTips($("#modal-body"));
     drawChart(ohlcv.candles || [], pattern);
+    wireChartRanges(symbol);
+    wireFundamentalsCharts();
 
     $("#detail-wl-toggle")?.addEventListener("click", async () => {
+      const wid = await ensureActiveWatchlist();
       if (await isOnWatchlist(symbol)) {
-        await api("/api/screener/watchlist/" + symbol, { method: "DELETE" });
+        await api(`/api/screener/watchlist/${symbol}?watchlist_id=${wid}`, { method: "DELETE" });
       } else {
-        await api("/api/screener/watchlist", { method: "POST", body: JSON.stringify({ symbol }) });
+        await api("/api/screener/watchlist", { method: "POST", body: JSON.stringify({ symbol, watchlist_id: wid }) });
       }
       const now = await isOnWatchlist(symbol);
       const btn = $("#detail-wl-toggle");
@@ -302,9 +430,22 @@ window.openStock = async function (symbol) {
   }
 };
 
+// The modal's "Add to Watchlist" acts on the active list. When the user hasn't
+// opened the Watchlist tab yet, fall back to the first list the server returns.
+async function ensureActiveWatchlist() {
+  if (activeWatchlistId) return activeWatchlistId;
+  try {
+    const lists = await api("/api/screener/watchlists");
+    watchlists = lists;
+    activeWatchlistId = lists[0]?.id ?? null;
+  } catch (_) {}
+  return activeWatchlistId;
+}
+
 async function isOnWatchlist(symbol) {
   try {
-    const items = await api("/api/screener/watchlist");
+    const wid = await ensureActiveWatchlist();
+    const items = await api(`/api/screener/watchlist?watchlist_id=${wid}`);
     return items.some((i) => i.symbol === symbol);
   } catch (_) { return false; }
 }
@@ -352,11 +493,31 @@ function renderStockDetail(symbol, f, p, onWatch) {
     ${patternBlock}
 
     <div class="bg-surface border border-border rounded-xl p-2 mb-4">
-      <div class="flex items-center justify-between px-2 py-1">
-        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">Price · 6 months</span>
-        <span class="text-[10px] text-faint">candles + volume</span>
+      <div class="flex items-center justify-between px-2 py-1 gap-2 flex-wrap">
+        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">Price History</span>
+        <div id="chart-ranges" class="flex gap-1">
+          ${CHART_RANGES.map((r) => `<button class="range-btn ${r.period === detailState.period ? "active" : ""}" data-period="${r.period}">${r.label}</button>`).join("")}
+        </div>
       </div>
       <div id="chart" style="height:240px;width:100%"></div>
+    </div>
+
+    <div class="bg-surface border border-border rounded-xl p-2 mb-4">
+      <div class="flex items-center justify-between px-2 py-1 gap-2 flex-wrap">
+        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">Fundamentals Trend</span>
+        <div class="flex items-center gap-2">
+          <div id="fund-metric" class="flex gap-1">
+            <button class="range-btn active" data-metric="revenue">Revenue</button>
+            <button class="range-btn" data-metric="net_income">Profit</button>
+            <button class="range-btn" data-metric="eps">EPS</button>
+          </div>
+          <div id="fund-freq" class="flex gap-1">
+            <button class="range-btn active" data-freq="annual">Annual</button>
+            <button class="range-btn" data-freq="quarterly">Quarterly</button>
+          </div>
+        </div>
+      </div>
+      <div id="fund-chart" style="height:200px;width:100%"></div>
     </div>
 
     <h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">Fundamentals</h3>
@@ -381,10 +542,13 @@ function p_price() { return null; }
 
 function drawChart(candles, pattern) {
   const el = $("#chart");
-  if (!el || !candles.length || !window.LightweightCharts) {
-    if (el) el.innerHTML = `<div class="text-faint text-sm text-center py-16">No chart data.</div>`;
+  if (!el || !window.LightweightCharts) { return; }
+  if (chart) { chart.remove(); chart = null; }
+  if (!candles.length) {
+    el.innerHTML = `<div class="text-faint text-sm text-center py-16">No chart data.</div>`;
     return;
   }
+  el.innerHTML = "";
   chart = LightweightCharts.createChart(el, {
     layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
     grid: { vertLines: { color: "#1c2431" }, horzLines: { color: "#1c2431" } },
@@ -422,6 +586,85 @@ function drawChart(candles, pattern) {
   }
   chart.timeScale().fitContent();
   new ResizeObserver(() => chart && chart.applyOptions({ width: el.clientWidth })).observe(el);
+}
+
+// Wire the 6M/1Y/2Y/5Y range buttons — re-fetch OHLCV and redraw on click.
+function wireChartRanges(symbol) {
+  $$("#chart-ranges .range-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const period = btn.dataset.period;
+      if (period === detailState.period) return;
+      detailState.period = period;
+      $$("#chart-ranges .range-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      $("#chart").innerHTML = `<div class="py-16 text-center text-subtext"><span class="spinner"></span></div>`;
+      try {
+        const ohlcv = await api(`/api/stocks/${symbol}/ohlcv?period=${period}`);
+        drawChart(ohlcv.candles || [], detailState.pattern);
+      } catch (e) {
+        $("#chart").innerHTML = `<div class="text-danger text-sm text-center py-16">${e.message}</div>`;
+      }
+    });
+  });
+}
+
+// ── Fundamentals trend chart (EPS / revenue / net income) ────────────────────────
+const FUND_META = {
+  revenue: { label: "Revenue", money: true },
+  net_income: { label: "Net Income", money: true },
+  eps: { label: "EPS", money: false },
+};
+
+function wireFundamentalsCharts() {
+  $$("#fund-metric .range-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      detailState.metric = btn.dataset.metric;
+      $$("#fund-metric .range-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      drawFundChart();
+    });
+  });
+  $$("#fund-freq .range-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      detailState.freq = btn.dataset.freq;
+      $$("#fund-freq .range-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      drawFundChart();
+    });
+  });
+  drawFundChart();
+}
+
+function drawFundChart() {
+  const el = $("#fund-chart");
+  if (!el || !window.LightweightCharts) return;
+  if (fundChart) { fundChart.remove(); fundChart = null; }
+
+  const series = (detailState.financials?.[detailState.freq] || [])
+    .filter((pt) => pt[detailState.metric] !== null && pt[detailState.metric] !== undefined);
+
+  if (!series.length) {
+    el.innerHTML = `<div class="text-faint text-sm text-center py-14">No ${FUND_META[detailState.metric].label.toLowerCase()} data available.</div>`;
+    return;
+  }
+  el.innerHTML = "";
+  fundChart = LightweightCharts.createChart(el, {
+    layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
+    grid: { vertLines: { color: "#1c2431" }, horzLines: { color: "#1c2431" } },
+    rightPriceScale: { borderColor: "#232c3b" },
+    timeScale: { borderColor: "#232c3b", timeVisible: false },
+    crosshair: { mode: 1 },
+    width: el.clientWidth, height: 200,
+  });
+  const meta = FUND_META[detailState.metric];
+  const bars = fundChart.addHistogramSeries({
+    priceFormat: meta.money
+      ? { type: "volume" }
+      : { type: "price", precision: 2, minMove: 0.01 },
+  });
+  bars.setData(series.map((pt) => {
+    const v = pt[detailState.metric];
+    return { time: pt.period, value: v, color: v >= 0 ? "#00d49b88" : "#ff526088" };
+  }));
+  fundChart.timeScale().fitContent();
+  new ResizeObserver(() => fundChart && fundChart.applyOptions({ width: el.clientWidth })).observe(el);
 }
 
 // ── init ────────────────────────────────────────────────────────────────────

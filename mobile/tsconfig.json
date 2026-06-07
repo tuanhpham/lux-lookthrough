@@ -7,5 +7,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "App.tsx", "babel.config.js"]
+  "include": ["src", "App.tsx", "index.js", "nativewind-env.d.ts", "babel.config.js"]
 }

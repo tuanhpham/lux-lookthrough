@@ -32,15 +32,17 @@ A professional, fully responsive dashboard (sidebar on desktop, bottom nav on mo
 
 | Tab | What it does |
 |-----|--------------|
-| **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors, then filter by min score, signal, stage, and sort. Click any row to open the stock detail view. |
-| **Watchlist** | Save your favorite symbols (persisted in SQLite) and screen them all in one click. Click a symbol to expand its chart + fundamentals. |
+| **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors via toggle chips, then filter by min score, signal, stage, and sort. Click any row to open the stock detail view. |
+| **Watchlists** | Organize favorites into **multiple named lists** (persisted in SQLite), switch between them, and screen each in one click. Click a symbol to expand its chart + fundamentals. |
 | **Sectors** | Rank all 11 S&P 500 sectors by volume change (3m vs 6m). Click a sector to screen its stocks. |
 | **Learn** | A plain-English glossary explaining every metric (Score, Stage, VCP, R:R, P/E, EPS, …). |
 
 **Stock detail view** (click any row): an interactive **candlestick + volume chart**
-(TradingView lightweight-charts) with the **Entry / Pivot / Stop / Target** levels drawn
-right on it, the full pattern breakdown, and **fundamentals** (market cap, P/E, EPS, ROE,
-margins, beta, dividend yield, 52-week range, company summary).
+(TradingView lightweight-charts) with a selectable **6M / 1Y / 2Y / 5Y** range and the
+**Entry / Pivot / Stop / Target** levels drawn right on it, a **fundamentals trend chart**
+(Revenue / Net Income / EPS, toggle annual ⇄ quarterly), the full pattern breakdown, and
+**fundamentals** (market cap, P/E, EPS, ROE, margins, beta, dividend yield, 52-week range,
+company summary).
 
 **Hover tooltips**: every metric has an “i” icon — hover (or tap) it for an instant definition.
 
@@ -50,10 +52,12 @@ margins, beta, dividend yield, 52-week range, company summary).
 |--------|------|-------------|
 | POST | `/api/screener/screen` | Screen a custom universe (symbols and/or sectors) with filters |
 | GET | `/api/screener/universe` | Available sector presets |
-| GET/POST/DELETE | `/api/screener/watchlist` | Manage your personal watchlist |
-| POST | `/api/screener/watchlist/screen` | Run the screener over your whole watchlist |
+| GET/POST/PATCH/DELETE | `/api/screener/watchlists[/{id}]` | Manage multiple named watchlists |
+| POST | `/api/screener/watchlists/{id}/screen` | Run the screener over a specific watchlist |
+| GET/POST/DELETE | `/api/screener/watchlist` | Manage symbols in a watchlist (`?watchlist_id=`) |
 | GET | `/api/stocks/{symbol}/fundamentals` | Company fundamentals (EPS, P/E, market cap, ROE, …) |
-| GET | `/api/stocks/{symbol}/ohlcv` | OHLCV candles for charting |
+| GET | `/api/stocks/{symbol}/financials` | Revenue / net income / EPS history (annual + quarterly) |
+| GET | `/api/stocks/{symbol}/ohlcv` | OHLCV candles for charting (`1mo`…`2y`, `5y`, `max`) |
 | GET | `/api/cache/stats` · POST `/api/cache/clear` | Inspect / reset the OHLCV cache |
 
 Example screen request:
@@ -257,12 +261,28 @@ run_nightly_scan.delay()
 cd C:\Users\PHAMT\Downloads\github\AMR\mobile
 copy .env.example .env
 # EXPO_PUBLIC_API_URL=http://localhost:8000  (already set)
+# On a physical phone, set this to your computer's LAN IP, e.g.
+# EXPO_PUBLIC_API_URL=http://192.168.1.50:8000
 
 npm install
 npx expo start
 ```
 
 Scan the QR code with Expo Go on your phone, or press `w` for browser preview.
+
+The mobile app mirrors the web dashboard: **Sectors**, **Screener** (symbols +
+sector pills + filters), **Watchlists** (multiple named lists), and **Patterns**,
+plus a stock detail view with a selectable **6M / 1Y / 2Y / 5Y** candlestick chart
+and **Revenue / Profit / EPS** trend charts (annual or quarterly).
+
+> **Styling:** the app uses **NativeWind v4** (`global.css` + `metro.config.js`).
+> Pinned to `nativewind@4.0.36` / `react-native-css-interop@0.0.36` for Expo SDK 51
+> compatibility — do not bump these without matching the SDK.
+>
+> **Path-with-spaces note:** `metro.config.js` passes a relative `cliCommand` to
+> NativeWind. This is required when the project lives under a folder whose name
+> contains spaces (e.g. `OneDrive - Allianz`); the default absolute command breaks
+> the Tailwind build there.
 
 ---
 

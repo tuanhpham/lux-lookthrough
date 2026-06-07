@@ -5,7 +5,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.services.data_fetcher import fetch_fundamentals, fetch_ohlcv
+from app.services.data_fetcher import (
+    fetch_financials,
+    fetch_fundamentals,
+    fetch_ohlcv,
+)
 
 router = APIRouter()
 
@@ -31,9 +35,9 @@ async def get_ohlcv(symbol: str, period: str = "6mo") -> OHLCVResponse:
 
     Args:
         symbol: Ticker symbol.
-        period: yfinance period string (1mo | 3mo | 6mo | 1y | 2y).
+        period: yfinance period string (1mo | 3mo | 6mo | 1y | 2y | 5y | max).
     """
-    valid_periods = {"1mo", "3mo", "6mo", "1y", "2y"}
+    valid_periods = {"1mo", "3mo", "6mo", "1y", "2y", "5y", "max"}
     if period not in valid_periods:
         raise HTTPException(status_code=400, detail=f"period must be one of {valid_periods}")
 
@@ -89,3 +93,26 @@ async def get_fundamentals(symbol: str) -> FundamentalsResponse:
     """
     data: dict[str, Any] = await fetch_fundamentals(symbol.upper())
     return FundamentalsResponse(**data)
+
+
+class FinancialPoint(BaseModel):
+    period: str
+    revenue: float | None = None
+    net_income: float | None = None
+    eps: float | None = None
+
+
+class FinancialsResponse(BaseModel):
+    symbol: str
+    annual: list[FinancialPoint]
+    quarterly: list[FinancialPoint]
+
+
+@router.get("/{symbol}/financials", response_model=FinancialsResponse)
+async def get_financials(symbol: str) -> FinancialsResponse:
+    """Fetch revenue / net income / EPS history (annual + quarterly).
+
+    Powers the fundamentals trend charts in the stock detail view.
+    """
+    data: dict[str, Any] = await fetch_financials(symbol.upper())
+    return FinancialsResponse(**data)

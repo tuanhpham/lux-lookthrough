@@ -23,6 +23,11 @@ amr_personal.db
 # Outputs
 outputs/*.xlsx
 
+# NativeWind / Metro build cache (mobile)
+mobile/node_modules/.cache/
+.expo/
+mobile/.expo/
+
 # Local per-user email recipient overrides — the shared default lives in
 # emailer.py (_DEFAULT_RECIPIENTS). Tracking this file would let one user's
 # in-app edit overwrite everyone's default on push.

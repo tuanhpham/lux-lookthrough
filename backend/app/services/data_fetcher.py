@@ -21,6 +21,10 @@ from app.services.cache import ohlcv_cache
 # Simple TTL cache for fundamentals (info dict). Keyed by symbol.
 _fundamentals_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
+# TTL cache for financial-statement history (EPS / revenue / net income).
+# Keyed by symbol -> (timestamp, payload).
+_financials_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
 
 def _fetch_yfinance(symbol: str, period: str = "1y") -> pd.DataFrame:
     """Download OHLCV data from yfinance (synchronous).
@@ -152,4 +156,94 @@ async def fetch_fundamentals(symbol: str) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     data = await loop.run_in_executor(None, _fetch_yfinance_info, symbol)
     _fundamentals_cache[symbol] = (time.time(), data)
+    return data
+
+
+# ── Financial-statement history (EPS / revenue / net income) ────────────────────
+
+# yfinance income-statement row labels we care about. The first match wins, so
+# order matters (prefer diluted EPS, prefer "Total Revenue").
+_REVENUE_ROWS = ("Total Revenue", "TotalRevenue", "Operating Revenue")
+_NET_INCOME_ROWS = (
+    "Net Income",
+    "Net Income Common Stockholders",
+    "NetIncome",
+    "Net Income Continuous Operations",
+)
+_EPS_ROWS = ("Diluted EPS", "Basic EPS", "DilutedEPS", "BasicEPS")
+
+
+def _row_value(df: "pd.DataFrame", labels: tuple[str, ...], col: Any) -> float | None:
+    """Return the first matching row's value for a column, or None."""
+    for label in labels:
+        if label in df.index:
+            val = df.loc[label, col]
+            try:
+                if pd.isna(val):
+                    return None
+                return float(val)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _series_from_stmt(df: "pd.DataFrame") -> list[dict[str, Any]]:
+    """Turn a yfinance income-statement DataFrame into a list of period points.
+
+    Columns are period-end Timestamps (most recent first). We emit oldest→newest
+    so charts read left-to-right chronologically.
+    """
+    if df is None or df.empty:
+        return []
+    points: list[dict[str, Any]] = []
+    for col in df.columns:
+        try:
+            period = str(pd.Timestamp(col).date())
+        except Exception:
+            period = str(col)
+        points.append(
+            {
+                "period": period,
+                "revenue": _row_value(df, _REVENUE_ROWS, col),
+                "net_income": _row_value(df, _NET_INCOME_ROWS, col),
+                "eps": _row_value(df, _EPS_ROWS, col),
+            }
+        )
+    # yfinance returns newest-first; reverse to chronological order.
+    points.reverse()
+    return points
+
+
+def _fetch_yfinance_financials(symbol: str) -> dict[str, Any]:
+    """Download annual + quarterly income-statement history (synchronous)."""
+    ticker = yf.Ticker(symbol)
+    annual: list[dict[str, Any]] = []
+    quarterly: list[dict[str, Any]] = []
+    try:
+        annual = _series_from_stmt(ticker.income_stmt)
+    except Exception:
+        annual = []
+    try:
+        quarterly = _series_from_stmt(ticker.quarterly_income_stmt)
+    except Exception:
+        quarterly = []
+    return {"symbol": symbol, "annual": annual, "quarterly": quarterly}
+
+
+async def fetch_financials(symbol: str) -> dict[str, Any]:
+    """Async financial-statement history fetch with a TTL cache.
+
+    Returns annual and quarterly series of revenue, net income, and EPS so the
+    UI can chart fundamentals trends over as much history as yfinance provides.
+    """
+    symbol = symbol.upper()
+    cached = _financials_cache.get(symbol)
+    if cached is not None:
+        ts, data = cached
+        if time.time() - ts <= settings.cache_ttl_seconds:
+            return data
+
+    loop = asyncio.get_running_loop()
+    data = await loop.run_in_executor(None, _fetch_yfinance_financials, symbol)
+    _financials_cache[symbol] = (time.time(), data)
     return data

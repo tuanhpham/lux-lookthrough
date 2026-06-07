@@ -87,15 +87,17 @@
         </div>
 
         <div class="bg-card border border-border rounded-2xl p-5 mb-5">
-          <div class="grid md:grid-cols-2 gap-4">
-            <div>
-              <label class="field-label">Symbols <span class="text-faint">(comma separated)</span></label>
-              <input id="sym-input" type="text" placeholder="AAPL, MSFT, NVDA, TSLA" class="field" />
+          <div>
+            <label class="field-label">Symbols <span class="text-faint">(comma separated)</span></label>
+            <input id="sym-input" type="text" placeholder="AAPL, MSFT, NVDA, TSLA" class="field" />
+          </div>
+
+          <div class="mt-4">
+            <div class="flex items-center justify-between mb-2">
+              <label class="field-label !mb-0">Or pick sectors</label>
+              <button id="sector-clear" type="button" class="text-faint hover:text-accent text-xs font-semibold hidden">Clear</button>
             </div>
-            <div>
-              <label class="field-label">Or pick sectors</label>
-              <select id="sector-select" multiple class="field h-[42px]"></select>
-            </div>
+            <div id="sector-chips" class="flex flex-wrap gap-2"></div>
           </div>
 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -144,8 +146,14 @@
       <!-- ════ WATCHLIST ════ -->
       <section id="tab-watchlist" class="hidden">
         <div class="mb-5">
-          <h1 class="text-2xl font-bold">My Watchlist</h1>
-          <p class="text-subtext text-sm mt-0.5">Track favorites, screen them in one click, expand for charts &amp; fundamentals.</p>
+          <h1 class="text-2xl font-bold">My Watchlists</h1>
+          <p class="text-subtext text-sm mt-0.5">Organize favorites into multiple lists, screen each in one click, expand for charts &amp; fundamentals.</p>
+        </div>
+
+        <!-- list tabs -->
+        <div class="flex items-center gap-2 mb-4 flex-wrap">
+          <div id="wl-tabs" class="flex items-center gap-2 flex-wrap"></div>
+          <button id="wl-new" class="wl-tab-add" title="New watchlist">＋ New list</button>
         </div>
 
         <div class="bg-card border border-border rounded-2xl p-5 mb-5">

@@ -89,3 +89,49 @@ class TestWatchlistApi:
     async def test_empty_symbol_rejected(self, client: AsyncClient):
         r = await client.post("/api/screener/watchlist", json={"symbol": "  "})
         assert r.status_code == 422
+
+
+class TestNamedWatchlists:
+    @pytest.mark.anyio
+    async def test_create_add_isolate_delete(self, client: AsyncClient):
+        # A default list always exists.
+        lists = await client.get("/api/screener/watchlists")
+        assert lists.status_code == 200
+        assert len(lists.json()) >= 1
+
+        # Create a new named list.
+        created = await client.post(
+            "/api/screener/watchlists", json={"name": "Growth Picks"}
+        )
+        assert created.status_code == 200
+        wid = created.json()["id"]
+        assert created.json()["name"] == "Growth Picks"
+
+        # Add a symbol to that specific list.
+        added = await client.post(
+            "/api/screener/watchlist",
+            json={"symbol": "nvda", "watchlist_id": wid},
+        )
+        assert added.status_code == 200
+        assert added.json()["watchlist_id"] == wid
+
+        # It shows up scoped to that list...
+        scoped = await client.get(f"/api/screener/watchlist?watchlist_id={wid}")
+        assert [i["symbol"] for i in scoped.json()] == ["NVDA"]
+
+        # Duplicate name is rejected.
+        dup = await client.post(
+            "/api/screener/watchlists", json={"name": "Growth Picks"}
+        )
+        assert dup.status_code == 409
+
+        # Rename works.
+        renamed = await client.patch(
+            f"/api/screener/watchlists/{wid}", json={"name": "Growth"}
+        )
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Growth"
+
+        # Delete the list.
+        deleted = await client.delete(f"/api/screener/watchlists/{wid}")
+        assert deleted.status_code == 200

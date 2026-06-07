@@ -61,10 +61,104 @@ export interface OHLCVResponse {
   candles: Candle[];
 }
 
+// ── Fundamentals & financial history ─────────────────────────────────────────
+
+export interface Fundamentals {
+  symbol: string;
+  name?: string | null;
+  sector?: string | null;
+  industry?: string | null;
+  market_cap?: number | null;
+  pe_ratio?: number | null;
+  eps?: number | null;
+  roe?: number | null;
+  profit_margin?: number | null;
+  revenue_growth?: number | null;
+  beta?: number | null;
+  dividend_yield?: number | null;
+  week52_high?: number | null;
+  week52_low?: number | null;
+  current_price?: number | null;
+  summary?: string | null;
+  website?: string | null;
+}
+
+export interface FinancialPoint {
+  period: string;
+  revenue: number | null;
+  net_income: number | null;
+  eps: number | null;
+}
+
+export interface FinancialsResponse {
+  symbol: string;
+  annual: FinancialPoint[];
+  quarterly: FinancialPoint[];
+}
+
+// ── Screener ──────────────────────────────────────────────────────────────────
+
+export interface ScreenRequest {
+  symbols?: string[] | null;
+  sectors?: string[] | null;
+  min_score?: number;
+  signals?: string[] | null;
+  stages?: number[] | null;
+  sort_by?: string;
+  descending?: boolean;
+  limit?: number;
+  period?: string;
+}
+
+export interface ScreenRow {
+  symbol: string;
+  stage: number;
+  stage_label: string;
+  price: number;
+  score: number;
+  signal: SignalType;
+  entry_price: number | null;
+  stop_loss: number | null;
+  target_price: number | null;
+  risk_reward: number | null;
+  pivot_high: number | null;
+  distance_to_pivot_pct: number | null;
+  price_range_pct: number | null;
+  atr_contraction_pct: number | null;
+  volume_dry_up_pct: number | null;
+  vcp_contractions: number | null;
+  days_in_base: number | null;
+}
+
+export interface ScreenResponse {
+  universe: number;
+  scanned: number;
+  matched: number;
+  results: ScreenRow[];
+}
+
+// ── Watchlists (named collections) ───────────────────────────────────────────
+
+export interface WatchlistItem {
+  id: number;
+  symbol: string;
+  note?: string | null;
+  watchlist_id?: number | null;
+}
+
+export interface WatchlistCollection {
+  id: number;
+  name: string;
+  count: number;
+  items: WatchlistItem[];
+}
+
 // ── Navigation param lists ────────────────────────────────────────────────────
 
 export type RootTabParamList = {
   Home: undefined;
+  Screener: undefined;
+  Watchlists: undefined;
   Patterns: undefined;
 };
 
@@ -76,5 +170,15 @@ export type HomeStackParamList = {
 
 export type PatternStackParamList = {
   PatternScreen: undefined;
+  StockDetail: { symbol: string; sector?: string };
+};
+
+export type ScreenerStackParamList = {
+  ScreenerScreen: undefined;
+  StockDetail: { symbol: string; sector?: string };
+};
+
+export type WatchlistStackParamList = {
+  WatchlistScreen: undefined;
   StockDetail: { symbol: string; sector?: string };
 };

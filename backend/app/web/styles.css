@@ -33,6 +33,22 @@ body { font-feature-settings: "cv02","cv03","cv04","cv11"; }
 .field:focus { border-color: #00d49b; box-shadow: 0 0 0 3px #00d49b22; }
 select.field[multiple] { padding: 0.3rem 0.4rem; }
 
+/* ── Sector toggle chips ──────────────────────────────────────────────────── */
+.sector-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: #0f131b; border: 1px solid #232c3b; color: #aab3c4;
+  border-radius: 9999px; padding: 0.4rem 0.85rem; font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; user-select: none; transition: all 0.15s ease;
+}
+.sector-chip:hover { border-color: #00d49b66; color: #e8ebf2; }
+.sector-chip .dot {
+  width: 7px; height: 7px; border-radius: 9999px; background: #3a4456; transition: background 0.15s;
+}
+.sector-chip.active {
+  background: #00d49b1a; border-color: #00d49b; color: #00d49b;
+}
+.sector-chip.active .dot { background: #00d49b; }
+
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn-primary {
   background: #00d49b; color: #0a0d13; font-weight: 600;
@@ -45,6 +61,15 @@ select.field[multiple] { padding: 0.3rem 0.4rem; }
   padding: 0.55rem 1.1rem; border-radius: 0.6rem; transition: all 0.15s;
 }
 .btn-outline:hover { background: #00d49b1a; }
+
+/* ── Chart range / metric toggle buttons ──────────────────────────────────── */
+.range-btn {
+  background: #141a24; border: 1px solid #232c3b; color: #8a95a8;
+  border-radius: 0.5rem; padding: 0.25rem 0.65rem; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.02em; transition: all 0.15s ease;
+}
+.range-btn:hover { color: #e8ebf2; border-color: #00d49b66; }
+.range-btn.active { background: #00d49b1a; border-color: #00d49b; color: #00d49b; }
 
 /* ── Score bar ────────────────────────────────────────────────────────────── */
 .scorebar { height: 6px; border-radius: 9999px; background: #232c3b; overflow: hidden; }
@@ -76,6 +101,28 @@ tbody td:first-child { font-weight: 600; }
 .chip:hover { border-color: #00d49b55; }
 .chip button { color: #ff5260; font-weight: 700; line-height: 1; width: 18px; height: 18px; border-radius: 9999px; }
 .chip button:hover { background: #ff52601a; }
+
+/* ── Watchlist tabs ───────────────────────────────────────────────────────── */
+.wl-tab {
+  display: inline-flex; align-items: center; gap: 0.5rem; background: #0f131b;
+  border: 1px solid #232c3b; color: #aab3c4; border-radius: 0.7rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.85rem; font-size: 0.83rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease;
+}
+.wl-tab:hover { border-color: #00d49b66; color: #e8ebf2; }
+.wl-tab.active { background: #00d49b1a; border-color: #00d49b; color: #00d49b; }
+.wl-tab .wl-count {
+  background: #232c3b; color: #8a95a8; border-radius: 9999px;
+  font-size: 0.66rem; font-weight: 700; padding: 0.05rem 0.4rem; min-width: 18px; text-align: center;
+}
+.wl-tab.active .wl-count { background: #00d49b33; color: #00d49b; }
+.wl-tab .wl-edit { color: #5b6577; font-size: 0.8rem; padding: 0 0.1rem; line-height: 1; }
+.wl-tab .wl-edit:hover { color: #00d49b; }
+.wl-tab-add {
+  border: 1px dashed #2f3a4d; color: #8a95a8; border-radius: 0.7rem;
+  padding: 0.45rem 0.85rem; font-size: 0.83rem; font-weight: 600; transition: all 0.15s;
+}
+.wl-tab-add:hover { border-color: #00d49b; color: #00d49b; }
 
 /* ── Info "i" tooltip badge ───────────────────────────────────────────────── */
 .info {

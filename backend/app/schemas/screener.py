@@ -55,11 +55,36 @@ class ScreenResponse(BaseModel):
 class WatchlistAdd(BaseModel):
     symbol: str = Field(..., description="Ticker symbol, e.g. AAPL")
     note: str | None = None
+    watchlist_id: int | None = Field(
+        default=None, description="Target watchlist; defaults to the first list"
+    )
 
 
-class WatchlistOut(BaseModel):
+class WatchlistItemOut(BaseModel):
     id: int
     symbol: str
     note: str | None = None
+    watchlist_id: int | None = None
+
+    model_config = {"from_attributes": True}
+
+
+# Backwards-compatible alias (older code/tests referenced WatchlistOut).
+WatchlistOut = WatchlistItemOut
+
+
+class WatchlistCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80, description="Watchlist name")
+
+
+class WatchlistRename(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+
+
+class WatchlistCollectionOut(BaseModel):
+    id: int
+    name: str
+    count: int = 0
+    items: list[WatchlistItemOut] = []
 
     model_config = {"from_attributes": True}
