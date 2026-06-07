@@ -1,9 +1,11 @@
 """General stock data endpoints."""
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.services.data_fetcher import fetch_ohlcv
+from app.services.data_fetcher import fetch_fundamentals, fetch_ohlcv
 
 router = APIRouter()
 
@@ -52,3 +54,38 @@ async def get_ohlcv(symbol: str, period: str = "6mo") -> OHLCVResponse:
     ]
 
     return OHLCVResponse(symbol=symbol.upper(), period=period, candles=candles)
+
+
+class FundamentalsResponse(BaseModel):
+    symbol: str
+    name: str | None = None
+    short_name: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    market_cap: float | None = None
+    pe_ratio: float | None = None
+    forward_pe: float | None = None
+    eps: float | None = None
+    forward_eps: float | None = None
+    dividend_yield: float | None = None
+    beta: float | None = None
+    week52_high: float | None = None
+    week52_low: float | None = None
+    avg_volume: float | None = None
+    profit_margin: float | None = None
+    revenue_growth: float | None = None
+    roe: float | None = None
+    currency: str | None = None
+    website: str | None = None
+    summary: str | None = None
+    current_price: float | None = None
+
+
+@router.get("/{symbol}/fundamentals", response_model=FundamentalsResponse)
+async def get_fundamentals(symbol: str) -> FundamentalsResponse:
+    """Fetch company fundamentals (EPS, P/E, market cap, margins, etc.).
+
+    Used to populate the expandable detail panel for each stock.
+    """
+    data: dict[str, Any] = await fetch_fundamentals(symbol.upper())
+    return FundamentalsResponse(**data)

@@ -8,14 +8,18 @@ Production: TODO — swap DATA_PROVIDER=finnhub and populate FINNHUB_API_KEY
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import date, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 import yfinance as yf
 
 from app.core.config import settings
 from app.services.cache import ohlcv_cache
+
+# Simple TTL cache for fundamentals (info dict). Keyed by symbol.
+_fundamentals_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 def _fetch_yfinance(symbol: str, period: str = "1y") -> pd.DataFrame:
@@ -85,3 +89,67 @@ async def fetch_multiple(
 
     results = await asyncio.gather(*[_limited_fetch(s) for s in symbols])
     return {sym: df for sym, df in results if df is not None}
+
+
+# ── Fundamentals ──────────────────────────────────────────────────────────────
+
+# Fields we surface in the UI, mapped to friendly keys.
+_FUNDAMENTAL_FIELDS = {
+    "longName": "name",
+    "shortName": "short_name",
+    "sector": "sector",
+    "industry": "industry",
+    "marketCap": "market_cap",
+    "trailingPE": "pe_ratio",
+    "forwardPE": "forward_pe",
+    "trailingEps": "eps",
+    "forwardEps": "forward_eps",
+    "dividendYield": "dividend_yield",
+    "beta": "beta",
+    "fiftyTwoWeekHigh": "week52_high",
+    "fiftyTwoWeekLow": "week52_low",
+    "averageVolume": "avg_volume",
+    "profitMargins": "profit_margin",
+    "revenueGrowth": "revenue_growth",
+    "returnOnEquity": "roe",
+    "currency": "currency",
+    "website": "website",
+    "longBusinessSummary": "summary",
+    "currentPrice": "current_price",
+}
+
+
+def _fetch_yfinance_info(symbol: str) -> dict[str, Any]:
+    """Download the fundamentals/info dict for a symbol (synchronous)."""
+    ticker = yf.Ticker(symbol)
+    try:
+        info = ticker.info or {}
+    except Exception:
+        info = {}
+
+    out: dict[str, Any] = {"symbol": symbol}
+    for raw_key, friendly in _FUNDAMENTAL_FIELDS.items():
+        out[friendly] = info.get(raw_key)
+    # Truncate the business summary to keep payloads light.
+    if out.get("summary") and len(out["summary"]) > 600:
+        out["summary"] = out["summary"][:600].rsplit(" ", 1)[0] + "…"
+    return out
+
+
+async def fetch_fundamentals(symbol: str) -> dict[str, Any]:
+    """Async fundamentals fetch with a TTL cache.
+
+    Returns a dict of friendly-named fundamental fields. Missing values are
+    None — the caller/UI handles them gracefully.
+    """
+    symbol = symbol.upper()
+    cached = _fundamentals_cache.get(symbol)
+    if cached is not None:
+        ts, data = cached
+        if time.time() - ts <= settings.cache_ttl_seconds:
+            return data
+
+    loop = asyncio.get_running_loop()
+    data = await loop.run_in_executor(None, _fetch_yfinance_info, symbol)
+    _fundamentals_cache[symbol] = (time.time(), data)
+    return data

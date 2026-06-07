@@ -28,11 +28,21 @@ Then open **http://localhost:8000** in your browser. That's it.
 
 ### What you get in the browser
 
+A professional, fully responsive dashboard (sidebar on desktop, bottom nav on mobile):
+
 | Tab | What it does |
 |-----|--------------|
-| **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors, then filter by min score, signal, stage, and sort. |
-| **Watchlist** | Save your favorite symbols (persisted in SQLite) and screen them all in one click. |
-| **Sectors** | Rank all 11 S&P 500 sectors by volume change (3m vs 6m). |
+| **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors, then filter by min score, signal, stage, and sort. Click any row to open the stock detail view. |
+| **Watchlist** | Save your favorite symbols (persisted in SQLite) and screen them all in one click. Click a symbol to expand its chart + fundamentals. |
+| **Sectors** | Rank all 11 S&P 500 sectors by volume change (3m vs 6m). Click a sector to screen its stocks. |
+| **Learn** | A plain-English glossary explaining every metric (Score, Stage, VCP, R:R, P/E, EPS, …). |
+
+**Stock detail view** (click any row): an interactive **candlestick + volume chart**
+(TradingView lightweight-charts) with the **Entry / Pivot / Stop / Target** levels drawn
+right on it, the full pattern breakdown, and **fundamentals** (market cap, P/E, EPS, ROE,
+margins, beta, dividend yield, 52-week range, company summary).
+
+**Hover tooltips**: every metric has an “i” icon — hover (or tap) it for an instant definition.
 
 ### New personal-app API endpoints
 
@@ -42,6 +52,8 @@ Then open **http://localhost:8000** in your browser. That's it.
 | GET | `/api/screener/universe` | Available sector presets |
 | GET/POST/DELETE | `/api/screener/watchlist` | Manage your personal watchlist |
 | POST | `/api/screener/watchlist/screen` | Run the screener over your whole watchlist |
+| GET | `/api/stocks/{symbol}/fundamentals` | Company fundamentals (EPS, P/E, market cap, ROE, …) |
+| GET | `/api/stocks/{symbol}/ohlcv` | OHLCV candles for charting |
 | GET | `/api/cache/stats` · POST `/api/cache/clear` | Inspect / reset the OHLCV cache |
 
 Example screen request:
