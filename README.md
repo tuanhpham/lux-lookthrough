@@ -18,6 +18,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\Activate.ps1   |   macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 
 ```
 
 Then open **http://localhost:8000** in your browser. That's it.

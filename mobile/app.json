@@ -10,7 +10,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0d0d0d"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.amr.stockapp"
@@ -20,6 +22,11 @@
     },
     "web": {
       "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f6c34dfe-9134-4690-952f-58429041a3ef"
+      }
     }
   }
 }

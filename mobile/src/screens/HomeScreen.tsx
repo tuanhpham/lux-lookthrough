@@ -110,6 +110,14 @@ export function HomeScreen() {
     [navigation]
   );
 
+  // MOVED UP: this hook must run on every render, before any early return
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<SectorVolume>) => (
+      <SectorRow item={item} onPress={handleSectorPress} />
+    ),
+    [handleSectorPress]
+  );
+
   if (isLoading) {
     return (
       <LoadingOverlay message="Scanning all 11 sectors… this may take 15-20s" />
@@ -124,13 +132,6 @@ export function HomeScreen() {
       />
     );
   }
-
-  const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<SectorVolume>) => (
-      <SectorRow item={item} onPress={handleSectorPress} />
-    ),
-    [handleSectorPress]
-  );
 
   return (
     <View className="flex-1 bg-background">
