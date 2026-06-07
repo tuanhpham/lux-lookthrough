@@ -15,6 +15,11 @@ venv/
 Thumbs.db
 .DS_Store
 
+# Local SQLite personal-app database (auto-created at runtime)
+*.db
+*.sqlite3
+amr_personal.db
+
 # Outputs
 outputs/*.xlsx
 

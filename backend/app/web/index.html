@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AMR · Personal Stock Screener</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2300c896'/%3E%3Ctext x='50' y='70' font-size='60' font-family='sans-serif' font-weight='bold' text-anchor='middle' fill='%230b0e14'%3EA%3C/text%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            background: "#0b0e14",
+            surface: "#11151d",
+            card: "#161b25",
+            border: "#222a38",
+            text: "#e6e9ef",
+            subtext: "#8b95a7",
+            accent: "#00c896",
+            danger: "#ff4d4d",
+            warn: "#f5a623",
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-background text-text min-h-screen">
+  <!-- Header -->
+  <header class="border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center text-accent font-extrabold">A</div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">AMR</h1>
+          <p class="text-subtext text-xs leading-tight">Personal Stock Screener</p>
+        </div>
+      </div>
+      <nav class="flex gap-1 text-sm">
+        <button data-tab="screener" class="tab-btn px-3 py-1.5 rounded-lg">Screener</button>
+        <button data-tab="watchlist" class="tab-btn px-3 py-1.5 rounded-lg">Watchlist</button>
+        <button data-tab="sectors" class="tab-btn px-3 py-1.5 rounded-lg">Sectors</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+
+    <!-- ── SCREENER TAB ───────────────────────────────────────────── -->
+    <section id="tab-screener">
+      <div class="bg-card border border-border rounded-2xl p-5 mb-6">
+        <h2 class="font-semibold text-lg mb-1">Custom Screener</h2>
+        <p class="text-subtext text-sm mb-4">Screen any symbols or whole sectors for consolidation / breakout setups.</p>
+
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-subtext text-xs uppercase tracking-wide">Symbols (comma separated)</label>
+            <input id="sym-input" type="text" placeholder="AAPL, MSFT, NVDA, TSLA"
+              class="w-full mt-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-accent outline-none" />
+          </div>
+          <div>
+            <label class="text-subtext text-xs uppercase tracking-wide">Or pick sectors</label>
+            <select id="sector-select" multiple size="1"
+              class="w-full mt-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-accent outline-none h-[42px]"></select>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-4 gap-4 mt-4">
+          <div>
+            <label class="text-subtext text-xs uppercase tracking-wide">Min score</label>
+            <input id="min-score" type="number" value="0" min="0" max="100"
+              class="w-full mt-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-accent outline-none" />
+          </div>
+          <div>
+            <label class="text-subtext text-xs uppercase tracking-wide">Signal</label>
+            <select id="signal-filter" class="w-full mt-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-accent outline-none">
+              <option value="">Any</option>
+              <option value="BREAKOUT_IMMINENT">Breakout imminent</option>
+              <option value="CONSOLIDATING">Consolidating</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-subtext text-xs uppercase tracking-wide">Stage</label>
+            <select id="stage-filter" class="w-full mt-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-accent outline-none">
+              <option value="">Any</option>
+              <option value="2">Stage 2 (Advancing)</option>
+              <option value="1">Stage 1 (Basing)</option>
+              <option value="3">Stage 3 (Topping)</option>
+              <option value="4">Stage 4 (Declining)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-subtext text-xs uppercase tracking-wide">Sort by</label>
+            <select id="sort-by" class="w-full mt-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-accent outline-none">
+              <option value="score">Score</option>
+              <option value="distance">Distance to pivot</option>
+              <option value="range">Price range</option>
+              <option value="volume_dryup">Volume dry-up</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 mt-4">
+          <button id="run-screen" class="bg-accent text-background font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition">
+            Run Screen
+          </button>
+          <span id="screen-status" class="text-subtext text-sm"></span>
+        </div>
+      </div>
+
+      <div id="screen-results"></div>
+    </section>
+
+    <!-- ── WATCHLIST TAB ──────────────────────────────────────────── -->
+    <section id="tab-watchlist" class="hidden">
+      <div class="bg-card border border-border rounded-2xl p-5 mb-6">
+        <h2 class="font-semibold text-lg mb-1">My Watchlist</h2>
+        <p class="text-subtext text-sm mb-4">Track your favorite symbols and screen them in one click.</p>
+        <div class="flex gap-2">
+          <input id="wl-symbol" type="text" placeholder="Add symbol e.g. AMD"
+            class="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-accent outline-none" />
+          <button id="wl-add" class="bg-accent text-background font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">Add</button>
+          <button id="wl-screen" class="border border-accent text-accent font-semibold px-4 py-2 rounded-lg hover:bg-accent/10 transition">Screen All</button>
+        </div>
+        <div id="wl-chips" class="flex flex-wrap gap-2 mt-4"></div>
+      </div>
+      <div id="wl-results"></div>
+    </section>
+
+    <!-- ── SECTORS TAB ────────────────────────────────────────────── -->
+    <section id="tab-sectors" class="hidden">
+      <div class="bg-card border border-border rounded-2xl p-5 mb-6 flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold text-lg mb-1">Industry Volume Scanner</h2>
+          <p class="text-subtext text-sm">S&amp;P 500 sectors ranked by volume change (3m vs 6m). First load may take ~15s.</p>
+        </div>
+        <button id="load-sectors" class="bg-accent text-background font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition">Scan</button>
+      </div>
+      <div id="sector-results"></div>
+    </section>
+
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 py-6 text-subtext text-xs text-center">
+    Educational use only — not financial advice. Data via yfinance.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

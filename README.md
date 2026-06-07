@@ -1,6 +1,60 @@
-# AMR — Stock Analysis App
+# AMR — Personal Stock Screener
 
 Industry Volume Scanner + Consolidation/Pivot Pattern Detector for US markets (NYSE, NASDAQ).
+
+> **Use it as a personal app in 30 seconds — no Postgres, Redis, Celery, or phone required.**
+> A built-in web dashboard + a zero-config SQLite backend let you screen any stocks
+> right from your browser.
+
+---
+
+## 🚀 Personal App Quick Start (zero infrastructure)
+
+No database server, no Redis, no Expo. Just Python:
+
+```bash
+cd backend
+python -m venv .venv
+# Windows: .venv\Scripts\Activate.ps1   |   macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Then open **http://localhost:8000** in your browser. That's it.
+
+- It uses a local **SQLite** file (`amr_personal.db`) created automatically — no DB setup.
+- TA-Lib is **optional** (there's a pure-pandas ATR fallback).
+- yfinance results are cached in-memory (15 min TTL) so repeat scans are instant.
+
+### What you get in the browser
+
+| Tab | What it does |
+|-----|--------------|
+| **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors, then filter by min score, signal, stage, and sort. |
+| **Watchlist** | Save your favorite symbols (persisted in SQLite) and screen them all in one click. |
+| **Sectors** | Rank all 11 S&P 500 sectors by volume change (3m vs 6m). |
+
+### New personal-app API endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/screener/screen` | Screen a custom universe (symbols and/or sectors) with filters |
+| GET | `/api/screener/universe` | Available sector presets |
+| GET/POST/DELETE | `/api/screener/watchlist` | Manage your personal watchlist |
+| POST | `/api/screener/watchlist/screen` | Run the screener over your whole watchlist |
+| GET | `/api/cache/stats` · POST `/api/cache/clear` | Inspect / reset the OHLCV cache |
+
+Example screen request:
+
+```bash
+curl -X POST http://localhost:8000/api/screener/screen \
+  -H "Content-Type: application/json" \
+  -d '{"sectors":["Technology"],"min_score":40,"signals":["BREAKOUT_IMMINENT"],"sort_by":"score"}'
+```
+
+> The Postgres + Redis + Celery + React Native stack described below is still
+> fully supported for a production deployment. The personal mode above is just
+> a lighter on-ramp.
 
 ---
 

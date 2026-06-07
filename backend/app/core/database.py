@@ -5,12 +5,14 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.app_env == "development",
-    pool_size=10,
-    max_overflow=20,
-)
+# SQLite (aiosqlite) does not accept pool_size / max_overflow, so build the
+# engine kwargs conditionally. This lets the same codebase run on a zero-config
+# local SQLite DB *or* a production Postgres instance with connection pooling.
+_engine_kwargs: dict = {"echo": settings.app_env == "development"}
+if not settings.is_sqlite:
+    _engine_kwargs.update(pool_size=10, max_overflow=20)
+
+engine = create_async_engine(settings.database_url, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,

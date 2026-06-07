@@ -15,6 +15,7 @@ import pandas as pd
 import yfinance as yf
 
 from app.core.config import settings
+from app.services.cache import ohlcv_cache
 
 
 def _fetch_yfinance(symbol: str, period: str = "1y") -> pd.DataFrame:
@@ -46,8 +47,16 @@ async def fetch_ohlcv(symbol: str, period: str = "1y") -> pd.DataFrame:
         # TODO: implement Finnhub REST client using FINNHUB_API_KEY
         raise NotImplementedError("Finnhub provider not yet implemented")
 
+    # Serve from the in-memory TTL cache when fresh — keeps the personal app
+    # snappy and avoids redundant yfinance round-trips.
+    cached = await ohlcv_cache.get(symbol, period)
+    if cached is not None:
+        return cached
+
     loop = asyncio.get_running_loop()
     df = await loop.run_in_executor(None, _fetch_yfinance, symbol, period)
+    if df is not None and not df.empty:
+        await ohlcv_cache.set(symbol, period, df)
     return df
 
 
