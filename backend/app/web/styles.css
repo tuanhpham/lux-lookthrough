@@ -1,0 +1,101 @@
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+* { -webkit-tap-highlight-color: transparent; }
+body { font-feature-settings: "cv02","cv03","cv04","cv11"; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #232c3b; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #2f3a4d; }
+
+/* ── Nav ──────────────────────────────────────────────────────────────────── */
+.nav-btn {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.6rem 0.75rem; border-radius: 0.6rem;
+  color: #8a95a8; font-weight: 500; text-align: left;
+  transition: all 0.15s ease;
+}
+.nav-btn:hover { background: #141a24; color: #e8ebf2; }
+.nav-btn.active { background: #00d49b1a; color: #00d49b; font-weight: 600; }
+.nav-btn span { font-size: 1.05rem; }
+
+.mnav-btn { padding: 0.55rem 0; color: #8a95a8; line-height: 1.25; transition: color 0.15s; }
+.mnav-btn.active { color: #00d49b; font-weight: 600; }
+
+/* ── Form fields ──────────────────────────────────────────────────────────── */
+.field-label {
+  display: block; font-size: 0.7rem; text-transform: uppercase;
+  letter-spacing: 0.05em; color: #8a95a8; font-weight: 600; margin-bottom: 0.3rem;
+}
+.field {
+  width: 100%; background: #0f131b; border: 1px solid #232c3b;
+  border-radius: 0.6rem; padding: 0.55rem 0.75rem; font-size: 0.875rem;
+  color: #e8ebf2; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field:focus { border-color: #00d49b; box-shadow: 0 0 0 3px #00d49b22; }
+select.field[multiple] { padding: 0.3rem 0.4rem; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: #00d49b; color: #0a0d13; font-weight: 600;
+  padding: 0.55rem 1.25rem; border-radius: 0.6rem; transition: all 0.15s;
+}
+.btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-outline {
+  border: 1px solid #00d49b; color: #00d49b; font-weight: 600;
+  padding: 0.55rem 1.1rem; border-radius: 0.6rem; transition: all 0.15s;
+}
+.btn-outline:hover { background: #00d49b1a; }
+
+/* ── Score bar ────────────────────────────────────────────────────────────── */
+.scorebar { height: 6px; border-radius: 9999px; background: #232c3b; overflow: hidden; }
+.scorebar > span { display: block; height: 100%; border-radius: 9999px; transition: width 0.4s ease; }
+
+/* ── Spinner ──────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 16px; height: 16px; border: 2px solid #232c3b; border-top-color: #00d49b;
+  border-radius: 50%; display: inline-block; animation: spin 0.7s linear infinite; vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Tables / cards ───────────────────────────────────────────────────────── */
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.6rem 0.85rem; font-size: 0.84rem; white-space: nowrap; }
+thead th { color: #8a95a8; font-weight: 600; text-transform: uppercase; font-size: 0.66rem; letter-spacing: 0.05em; }
+tbody tr { border-top: 1px solid #1c2431; cursor: pointer; transition: background 0.12s; }
+tbody tr:hover { background: #1a212d; }
+tbody td:first-child { font-weight: 600; }
+
+.badge { display: inline-block; padding: 0.18rem 0.6rem; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; }
+
+/* ── Chips ────────────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 0.45rem; background: #0f131b;
+  border: 1px solid #232c3b; border-radius: 9999px; padding: 0.3rem 0.4rem 0.3rem 0.7rem;
+  font-size: 0.82rem; font-weight: 600; transition: border-color 0.15s;
+}
+.chip:hover { border-color: #00d49b55; }
+.chip button { color: #ff5260; font-weight: 700; line-height: 1; width: 18px; height: 18px; border-radius: 9999px; }
+.chip button:hover { background: #ff52601a; }
+
+/* ── Info "i" tooltip badge ───────────────────────────────────────────────── */
+.info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 9999px; background: #232c3b; color: #8a95a8;
+  font-size: 9px; font-weight: 700; font-style: normal; cursor: help; vertical-align: middle;
+  margin-left: 2px; transition: all 0.15s;
+}
+.info:hover { background: #00d49b; color: #0a0d13; }
+
+/* ── Stat grid (modal) ────────────────────────────────────────────────────── */
+.stat { background: #0f131b; border: 1px solid #1c2431; border-radius: 0.65rem; padding: 0.7rem 0.85rem; }
+.stat .k { color: #8a95a8; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+.stat .v { color: #e8ebf2; font-size: 1.05rem; font-weight: 700; margin-top: 2px; }
+
+/* ── Learn page ───────────────────────────────────────────────────────────── */
+.learn-card { background: #141a24; border: 1px solid #232c3b; border-radius: 0.9rem; padding: 1.1rem 1.25rem; }
+.learn-card h3 { font-weight: 700; font-size: 1rem; margin-bottom: 0.35rem; color: #e8ebf2; }
+.learn-card p { color: #aab3c4; font-size: 0.88rem; line-height: 1.55; }
+
+/* fade-in */
+.fade-in { animation: fade 0.25s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

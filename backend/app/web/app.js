@@ -1,0 +1,430 @@
+// AMR Personal Stock Screener — frontend
+const API = "";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const G = window.GLOSSARY;
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail ?? detail; } catch (_) {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+// ── formatting helpers ───────────────────────────────────────────────────────
+const num = (v, d = 2) => (v === null || v === undefined || isNaN(v) ? "—" : Number(v).toFixed(d));
+function fmtBig(v) {
+  if (v === null || v === undefined) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e12) return (v / 1e12).toFixed(2) + "T";
+  if (a >= 1e9) return (v / 1e9).toFixed(2) + "B";
+  if (a >= 1e6) return (v / 1e6).toFixed(2) + "M";
+  if (a >= 1e3) return (v / 1e3).toFixed(1) + "K";
+  return String(v);
+}
+const pct = (v, d = 1) => (v === null || v === undefined ? "—" : (v >= 0 ? "+" : "") + Number(v).toFixed(d) + "%");
+
+function signalBadge(signal) {
+  const map = {
+    BREAKOUT_IMMINENT: ["#00d49b", "BREAKOUT"],
+    CONSOLIDATING: ["#f5a623", "CONSOLIDATING"],
+    NO_SIGNAL: ["#5b6577", "NO SIGNAL"],
+  };
+  const [c, label] = map[signal] || map.NO_SIGNAL;
+  return `<span class="badge" style="background:${c}22;color:${c}">${label}</span>`;
+}
+function scoreColor(s) { return s >= 70 ? "#00d49b" : s >= 40 ? "#f5a623" : "#5b6577"; }
+function stageBadge(stage, label) {
+  const colors = { 1: "#3b82f6", 2: "#00d49b", 3: "#f5a623", 4: "#ff5260", 0: "#5b6577" };
+  const c = colors[stage] ?? "#5b6577";
+  return `<span class="badge" style="background:${c}22;color:${c}">${label}</span>`;
+}
+
+// ── tooltips ──────────────────────────────────────────────────────────────────
+const tip = $("#tooltip");
+function attachTips(root = document) {
+  $$(".info[data-tip]", root).forEach((el) => {
+    const def = G[el.dataset.tip];
+    if (!def) return;
+    const show = (e) => {
+      tip.innerHTML = `<div class="font-semibold text-text mb-0.5">${def.term}</div><div class="text-subtext">${def.short}</div>`;
+      tip.classList.remove("hidden");
+      const x = (e.touches ? e.touches[0].clientX : e.clientX);
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      tip.style.left = Math.min(x + 12, window.innerWidth - 280) + "px";
+      tip.style.top = (y + 16) + "px";
+    };
+    const hide = () => tip.classList.add("hidden");
+    el.addEventListener("mouseenter", show);
+    el.addEventListener("mousemove", show);
+    el.addEventListener("mouseleave", hide);
+    el.addEventListener("click", (e) => { e.stopPropagation(); show(e); setTimeout(hide, 3500); });
+  });
+}
+function infoIcon(key) { return `<span class="info" data-tip="${key}">i</span>`; }
+
+// ── results table ──────────────────────────────────────────────────────────────
+function resultsTable(rows) {
+  if (!rows || rows.length === 0) {
+    return `<div class="bg-card border border-border rounded-2xl text-subtext text-sm text-center py-12">
+      No matches. Try lowering the min score or widening filters.</div>`;
+  }
+  const head = `
+    <th>Symbol</th>
+    <th>Score ${infoIcon("score")}</th>
+    <th>Signal ${infoIcon("signal")}</th>
+    <th>Stage ${infoIcon("stage")}</th>
+    <th>Price</th>
+    <th>Entry ${infoIcon("entry")}</th>
+    <th>Stop ${infoIcon("stop")}</th>
+    <th>Target ${infoIcon("target")}</th>
+    <th>R:R ${infoIcon("rr")}</th>
+    <th>Dist ${infoIcon("distance")}</th>
+    <th>VCP ${infoIcon("vcp")}</th>`;
+  const body = rows.map((r) => `
+    <tr onclick="openStock('${r.symbol}')">
+      <td>${r.symbol}</td>
+      <td>
+        <div class="flex items-center gap-2">
+          <div class="scorebar w-14"><span style="width:${r.score}%;background:${scoreColor(r.score)}"></span></div>
+          <span style="color:${scoreColor(r.score)};font-weight:700">${num(r.score, 0)}</span>
+        </div>
+      </td>
+      <td>${signalBadge(r.signal)}</td>
+      <td>${stageBadge(r.stage, r.stage_label)}</td>
+      <td>$${num(r.price)}</td>
+      <td>${r.entry_price ? "$" + num(r.entry_price) : "—"}</td>
+      <td class="text-danger">${r.stop_loss ? "$" + num(r.stop_loss) : "—"}</td>
+      <td class="text-accent">${r.target_price ? "$" + num(r.target_price) : "—"}</td>
+      <td>${r.risk_reward ? num(r.risk_reward, 1) + "R" : "—"}</td>
+      <td>${num(r.distance_to_pivot_pct, 1)}%</td>
+      <td>${r.vcp_contractions ?? "—"}</td>
+    </tr>`).join("");
+  const out = `
+    <div class="bg-card border border-border rounded-2xl overflow-x-auto fade-in">
+      <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    </div>
+    <p class="text-faint text-xs mt-2">Tip: click any row for charts &amp; fundamentals. Hover the “i” icons for definitions.</p>`;
+  return out;
+}
+
+// ── tabs ────────────────────────────────────────────────────────────────────
+function setTab(name) {
+  $$("[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  ["screener", "watchlist", "sectors", "learn"].forEach((t) =>
+    $("#tab-" + t).classList.toggle("hidden", t !== name)
+  );
+  if (name === "watchlist") loadWatchlist();
+  if (name === "learn") renderLearn();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+$$("[data-tab]").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+// ── Learn page ─────────────────────────────────────────────────────────────────
+function renderLearn() {
+  const el = $("#learn-content");
+  if (el.dataset.rendered) return;
+  const groups = [
+    { title: "Screener Metrics", keys: ["score", "signal", "stage", "vcp", "atr_contraction", "price_range", "volume_dryup", "days_in_base"] },
+    { title: "Pivots & Trade Levels", keys: ["pivot", "distance", "entry", "stop", "target", "rr"] },
+    { title: "Fundamentals", keys: ["pe_ratio", "eps", "market_cap", "roe", "profit_margin", "revenue_growth", "beta", "dividend_yield", "week52"] },
+    { title: "Sector Scanner", keys: ["volume_change"] },
+  ];
+  el.innerHTML = groups.map((grp) => `
+    <div>
+      <h2 class="text-sm font-bold text-accent uppercase tracking-wide mb-2 mt-2">${grp.title}</h2>
+      <div class="grid md:grid-cols-2 gap-3">
+        ${grp.keys.map((k) => G[k] ? `
+          <div class="learn-card">
+            <h3>${G[k].term}</h3>
+            <p>${G[k].long}</p>
+          </div>` : "").join("")}
+      </div>
+    </div>`).join("");
+  el.dataset.rendered = "1";
+}
+
+// ── Screener ───────────────────────────────────────────────────────────────────
+async function loadSectorOptions() {
+  try {
+    const { sectors } = await api("/api/screener/universe");
+    const sel = $("#sector-select");
+    sel.size = Math.min(sectors.length, 5);
+    sel.innerHTML = sectors.map((s) => `<option value="${s}">${s}</option>`).join("");
+  } catch (_) {}
+}
+function buildScreenPayload() {
+  const symbols = $("#sym-input").value.split(",").map((s) => s.trim()).filter(Boolean);
+  const sectors = Array.from($("#sector-select").selectedOptions).map((o) => o.value);
+  const signal = $("#signal-filter").value;
+  const stage = $("#stage-filter").value;
+  return {
+    symbols: symbols.length ? symbols : null,
+    sectors: sectors.length ? sectors : null,
+    min_score: parseFloat($("#min-score").value) || 0,
+    signals: signal ? [signal] : null,
+    stages: stage ? [parseInt(stage)] : null,
+    sort_by: $("#sort-by").value,
+    descending: $("#sort-by").value !== "distance",
+    limit: 200,
+  };
+}
+$("#run-screen").addEventListener("click", async () => {
+  const p = buildScreenPayload();
+  if (!p.symbols && !p.sectors) { $("#screen-status").textContent = "Enter symbols or pick a sector."; return; }
+  $("#screen-status").innerHTML = `<span class="spinner"></span> Scanning…`;
+  $("#screen-results").innerHTML = "";
+  try {
+    const data = await api("/api/screener/screen", { method: "POST", body: JSON.stringify(p) });
+    $("#screen-status").textContent = `${data.matched} match(es) of ${data.scanned} scanned.`;
+    $("#screen-results").innerHTML = resultsTable(data.results);
+    attachTips($("#screen-results"));
+  } catch (e) { $("#screen-status").textContent = "Error: " + e.message; }
+});
+
+// ── Watchlist ──────────────────────────────────────────────────────────────────
+async function loadWatchlist() {
+  try {
+    const items = await api("/api/screener/watchlist");
+    $("#wl-chips").innerHTML = items.length
+      ? items.map((i) => `
+        <span class="chip">
+          <span onclick="openStock('${i.symbol}')" class="cursor-pointer">${i.symbol}</span>
+          <button data-sym="${i.symbol}" class="wl-del" title="Remove">×</button>
+        </span>`).join("")
+      : `<span class="text-subtext text-sm">No symbols yet — add some above.</span>`;
+    $$(".wl-del").forEach((b) => b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await api("/api/screener/watchlist/" + b.dataset.sym, { method: "DELETE" });
+      loadWatchlist();
+    }));
+  } catch (e) { $("#wl-chips").innerHTML = `<span class="text-danger text-sm">${e.message}</span>`; }
+}
+$("#wl-add").addEventListener("click", async () => {
+  const sym = $("#wl-symbol").value.trim().toUpperCase();
+  if (!sym) return;
+  try {
+    await api("/api/screener/watchlist", { method: "POST", body: JSON.stringify({ symbol: sym }) });
+    $("#wl-symbol").value = "";
+    loadWatchlist();
+  } catch (e) { alert(e.message); }
+});
+$("#wl-symbol").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#wl-add").click(); });
+$("#wl-screen").addEventListener("click", async () => {
+  $("#wl-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> Screening watchlist…</div>`;
+  try {
+    const data = await api("/api/screener/watchlist/screen", { method: "POST", body: JSON.stringify({ sort_by: "score", limit: 200 }) });
+    $("#wl-results").innerHTML = resultsTable(data.results);
+    attachTips($("#wl-results"));
+  } catch (e) { $("#wl-results").innerHTML = `<div class="text-danger text-sm py-6">${e.message}</div>`; }
+});
+
+// ── Sectors ─────────────────────────────────────────────────────────────────
+function volColor(p) { return p > 10 ? "#00d49b" : p > 0 ? "#7dcfb6" : p > -10 ? "#f5a623" : "#ff5260"; }
+$("#load-sectors").addEventListener("click", async () => {
+  $("#sector-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> Scanning all 11 sectors…</div>`;
+  try {
+    const data = await api("/api/industries");
+    $("#sector-results").innerHTML = `<div class="fade-in space-y-2">` + data.map((s) => {
+      const c = volColor(s.volume_change_pct);
+      return `
+        <div class="bg-card border border-border rounded-xl p-4 flex items-center justify-between hover:bg-cardhover transition cursor-pointer"
+             onclick="screenSector('${s.sector.replace(/'/g, "\\'")}')">
+          <div class="flex items-center gap-3">
+            <span class="w-8 h-8 rounded-full bg-surface flex items-center justify-center text-subtext text-xs font-bold">#${s.rank}</span>
+            <div>
+              <div class="font-semibold">${s.sector}</div>
+              <div class="text-faint text-xs">3m ${fmtBig(s.avg_volume_3m)} · 6m ${fmtBig(s.avg_volume_6m)}</div>
+            </div>
+          </div>
+          <span class="badge" style="background:${c}22;color:${c}">${pct(s.volume_change_pct)}</span>
+        </div>`;
+    }).join("") + `</div><p class="text-faint text-xs mt-2">Click a sector to screen its stocks.</p>`;
+  } catch (e) { $("#sector-results").innerHTML = `<div class="text-danger text-sm py-6">${e.message}</div>`; }
+});
+window.screenSector = (sector) => {
+  setTab("screener");
+  $("#sym-input").value = "";
+  const sel = $("#sector-select");
+  Array.from(sel.options).forEach((o) => (o.selected = o.value === sector));
+  $("#run-screen").click();
+};
+
+// ── Stock detail modal (chart + fundamentals + pattern) ──────────────────────────
+const modal = $("#modal");
+let chart = null;
+function closeModal() { modal.classList.add("hidden"); if (chart) { chart.remove(); chart = null; } }
+$("#modal-close").addEventListener("click", closeModal);
+$("#modal-backdrop").addEventListener("click", closeModal);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+window.openStock = async function (symbol) {
+  symbol = symbol.toUpperCase();
+  modal.classList.remove("hidden");
+  $("#modal-title").textContent = symbol;
+  $("#modal-body").innerHTML = `<div class="py-16 text-center text-subtext"><span class="spinner"></span> Loading ${symbol}…</div>`;
+
+  try {
+    const [fund, ohlcv, pattern] = await Promise.all([
+      api(`/api/stocks/${symbol}/fundamentals`).catch(() => ({ symbol })),
+      api(`/api/stocks/${symbol}/ohlcv?period=6mo`).catch(() => ({ candles: [] })),
+      api(`/api/patterns/scan/${symbol}`).catch(() => null),
+    ]);
+
+    $("#modal-title").innerHTML = `${symbol} <span class="text-subtext font-normal text-sm">${fund.name || ""}</span>`;
+
+    const onWatch = await isOnWatchlist(symbol);
+    $("#modal-body").innerHTML = renderStockDetail(symbol, fund, pattern, onWatch);
+    attachTips($("#modal-body"));
+    drawChart(ohlcv.candles || [], pattern);
+
+    $("#detail-wl-toggle")?.addEventListener("click", async () => {
+      if (await isOnWatchlist(symbol)) {
+        await api("/api/screener/watchlist/" + symbol, { method: "DELETE" });
+      } else {
+        await api("/api/screener/watchlist", { method: "POST", body: JSON.stringify({ symbol }) });
+      }
+      const now = await isOnWatchlist(symbol);
+      const btn = $("#detail-wl-toggle");
+      btn.textContent = now ? "★ On Watchlist" : "☆ Add to Watchlist";
+      btn.className = now ? "btn-outline text-sm" : "btn-primary text-sm";
+      loadWatchlist();
+    });
+  } catch (e) {
+    $("#modal-body").innerHTML = `<div class="py-12 text-center text-danger">${e.message}</div>`;
+  }
+};
+
+async function isOnWatchlist(symbol) {
+  try {
+    const items = await api("/api/screener/watchlist");
+    return items.some((i) => i.symbol === symbol);
+  } catch (_) { return false; }
+}
+
+function stat(label, value, tipKey) {
+  return `<div class="stat"><div class="k">${label}${tipKey ? " " + infoIcon(tipKey) : ""}</div><div class="v">${value}</div></div>`;
+}
+
+function renderStockDetail(symbol, f, p, onWatch) {
+  const price = f.current_price ?? (p ? p_price(p) : null);
+  const wlBtn = `<button id="detail-wl-toggle" class="${onWatch ? "btn-outline" : "btn-primary"} text-sm">${onWatch ? "★ On Watchlist" : "☆ Add to Watchlist"}</button>`;
+
+  let patternBlock = "";
+  if (p) {
+    patternBlock = `
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        ${signalBadge(p.signal)} ${stageBadge(p.stage, p.stage_label)}
+        <div class="flex items-center gap-2 ml-auto">
+          <div class="scorebar w-24"><span style="width:${p.score}%;background:${scoreColor(p.score)}"></span></div>
+          <span style="color:${scoreColor(p.score)};font-weight:800;font-size:1.1rem">${num(p.score, 0)}</span>
+          <span class="text-faint text-xs">score ${infoIcon("score")}</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        ${stat("Entry", p.entry_price ? "$" + num(p.entry_price) : "—", "entry")}
+        ${stat("Stop", p.stop_loss ? "$" + num(p.stop_loss) : "—", "stop")}
+        ${stat("Target", p.target_price ? "$" + num(p.target_price) : "—", "target")}
+        ${stat("R:R", p.risk_reward ? num(p.risk_reward, 1) + "R" : "—", "rr")}
+        ${stat("Pivot", p.pivot_high ? "$" + num(p.pivot_high) : "—", "pivot")}
+        ${stat("Range", p.price_range_pct != null ? num(p.price_range_pct, 1) + "%" : "—", "price_range")}
+        ${stat("Vol dry-up", p.volume_dry_up_pct != null ? num(p.volume_dry_up_pct, 1) + "%" : "—", "volume_dryup")}
+        ${stat("VCP", p.vcp_contractions ?? "—", "vcp")}
+      </div>`;
+  }
+
+  return `
+    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      <div>
+        <div class="text-2xl font-bold">${price ? "$" + num(price) : "—"}</div>
+        <div class="text-faint text-xs">${f.sector || ""}${f.industry ? " · " + f.industry : ""}</div>
+      </div>
+      ${wlBtn}
+    </div>
+
+    ${patternBlock}
+
+    <div class="bg-surface border border-border rounded-xl p-2 mb-4">
+      <div class="flex items-center justify-between px-2 py-1">
+        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">Price · 6 months</span>
+        <span class="text-[10px] text-faint">candles + volume</span>
+      </div>
+      <div id="chart" style="height:240px;width:100%"></div>
+    </div>
+
+    <h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">Fundamentals</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+      ${stat("Market Cap", fmtBig(f.market_cap), "market_cap")}
+      ${stat("P/E", num(f.pe_ratio, 1), "pe_ratio")}
+      ${stat("EPS", f.eps != null ? "$" + num(f.eps) : "—", "eps")}
+      ${stat("ROE", f.roe != null ? num(f.roe * 100, 1) + "%" : "—", "roe")}
+      ${stat("Profit Margin", f.profit_margin != null ? num(f.profit_margin * 100, 1) + "%" : "—", "profit_margin")}
+      ${stat("Rev Growth", f.revenue_growth != null ? num(f.revenue_growth * 100, 1) + "%" : "—", "revenue_growth")}
+      ${stat("Beta", num(f.beta, 2), "beta")}
+      ${stat("Div Yield", f.dividend_yield != null ? num(f.dividend_yield, 2) + "%" : "—", "dividend_yield")}
+      ${stat("52w Range", (f.week52_low != null && f.week52_high != null) ? "$" + num(f.week52_low, 0) + "–" + num(f.week52_high, 0) : "—", "week52")}
+    </div>
+
+    ${f.summary ? `<h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">About</h3>
+      <p class="text-subtext text-sm leading-relaxed">${f.summary}</p>
+      ${f.website ? `<a href="${f.website}" target="_blank" class="text-accent text-sm mt-2 inline-block">${f.website} ↗</a>` : ""}` : ""}
+  `;
+}
+function p_price() { return null; }
+
+function drawChart(candles, pattern) {
+  const el = $("#chart");
+  if (!el || !candles.length || !window.LightweightCharts) {
+    if (el) el.innerHTML = `<div class="text-faint text-sm text-center py-16">No chart data.</div>`;
+    return;
+  }
+  chart = LightweightCharts.createChart(el, {
+    layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
+    grid: { vertLines: { color: "#1c2431" }, horzLines: { color: "#1c2431" } },
+    rightPriceScale: { borderColor: "#232c3b" },
+    timeScale: { borderColor: "#232c3b", timeVisible: false },
+    crosshair: { mode: 1 },
+    width: el.clientWidth, height: 240,
+  });
+  const candleSeries = chart.addCandlestickSeries({
+    upColor: "#00d49b", downColor: "#ff5260", borderVisible: false,
+    wickUpColor: "#00d49b", wickDownColor: "#ff5260",
+  });
+  candleSeries.setData(candles.map((c) => ({ time: c.date, open: c.open, high: c.high, low: c.low, close: c.close })));
+
+  const volSeries = chart.addHistogramSeries({
+    priceFormat: { type: "volume" }, priceScaleId: "vol",
+  });
+  chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+  volSeries.setData(candles.map((c) => ({
+    time: c.date, value: c.volume,
+    color: c.close >= c.open ? "#00d49b44" : "#ff526044",
+  })));
+
+  // pivot / entry / stop / target lines
+  if (pattern) {
+    const lines = [
+      [pattern.pivot_high, "#f5a623", "Pivot"],
+      [pattern.entry_price, "#3b82f6", "Entry"],
+      [pattern.stop_loss, "#ff5260", "Stop"],
+      [pattern.target_price, "#00d49b", "Target"],
+    ];
+    lines.forEach(([price, color, title]) => {
+      if (price) candleSeries.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title });
+    });
+  }
+  chart.timeScale().fitContent();
+  new ResizeObserver(() => chart && chart.applyOptions({ width: el.clientWidth })).observe(el);
+}
+
+// ── init ────────────────────────────────────────────────────────────────────
+setTab("screener");
+loadSectorOptions();
+attachTips();

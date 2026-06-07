@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>AMR · Personal Stock Screener</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2300c896'/%3E%3Ctext x='50' y='71' font-size='58' font-family='sans-serif' font-weight='bold' text-anchor='middle' fill='%230b0e14'%3EA%3C/text%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            background: "#0a0d13",
+            surface: "#0f131b",
+            card: "#141a24",
+            cardhover: "#1a212d",
+            border: "#232c3b",
+            text: "#e8ebf2",
+            subtext: "#8a95a8",
+            faint: "#5b6577",
+            accent: "#00d49b",
+            accent2: "#3b82f6",
+            danger: "#ff5260",
+            warn: "#f5a623",
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-background text-text min-h-screen font-sans antialiased">
+
+  <!-- ── Sidebar (desktop) / top bar (mobile) ───────────────────────── -->
+  <div class="lg:flex">
+    <aside class="hidden lg:flex lg:flex-col w-60 h-screen sticky top-0 border-r border-border bg-surface px-4 py-5">
+      <div class="flex items-center gap-2.5 mb-8 px-2">
+        <div class="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-background font-extrabold text-lg">A</div>
+        <div>
+          <div class="font-bold leading-tight">AMR</div>
+          <div class="text-faint text-[11px] leading-tight">Stock Screener</div>
+        </div>
+      </div>
+      <nav class="flex flex-col gap-1 text-sm flex-1">
+        <button data-tab="screener" class="nav-btn"><span>🔎</span> Screener</button>
+        <button data-tab="watchlist" class="nav-btn"><span>⭐</span> Watchlist</button>
+        <button data-tab="sectors" class="nav-btn"><span>📊</span> Sectors</button>
+        <button data-tab="learn" class="nav-btn"><span>📚</span> Learn</button>
+      </nav>
+      <div class="text-faint text-[11px] px-2 leading-relaxed border-t border-border pt-3">
+        Educational use only.<br />Not financial advice.
+      </div>
+    </aside>
+
+    <!-- mobile top nav -->
+    <header class="lg:hidden sticky top-0 z-30 bg-surface/95 backdrop-blur border-b border-border">
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-background font-extrabold">A</div>
+          <span class="font-bold">AMR</span>
+        </div>
+      </div>
+      <nav class="flex border-t border-border text-xs">
+        <button data-tab="screener" class="mnav-btn flex-1">🔎<br>Screener</button>
+        <button data-tab="watchlist" class="mnav-btn flex-1">⭐<br>Watchlist</button>
+        <button data-tab="sectors" class="mnav-btn flex-1">📊<br>Sectors</button>
+        <button data-tab="learn" class="mnav-btn flex-1">📚<br>Learn</button>
+      </nav>
+    </header>
+
+    <!-- ── Main content ───────────────────────────────────────────────── -->
+    <main class="flex-1 max-w-6xl mx-auto w-full px-4 lg:px-8 py-6 pb-24">
+
+      <!-- ════ SCREENER ════ -->
+      <section id="tab-screener">
+        <div class="mb-5">
+          <h1 class="text-2xl font-bold">Custom Screener</h1>
+          <p class="text-subtext text-sm mt-0.5">Find consolidation &amp; breakout setups across any stocks or sectors.</p>
+        </div>
+
+        <div class="bg-card border border-border rounded-2xl p-5 mb-5">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <label class="field-label">Symbols <span class="text-faint">(comma separated)</span></label>
+              <input id="sym-input" type="text" placeholder="AAPL, MSFT, NVDA, TSLA" class="field" />
+            </div>
+            <div>
+              <label class="field-label">Or pick sectors</label>
+              <select id="sector-select" multiple class="field h-[42px]"></select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+            <div>
+              <label class="field-label">Min score <span class="info" data-tip="score">i</span></label>
+              <input id="min-score" type="number" value="0" min="0" max="100" class="field" />
+            </div>
+            <div>
+              <label class="field-label">Signal <span class="info" data-tip="signal">i</span></label>
+              <select id="signal-filter" class="field">
+                <option value="">Any</option>
+                <option value="BREAKOUT_IMMINENT">Breakout imminent</option>
+                <option value="CONSOLIDATING">Consolidating</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Stage <span class="info" data-tip="stage">i</span></label>
+              <select id="stage-filter" class="field">
+                <option value="">Any</option>
+                <option value="2">Stage 2 · Advancing</option>
+                <option value="1">Stage 1 · Basing</option>
+                <option value="3">Stage 3 · Topping</option>
+                <option value="4">Stage 4 · Declining</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Sort by</label>
+              <select id="sort-by" class="field">
+                <option value="score">Score</option>
+                <option value="distance">Distance to pivot</option>
+                <option value="range">Price range</option>
+                <option value="volume_dryup">Volume dry-up</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 mt-5">
+            <button id="run-screen" class="btn-primary">Run Screen</button>
+            <span id="screen-status" class="text-subtext text-sm"></span>
+          </div>
+        </div>
+
+        <div id="screen-results"></div>
+      </section>
+
+      <!-- ════ WATCHLIST ════ -->
+      <section id="tab-watchlist" class="hidden">
+        <div class="mb-5">
+          <h1 class="text-2xl font-bold">My Watchlist</h1>
+          <p class="text-subtext text-sm mt-0.5">Track favorites, screen them in one click, expand for charts &amp; fundamentals.</p>
+        </div>
+
+        <div class="bg-card border border-border rounded-2xl p-5 mb-5">
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input id="wl-symbol" type="text" placeholder="Add symbol e.g. AMD" class="field flex-1" />
+            <div class="flex gap-2">
+              <button id="wl-add" class="btn-primary">Add</button>
+              <button id="wl-screen" class="btn-outline">Screen All</button>
+            </div>
+          </div>
+          <div id="wl-chips" class="flex flex-wrap gap-2 mt-4"></div>
+        </div>
+        <div id="wl-results"></div>
+      </section>
+
+      <!-- ════ SECTORS ════ -->
+      <section id="tab-sectors" class="hidden">
+        <div class="flex items-start justify-between mb-5">
+          <div>
+            <h1 class="text-2xl font-bold">Industry Volume Scanner</h1>
+            <p class="text-subtext text-sm mt-0.5">S&amp;P 500 sectors ranked by volume change (3m vs 6m).</p>
+          </div>
+          <button id="load-sectors" class="btn-primary whitespace-nowrap">Scan</button>
+        </div>
+        <div id="sector-results"></div>
+      </section>
+
+      <!-- ════ LEARN ════ -->
+      <section id="tab-learn" class="hidden">
+        <div class="mb-5">
+          <h1 class="text-2xl font-bold">Learn the Terminology</h1>
+          <p class="text-subtext text-sm mt-0.5">Every metric in this app, explained in plain English.</p>
+        </div>
+        <div id="learn-content" class="space-y-4"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── Stock detail modal ─────────────────────────────────────────── -->
+  <div id="modal" class="fixed inset-0 z-50 hidden">
+    <div id="modal-backdrop" class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+    <div class="absolute inset-x-0 bottom-0 lg:inset-0 lg:flex lg:items-center lg:justify-center">
+      <div class="bg-card border border-border lg:rounded-2xl rounded-t-2xl w-full lg:max-w-3xl lg:mx-4 max-h-[92vh] overflow-y-auto shadow-2xl">
+        <div class="sticky top-0 bg-card border-b border-border px-5 py-4 flex items-center justify-between z-10">
+          <div id="modal-title" class="font-bold text-lg">—</div>
+          <button id="modal-close" class="text-subtext hover:text-text text-2xl leading-none px-2">×</button>
+        </div>
+        <div id="modal-body" class="p-5"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- floating tooltip -->
+  <div id="tooltip" class="hidden fixed z-[60] max-w-xs bg-[#0a0d13] border border-border rounded-lg px-3 py-2 text-xs text-text shadow-xl pointer-events-none"></div>
+
+  <script src="/static/glossary.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
