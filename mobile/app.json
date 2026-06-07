@@ -24,7 +24,6 @@
       "package": "com.amr.stockapp"
     },
     "plugins": [
-      "expo-router",
       [
         "react-native-reanimated",
         {}

@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+
+# Dependencies
+node_modules
+.venv
+*.egg-info
+__pycache__
+.pytest_cache
+
+# Build artifacts
+*.pyc
+*.pyo
+*.egg
+dist
+build
+
+# Mobile & Frontend
+mobile
+frontend
+
+# IDE & OS
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Environment
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite3
+amr_personal.db
+
+# Cache
+.cache
+.expo
