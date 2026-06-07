@@ -1,4 +1,4 @@
-// AMR Personal Stock Screener — frontend
+// Customized STOCK Screener — frontend
 const API = "";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -123,6 +123,7 @@ function setTab(name) {
   );
   if (name === "watchlist") loadWatchlist();
   if (name === "learn") renderLearn();
+  if (name === "sectors") loadSectors();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 $$("[data-tab]").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
@@ -208,12 +209,13 @@ function buildScreenPayload() {
     sort_by: $("#sort-by").value,
     descending: $("#sort-by").value !== "distance",
     limit: 200,
+    broad: $("#broad-universe").checked,
   };
 }
 $("#run-screen").addEventListener("click", async () => {
   const p = buildScreenPayload();
   if (!p.symbols && !p.sectors) { $("#screen-status").textContent = "Enter symbols or pick a sector."; return; }
-  $("#screen-status").innerHTML = `<span class="spinner"></span> Scanning…`;
+  $("#screen-status").innerHTML = `<span class="spinner"></span> Scanning${p.broad && p.sectors ? " the broad universe — this can take a minute…" : "…"}`;
   $("#screen-results").innerHTML = "";
   try {
     const data = await api("/api/screener/screen", { method: "POST", body: JSON.stringify(p) });
@@ -335,27 +337,138 @@ $("#wl-screen").addEventListener("click", async () => {
 
 // ── Sectors ─────────────────────────────────────────────────────────────────
 function volColor(p) { return p > 10 ? "#00d49b" : p > 0 ? "#7dcfb6" : p > -10 ? "#f5a623" : "#ff5260"; }
-$("#load-sectors").addEventListener("click", async () => {
+
+let sectorsLoaded = false;
+let sectorData = [];
+const sectorCharts = {};          // sector -> { chart, freq, period }
+
+// Auto-loads the sector ranking the first time the tab is shown; re-runnable
+// via the Refresh button.
+async function loadSectors(force = false) {
+  if (sectorsLoaded && !force) return;
   $("#sector-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> Scanning all 11 sectors…</div>`;
   try {
-    const data = await api("/api/industries");
-    $("#sector-results").innerHTML = `<div class="fade-in space-y-2">` + data.map((s) => {
-      const c = volColor(s.volume_change_pct);
-      return `
-        <div class="bg-card border border-border rounded-xl p-4 flex items-center justify-between hover:bg-cardhover transition cursor-pointer"
-             onclick="screenSector('${s.sector.replace(/'/g, "\\'")}')">
+    sectorData = await api("/api/industries");
+    renderSectors();
+    sectorsLoaded = true;
+  } catch (e) { $("#sector-results").innerHTML = `<div class="text-danger text-sm py-6">${e.message}</div>`; }
+}
+
+function renderSectors() {
+  $("#sector-results").innerHTML = `<div class="fade-in space-y-2">` + sectorData.map((s) => {
+    const c = volColor(s.volume_change_pct);
+    const safe = s.sector.replace(/'/g, "\\'");
+    return `
+      <div class="bg-card border border-border rounded-xl overflow-hidden">
+        <div class="p-4 flex items-center justify-between hover:bg-cardhover transition cursor-pointer" data-sector-toggle="${s.sector}">
           <div class="flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-surface flex items-center justify-center text-subtext text-xs font-bold">#${s.rank}</span>
             <div>
               <div class="font-semibold">${s.sector}</div>
-              <div class="text-faint text-xs">3m ${fmtBig(s.avg_volume_3m)} · 6m ${fmtBig(s.avg_volume_6m)}</div>
+              <div class="text-faint text-xs">3m ${fmtBig(s.avg_volume_3m)} · 6m ${fmtBig(s.avg_volume_6m)} avg vol</div>
             </div>
           </div>
-          <span class="badge" style="background:${c}22;color:${c}">${pct(s.volume_change_pct)}</span>
-        </div>`;
-    }).join("") + `</div><p class="text-faint text-xs mt-2">Click a sector to screen its stocks.</p>`;
-  } catch (e) { $("#sector-results").innerHTML = `<div class="text-danger text-sm py-6">${e.message}</div>`; }
-});
+          <div class="flex items-center gap-3">
+            <span class="badge" style="background:${c}22;color:${c}">${pct(s.volume_change_pct)}</span>
+            <span class="sector-caret text-faint text-xs">▾</span>
+          </div>
+        </div>
+        <div class="sector-detail hidden border-t border-border" data-sector-detail="${s.sector}">
+          <div class="flex items-center justify-between px-4 pt-3 gap-2 flex-wrap">
+            <div class="flex gap-1" data-sector-freq>
+              <button class="range-btn active" data-freq="weekly">Weekly</button>
+              <button class="range-btn" data-freq="monthly">Monthly</button>
+            </div>
+            <div class="flex gap-1" data-sector-range>
+              <button class="range-btn" data-period="6mo">6M</button>
+              <button class="range-btn active" data-period="1y">1Y</button>
+              <button class="range-btn" data-period="2y">2Y</button>
+            </div>
+          </div>
+          <div class="sector-chart px-2 pb-2" data-sector-chart="${s.sector}" style="height:180px;width:100%"></div>
+          <div class="px-4 pb-4">
+            <button class="btn-outline text-xs" onclick="screenSector('${safe}')">Screen ${s.sector} stocks →</button>
+          </div>
+        </div>
+      </div>`;
+  }).join("") + `</div><p class="text-faint text-xs mt-2">Click a sector to expand its volume trend, or screen its stocks.</p>`;
+
+  $$("[data-sector-toggle]").forEach((row) => {
+    row.addEventListener("click", () => toggleSectorDetail(row.dataset.sectorToggle));
+  });
+}
+
+function toggleSectorDetail(sector) {
+  const panel = $(`[data-sector-detail="${sector}"]`);
+  if (!panel) return;
+  const caret = panel.previousElementSibling.querySelector(".sector-caret");
+  const open = !panel.classList.contains("hidden");
+  if (open) {
+    panel.classList.add("hidden");
+    if (caret) caret.textContent = "▾";
+    return;
+  }
+  panel.classList.remove("hidden");
+  if (caret) caret.textContent = "▴";
+
+  // Wire freq/range buttons once.
+  if (!panel.dataset.wired) {
+    panel.dataset.wired = "1";
+    sectorCharts[sector] = { chart: null, freq: "weekly", period: "1y" };
+    panel.querySelectorAll("[data-sector-freq] .range-btn").forEach((b) => {
+      b.addEventListener("click", () => {
+        panel.querySelectorAll("[data-sector-freq] .range-btn").forEach((x) => x.classList.toggle("active", x === b));
+        sectorCharts[sector].freq = b.dataset.freq;
+        drawSectorChart(sector);
+      });
+    });
+    panel.querySelectorAll("[data-sector-range] .range-btn").forEach((b) => {
+      b.addEventListener("click", () => {
+        panel.querySelectorAll("[data-sector-range] .range-btn").forEach((x) => x.classList.toggle("active", x === b));
+        sectorCharts[sector].period = b.dataset.period;
+        drawSectorChart(sector);
+      });
+    });
+  }
+  drawSectorChart(sector);
+}
+
+async function drawSectorChart(sector) {
+  const el = $(`[data-sector-chart="${sector}"]`);
+  const state = sectorCharts[sector];
+  if (!el || !state || !window.LightweightCharts) return;
+  if (state.chart) { state.chart.remove(); state.chart = null; }
+  el.innerHTML = `<div class="py-12 text-center text-subtext"><span class="spinner"></span></div>`;
+  try {
+    const res = await api(`/api/industries/${encodeURIComponent(sector)}/volume-series?period=${state.period}&freq=${state.freq}`);
+    if (!res.points || !res.points.length) {
+      el.innerHTML = `<div class="text-faint text-sm text-center py-12">No volume data.</div>`;
+      return;
+    }
+    el.innerHTML = "";
+    const chart = LightweightCharts.createChart(el, {
+      layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
+      grid: { vertLines: { color: "#1c2431" }, horzLines: { color: "#1c2431" } },
+      rightPriceScale: { borderColor: "#232c3b" },
+      timeScale: { borderColor: "#232c3b", timeVisible: false },
+      crosshair: { mode: 1 },
+      width: el.clientWidth, height: 180,
+    });
+    const area = chart.addAreaSeries({
+      lineColor: "#00d49b", topColor: "#00d49b44", bottomColor: "#00d49b08", lineWidth: 2,
+      priceFormat: { type: "volume" },
+    });
+    area.setData(res.points.map((p) => ({ time: p.date, value: p.volume })));
+    chart.timeScale().fitContent();
+    state.chart = chart;
+    new ResizeObserver(() => state.chart && state.chart.applyOptions({ width: el.clientWidth })).observe(el);
+  } catch (e) {
+    el.innerHTML = `<div class="text-danger text-sm text-center py-12">${e.message}</div>`;
+  }
+}
+
+$("#load-sectors").addEventListener("click", () => loadSectors(true));
+
 window.screenSector = (sector) => {
   setTab("screener");
   $("#sym-input").value = "";
@@ -367,7 +480,7 @@ window.screenSector = (sector) => {
 const modal = $("#modal");
 let chart = null;
 let fundChart = null;          // fundamentals (EPS/revenue/profit) chart
-let detailState = { symbol: null, pattern: null, period: "1y", financials: null, metric: "revenue", freq: "annual" };
+let emaSeries = {};            // period -> lightweight-charts line series
 
 const CHART_RANGES = [
   { label: "6M", period: "6mo" },
@@ -375,6 +488,41 @@ const CHART_RANGES = [
   { label: "2Y", period: "2y" },
   { label: "5Y", period: "5y" },
 ];
+
+// Moving-average overlays. EMA50/150/200 are the trend backbone, so they are
+// on by default; the fast EMAs (5/10/21) are opt-in to avoid clutter.
+const EMA_CONFIG = [
+  { period: 5,   color: "#8a95a8", on: false },
+  { period: 10,  color: "#c084fc", on: false },
+  { period: 21,  color: "#3b82f6", on: false },
+  { period: 50,  color: "#f5a623", on: true },
+  { period: 150, color: "#00d49b", on: true },
+  { period: 200, color: "#ff5260", on: true },
+];
+
+function defaultEmaOn() {
+  return Object.fromEntries(EMA_CONFIG.map((e) => [e.period, e.on]));
+}
+
+let detailState = {
+  symbol: null, pattern: null, period: "1y", financials: null,
+  metric: "revenue", freq: "annual", candles: [], emaOn: defaultEmaOn(),
+};
+
+// Exponential moving average over an array of {time, value} closes.
+function computeEMA(closes, period) {
+  if (closes.length < period) return [];
+  const k = 2 / (period + 1);
+  const out = [];
+  // Seed with a simple average of the first `period` closes.
+  let ema = closes.slice(0, period).reduce((a, c) => a + c.value, 0) / period;
+  out.push({ time: closes[period - 1].time, value: ema });
+  for (let i = period; i < closes.length; i++) {
+    ema = closes[i].value * k + ema * (1 - k);
+    out.push({ time: closes[i].time, value: ema });
+  }
+  return out;
+}
 
 function destroyCharts() {
   if (chart) { chart.remove(); chart = null; }
@@ -390,7 +538,10 @@ window.openStock = async function (symbol) {
   modal.classList.remove("hidden");
   $("#modal-title").textContent = symbol;
   $("#modal-body").innerHTML = `<div class="py-16 text-center text-subtext"><span class="spinner"></span> Loading ${symbol}…</div>`;
-  detailState = { symbol, pattern: null, period: "1y", financials: null, metric: "revenue", freq: "annual" };
+  detailState = {
+    symbol, pattern: null, period: "1y", financials: null,
+    metric: "revenue", freq: "annual", candles: [], emaOn: defaultEmaOn(),
+  };
 
   try {
     const [fund, ohlcv, pattern, financials] = await Promise.all([
@@ -410,6 +561,7 @@ window.openStock = async function (symbol) {
     attachTips($("#modal-body"));
     drawChart(ohlcv.candles || [], pattern);
     wireChartRanges(symbol);
+    wireEmaLegend();
     wireFundamentalsCharts();
 
     $("#detail-wl-toggle")?.addEventListener("click", async () => {
@@ -499,7 +651,10 @@ function renderStockDetail(symbol, f, p, onWatch) {
           ${CHART_RANGES.map((r) => `<button class="range-btn ${r.period === detailState.period ? "active" : ""}" data-period="${r.period}">${r.label}</button>`).join("")}
         </div>
       </div>
-      <div id="chart" style="height:240px;width:100%"></div>
+      <div id="ema-legend" class="flex flex-wrap gap-1.5 px-2 pb-1">
+        ${EMA_CONFIG.map((e) => `<button class="ema-btn ${detailState.emaOn[e.period] ? "active" : ""}" data-ema="${e.period}" style="--ema:${e.color}">EMA${e.period}</button>`).join("")}
+      </div>
+      <div id="chart" style="height:280px;width:100%"></div>
     </div>
 
     <div class="bg-surface border border-border rounded-xl p-2 mb-4">
@@ -517,7 +672,7 @@ function renderStockDetail(symbol, f, p, onWatch) {
           </div>
         </div>
       </div>
-      <div id="fund-chart" style="height:200px;width:100%"></div>
+      <div id="fund-chart" style="height:150px;width:100%"></div>
     </div>
 
     <h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">Fundamentals</h3>
@@ -544,6 +699,8 @@ function drawChart(candles, pattern) {
   const el = $("#chart");
   if (!el || !window.LightweightCharts) { return; }
   if (chart) { chart.remove(); chart = null; }
+  emaSeries = {};
+  detailState.candles = candles || [];
   if (!candles.length) {
     el.innerHTML = `<div class="text-faint text-sm text-center py-16">No chart data.</div>`;
     return;
@@ -555,7 +712,7 @@ function drawChart(candles, pattern) {
     rightPriceScale: { borderColor: "#232c3b" },
     timeScale: { borderColor: "#232c3b", timeVisible: false },
     crosshair: { mode: 1 },
-    width: el.clientWidth, height: 240,
+    width: el.clientWidth, height: 280,
   });
   const candleSeries = chart.addCandlestickSeries({
     upColor: "#00d49b", downColor: "#ff5260", borderVisible: false,
@@ -572,6 +729,20 @@ function drawChart(candles, pattern) {
     color: c.close >= c.open ? "#00d49b44" : "#ff526044",
   })));
 
+  // EMA overlays — draw the ones toggled on.
+  const closes = candles.map((c) => ({ time: c.date, value: c.close }));
+  EMA_CONFIG.forEach((e) => {
+    if (!detailState.emaOn[e.period]) return;
+    const data = computeEMA(closes, e.period);
+    if (!data.length) return;
+    const line = chart.addLineSeries({
+      color: e.color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    line.setData(data);
+    emaSeries[e.period] = line;
+  });
+
   // pivot / entry / stop / target lines
   if (pattern) {
     const lines = [
@@ -586,6 +757,35 @@ function drawChart(candles, pattern) {
   }
   chart.timeScale().fitContent();
   new ResizeObserver(() => chart && chart.applyOptions({ width: el.clientWidth })).observe(el);
+}
+
+// Toggle EMA overlays without refetching: add/remove the line series live.
+function wireEmaLegend() {
+  $$("#ema-legend .ema-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const period = parseInt(btn.dataset.ema);
+      const cfg = EMA_CONFIG.find((e) => e.period === period);
+      const turnOn = !detailState.emaOn[period];
+      detailState.emaOn[period] = turnOn;
+      btn.classList.toggle("active", turnOn);
+      if (!chart) return;
+      if (turnOn) {
+        const closes = detailState.candles.map((c) => ({ time: c.date, value: c.close }));
+        const data = computeEMA(closes, period);
+        if (data.length) {
+          const line = chart.addLineSeries({
+            color: cfg.color, lineWidth: 1.5, priceLineVisible: false,
+            lastValueVisible: false, crosshairMarkerVisible: false,
+          });
+          line.setData(data);
+          emaSeries[period] = line;
+        }
+      } else if (emaSeries[period]) {
+        chart.removeSeries(emaSeries[period]);
+        delete emaSeries[period];
+      }
+    });
+  });
 }
 
 // Wire the 6M/1Y/2Y/5Y range buttons — re-fetch OHLCV and redraw on click.
@@ -637,21 +837,23 @@ function drawFundChart() {
   if (!el || !window.LightweightCharts) return;
   if (fundChart) { fundChart.remove(); fundChart = null; }
 
-  const series = (detailState.financials?.[detailState.freq] || [])
+  let series = (detailState.financials?.[detailState.freq] || [])
     .filter((pt) => pt[detailState.metric] !== null && pt[detailState.metric] !== undefined);
+  // Quarterly: keep the most recent ~12 quarters (the points are oldest→newest).
+  if (detailState.freq === "quarterly" && series.length > 12) series = series.slice(-12);
 
   if (!series.length) {
-    el.innerHTML = `<div class="text-faint text-sm text-center py-14">No ${FUND_META[detailState.metric].label.toLowerCase()} data available.</div>`;
+    el.innerHTML = `<div class="text-faint text-sm text-center py-12">No ${FUND_META[detailState.metric].label.toLowerCase()} data available.</div>`;
     return;
   }
   el.innerHTML = "";
   fundChart = LightweightCharts.createChart(el, {
     layout: { background: { color: "transparent" }, textColor: "#8a95a8", fontFamily: "Inter" },
-    grid: { vertLines: { color: "#1c2431" }, horzLines: { color: "#1c2431" } },
-    rightPriceScale: { borderColor: "#232c3b" },
+    grid: { vertLines: { color: "transparent" }, horzLines: { color: "#1c2431" } },
+    rightPriceScale: { borderColor: "#232c3b", scaleMargins: { top: 0.15, bottom: 0.05 } },
     timeScale: { borderColor: "#232c3b", timeVisible: false },
     crosshair: { mode: 1 },
-    width: el.clientWidth, height: 200,
+    width: el.clientWidth, height: 150,
   });
   const meta = FUND_META[detailState.metric];
   const bars = fundChart.addHistogramSeries({

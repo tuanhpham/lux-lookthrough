@@ -21,6 +21,10 @@ class ScreenRequest(BaseModel):
     descending: bool = True
     limit: int = Field(default=100, ge=1, le=500)
     period: str = Field(default="1y", description="1mo|3mo|6mo|1y|2y")
+    broad: bool = Field(
+        default=False,
+        description="Expand sectors using the broad (S&P 1500+) universe instead of curated lists",
+    )
 
 
 class ScreenRow(BaseModel):

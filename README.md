@@ -1,4 +1,4 @@
-# AMR — Personal Stock Screener
+# Customized STOCK Screener
 
 Industry Volume Scanner + Consolidation/Pivot Pattern Detector for US markets (NYSE, NASDAQ).
 
@@ -33,17 +33,17 @@ A professional, fully responsive dashboard (sidebar on desktop, bottom nav on mo
 
 | Tab | What it does |
 |-----|--------------|
-| **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors via toggle chips, then filter by min score, signal, stage, and sort. Click any row to open the stock detail view. |
+| **Screener** | Type any tickers (`AAPL, MSFT, NVDA`) or pick whole sectors via toggle chips, then filter by min score, signal, stage, and sort. Tick **broad universe** to scan the full S&P 1500+ list per sector instead of the curated default. Click any row to open the stock detail view. |
 | **Watchlists** | Organize favorites into **multiple named lists** (persisted in SQLite), switch between them, and screen each in one click. Click a symbol to expand its chart + fundamentals. |
-| **Sectors** | Rank all 11 S&P 500 sectors by volume change (3m vs 6m). Click a sector to screen its stocks. |
+| **Sectors** | Auto-loads on open: 11 sectors ranked by volume change (3m vs 6m). Click a sector to expand a **weekly/monthly volume-trend chart** (6M/1Y/2Y) or screen its stocks. |
 | **Learn** | A plain-English glossary explaining every metric (Score, Stage, VCP, R:R, P/E, EPS, …). |
 
 **Stock detail view** (click any row): an interactive **candlestick + volume chart**
-(TradingView lightweight-charts) with a selectable **6M / 1Y / 2Y / 5Y** range and the
-**Entry / Pivot / Stop / Target** levels drawn right on it, a **fundamentals trend chart**
-(Revenue / Net Income / EPS, toggle annual ⇄ quarterly), the full pattern breakdown, and
-**fundamentals** (market cap, P/E, EPS, ROE, margins, beta, dividend yield, 52-week range,
-company summary).
+(TradingView lightweight-charts) with a selectable **6M / 1Y / 2Y / 5Y** range, toggleable
+**EMA 5 / 10 / 21 / 50 / 150 / 200** overlays, and the **Entry / Pivot / Stop / Target**
+levels drawn right on it; a **fundamentals trend chart** (Revenue / Net Income / EPS, toggle
+annual ⇄ quarterly — up to ~12 quarters), the full pattern breakdown, and **fundamentals**
+(market cap, P/E, EPS, ROE, margins, beta, dividend yield, 52-week range, company summary).
 
 **Hover tooltips**: every metric has an “i” icon — hover (or tap) it for an instant definition.
 
@@ -59,6 +59,7 @@ company summary).
 | GET | `/api/stocks/{symbol}/fundamentals` | Company fundamentals (EPS, P/E, market cap, ROE, …) |
 | GET | `/api/stocks/{symbol}/financials` | Revenue / net income / EPS history (annual + quarterly) |
 | GET | `/api/stocks/{symbol}/ohlcv` | OHLCV candles for charting (`1mo`…`2y`, `5y`, `max`) |
+| GET | `/api/industries/{sector}/volume-series` | Aggregated sector volume over time (`freq=weekly\|monthly`, `period=6mo\|1y\|2y`) |
 | GET | `/api/cache/stats` · POST `/api/cache/clear` | Inspect / reset the OHLCV cache |
 
 Example screen request:

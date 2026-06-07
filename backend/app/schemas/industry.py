@@ -13,6 +13,18 @@ class SectorVolumeOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class VolumePoint(BaseModel):
+    date: str
+    volume: float
+
+
+class SectorVolumeSeriesOut(BaseModel):
+    sector: str
+    freq: str
+    period: str = "1y"
+    points: list[VolumePoint] = []
+
+
 class TopStockOut(BaseModel):
     symbol: str
     sector: str

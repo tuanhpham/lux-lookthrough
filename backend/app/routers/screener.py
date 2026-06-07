@@ -57,6 +57,7 @@ async def screen(req: ScreenRequest) -> ScreenResponse:
         descending=req.descending,
         limit=req.limit,
         period=req.period,
+        broad=req.broad,
     )
     return ScreenResponse(**result)
 

@@ -214,17 +214,34 @@ def _series_from_stmt(df: "pd.DataFrame") -> list[dict[str, Any]]:
     return points
 
 
+def _income_stmt(ticker: "yf.Ticker", freq: str) -> "pd.DataFrame | None":
+    """Best-effort income statement for a frequency.
+
+    yfinance's ``quarterly_income_stmt`` property often returns only ~4-5
+    columns; ``get_income_stmt(freq=..., pretty=True)`` can return more history.
+    Try the richer accessor first and fall back to the property.
+    """
+    try:
+        df = ticker.get_income_stmt(freq=freq, pretty=True)
+        if df is not None and not df.empty:
+            return df
+    except Exception:
+        pass
+    try:
+        return ticker.quarterly_income_stmt if freq == "quarterly" else ticker.income_stmt
+    except Exception:
+        return None
+
+
 def _fetch_yfinance_financials(symbol: str) -> dict[str, Any]:
     """Download annual + quarterly income-statement history (synchronous)."""
     ticker = yf.Ticker(symbol)
-    annual: list[dict[str, Any]] = []
-    quarterly: list[dict[str, Any]] = []
     try:
-        annual = _series_from_stmt(ticker.income_stmt)
+        annual = _series_from_stmt(_income_stmt(ticker, "yearly"))
     except Exception:
         annual = []
     try:
-        quarterly = _series_from_stmt(ticker.quarterly_income_stmt)
+        quarterly = _series_from_stmt(_income_stmt(ticker, "quarterly"))
     except Exception:
         quarterly = []
     return {"symbol": symbol, "annual": annual, "quarterly": quarterly}

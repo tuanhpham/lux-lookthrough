@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>AMR · Personal Stock Screener</title>
+  <title>Customized STOCK Screener</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2300c896'/%3E%3Ctext x='50' y='71' font-size='58' font-family='sans-serif' font-weight='bold' text-anchor='middle' fill='%230b0e14'%3EA%3C/text%3E%3C/svg%3E" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -43,10 +43,10 @@
   <div class="lg:flex">
     <aside class="hidden lg:flex lg:flex-col w-60 h-screen sticky top-0 border-r border-border bg-surface px-4 py-5">
       <div class="flex items-center gap-2.5 mb-8 px-2">
-        <div class="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-background font-extrabold text-lg">A</div>
+        <div class="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-background font-extrabold text-lg">S</div>
         <div>
-          <div class="font-bold leading-tight">AMR</div>
-          <div class="text-faint text-[11px] leading-tight">Stock Screener</div>
+          <div class="font-bold leading-tight">Customized</div>
+          <div class="text-faint text-[11px] leading-tight">STOCK Screener</div>
         </div>
       </div>
       <nav class="flex flex-col gap-1 text-sm flex-1">
@@ -64,8 +64,8 @@
     <header class="lg:hidden sticky top-0 z-30 bg-surface/95 backdrop-blur border-b border-border">
       <div class="flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-background font-extrabold">A</div>
-          <span class="font-bold">AMR</span>
+          <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-background font-extrabold">S</div>
+          <span class="font-bold">Customized STOCK Screener</span>
         </div>
       </div>
       <nav class="flex border-t border-border text-xs">
@@ -98,6 +98,10 @@
               <button id="sector-clear" type="button" class="text-faint hover:text-accent text-xs font-semibold hidden">Clear</button>
             </div>
             <div id="sector-chips" class="flex flex-wrap gap-2"></div>
+            <label class="flex items-center gap-2 mt-3 text-sm text-subtext cursor-pointer select-none">
+              <input id="broad-universe" type="checkbox" class="accent-accent w-4 h-4" />
+              <span>Scan the <span class="text-text font-semibold">broad universe</span> (S&amp;P 1500+ — slower, far more stocks)</span>
+            </label>
           </div>
 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -174,9 +178,9 @@
         <div class="flex items-start justify-between mb-5">
           <div>
             <h1 class="text-2xl font-bold">Industry Volume Scanner</h1>
-            <p class="text-subtext text-sm mt-0.5">S&amp;P 500 sectors ranked by volume change (3m vs 6m).</p>
+            <p class="text-subtext text-sm mt-0.5">Sectors ranked by volume change (3m vs 6m). Click one to see its volume trend.</p>
           </div>
-          <button id="load-sectors" class="btn-primary whitespace-nowrap">Scan</button>
+          <button id="load-sectors" class="btn-outline whitespace-nowrap">↻ Refresh</button>
         </div>
         <div id="sector-results"></div>
       </section>

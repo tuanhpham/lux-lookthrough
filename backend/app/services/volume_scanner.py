@@ -71,6 +71,49 @@ async def compute_sector_volume_rank() -> list[dict[str, Any]]:
     return sector_rows
 
 
+async def compute_sector_volume_series(
+    sector: str, period: str = "1y", freq: str = "weekly"
+) -> dict[str, Any]:
+    """Aggregate a sector's daily volume into a weekly/monthly time series.
+
+    Sums the daily volume across all constituent stocks (so the line reflects
+    total sector activity), then resamples to weekly or monthly buckets.
+
+    Args:
+        sector: GICS sector name.
+        period: yfinance history window (e.g. "6mo", "1y", "2y").
+        freq: "weekly" or "monthly" bucketing.
+
+    Returns:
+        Dict with the sector name, frequency, and a list of {date, volume} points.
+    """
+    symbols = SECTOR_STOCKS.get(sector, [])
+    if not symbols:
+        return {"sector": sector, "freq": freq, "points": []}
+
+    data = await fetch_multiple(symbols, period=period, max_concurrent=16)
+    if not data:
+        return {"sector": sector, "freq": freq, "points": []}
+
+    # Align each stock's daily volume on the date index and sum across the sector.
+    vol_frames = [df["volume"].rename(sym) for sym, df in data.items() if df is not None]
+    if not vol_frames:
+        return {"sector": sector, "freq": freq, "points": []}
+
+    combined = pd.concat(vol_frames, axis=1).sort_index()
+    total_daily = combined.sum(axis=1, skipna=True)
+
+    rule = "W" if freq == "weekly" else "ME"  # pandas: week-end / month-end
+    resampled = total_daily.resample(rule).sum()
+
+    points = [
+        {"date": idx.date().isoformat(), "volume": float(v)}
+        for idx, v in resampled.items()
+        if v > 0
+    ]
+    return {"sector": sector, "freq": freq, "period": period, "points": points}
+
+
 async def get_top_stocks_for_sector(
     sector: str, top_n: int = 5
 ) -> list[dict[str, Any]]:

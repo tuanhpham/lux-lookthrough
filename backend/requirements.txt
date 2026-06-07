@@ -16,6 +16,7 @@ yfinance>=0.2.50
 pandas>=2.2.0
 numpy>=2.0.0
 scipy>=1.14.0
+lxml>=5.0.0          # pandas.read_html — dynamic universe scraping
 
 # TA-Lib Windows: pip install --find-links https://github.com/cgohlke/talib-build/releases TA-Lib
 # TA-Lib Linux/Mac: install C library first (see README), then: pip install TA-Lib

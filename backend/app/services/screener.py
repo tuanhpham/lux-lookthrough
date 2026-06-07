@@ -13,29 +13,43 @@ from typing import Any, Optional
 from app.core.constants import SECTOR_STOCKS
 from app.services.data_fetcher import fetch_multiple
 from app.services.pattern_engine import scan_stock
+from app.services.universe import get_full_universe
+
+
+def _dedupe(symbols: list[str]) -> list[str]:
+    """De-dup while preserving order."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for sym in symbols:
+        if sym and sym not in seen:
+            seen.add(sym)
+            out.append(sym)
+    return out
 
 
 def resolve_universe(
     symbols: Optional[list[str]] = None,
     sectors: Optional[list[str]] = None,
+    sector_source: Optional[dict[str, list[str]]] = None,
 ) -> list[str]:
-    """Build a de-duplicated symbol universe from explicit symbols and/or sectors."""
+    """Build a de-duplicated symbol universe from explicit symbols and/or sectors.
+
+    Args:
+        symbols: Explicit tickers (uppercased).
+        sectors: Sector names to expand into constituents.
+        sector_source: Sector→symbols mapping to expand from. Defaults to the
+            curated SECTOR_STOCKS; pass the broad universe to widen coverage.
+    """
+    source = sector_source if sector_source is not None else SECTOR_STOCKS
     universe: list[str] = []
     if symbols:
         universe.extend(s.strip().upper() for s in symbols if s.strip())
     if sectors:
         for sector in sectors:
-            for known, stocks in SECTOR_STOCKS.items():
+            for known, stocks in source.items():
                 if known.lower() == sector.lower():
                     universe.extend(stocks)
-    # de-dup while preserving order
-    seen: set[str] = set()
-    deduped: list[str] = []
-    for sym in universe:
-        if sym not in seen:
-            seen.add(sym)
-            deduped.append(sym)
-    return deduped
+    return _dedupe(universe)
 
 
 async def run_screen(
@@ -50,6 +64,7 @@ async def run_screen(
     descending: bool = True,
     limit: int = 100,
     period: str = "1y",
+    broad: bool = False,
 ) -> dict[str, Any]:
     """Screen a custom universe and return ranked matches.
 
@@ -68,11 +83,12 @@ async def run_screen(
     Returns:
         Dict with universe size, scanned count, and the ranked result rows.
     """
-    universe = resolve_universe(symbols, sectors)
+    sector_source = await get_full_universe() if (broad and sectors) else None
+    universe = resolve_universe(symbols, sectors, sector_source)
     if not universe:
         return {"universe": 0, "scanned": 0, "matched": 0, "results": []}
 
-    data = await fetch_multiple(universe, period=period, max_concurrent=12)
+    data = await fetch_multiple(universe, period=period, max_concurrent=16)
 
     signal_set = {s.upper() for s in signals} if signals else None
     stage_set = set(stages) if stages else None
