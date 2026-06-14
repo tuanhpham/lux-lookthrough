@@ -9,6 +9,7 @@ import {
   computeAccountMetrics,
   compareAccounts,
   fetchMany,
+  SECTOR_STOCKS,
   type AccountState,
   type PriceMap,
   type IdFactory,
@@ -17,6 +18,51 @@ import {
 import type { AppContext } from '../context.js';
 import { $, el, num, money, pct } from '../ui/dom.js';
 import { drawLine } from '../ui/charts.js';
+
+const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())].sort();
+
+/** <option> list for the ticker pickers: held tickers first, then the universe. */
+function tickerOptions(): string {
+  const held = [...new Set(active().lots.filter((l) => l.remainingShares > 0).map((l) => l.ticker))];
+  const all = [...new Set([...held, ...CURATED])];
+  return all.map((t) => `<option value="${t}"></option>`).join('');
+}
+
+/**
+ * Show the latest close beside a price input as the user picks a ticker, and
+ * offer a one-click "use" to copy it into the price/threshold field.
+ */
+function wirePriceHint(ctx: AppContext, tickerSel: string, hintSel: string, priceSel: string): void {
+  const tickerEl = $(tickerSel) as HTMLInputElement | null;
+  const hintEl = $(hintSel);
+  const priceEl = $(priceSel) as HTMLInputElement | null;
+  if (!tickerEl || !hintEl || !priceEl) return;
+
+  let token = 0;
+  const fetchHint = async () => {
+    const sym = tickerEl.value.trim().toUpperCase();
+    if (!sym) {
+      hintEl.innerHTML = '';
+      return;
+    }
+    const mine = ++token;
+    hintEl.innerHTML = `<span class="spinner"></span> latest close…`;
+    const ohlcv = await ctx.data.getOHLCV(sym, '1mo').catch(() => null);
+    if (mine !== token) return; // a newer lookup superseded this one
+    const last = ohlcv?.bars[ohlcv.bars.length - 1];
+    if (!last) {
+      hintEl.textContent = 'no recent price';
+      return;
+    }
+    hintEl.innerHTML = `latest close <b>$${num(last.close)}</b> (${last.date}) · <a href="#" data-use>use</a>`;
+    hintEl.querySelector('[data-use]')!.addEventListener('click', (e) => {
+      e.preventDefault();
+      priceEl.value = String(num(last.close));
+    });
+  };
+  tickerEl.addEventListener('change', () => void fetchHint());
+  tickerEl.addEventListener('blur', () => void fetchHint());
+}
 
 const ACCT_KEY = 'accounts';
 const uuid: IdFactory = () =>
@@ -74,12 +120,14 @@ function draw(ctx: AppContext): void {
         )
         .join('')}
       <button id="acct-new" class="range-btn">＋ New account</button>
+      <button id="acct-edit" class="range-btn">✎ Edit account</button>
       <button id="acct-update" class="btn" style="margin-left:auto">↻ Update prices</button>
       <button id="acct-compare" class="btn-outline">Compare</button>
     </div>
     <div id="update-status" class="muted" style="margin-bottom:10px"></div>
 
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+      <div class="stat"><div class="k">Initial capital</div><div class="v">${money(st.account.initialCapital)}</div></div>
       <div class="stat"><div class="k">Equity</div><div class="v">${money(m.equity)}</div></div>
       <div class="stat"><div class="k">Cash</div><div class="v">${money(m.cash)}</div></div>
       <div class="stat"><div class="k">Total PnL</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(m.totalPnL)} (${pct(m.totalPnLPct)})</div></div>
@@ -117,23 +165,27 @@ function draw(ctx: AppContext): void {
       }</tbody></table>
     </div>
 
+    <datalist id="ticker-options">${tickerOptions()}</datalist>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
-        <div class="section-title" style="margin-top:0">Record a Buy</div>
-        <div class="row"><input id="b-ticker" class="field" placeholder="Ticker" style="width:90px" />
+        <div class="section-title" style="margin-top:0">Record a Buy / Sell</div>
+        <div class="row"><input id="b-ticker" class="field" list="ticker-options" placeholder="Ticker" style="width:110px" />
           <input id="b-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
-          <input id="b-price" class="field" type="number" placeholder="Price" style="width:90px" />
+          <input id="b-price" class="field" type="number" step="any" placeholder="Price" style="width:90px" />
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
-        <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="number" placeholder="Stop (optional)" style="width:130px" />
-          <input id="b-target" class="field" type="number" placeholder="Target (optional)" style="width:130px" />
-          <button id="b-go" class="btn">Buy</button></div>
+        <div id="b-pricehint" class="price-hint"></div>
+        <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="number" step="any" placeholder="Stop (optional)" style="width:130px" />
+          <input id="b-target" class="field" type="number" step="any" placeholder="Target (optional)" style="width:130px" />
+          <button id="b-go" class="btn">Buy</button>
+          <button id="s-go" class="btn-outline">Sell</button></div>
       </div>
       <div class="card">
         <div class="section-title" style="margin-top:0">Pending BUY_STOP Order</div>
-        <div class="row"><input id="o-ticker" class="field" placeholder="Ticker" style="width:90px" />
-          <input id="o-thresh" class="field" type="number" placeholder="Trigger ≥" style="width:100px" />
+        <div class="row"><input id="o-ticker" class="field" list="ticker-options" placeholder="Ticker" style="width:110px" />
+          <input id="o-thresh" class="field" type="number" step="any" placeholder="Trigger ≥" style="width:100px" />
           <input id="o-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
           <button id="o-go" class="btn">Place</button></div>
+        <div id="o-pricehint" class="price-hint"></div>
         <div id="orders-list" class="muted" style="margin-top:10px;font-size:12px"></div>
       </div>
     </div>
@@ -156,6 +208,20 @@ function draw(ctx: AppContext): void {
     draw(ctx);
   });
 
+  // Edit the active account — rename and/or change its initial capital.
+  $('#acct-edit')!.addEventListener('click', async () => {
+    const a = active().account;
+    const name = prompt('Account name:', a.name);
+    if (name && name.trim()) a.name = name.trim();
+    const capStr = prompt('Initial capital (EUR):', String(a.initialCapital));
+    if (capStr != null) {
+      const cap = Number(capStr);
+      if (cap > 0) a.initialCapital = cap; // cash & PnL recompute from this
+    }
+    await save(ctx);
+    draw(ctx);
+  });
+
   // equity curve
   const eq = $('#equity-chart')!;
   if (st.snapshots.length) {
@@ -171,6 +237,10 @@ function draw(ctx: AppContext): void {
   // orders list
   renderOrders();
 
+  // Live latest-close hints next to the price inputs (fetch on ticker change).
+  wirePriceHint(ctx, '#b-ticker', '#b-pricehint', '#b-price');
+  wirePriceHint(ctx, '#o-ticker', '#o-pricehint', '#o-thresh');
+
   // buy
   $('#b-go')!.addEventListener('click', async () => {
     const t = ($('#b-ticker') as HTMLInputElement).value.trim().toUpperCase();
@@ -185,7 +255,23 @@ function draw(ctx: AppContext): void {
     draw(ctx);
   });
 
-  // sells
+  // sell from the form (manual ticker/shares/price/date)
+  $('#s-go')!.addEventListener('click', async () => {
+    const t = ($('#b-ticker') as HTMLInputElement).value.trim().toUpperCase();
+    const shares = Number(($('#b-shares') as HTMLInputElement).value);
+    const price = Number(($('#b-price') as HTMLInputElement).value);
+    const date = ($('#b-date') as HTMLInputElement).value || today();
+    if (!t || shares <= 0 || price <= 0) return;
+    try {
+      sell(active(), { ticker: t, sellDate: date, sellPrice: price, shares }, uuid);
+      await save(ctx);
+      draw(ctx);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  });
+
+  // sell from a position row
   root.querySelectorAll<HTMLElement>('[data-sell]').forEach((b) =>
     b.addEventListener('click', async () => {
       const t = b.dataset.sell!;

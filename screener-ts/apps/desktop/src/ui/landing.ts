@@ -4,15 +4,26 @@ import { applyTheme } from './theme.js';
 /** Full-screen hero landing, shown before the app. Calls `onEnter` on CTA. */
 export function renderLanding(host: HTMLElement, onEnter: () => void): void {
   const isLight = document.documentElement.classList.contains('light');
+  const logoSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg>`;
   host.innerHTML = `
     <div class="landing">
+      <div class="landing-glow"></div>
       <div class="landing-inner">
-        <div class="row" style="justify-content:flex-end;gap:8px;margin-bottom:8px">
-          <div class="lang-toggle" role="group" aria-label="Language">
-            <button data-ll="en" class="${getLang() === 'en' ? 'active' : ''}">EN</button>
-            <button data-ll="vi" class="${getLang() === 'vi' ? 'active' : ''}">VI</button>
+        <div class="row" style="margin-bottom:36px">
+          <div class="brand" style="cursor:default;width:auto;margin:0">
+            <div class="logo logo-svg">${logoSvg}</div>
+            <div>
+              <div class="brand-name">${t('brand.name')}</div>
+              <div class="brand-sub">${t('brand.sub')}</div>
+            </div>
           </div>
-          <button id="landing-theme" class="theme-toggle" title="Toggle theme">${isLight ? '☀️' : '🌙'}</button>
+          <div class="row" style="margin-left:auto;gap:8px">
+            <div class="lang-toggle" role="group" aria-label="Language">
+              <button data-ll="en" class="${getLang() === 'en' ? 'active' : ''}">EN</button>
+              <button data-ll="vi" class="${getLang() === 'vi' ? 'active' : ''}">VI</button>
+            </div>
+            <button id="landing-theme" class="theme-toggle" title="Toggle theme">${isLight ? '☀️' : '🌙'}</button>
+          </div>
         </div>
         <div class="landing-badge">${t('landing.badge')}</div>
         <h1 class="landing-h1">${t('landing.h1a')}<br /><span class="accent">${t('landing.h1b')}</span></h1>

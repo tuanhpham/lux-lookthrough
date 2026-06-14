@@ -1,4 +1,4 @@
-import { scanStock, buildSummary, type Period } from '@screener/core';
+import { scanStock, type Period } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, num, fmtBig, money, scoreColor, signalBadge, stageBadge } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
@@ -142,9 +142,9 @@ function renderDetail(
         ${stat('Vol dry-up', num(p.consolidation.volumeDryUpPct, 1) + '%', 'volume_dryup')}
         ${stat('VCP', String(p.consolidation.vcpContractions), 'vcp')}
       </div>
-      <div class="card" style="margin-top:12px;background:var(--surface)">
+      <div class="card analysis-card" style="margin-top:12px">
         <div class="section-title" style="margin-top:0">${t('detail.analysis')}</div>
-        <p style="line-height:1.6;margin:0">${buildSummary(p)[getLang()]}</p>
+        ${analysisHtml(p)}
       </div>`;
   }
   const tvUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`;
@@ -191,21 +191,17 @@ function renderDetail(
       <div id="fund-chart" class="chart" style="height:160px"></div>
     </div>
     <div class="section-title">${t('detail.fundamentals')}</div>
-    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
-      ${stat('Market Cap', fmtBig(f.marketCap), 'market_cap')}
-      ${stat('P/E', num(f.peRatio, 1), 'pe_ratio')}
-      ${stat('EPS', f.eps != null ? '$' + num(f.eps) : '—', 'eps')}
-      ${stat('ROE', f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe')}
-      ${stat('Profit Margin', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin')}
-      ${stat('Rev Growth', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—', 'revenue_growth')}
-      ${stat('Beta', num(f.beta, 2), 'beta')}
-      ${stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—', 'dividend_yield')}
-      ${stat('52w Range', f.week52Low != null && f.week52High != null ? '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0) : '—', 'week52')}
-    </div>
+    <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f)}</div>
     <div class="section-title">${t('detail.about')}</div>
     <div id="about-block">${aboutHtml(symbol, f)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
   `;
+}
+
+/** Truncate to ~`max` chars on a word boundary, like the backend's 600-char cap. */
+function shorten(text: string, max = 600): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max).replace(/\s+\S*$/, '') + '…';
 }
 
 /** About paragraph + website link (re-renderable as enrichment arrives). */
@@ -214,12 +210,90 @@ function aboutHtml(
   f: { name?: string | null; currency?: string | null; summary?: string | null; website?: string | null; sector?: string | null; industry?: string | null },
 ): string {
   const link = f.website
-    ? `<a href="${f.website}" target="_blank" rel="noopener" class="accent" style="display:inline-block;margin-top:8px">${f.website} ↗</a>`
+    ? `<a href="${f.website}" target="_blank" rel="noopener" class="link-ext">${f.website} ↗</a>`
     : '';
-  if (f.summary) return `<p class="muted" style="line-height:1.6">${f.summary}</p>${link}`;
+  if (f.summary) return `<p class="muted" style="line-height:1.6">${shorten(f.summary)}</p>${link}`;
   return `<p class="muted" style="line-height:1.6">${
     f.name ? f.name + (f.currency ? ` · ${f.currency}` : '') : symbol
   } — fetching company profile…</p>`;
+}
+
+/** Fundamentals stat grid — re-rendered when enrichment lands so beta / dividend
+ * yield / ROE / margin appear once the crumb fetch resolves. */
+function fundGridHtml(f: {
+  marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null;
+  profitMargin?: number | null; revenueGrowth?: number | null; beta?: number | null;
+  dividendYield?: number | null; week52Low?: number | null; week52High?: number | null;
+}): string {
+  return [
+    stat('Market Cap', fmtBig(f.marketCap), 'market_cap'),
+    stat('P/E', num(f.peRatio, 1), 'pe_ratio'),
+    stat('EPS', f.eps != null ? '$' + num(f.eps) : '—', 'eps'),
+    stat('ROE', f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe'),
+    stat('Profit Margin', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin'),
+    stat('Rev Growth', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—', 'revenue_growth'),
+    stat('Beta', num(f.beta, 2), 'beta'),
+    stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—', 'dividend_yield'),
+    stat('52w Range', f.week52Low != null && f.week52High != null ? '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0) : '—', 'week52'),
+  ].join('');
+}
+
+/** Professional bullet-point analysis with highlighted key figures. Bilingual. */
+function analysisHtml(p: ReturnType<typeof scanStock>): string {
+  const vi = getLang() === 'vi';
+  const hl = (s: string) => `<span class="hl">${s}</span>`;
+  const sig = p.signal === 'BREAKOUT_IMMINENT'
+    ? (vi ? 'Bứt phá sắp xảy ra' : 'Breakout imminent')
+    : p.signal === 'CONSOLIDATING'
+      ? (vi ? 'Đang tích lũy' : 'Consolidating')
+      : (vi ? 'Chưa có tín hiệu' : 'No actionable signal');
+  const stageTxt: Record<number, string> = vi
+    ? { 0: 'chưa xác định', 1: 'Giai đoạn 1 — tạo nền', 2: 'Giai đoạn 2 — tăng giá (vùng mua)', 3: 'Giai đoạn 3 — tạo đỉnh', 4: 'Giai đoạn 4 — giảm giá' }
+    : { 0: 'undetermined', 1: 'Stage 1 — basing', 2: 'Stage 2 — advancing (buy zone)', 3: 'Stage 3 — topping', 4: 'Stage 4 — declining' };
+
+  const items: string[] = [];
+  items.push(
+    vi
+      ? `<b>${sig}</b> · điểm tin cậy ${hl(num(p.score, 0) + '/100')} · ${stageTxt[p.stage.stage]}`
+      : `<b>${sig}</b> · conviction ${hl(num(p.score, 0) + '/100')} · ${stageTxt[p.stage.stage]}`,
+  );
+  const c = p.consolidation;
+  items.push(
+    vi
+      ? `Nền giá ~${hl(String(c.daysInBase) + ' phiên')}, biên độ ${hl(num(c.priceRangePct, 1) + '%')}` +
+        (c.atrContractionPct > 0 ? `, biến động co lại ${hl(num(c.atrContractionPct, 1) + '%')}` : '') +
+        (c.volumeDryUpPct > 0 ? `, thanh khoản cạn ${hl(num(c.volumeDryUpPct, 1) + '%')}` : '')
+      : `Base ~${hl(String(c.daysInBase) + ' days')}, range ${hl(num(c.priceRangePct, 1) + '%')}` +
+        (c.atrContractionPct > 0 ? `, volatility contracted ${hl(num(c.atrContractionPct, 1) + '%')}` : '') +
+        (c.volumeDryUpPct > 0 ? `, volume dry-up ${hl(num(c.volumeDryUpPct, 1) + '%')}` : ''),
+  );
+  if (c.vcpContractions > 0) {
+    items.push(
+      vi
+        ? `${hl(String(c.vcpContractions) + ' lần co thắt VCP')} — các nhịp điều chỉnh thu hẹp dần`
+        : `${hl(String(c.vcpContractions) + ' VCP contraction' + (c.vcpContractions !== 1 ? 's' : ''))} — successively tighter pullbacks`,
+    );
+  }
+  if (p.pivot.pivotHigh) {
+    items.push(
+      vi
+        ? `Cách pivot ${hl('$' + num(p.pivot.pivotHigh))} khoảng ${hl(num(p.pivot.distanceToPivotPct, 1) + '%')}`
+        : `${hl(num(p.pivot.distanceToPivotPct, 1) + '%')} below the pivot at ${hl('$' + num(p.pivot.pivotHigh))}`,
+    );
+  }
+  if (p.entryPrice && p.stopLoss && p.targetPrice) {
+    const rr = p.riskReward ? num(p.riskReward, 1) + 'R' : '—';
+    items.push(
+      vi
+        ? `Kế hoạch: mua ${hl('$' + num(p.entryPrice))}, cắt lỗ ${hl('$' + num(p.stopLoss))}, mục tiêu ${hl('$' + num(p.targetPrice))} (${hl(rr)})`
+        : `Plan: buy ${hl('$' + num(p.entryPrice))}, stop ${hl('$' + num(p.stopLoss))}, target ${hl('$' + num(p.targetPrice))} (${hl(rr)})`,
+    );
+  }
+  const note = vi
+    ? 'Phân tích tự động mang tính giáo dục — không phải lời khuyên đầu tư.'
+    : 'Automated, educational read — not financial advice.';
+  return `<ul class="analysis-list">${items.map((i) => `<li>${i}</li>`).join('')}</ul>
+    <div class="muted" style="font-size:11px;margin-top:6px">${note}</div>`;
 }
 
 /**
@@ -298,9 +372,14 @@ async function patchWhenEnriched(ctx: AppContext, symbol: string, body: HTMLElem
     // Only patch the currently-open symbol.
     if (!$('#modal-title')!.textContent?.toUpperCase().startsWith(symbol)) return;
 
-    if (f.summary || f.sector || f.beta != null) {
+    if (f.summary || f.sector || f.beta != null || f.dividendYield != null) {
       const about = body.querySelector('#about-block');
       if (about) about.innerHTML = aboutHtml(symbol, f);
+      const grid = body.querySelector('#fund-grid');
+      if (grid) {
+        grid.innerHTML = fundGridHtml(f);
+        attachTooltips(grid);
+      }
       const sub = body.querySelector('#detail-subtitle');
       if (sub && (f.sector || f.industry)) {
         sub.textContent = `${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}`;
