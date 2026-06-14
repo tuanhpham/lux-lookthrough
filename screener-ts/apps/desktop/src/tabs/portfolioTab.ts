@@ -126,6 +126,20 @@ function snapshotNow(st: AccountState): void {
   else st.snapshots.push(snap);
 }
 
+/** Share-weighted average holding period (days) across closed (sold) trades. */
+function avgHoldingDays(st: AccountState): { days: number; count: number } {
+  const lotById = new Map(st.lots.map((l) => [l.id, l]));
+  let wSum = 0;
+  let shares = 0;
+  for (const s of st.sells) {
+    const lot = lotById.get(s.lotId);
+    if (!lot) continue;
+    wSum += daysBetween(lot.buyDate, s.sellDate) * s.shares;
+    shares += s.shares;
+  }
+  return { days: shares > 0 ? wSum / shares : 0, count: st.sells.length };
+}
+
 export async function renderPortfolio(ctx: AppContext): Promise<void> {
   await load(ctx);
   draw(ctx);
@@ -137,6 +151,7 @@ function draw(ctx: AppContext): void {
   const p = prices(st.account.id);
   const m = computeAccountMetrics(st, p);
   const positions = buildPositions(st, p, today());
+  const avgHold = avgHoldingDays(st);
 
   root.innerHTML = `
     <h1>Paper Trading</h1>
@@ -165,6 +180,7 @@ function draw(ctx: AppContext): void {
       <div class="stat"><div class="k">Win rate</div><div class="v">${num(m.winRate * 100, 0)}%</div></div>
       <div class="stat"><div class="k">Avg R / Expectancy</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(m.expectancy)}</div></div>
       <div class="stat"><div class="k">Max drawdown</div><div class="v">${num(m.maxDrawdownPct, 1)}%</div></div>
+      <div class="stat"><div class="k">Avg holding period</div><div class="v">${avgHold.count ? num(avgHold.days, 0) + ' days' : '—'}</div></div>
     </div>
 
     <div class="card" style="margin-bottom:14px;padding:8px">
@@ -358,7 +374,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const res = await formDialog(`Sell ${t}`, [
         { key: 'shares', label: 'Shares to sell', type: 'number' },
         { key: 'price', label: 'Sell price', type: 'number' },
-        { key: 'date', label: 'Date', value: today() },
+        { key: 'date', label: 'Date', type: 'date', value: today() },
       ]);
       if (!res) return;
       const shares = Number(res.shares);
@@ -432,18 +448,47 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
 /** A unified, date-sorted ledger of every BUY and SELL (closed trades included),
  * each sell showing realized PnL. */
+/** Whole-day difference between two ISO dates (>= 0). */
+function daysBetween(a: string, b: string): number {
+  const ms = Date.parse(b) - Date.parse(a);
+  return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 86_400_000)) : 0;
+}
+
 function transactionHistoryHtml(st: AccountState): string {
-  interface Tx { date: string; kind: 'BUY' | 'SELL'; ticker: string; shares: number; price: number; pnl: number | null; }
+  interface Tx {
+    sortDate: string; kind: 'BUY' | 'SELL'; ticker: string; shares: number; price: number;
+    buyDate: string; sellDate: string | null; holdDays: number | null; pnl: number | null;
+  }
+  const lotById = new Map(st.lots.map((l) => [l.id, l]));
   const txs: Tx[] = [];
   for (const l of st.lots)
-    txs.push({ date: l.buyDate, kind: 'BUY', ticker: l.ticker, shares: l.shares, price: l.buyPrice, pnl: null });
-  for (const s of st.sells)
-    txs.push({ date: s.sellDate, kind: 'SELL', ticker: s.ticker, shares: s.shares, price: s.sellPrice, pnl: s.realizedPnL });
+    txs.push({ sortDate: l.buyDate, kind: 'BUY', ticker: l.ticker, shares: l.shares, price: l.buyPrice,
+      buyDate: l.buyDate, sellDate: null, holdDays: null, pnl: null });
+  for (const s of st.sells) {
+    const lot = lotById.get(s.lotId);
+    const buyDate = lot?.buyDate ?? '—';
+    const hold = lot ? daysBetween(lot.buyDate, s.sellDate) : null;
+    txs.push({ sortDate: s.sellDate, kind: 'SELL', ticker: s.ticker, shares: s.shares, price: s.sellPrice,
+      buyDate, sellDate: s.sellDate, holdDays: hold, pnl: s.realizedPnL });
+  }
   if (!txs.length) {
     return `<div class="muted" style="text-align:center;padding:20px">No transactions yet.</div>`;
   }
+
+  // Average holding period across closed (sold) trades, share-weighted by sale size.
+  const sold = txs.filter((t) => t.kind === 'SELL' && t.holdDays != null);
+  let avgHold = 0;
+  if (sold.length) {
+    const wSum = sold.reduce((s, t) => s + t.holdDays! * t.shares, 0);
+    const shares = sold.reduce((s, t) => s + t.shares, 0);
+    avgHold = shares > 0 ? wSum / shares : 0;
+  }
+  const avgLine = sold.length
+    ? `<p class="muted" style="font-size:12px;margin:0 0 8px">Average holding period (closed trades): <b class="accent">${num(avgHold, 0)} days</b> over ${sold.length} sale(s).</p>`
+    : '';
+
   // Newest first; BUY before SELL on the same date for readability.
-  txs.sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.kind === b.kind ? 0 : a.kind === 'BUY' ? 1 : -1));
+  txs.sort((a, b) => (a.sortDate !== b.sortDate ? (a.sortDate < b.sortDate ? 1 : -1) : a.kind === b.kind ? 0 : a.kind === 'BUY' ? 1 : -1));
   const rows = txs
     .map((tx) => {
       const val = tx.shares * tx.price;
@@ -453,13 +498,15 @@ function transactionHistoryHtml(st: AccountState): string {
           : `<span style="color:${tx.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(tx.pnl)}</span>`;
       const kindColor = tx.kind === 'BUY' ? 'var(--accent2)' : 'var(--warn)';
       return `<tr>
-        <td>${tx.date}</td>
         <td><span class="badge" style="background:color-mix(in srgb,${kindColor} 16%,transparent);color:${kindColor}">${tx.kind}</span></td>
         <td><a href="#" class="link-ticker" data-open="${tx.ticker}"><strong>${tx.ticker}</strong></a></td>
-        <td>${tx.shares}</td><td>$${num(tx.price)}</td><td>${money(val)}</td><td>${pnl}</td></tr>`;
+        <td>${tx.shares}</td><td>$${num(tx.price)}</td><td>${money(val)}</td>
+        <td>${tx.buyDate}</td><td>${tx.sellDate ?? '—'}</td>
+        <td>${tx.holdDays != null ? tx.holdDays + 'd' : '—'}</td>
+        <td>${pnl}</td></tr>`;
     })
     .join('');
-  return `<table><thead><tr><th>Date</th><th>Type</th><th>Ticker</th><th>Shares</th><th>Price</th><th>Value</th><th>Realized PnL</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `${avgLine}<table><thead><tr><th>Type</th><th>Ticker</th><th>Shares</th><th>Price</th><th>Value</th><th>Buy date</th><th>Sell date</th><th>Held</th><th>Realized PnL</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderOrders(ctx: AppContext): void {
@@ -533,10 +580,22 @@ async function update(ctx: AppContext): Promise<void> {
 
 function renderCompare(): void {
   const panel = $('#compare-panel')!;
+  // Toggle: a second click hides it.
+  if (panel.dataset.open === '1') {
+    panel.innerHTML = '';
+    panel.dataset.open = '';
+    return;
+  }
+  panel.dataset.open = '1';
   const pricesByAccount = new Map(accounts.map((a) => [a.account.id, prices(a.account.id)]));
   const rows = compareAccounts(accounts, pricesByAccount);
+  const note =
+    accounts.length < 2
+      ? `<p class="muted" style="font-size:12px;margin:0 0 8px">Add another account (＋ New account) to compare strategies side by side.</p>`
+      : '';
   panel.innerHTML = `
     <div class="section-title">Cross-account comparison</div>
+    ${note}
     <div class="card" style="overflow-x:auto">
       <table><thead><tr><th>Account</th><th>Return %</th><th>Equity</th><th>Win rate</th><th>Expectancy</th><th>Avg R</th><th>Max DD</th><th>Open risk %</th><th>Open</th><th>Closed</th></tr></thead>
       <tbody>${rows
@@ -546,4 +605,5 @@ function renderCompare(): void {
         )
         .join('')}</tbody></table>
     </div>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }

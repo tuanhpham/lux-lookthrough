@@ -6,7 +6,7 @@
 export interface Field {
   key: string;
   label: string;
-  type?: 'text' | 'number';
+  type?: 'text' | 'number' | 'date';
   value?: string;
   placeholder?: string;
 }
