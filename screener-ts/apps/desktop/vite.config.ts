@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
 
@@ -78,10 +79,16 @@ function yahooProxy(): Plugin {
 export default defineConfig({
   clearScreen: false,
   plugins: [yahooProxy()],
-  // @screener/core is a local workspace source package, not a third-party lib.
-  // Excluding it from dep pre-bundling means Vite always serves its live dist —
-  // never a stale cached copy that's missing newly-added exports (which black-
-  // screened the app after `deleteLot`/`deleteSell` were added to core).
+  // Point @screener/core at its TypeScript SOURCE (not the built dist). Vite
+  // compiles TS on the fly, so the app always sees the latest core code with no
+  // build step — fixes "does not provide an export named …" when dist is stale
+  // or unbuilt on a fresh checkout/another machine.
+  resolve: {
+    alias: {
+      '@screener/core': fileURLToPath(new URL('../../packages/core/src/index.ts', import.meta.url)),
+    },
+  },
+  // Don't pre-bundle the workspace source package.
   optimizeDeps: { exclude: ['@screener/core'] },
   server: {
     port: 1420,
