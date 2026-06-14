@@ -1,6 +1,6 @@
 TASK: Build a TypeScript monorepo stock-screener app (rewrite of an existing Python project), architected so an iOS app can be added later with zero logic rewrite.
 
-CONTEXT I have an existing stock screener written in Python (FastAPI + SQLAlchemy + pandas + yfinance, optional TA-Lib) with a web dashboard (HTML/CSS/JS using TradingView lightweight-charts). The OLD Python project is in this repo as the REFERENCE implementation. DO NOT modify it. Build the NEW project as a separate TypeScript monorepo.
+CONTEXT this is an existing stock screener written in Python (FastAPI + SQLAlchemy + pandas + yfinance, optional TA-Lib) with a web dashboard (HTML/CSS/JS using TradingView lightweight-charts). The OLD Python project is in this repo as the REFERENCE implementation. DO NOT modify it. Build the NEW project as a separate TypeScript monorepo.
 
 The screener computes: ATR, EMA (5/10/21/50/150/200), volume dry-up, VCP contractions, Weinstein Stage 2, pivot proximity, and a 0-100 score producing signals: BREAKOUT_IMMINENT (score >= 70 and within 3% of pivot), CONSOLIDATING (score >= 40), NO_SIGNAL. Scoring weights: Stage 2 = 25, ATR contraction >= 30% = 20, price range < 5% = 15, volume dry-up >= 40% = 15, VCP contractions (3+) = 15, pivot proximity < 1% = 10.
 

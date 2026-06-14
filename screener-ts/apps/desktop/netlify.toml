@@ -1,0 +1,24 @@
+# Netlify alternative to Cloudflare Pages. The functions/ proxies above are
+# Cloudflare-flavored; for Netlify, equivalent functions live in netlify/functions
+# (not duplicated here to avoid drift — Cloudflare is the documented path).
+# This file lets `netlify deploy` serve the static SPA with the same proxy routes
+# once you port the two functions.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/api/yahoo/*"
+  to = "/.netlify/functions/yahoo/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/finnhub/*"
+  to = "/.netlify/functions/finnhub/:splat"
+  status = 200
+
+# SPA fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

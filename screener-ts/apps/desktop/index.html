@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Screener — TS</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <div class="brand">
+          <div class="logo">▲</div>
+          <div>
+            <div class="brand-name">Screener</div>
+            <div class="brand-sub">TypeScript edition</div>
+          </div>
+        </div>
+        <nav id="nav">
+          <button data-tab="picks" class="nav-btn active">Top Picks</button>
+          <button data-tab="screener" class="nav-btn">Screener</button>
+          <button data-tab="watchlist" class="nav-btn">Watchlists</button>
+          <button data-tab="sectors" class="nav-btn">Sectors</button>
+          <button data-tab="portfolio" class="nav-btn">Paper Trading</button>
+          <button data-tab="blog" class="nav-btn">Weekly Analysis</button>
+          <button data-tab="learn" class="nav-btn">Learn</button>
+        </nav>
+        <div class="sidebar-foot">Educational use only. Not financial advice.</div>
+      </aside>
+      <main id="main">
+        <section id="tab-picks" class="tab"></section>
+        <section id="tab-screener" class="tab hidden"></section>
+        <section id="tab-watchlist" class="tab hidden"></section>
+        <section id="tab-sectors" class="tab hidden"></section>
+        <section id="tab-portfolio" class="tab hidden"></section>
+        <section id="tab-blog" class="tab hidden"></section>
+        <section id="tab-learn" class="tab hidden"></section>
+      </main>
+    </div>
+    <div id="modal" class="modal hidden">
+      <div id="modal-backdrop" class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="modal-head">
+          <div id="modal-title">—</div>
+          <button id="modal-close">×</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
