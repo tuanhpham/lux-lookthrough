@@ -8,6 +8,9 @@ import {
   buildPositions,
   computeAccountMetrics,
   compareAccounts,
+  computeCash,
+  computeEquity,
+  computePositionsValue,
   fetchMany,
   SECTOR_STOCKS,
   type AccountState,
@@ -98,6 +101,30 @@ const priceCache = new Map<string, PriceMap>();
 function prices(accId: string): PriceMap {
   return priceCache.get(accId) ?? {};
 }
+/** Record a manually-entered price so equity/positions reflect it right away. */
+function seedPrice(accId: string, ticker: string, price: number): void {
+  const m = priceCache.get(accId) ?? {};
+  m[ticker] = price;
+  priceCache.set(accId, m);
+}
+
+/**
+ * Record an equity snapshot for today using the latest known prices, replacing
+ * any existing snapshot for the same day. Called after a buy/sell so the equity
+ * curve moves immediately (snapshots otherwise only appended on Update prices).
+ */
+function snapshotNow(st: AccountState): void {
+  const p = prices(st.account.id);
+  const snap = {
+    date: today(),
+    equity: computeEquity(st, p),
+    cash: computeCash(st),
+    positionsValue: computePositionsValue(st, p),
+  };
+  const i = st.snapshots.findIndex((s) => s.date === snap.date);
+  if (i >= 0) st.snapshots[i] = snap;
+  else st.snapshots.push(snap);
+}
 
 export async function renderPortfolio(ctx: AppContext): Promise<void> {
   await load(ctx);
@@ -176,6 +203,9 @@ function draw(ctx: AppContext): void {
       Set or edit either anytime with the buttons above; risk recalculates. Clearing the stop removes it.
     </p>
 
+    <div class="section-title">Transaction History</div>
+    <div class="card" style="overflow-x:auto;margin-bottom:14px">${transactionHistoryHtml(st)}</div>
+
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
         <div class="section-title" style="margin-top:0">Record a Buy / Sell</div>
@@ -248,15 +278,23 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     draw(ctx);
   });
 
-  // equity curve
+  // equity curve — dedupe snapshots by date (keep the last per day) and sort
+  // ascending, because lightweight-charts requires strictly increasing,
+  // unique timestamps (otherwise it throws "data must be asc ordered by time").
   const st = active();
   const eq = $('#equity-chart')!;
-  if (st.snapshots.length) {
-    drawLine(
-      eq,
-      st.snapshots.map((s) => ({ time: s.date, value: s.equity })),
-      { baseline: st.account.initialCapital },
-    );
+  const byDate = new Map<string, number>();
+  for (const s of st.snapshots) byDate.set(s.date, s.equity);
+  const points = [...byDate.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([time, value]) => ({ time, value }));
+  if (points.length) {
+    try {
+      drawLine(eq, points, { baseline: st.account.initialCapital });
+    } catch (err) {
+      eq.innerHTML = `<div class="muted" style="text-align:center;padding:40px">Chart unavailable.</div>`;
+      console.error('equity chart error', err);
+    }
   } else {
     eq.innerHTML = `<div class="muted" style="text-align:center;padding:40px">No snapshots yet — click “Update prices”.</div>`;
   }
@@ -281,6 +319,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     const target = Number(($('#b-target') as HTMLInputElement).value) || undefined;
     if (!t || shares <= 0 || price <= 0) return;
     buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target }, uuid);
+    seedPrice(active().account.id, t, price);
+    snapshotNow(active());
     await save(ctx);
     draw(ctx);
   });
@@ -294,6 +334,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     if (!t || shares <= 0 || price <= 0) return;
     try {
       sell(active(), { ticker: t, sellDate: date, sellPrice: price, shares }, uuid);
+      seedPrice(active().account.id, t, price);
+      snapshotNow(active());
       await save(ctx);
       draw(ctx);
     } catch (e) {
@@ -324,6 +366,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       if (shares <= 0 || price <= 0) return;
       try {
         sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: price, shares }, uuid);
+        seedPrice(active().account.id, t, price);
+        snapshotNow(active());
         await save(ctx);
         draw(ctx);
       } catch (e) {
@@ -384,6 +428,38 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
   // compare
   $('#acct-compare')!.addEventListener('click', () => renderCompare());
+}
+
+/** A unified, date-sorted ledger of every BUY and SELL (closed trades included),
+ * each sell showing realized PnL. */
+function transactionHistoryHtml(st: AccountState): string {
+  interface Tx { date: string; kind: 'BUY' | 'SELL'; ticker: string; shares: number; price: number; pnl: number | null; }
+  const txs: Tx[] = [];
+  for (const l of st.lots)
+    txs.push({ date: l.buyDate, kind: 'BUY', ticker: l.ticker, shares: l.shares, price: l.buyPrice, pnl: null });
+  for (const s of st.sells)
+    txs.push({ date: s.sellDate, kind: 'SELL', ticker: s.ticker, shares: s.shares, price: s.sellPrice, pnl: s.realizedPnL });
+  if (!txs.length) {
+    return `<div class="muted" style="text-align:center;padding:20px">No transactions yet.</div>`;
+  }
+  // Newest first; BUY before SELL on the same date for readability.
+  txs.sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.kind === b.kind ? 0 : a.kind === 'BUY' ? 1 : -1));
+  const rows = txs
+    .map((tx) => {
+      const val = tx.shares * tx.price;
+      const pnl =
+        tx.pnl == null
+          ? '—'
+          : `<span style="color:${tx.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(tx.pnl)}</span>`;
+      const kindColor = tx.kind === 'BUY' ? 'var(--accent2)' : 'var(--warn)';
+      return `<tr>
+        <td>${tx.date}</td>
+        <td><span class="badge" style="background:color-mix(in srgb,${kindColor} 16%,transparent);color:${kindColor}">${tx.kind}</span></td>
+        <td><a href="#" class="link-ticker" data-open="${tx.ticker}"><strong>${tx.ticker}</strong></a></td>
+        <td>${tx.shares}</td><td>$${num(tx.price)}</td><td>${money(val)}</td><td>${pnl}</td></tr>`;
+    })
+    .join('');
+  return `<table><thead><tr><th>Date</th><th>Type</th><th>Ticker</th><th>Shares</th><th>Price</th><th>Value</th><th>Realized PnL</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderOrders(ctx: AppContext): void {
