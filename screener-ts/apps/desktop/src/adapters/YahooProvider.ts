@@ -12,6 +12,15 @@ import type {
 import { TTLCache, SECTOR_STOCKS, fetchMany } from '@screener/core';
 import { http, isTauri } from './http.js';
 
+/** Resolve `p`, or resolve to undefined after `ms` — so an optional, slow
+ * best-effort call can never block the caller. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+  return Promise.race([
+    p.catch(() => undefined),
+    new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms)),
+  ]);
+}
+
 /**
  * Default free provider backed by Yahoo Finance public endpoints.
  *
@@ -121,16 +130,23 @@ export class YahooProvider implements DataProvider {
         const o = q.open?.[i];
         const h = q.high?.[i];
         const l = q.low?.[i];
-        const c = adj?.[i] ?? q.close?.[i];
+        const rawClose = q.close?.[i];
         const v = q.volume?.[i];
-        if (o == null || h == null || l == null || c == null || v == null) continue;
+        if (o == null || h == null || l == null || rawClose == null || v == null) continue;
+
+        // Match yfinance `auto_adjust=True`: scale ALL of OHLC by the same
+        // per-bar factor (adjClose / rawClose), leaving volume unadjusted.
+        // Using adjClose for close while keeping raw O/H/L (the old bug) breaks
+        // candles AND diverges from the backend's screener inputs.
+        const adjClose = adj?.[i];
+        const factor = adjClose != null && rawClose !== 0 ? adjClose / rawClose : 1;
         const d = new Date(result.timestamp[i]! * 1000);
         bars.push({
           date: d.toISOString().slice(0, 10),
-          open: o,
-          high: h,
-          low: l,
-          close: c,
+          open: o * factor,
+          high: h * factor,
+          low: l * factor,
+          close: (adjClose ?? rawClose),
           volume: v,
         });
       }
@@ -219,9 +235,10 @@ export class YahooProvider implements DataProvider {
 
     // Best-effort upgrade: quoteSummary (behind a cookie+crumb handshake the
     // proxy/Rust layer performs) adds sector, beta, dividend yield, ROE, profit
-    // margin, and the company description. If it fails (e.g. blocked CA in some
-    // sandboxes) we keep the timeseries-derived values above.
-    await this.enrichFromQuoteSummary(symbol, f);
+    // margin, and the company description. Time-bounded so a slow/stalled crumb
+    // call (common behind a corporate proxy) can NEVER block the detail page —
+    // if it doesn't answer in time we keep the timeseries-derived values.
+    await withTimeout(this.enrichFromQuoteSummary(symbol, f), 6000);
 
     this.fundCache.set(symbol, f);
     return f;
