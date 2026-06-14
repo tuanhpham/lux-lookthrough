@@ -6,8 +6,8 @@
   --border: #252d3b;
   --border-soft: #1b2230;
   --text: #eef2f8;
-  --subtext: #a3adbf;
-  --faint: #687387;
+  --subtext: #b6c0d0;
+  --faint: #7d889b;
   --accent: #00d49b;
   --accent2: #3b82f6;
   --danger: #ff5d6c;
@@ -50,10 +50,12 @@ body {
 .brand-sub { color: var(--faint); font-size: 11px; }
 #nav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .nav-btn {
+  display: flex; align-items: center; gap: 10px;
   text-align: left; background: transparent; border: 0; color: var(--subtext);
   padding: 9px 12px; border-radius: 10px; font-size: 14px; cursor: pointer; font-weight: 600;
   transition: background .18s ease, color .18s ease, transform .1s ease;
 }
+.nav-btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
 .nav-btn:hover { background: var(--cardhover); color: var(--text); }
 .nav-btn:active { transform: scale(.98); }
 .nav-btn.active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
@@ -139,6 +141,11 @@ tbody tr:hover { background: var(--cardhover); }
 .combo-item:hover, .combo-item.active { background: var(--cardhover); color: var(--text); }
 .link-ticker { color: var(--accent); text-decoration: none; }
 .link-ticker:hover { text-decoration: underline; }
+.btn-icon { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 7px 12px; }
+.btn-icon svg { width: 15px; height: 15px; }
+.btn-icon .ext { width: 12px; height: 12px; opacity: .6; }
+.icon-btn { background: transparent; border: 0; color: var(--faint); cursor: pointer; padding: 2px 5px; border-radius: 6px; font-size: 13px; line-height: 1; }
+.icon-btn:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .danger { color: var(--danger); }
 .accent { color: var(--accent); }
 .warn { color: var(--warn); }

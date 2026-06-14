@@ -156,7 +156,11 @@ function renderDetail(
       </div>
       <div class="row" style="margin-left:auto;gap:8px">
         <button id="wl-toggle" class="btn-outline" style="padding:7px 12px">☆ Watchlist</button>
-        <a class="btn-outline" style="padding:7px 12px;text-decoration:none" href="${tvUrl}" target="_blank" rel="noopener" title="Open in TradingView">📈 TradingView ↗</a>
+        <a class="btn-outline btn-icon" href="${tvUrl}" target="_blank" rel="noopener" title="Open in TradingView">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+          <span>TradingView</span>
+          <svg class="ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/></svg>
+        </a>
       </div>
     </div>
     <div id="wl-picker" class="card hidden" style="margin-bottom:12px;background:var(--surface)"></div>

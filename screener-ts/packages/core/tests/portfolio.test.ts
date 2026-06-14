@@ -5,6 +5,8 @@ import {
   buy,
   sell,
   setStop,
+  deleteSell,
+  deleteLot,
   buildPositions,
   computeAccountMetrics,
   computeEquity,
@@ -24,6 +26,34 @@ function freshAccount(initial = 50000): AccountState {
     ids,
   );
 }
+
+describe('delete transactions', () => {
+  it('deleteSell returns shares to the lot and reverses realized PnL/cash', () => {
+    const ids = counterIds('x');
+    const s = freshAccount(100000);
+    const lot = buy(s, { ticker: 'AAPL', buyDate: '2024-01-02', buyPrice: 100, shares: 100 }, ids);
+    const [rec] = sell(s, { ticker: 'AAPL', sellDate: '2024-02-01', sellPrice: 120, shares: 40 }, ids);
+    expect(lot.remainingShares).toBe(60);
+    expect(computeCash(s)).toBe(100000 - 100 * 100 + 120 * 40);
+
+    deleteSell(s, rec!.id);
+    expect(lot.remainingShares).toBe(100); // shares restored
+    expect(s.sells.length).toBe(0);
+    expect(computeCash(s)).toBe(100000 - 100 * 100); // proceeds reversed
+    expect(computeAccountMetrics(s, {}).realizedPnL).toBe(0);
+  });
+
+  it('deleteLot removes the lot and its sells, resetting figures', () => {
+    const ids = counterIds('x');
+    const s = freshAccount(100000);
+    const lot = buy(s, { ticker: 'MSFT', buyDate: '2024-01-02', buyPrice: 50, shares: 100 }, ids);
+    sell(s, { ticker: 'MSFT', sellDate: '2024-02-01', sellPrice: 60, shares: 30 }, ids);
+    deleteLot(s, lot.id);
+    expect(s.lots.length).toBe(0);
+    expect(s.sells.length).toBe(0);
+    expect(computeCash(s)).toBe(100000); // back to initial
+  });
+});
 
 describe('cash accounting', () => {
   it('cash = initial - bought + sold', () => {

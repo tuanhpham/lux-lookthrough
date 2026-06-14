@@ -3,6 +3,8 @@ import {
   buy,
   sell,
   setStop,
+  deleteSell,
+  deleteLot,
   createOrder,
   runUpdate,
   buildPositions,
@@ -165,6 +167,7 @@ function draw(ctx: AppContext): void {
         .join('')}
       <button id="acct-new" class="range-btn">＋ New account</button>
       <button id="acct-edit" class="range-btn">✎ Edit account</button>
+      <button id="acct-delete" class="range-btn">🗑 Delete account</button>
       <button id="acct-update" class="btn" style="margin-left:auto">↻ Update prices</button>
       <button id="acct-compare" class="btn-outline">Compare</button>
     </div>
@@ -428,6 +431,28 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     }),
   );
 
+  // delete a single SELL (returns the shares to its lot) — testing convenience
+  root.querySelectorAll<HTMLElement>('[data-del-sell]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      if (!confirm('Delete this sell? The shares return to the open position.')) return;
+      deleteSell(active(), b.dataset.delSell!);
+      snapshotNow(active());
+      await save(ctx);
+      draw(ctx);
+    }),
+  );
+
+  // delete a BUY lot (and any sells matched to it)
+  root.querySelectorAll<HTMLElement>('[data-del-lot]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      if (!confirm('Delete this buy and any of its sells? All figures recompute.')) return;
+      deleteLot(active(), b.dataset.delLot!);
+      snapshotNow(active());
+      await save(ctx);
+      draw(ctx);
+    }),
+  );
+
   // place order
   $('#o-go')!.addEventListener('click', async () => {
     const t = ($('#o-ticker') as HTMLInputElement).value.trim().toUpperCase();
@@ -439,6 +464,19 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     draw(ctx);
   });
 
+  // delete the active account
+  $('#acct-delete')!.addEventListener('click', async () => {
+    if (accounts.length <= 1) {
+      alert('Keep at least one account. Create another first if you want to remove this one.');
+      return;
+    }
+    if (!confirm(`Delete account "${active().account.name}" and all its transactions?`)) return;
+    accounts = accounts.filter((a) => a.account.id !== activeId);
+    activeId = accounts[0]!.account.id;
+    await save(ctx);
+    draw(ctx);
+  });
+
   // update
   $('#acct-update')!.addEventListener('click', () => void update(ctx));
 
@@ -446,67 +484,87 @@ function wire(ctx: AppContext, root: HTMLElement): void {
   $('#acct-compare')!.addEventListener('click', () => renderCompare());
 }
 
-/** A unified, date-sorted ledger of every BUY and SELL (closed trades included),
- * each sell showing realized PnL. */
 /** Whole-day difference between two ISO dates (>= 0). */
 function daysBetween(a: string, b: string): number {
   const ms = Date.parse(b) - Date.parse(a);
   return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 86_400_000)) : 0;
 }
 
+/**
+ * Per-lot lifecycle ledger. Each lot contributes:
+ *   - one CLOSED row per sell matched to it (buy date + sell date + held + PnL), and
+ *   - one OPEN row for any remainingShares (buy date only, no sell date).
+ * So a 100-share buy with 40 sold shows: one 40-share closed row and one
+ * 60-share open row — never a duplicate "buy" line.
+ */
 function transactionHistoryHtml(st: AccountState): string {
-  interface Tx {
-    sortDate: string; kind: 'BUY' | 'SELL'; ticker: string; shares: number; price: number;
+  interface Row {
+    status: 'CLOSED' | 'OPEN';
+    ticker: string; shares: number; buyPrice: number; sellPrice: number | null;
     buyDate: string; sellDate: string | null; holdDays: number | null; pnl: number | null;
+    sortDate: string; delKind: 'sell' | 'lot'; delId: string;
   }
-  const lotById = new Map(st.lots.map((l) => [l.id, l]));
-  const txs: Tx[] = [];
-  for (const l of st.lots)
-    txs.push({ sortDate: l.buyDate, kind: 'BUY', ticker: l.ticker, shares: l.shares, price: l.buyPrice,
-      buyDate: l.buyDate, sellDate: null, holdDays: null, pnl: null });
+  const sellsByLot = new Map<string, typeof st.sells>();
   for (const s of st.sells) {
-    const lot = lotById.get(s.lotId);
-    const buyDate = lot?.buyDate ?? '—';
-    const hold = lot ? daysBetween(lot.buyDate, s.sellDate) : null;
-    txs.push({ sortDate: s.sellDate, kind: 'SELL', ticker: s.ticker, shares: s.shares, price: s.sellPrice,
-      buyDate, sellDate: s.sellDate, holdDays: hold, pnl: s.realizedPnL });
+    const arr = sellsByLot.get(s.lotId) ?? [];
+    arr.push(s);
+    sellsByLot.set(s.lotId, arr);
   }
-  if (!txs.length) {
+
+  const rows: Row[] = [];
+  for (const l of st.lots) {
+    for (const s of sellsByLot.get(l.id) ?? []) {
+      rows.push({
+        status: 'CLOSED', ticker: l.ticker, shares: s.shares, buyPrice: l.buyPrice, sellPrice: s.sellPrice,
+        buyDate: l.buyDate, sellDate: s.sellDate, holdDays: daysBetween(l.buyDate, s.sellDate),
+        pnl: s.realizedPnL, sortDate: s.sellDate, delKind: 'sell', delId: s.id,
+      });
+    }
+    if (l.remainingShares > 0) {
+      rows.push({
+        status: 'OPEN', ticker: l.ticker, shares: l.remainingShares, buyPrice: l.buyPrice, sellPrice: null,
+        buyDate: l.buyDate, sellDate: null, holdDays: null, pnl: null,
+        sortDate: l.buyDate, delKind: 'lot', delId: l.id,
+      });
+    }
+  }
+  if (!rows.length) {
     return `<div class="muted" style="text-align:center;padding:20px">No transactions yet.</div>`;
   }
 
-  // Average holding period across closed (sold) trades, share-weighted by sale size.
-  const sold = txs.filter((t) => t.kind === 'SELL' && t.holdDays != null);
+  // Share-weighted average holding period across closed rows.
+  const closed = rows.filter((r) => r.status === 'CLOSED');
   let avgHold = 0;
-  if (sold.length) {
-    const wSum = sold.reduce((s, t) => s + t.holdDays! * t.shares, 0);
-    const shares = sold.reduce((s, t) => s + t.shares, 0);
-    avgHold = shares > 0 ? wSum / shares : 0;
+  if (closed.length) {
+    const wSum = closed.reduce((s, r) => s + r.holdDays! * r.shares, 0);
+    const sh = closed.reduce((s, r) => s + r.shares, 0);
+    avgHold = sh > 0 ? wSum / sh : 0;
   }
-  const avgLine = sold.length
-    ? `<p class="muted" style="font-size:12px;margin:0 0 8px">Average holding period (closed trades): <b class="accent">${num(avgHold, 0)} days</b> over ${sold.length} sale(s).</p>`
+  const avgLine = closed.length
+    ? `<p class="muted" style="font-size:12px;margin:0 0 8px">Average holding period (closed): <b class="accent">${num(avgHold, 0)} days</b> over ${closed.length} closed trade(s).</p>`
     : '';
 
-  // Newest first; BUY before SELL on the same date for readability.
-  txs.sort((a, b) => (a.sortDate !== b.sortDate ? (a.sortDate < b.sortDate ? 1 : -1) : a.kind === b.kind ? 0 : a.kind === 'BUY' ? 1 : -1));
-  const rows = txs
-    .map((tx) => {
-      const val = tx.shares * tx.price;
+  rows.sort((a, b) => (a.sortDate < b.sortDate ? 1 : a.sortDate > b.sortDate ? -1 : 0)); // newest first
+  const body = rows
+    .map((r) => {
+      const c = r.status === 'CLOSED' ? 'var(--warn)' : 'var(--accent2)';
       const pnl =
-        tx.pnl == null
-          ? '—'
-          : `<span style="color:${tx.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(tx.pnl)}</span>`;
-      const kindColor = tx.kind === 'BUY' ? 'var(--accent2)' : 'var(--warn)';
+        r.pnl == null ? '—' : `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(r.pnl)}</span>`;
       return `<tr>
-        <td><span class="badge" style="background:color-mix(in srgb,${kindColor} 16%,transparent);color:${kindColor}">${tx.kind}</span></td>
-        <td><a href="#" class="link-ticker" data-open="${tx.ticker}"><strong>${tx.ticker}</strong></a></td>
-        <td>${tx.shares}</td><td>$${num(tx.price)}</td><td>${money(val)}</td>
-        <td>${tx.buyDate}</td><td>${tx.sellDate ?? '—'}</td>
-        <td>${tx.holdDays != null ? tx.holdDays + 'd' : '—'}</td>
-        <td>${pnl}</td></tr>`;
+        <td><span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${r.status}</span></td>
+        <td><a href="#" class="link-ticker" data-open="${r.ticker}"><strong>${r.ticker}</strong></a></td>
+        <td>${r.shares}</td>
+        <td>$${num(r.buyPrice)}</td>
+        <td>${r.sellPrice != null ? '$' + num(r.sellPrice) : '—'}</td>
+        <td>${r.buyDate}</td>
+        <td>${r.sellDate ?? '—'}</td>
+        <td>${r.holdDays != null ? r.holdDays + 'd' : '—'}</td>
+        <td>${pnl}</td>
+        <td><button class="icon-btn" title="Delete this transaction" data-del-${r.delKind}="${r.delId}">✕</button></td>
+      </tr>`;
     })
     .join('');
-  return `${avgLine}<table><thead><tr><th>Type</th><th>Ticker</th><th>Shares</th><th>Price</th><th>Value</th><th>Buy date</th><th>Sell date</th><th>Held</th><th>Realized PnL</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `${avgLine}<table><thead><tr><th>Status</th><th>Ticker</th><th>Shares</th><th>Buy $</th><th>Sell $</th><th>Buy date</th><th>Sell date</th><th>Held</th><th>Realized PnL</th><th></th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function renderOrders(ctx: AppContext): void {

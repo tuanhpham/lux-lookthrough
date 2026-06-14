@@ -105,3 +105,26 @@ export function setStop(state: AccountState, lotId: string, stop: number | undef
   if (!lot) throw new Error(`setStop: lot ${lotId} not found`);
   lot.stop = stop;
 }
+
+/**
+ * Delete a single sell record and return its shares to the matched lot's
+ * remainingShares (so cash, positions, and PnL recompute as if it never
+ * happened). Useful for correcting paper-trade mistakes.
+ */
+export function deleteSell(state: AccountState, sellId: string): void {
+  const idx = state.sells.findIndex((s) => s.id === sellId);
+  if (idx < 0) return;
+  const rec = state.sells[idx]!;
+  const lot = state.lots.find((l) => l.id === rec.lotId);
+  if (lot) lot.remainingShares = Math.min(lot.shares, lot.remainingShares + rec.shares);
+  state.sells.splice(idx, 1);
+}
+
+/**
+ * Delete a buy lot and any sells matched against it (those sells would be
+ * orphaned otherwise). All derived figures recompute from what remains.
+ */
+export function deleteLot(state: AccountState, lotId: string): void {
+  state.sells = state.sells.filter((s) => s.lotId !== lotId);
+  state.lots = state.lots.filter((l) => l.id !== lotId);
+}
