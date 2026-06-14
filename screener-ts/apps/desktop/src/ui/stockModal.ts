@@ -3,16 +3,8 @@ import type { AppContext } from '../context.js';
 import { $, num, fmtBig, money, scoreColor, signalBadge, stageBadge } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
 import { t, getLang } from './i18n.js';
-import { gloss } from './glossary.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
-
-/** Small "i" info icon with a native-title tooltip pulling from the glossary. */
-function info(key: string): string {
-  const g = gloss(key);
-  if (!g) return '';
-  const tip = `${g.term} — ${g.long}`.replace(/"/g, '&quot;');
-  return `<span class="info-i" title="${tip}">i</span>`;
-}
+import { infoIcon as info, attachTooltips } from './tooltip.js';
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -62,6 +54,7 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
     $('#modal-title')!.innerHTML = `${symbol} <span class="muted" style="font-weight:400;font-size:13px">${f.name ?? ''}</span>`;
 
     body.innerHTML = renderDetail(symbol, f, pattern);
+    attachTooltips(body);
 
     const chartEl = $('#detail-chart')!;
     chart = drawCandles(chartEl, ohlcv.bars, pattern, emaState);

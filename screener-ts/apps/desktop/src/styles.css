@@ -128,8 +128,11 @@ tbody tr:hover { background: var(--cardhover); }
 .lang-toggle button.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .theme-toggle { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 3px 8px; cursor: pointer; font-size: 13px; line-height: 1; }
 .theme-toggle:hover { border-color: var(--accent); }
-.info-i { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 999px; background: var(--border); color: var(--subtext); font-size: 9px; font-weight: 700; font-style: normal; cursor: help; vertical-align: middle; }
+.info-i { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 999px; background: var(--border); color: var(--subtext); font-size: 9px; font-weight: 700; font-style: normal; cursor: help; vertical-align: middle; }
 .info-i:hover { background: var(--accent); color: var(--bg); }
+.tooltip { position: fixed; z-index: 100; max-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.35); pointer-events: none; }
+.tooltip .tt-term { font-weight: 700; font-size: 12px; margin-bottom: 3px; color: var(--text); }
+.tooltip .tt-body { font-size: 12px; line-height: 1.45; color: var(--subtext); }
 
 /* ── Sector expandable rows ───────────────────────────────────────────────── */
 .sector-row { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }

@@ -216,8 +216,56 @@ export class YahooProvider implements DataProvider {
       summary: null,
       currentPrice: meta.regularMarketPrice ?? null,
     };
+
+    // Best-effort upgrade: quoteSummary (behind a cookie+crumb handshake the
+    // proxy/Rust layer performs) adds sector, beta, dividend yield, ROE, profit
+    // margin, and the company description. If it fails (e.g. blocked CA in some
+    // sandboxes) we keep the timeseries-derived values above.
+    await this.enrichFromQuoteSummary(symbol, f);
+
     this.fundCache.set(symbol, f);
     return f;
+  }
+
+  private async enrichFromQuoteSummary(symbol: string, f: Fundamentals): Promise<void> {
+    try {
+      const modules = 'assetProfile,summaryDetail,defaultKeyStatistics,financialData,price';
+      const url = `${this.quoteBase}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`;
+      type Cell = { raw?: number };
+      type QS = {
+        quoteSummary?: {
+          result?: Array<{
+            assetProfile?: { sector?: string; industry?: string; longBusinessSummary?: string; website?: string };
+            summaryDetail?: { beta?: Cell; dividendYield?: Cell; trailingPE?: Cell };
+            defaultKeyStatistics?: { trailingEps?: Cell; forwardEps?: Cell };
+            financialData?: { returnOnEquity?: Cell; profitMargins?: Cell; revenueGrowth?: Cell; currentPrice?: Cell };
+            price?: { marketCap?: Cell; regularMarketPrice?: Cell; currency?: string };
+          }>;
+        };
+      };
+      const data = await http().getJson<QS>(url);
+      const r = data.quoteSummary?.result?.[0];
+      if (!r) return;
+      const num = (c?: Cell): number | null => (c && typeof c.raw === 'number' ? c.raw : null);
+      // Prefer authoritative quoteSummary values; keep derived ones as fallback.
+      f.sector = r.assetProfile?.sector ?? f.sector;
+      f.industry = r.assetProfile?.industry ?? f.industry;
+      f.summary = r.assetProfile?.longBusinessSummary ?? f.summary;
+      f.website = r.assetProfile?.website ?? f.website;
+      f.beta = num(r.summaryDetail?.beta) ?? f.beta;
+      f.dividendYield = num(r.summaryDetail?.dividendYield) ?? f.dividendYield;
+      f.peRatio = num(r.summaryDetail?.trailingPE) ?? f.peRatio;
+      f.eps = num(r.defaultKeyStatistics?.trailingEps) ?? f.eps;
+      f.forwardEps = num(r.defaultKeyStatistics?.forwardEps) ?? f.forwardEps;
+      f.roe = num(r.financialData?.returnOnEquity) ?? f.roe;
+      f.profitMargin = num(r.financialData?.profitMargins) ?? f.profitMargin;
+      f.revenueGrowth = num(r.financialData?.revenueGrowth) ?? f.revenueGrowth;
+      f.marketCap = num(r.price?.marketCap) ?? f.marketCap;
+      f.currentPrice = num(r.financialData?.currentPrice) ?? num(r.price?.regularMarketPrice) ?? f.currentPrice;
+      f.currency = r.price?.currency ?? f.currency;
+    } catch {
+      /* keep derived values */
+    }
   }
 
   /**
