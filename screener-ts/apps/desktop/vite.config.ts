@@ -78,6 +78,11 @@ function yahooProxy(): Plugin {
 export default defineConfig({
   clearScreen: false,
   plugins: [yahooProxy()],
+  // @screener/core is a local workspace source package, not a third-party lib.
+  // Excluding it from dep pre-bundling means Vite always serves its live dist —
+  // never a stale cached copy that's missing newly-added exports (which black-
+  // screened the app after `deleteLot`/`deleteSell` were added to core).
+  optimizeDeps: { exclude: ['@screener/core'] },
   server: {
     port: 1420,
     strictPort: false,
