@@ -10,6 +10,20 @@ import { renderLanding } from './ui/landing.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange } from './ui/theme.js';
 
+// Visible crash overlay: a blank screen hides the real cause, so paint any
+// uncaught error/rejection onto the page instead of failing silently.
+function showFatal(msg: string): void {
+  const box = document.createElement('div');
+  box.style.cssText =
+    'position:fixed;inset:12px;z-index:9999;background:#1a0d10;color:#ffb3ba;border:1px solid #ff5d6c;border-radius:12px;padding:16px;font:13px/1.5 monospace;white-space:pre-wrap;overflow:auto';
+  box.textContent = 'App error:\n\n' + msg;
+  document.body.appendChild(box);
+}
+window.addEventListener('error', (e) => showFatal(String(e.error?.stack || e.message)));
+window.addEventListener('unhandledrejection', (e) =>
+  showFatal('Unhandled promise rejection:\n' + String((e.reason as Error)?.stack || e.reason)),
+);
+
 const ctx = new AppContext(loadConfig());
 initTheme();
 initModal();
@@ -104,5 +118,9 @@ onThemeChange(() => {
 });
 
 // Landing first; the CTA reveals the app and auto-runs picks.
-renderLanding($('#landing')!, enterApp);
-applyStaticI18n();
+try {
+  renderLanding($('#landing')!, enterApp);
+  applyStaticI18n();
+} catch (e) {
+  showFatal(String((e as Error)?.stack || e));
+}
