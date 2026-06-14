@@ -7,25 +7,34 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <div id="app">
+    <!-- Landing overlay (shown first; hidden after “Launch”). -->
+    <div id="landing"></div>
+
+    <div id="app" class="hidden">
       <aside id="sidebar">
         <div class="brand">
           <div class="logo">▲</div>
           <div>
-            <div class="brand-name">Screener</div>
-            <div class="brand-sub">TypeScript edition</div>
+            <div class="brand-name" data-i18n="brand.name">Screener</div>
+            <div class="brand-sub" data-i18n="brand.sub">TypeScript edition</div>
           </div>
         </div>
         <nav id="nav">
-          <button data-tab="picks" class="nav-btn active">Top Picks</button>
-          <button data-tab="screener" class="nav-btn">Screener</button>
-          <button data-tab="watchlist" class="nav-btn">Watchlists</button>
-          <button data-tab="sectors" class="nav-btn">Sectors</button>
-          <button data-tab="portfolio" class="nav-btn">Paper Trading</button>
-          <button data-tab="blog" class="nav-btn">Weekly Analysis</button>
-          <button data-tab="learn" class="nav-btn">Learn</button>
+          <button data-tab="picks" class="nav-btn active" data-i18n="nav.picks">Top Picks</button>
+          <button data-tab="screener" class="nav-btn" data-i18n="nav.screener">Screener</button>
+          <button data-tab="watchlist" class="nav-btn" data-i18n="nav.watchlist">Watchlists</button>
+          <button data-tab="sectors" class="nav-btn" data-i18n="nav.sectors">Sectors</button>
+          <button data-tab="portfolio" class="nav-btn" data-i18n="nav.portfolio">Paper Trading</button>
+          <button data-tab="blog" class="nav-btn" data-i18n="nav.blog">Weekly Analysis</button>
+          <button data-tab="learn" class="nav-btn" data-i18n="nav.learn">Learn</button>
         </nav>
-        <div class="sidebar-foot">Educational use only. Not financial advice.</div>
+        <div class="sidebar-foot">
+          <div class="lang-toggle" role="group" aria-label="Language">
+            <button data-lang-btn="en">EN</button>
+            <button data-lang-btn="vi">VI</button>
+          </div>
+          <span data-i18n="foot.disclaimer">Educational use only. Not financial advice.</span>
+        </div>
       </aside>
       <main id="main">
         <section id="tab-picks" class="tab"></section>
@@ -37,6 +46,7 @@
         <section id="tab-learn" class="tab hidden"></section>
       </main>
     </div>
+
     <div id="modal" class="modal hidden">
       <div id="modal-backdrop" class="modal-backdrop"></div>
       <div class="modal-panel">

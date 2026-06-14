@@ -6,6 +6,8 @@ import { renderPicks, renderScreener, renderSectors } from './tabs/screenerTabs.
 import { renderWatchlist, renderLearn } from './tabs/miscTabs.js';
 import { renderPortfolio } from './tabs/portfolioTab.js';
 import { renderBlog } from './tabs/blogTab.js';
+import { renderLanding } from './ui/landing.js';
+import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 
 const ctx = new AppContext(loadConfig());
 initModal();
@@ -13,22 +15,30 @@ initModal();
 const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'blog', 'learn'] as const;
 type Tab = (typeof TABS)[number];
 
-const rendered = new Set<Tab>();
+let entered = false;
+let currentTab: Tab = 'picks';
 
-function show(tab: Tab): void {
-  $$('[data-tab]').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab));
-  TABS.forEach((t) => $(`#tab-${t}`)!.classList.toggle('hidden', t !== tab));
+/** Apply translations to every [data-i18n] node and sync the language toggle. */
+function applyStaticI18n(): void {
+  $$('[data-i18n]').forEach((node) => {
+    const key = (node as HTMLElement).dataset.i18n!;
+    node.textContent = t(key);
+  });
+  $$('[data-lang-btn]').forEach((b) =>
+    b.classList.toggle('active', (b as HTMLElement).dataset.langBtn === getLang()),
+  );
+}
 
-  // Render lazily on first view (cheap tabs re-render each time for freshness).
+function renderTab(tab: Tab): void {
   switch (tab) {
     case 'picks':
-      if (!rendered.has('picks')) renderPicks(ctx);
+      renderPicks(ctx);
       break;
     case 'screener':
-      if (!rendered.has('screener')) renderScreener(ctx);
+      renderScreener(ctx);
       break;
     case 'sectors':
-      if (!rendered.has('sectors')) renderSectors(ctx);
+      renderSectors(ctx);
       break;
     case 'watchlist':
       renderWatchlist(ctx);
@@ -40,14 +50,45 @@ function show(tab: Tab): void {
       renderBlog();
       break;
     case 'learn':
-      if (!rendered.has('learn')) renderLearn();
+      renderLearn();
       break;
   }
-  rendered.add(tab);
 }
 
+function show(tab: Tab): void {
+  currentTab = tab;
+  $$('[data-tab]').forEach((b) =>
+    b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab),
+  );
+  TABS.forEach((name) => $(`#tab-${name}`)!.classList.toggle('hidden', name !== tab));
+  renderTab(tab);
+}
+
+function enterApp(): void {
+  if (entered) return;
+  entered = true;
+  $('#landing')!.classList.add('hidden');
+  $('#app')!.classList.remove('hidden');
+  applyStaticI18n();
+  // Auto-run Top Picks as soon as the app is entered (matches the backend).
+  show('picks');
+}
+
+// Nav wiring.
 $$('[data-tab]').forEach((b) =>
   b.addEventListener('click', () => show((b as HTMLElement).dataset.tab as Tab)),
 );
 
-show('picks');
+// Language toggle: persist, re-translate static chrome, and re-render the open tab
+// so dynamic content (and the analysis summary's EN/VI) follows the switch.
+$$('[data-lang-btn]').forEach((b) =>
+  b.addEventListener('click', () => setLang((b as HTMLElement).dataset.langBtn as 'en' | 'vi')),
+);
+onLangChange(() => {
+  applyStaticI18n();
+  if (entered) renderTab(currentTab);
+});
+
+// Landing first; the CTA reveals the app and auto-runs picks.
+renderLanding($('#landing')!, enterApp);
+applyStaticI18n();

@@ -1,7 +1,8 @@
-import { scanStock, type Period } from '@screener/core';
+import { scanStock, buildSummary, type Period } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, num, fmtBig, money, scoreColor, signalBadge, stageBadge } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
+import { t, getLang } from './i18n.js';
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -119,6 +120,10 @@ function renderDetail(
         ${stat('Range', num(p.consolidation.priceRangePct, 1) + '%')}
         ${stat('Vol dry-up', num(p.consolidation.volumeDryUpPct, 1) + '%')}
         ${stat('VCP', String(p.consolidation.vcpContractions))}
+      </div>
+      <div class="card" style="margin-top:12px;background:var(--surface)">
+        <div class="section-title" style="margin-top:0">${t('detail.analysis')}</div>
+        <p style="line-height:1.6;margin:0">${buildSummary(p)[getLang()]}</p>
       </div>`;
   }
   return `
@@ -131,7 +136,7 @@ function renderDetail(
     ${patternBlock}
     <div class="card" style="margin-top:14px;padding:8px">
       <div class="toolbar" style="margin:4px 6px">
-        <span class="section-title" style="margin:0">Price History</span>
+        <span class="section-title" style="margin:0">${t('detail.pricehistory')}</span>
         <div class="row" style="margin-left:auto">
           ${RANGES.map((r) => `<button class="range-btn ${r.period === '1y' ? 'active' : ''}" data-period="${r.period}">${r.label}</button>`).join('')}
         </div>
@@ -143,7 +148,7 @@ function renderDetail(
     </div>
     <div class="card" style="margin-top:14px;padding:8px">
       <div class="toolbar" style="margin:4px 6px">
-        <span class="section-title" style="margin:0">Fundamentals Trend</span>
+        <span class="section-title" style="margin:0">${t('detail.fundtrend')}</span>
         <div class="row" style="margin-left:auto">
           <button class="range-btn active" data-fund="revenue">Revenue</button>
           <button class="range-btn" data-fund="netIncome">Net Income</button>
@@ -151,7 +156,7 @@ function renderDetail(
       </div>
       <div id="fund-chart" class="chart" style="height:160px"></div>
     </div>
-    <div class="section-title">Fundamentals</div>
+    <div class="section-title">${t('detail.fundamentals')}</div>
     <div class="grid" style="grid-template-columns:repeat(3,1fr)">
       ${stat('Market Cap', fmtBig(f.marketCap))}
       ${stat('P/E', num(f.peRatio, 1))}
@@ -163,8 +168,8 @@ function renderDetail(
       ${stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—')}
       ${stat('52w Range', f.week52Low != null && f.week52High != null ? '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0) : '—')}
     </div>
-    ${f.summary ? `<div class="section-title">About</div><p class="muted" style="line-height:1.6">${f.summary}</p>` : ''}
-    <div class="muted" style="font-size:11px;margin-top:14px">Educational use only. Not financial advice. ${money(0).slice(0, 0)}</div>
+    ${f.summary ? `<div class="section-title">${t('detail.about')}</div><p class="muted" style="line-height:1.6">${f.summary}</p>` : ''}
+    <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
   `;
 }
 

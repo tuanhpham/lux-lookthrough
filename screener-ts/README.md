@@ -84,36 +84,50 @@ PYTHONUTF8=1 PYTHONPATH="$(pwd)" .venv/Scripts/python.exe scripts/gen_golden.py 
 # (the generator script is reproduced in packages/core/tests/fixtures/README)
 ```
 
-## 2. Run the desktop app in dev
+## 2. Run / deploy — three options
+
+### Option 1 — Web app, locally (easiest, ~30s, no Rust) ✅ recommended first
+
+Shows the full UI with **live stock data**, on any OS (Windows/macOS/Linux):
 
 ```bash
 cd screener-ts
 npm install
-npm run build --workspace @screener/core   # emit core dist/ (apps import from it)
-
-# Web-only preview (no Rust needed):
-npm run dev:desktop                         # → http://localhost:1420
-
-# Full Tauri desktop window (needs Rust + Tauri prereqs):
-npm run tauri:dev --workspace @screener/desktop
+npm run build --workspace @screener/core   # build core once (apps import its dist/)
+npm run dev:desktop                          # → open http://localhost:1420
 ```
 
-In the Tauri shell, Yahoo/Finnhub are called through the **Rust HTTP layer**
-(`tauri-plugin-http`), so there is no browser CORS problem. In the plain web
-preview, requests go through same-origin proxies (see deploy below).
+`vite.config.ts` includes a **dev proxy** that forwards `/api/yahoo/*` and
+`/api/finnhub/*` to the real APIs, so the browser fetches live data with **no
+Cloudflare deploy and no Tauri/Rust** needed. Click any row in Top Picks or
+Screener for charts; Paper Trading persists to your browser's localStorage.
 
-## 3. Build the macOS `.app` / `.dmg`
+> Note: the first **Top Picks** / **Sectors** scan fetches 100+ tickers from
+> Yahoo and can take ~a minute. Single-stock detail views are instant. The proxy
+> applies to `vite dev` only — `vite preview` of the built bundle does not proxy
+> (use a real deploy for that, Option 3).
+
+### Option 2 — Native macOS desktop app (needs a Mac + Rust)
+
+The real shipping target. Requires macOS, [Rust](https://rustup.rs), and the
+[Tauri prerequisites](https://tauri.app/start/prerequisites) (Xcode CLT). In the
+native shell there is **no proxy** — Yahoo/Finnhub are called directly through
+the Rust HTTP layer (`tauri-plugin-http`), so there is no browser CORS problem.
 
 ```bash
-cd screener-ts/apps/desktop
-npm run tauri:build         # outputs src-tauri/target/release/bundle/{macos,dmg}/
+cd screener-ts && npm install
+npm run build --workspace @screener/core
+npm run tauri:dev   --workspace @screener/desktop   # live desktop window
+npm run tauri:build --workspace @screener/desktop   # → .app + .dmg in
+                                                    #   apps/desktop/src-tauri/target/release/bundle/
 ```
 
-(Add real icons under `src-tauri/icons/` first — `npx tauri icon path/to/logo.png`.)
+Add real icons first: `cd apps/desktop && npx tauri icon path/to/logo.png`.
 
-## 4. Deploy the static web app for $0
+### Option 3 — Static web deploy for $0 (Cloudflare Pages) — best for sharing
 
-Cloudflare Pages (recommended — the proxy functions are included):
+The proxy functions in `functions/` are already written, so data fetching works
+the same as local dev once deployed.
 
 ```bash
 cd screener-ts/apps/desktop
@@ -123,6 +137,8 @@ npx wrangler pages deploy dist --project-name screener
 npx wrangler pages secret put FINNHUB_API_KEY
 ```
 
+You get a `https://screener.pages.dev` URL.
+
 - `functions/api/yahoo/[[path]].ts` proxies Yahoo and adds CORS headers.
 - `functions/api/finnhub/[[path]].ts` injects `FINNHUB_API_KEY` server-side so
   it **never reaches the browser**.
@@ -130,12 +146,21 @@ npx wrangler pages secret put FINNHUB_API_KEY
 
 ## Features
 
-- **Screener** — Top Picks (breakout / momentum / vcp strategies), Custom
-  Screener (symbols + sectors, score/signal/stage filters, sorting), Watchlist
-  (persisted), Sectors (volume rank), Learn (glossary).
+- **Landing page** — hero + feature cards shown first; “Launch the Screener”
+  reveals the app and **auto-runs Top Picks**.
+- **Bilingual (EN / VI)** — language toggle in the sidebar; persists the choice
+  and re-renders open views, including the per-stock analysis narrative.
+- **Screener** — Top Picks (breakout / momentum / vcp strategies, **auto-runs on
+  entry**, scans the full **546-symbol** curated universe + a broad-universe
+  toggle), Custom Screener (symbols + sectors, score/signal/stage filters,
+  sorting), Watchlist (persisted), Sectors, Learn (glossary).
 - **Stock detail** — candlestick + volume (TradingView lightweight-charts),
   6M/1Y/2Y/5Y range, EMA 5/10/21/50/150/200 toggles, entry/pivot/stop/target
-  lines, fundamentals trend + panel.
+  lines, fundamentals trend + panel, plus a **rule-based bilingual Analysis
+  summary** (stage, score, base tightness, VCP, pivot, trade plan).
+- **Sectors** — 11 sectors ranked by 3m-vs-6m volume change; click a row to
+  expand a **weekly/monthly volume-trend chart** or jump to screening that
+  sector's stocks.
 - **Paper trading (multi-account)** — independent accounts; manual buys; FIFO
   partial sells; optional stops (risk excluded until set; editable/trailing);
   BUY_STOP / STOP_LOSS / TAKE_PROFIT pending orders filled on intraday high/low

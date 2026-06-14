@@ -111,3 +111,24 @@ tbody tr:hover { background: var(--cardhover); }
 .prose code { background: var(--surface); padding: 1px 5px; border-radius: 4px; }
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
 .notice { background: color-mix(in srgb, var(--warn) 14%, transparent); border: 1px solid var(--warn); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; }
+
+/* ── Landing page ─────────────────────────────────────────────────────────── */
+.landing { min-height: 100vh; display: grid; place-items: center; padding: 40px 20px; }
+.landing-inner { max-width: 880px; width: 100%; }
+.landing-badge { color: var(--accent); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 14px; }
+.landing-h1 { font-size: 42px; line-height: 1.1; font-weight: 800; margin: 0 0 18px; }
+.landing-sub { color: var(--subtext); font-size: 17px; line-height: 1.6; max-width: 640px; margin: 0; }
+
+/* ── Language toggle ──────────────────────────────────────────────────────── */
+.sidebar-foot { display: flex; flex-direction: column; gap: 10px; }
+.lang-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; width: fit-content; }
+.lang-toggle button { background: transparent; border: 0; color: var(--subtext); font-weight: 800; font-size: 11px; padding: 4px 10px; cursor: pointer; }
+.lang-toggle button + button { border-left: 1px solid var(--border); }
+.lang-toggle button.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+
+/* ── Sector expandable rows ───────────────────────────────────────────────── */
+.sector-row { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }
+.sector-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
+.sector-head:hover { background: var(--cardhover); }
+.sector-rank { width: 28px; height: 28px; border-radius: 999px; background: var(--surface); display: grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--subtext); }
+.sector-detail { border-top: 1px solid var(--border); padding: 10px 14px; }
