@@ -75,3 +75,46 @@ FIRST show me the proposed file tree and the core interfaces (DataProvider, Stor
 Work in small, reviewable steps: core scoring + tests first, then portfolio engine + tests, then desktop UI, then blog module, then deploy config.
 Keep prose minimal in code; prioritize correctness and matching the old Python logic.
 
+Screener
+TypeScript edition
+
+Top Picks
+
+Screener
+
+Watchlists
+
+Sectors
+
+Paper Trading
+
+Weekly Analysis
+
+Learn
+EN
+VI
+☀️
+Educational use only. Not financial advice.
+Watchlist
+Track symbols and screen them in one click. Stored locally.
+
+My Watchlist
+2
+✎
+＋ New list
+Add symbol e.g. AMD
+Add
+Screen All
+AMD ×
+SLB ×
+App error (boot):
+
+Error: Object is disposed
+    at DevicePixelContentBoxBinding.get (http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:111:44)
+    at DevicePixelContentBoxBinding.resizeCanvasElement (http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:140:8)
+    at TimeAxisWidget._internal_setSizes (http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:9226:33)
+    at ChartWidget._private__adjustSizeImpl (http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:9688:33)
+    at ChartWidget._private__syncGuiWithModel (http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:9824:8)
+    at ChartWidget._private__updateGui (http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:9797:8)
+    at ChartWidget._private__drawImpl (http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:9727:36)
+    at http://localhost:1420/node_modules/.vite/deps/lightweight-charts.js?v=c6f35db0:9787:11
