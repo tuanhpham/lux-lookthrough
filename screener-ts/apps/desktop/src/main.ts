@@ -66,7 +66,7 @@ function renderTab(tab: Tab): void {
       void renderPortfolio(ctx);
       break;
     case 'blog':
-      renderBlog();
+      renderBlog(ctx);
       break;
     case 'learn':
       renderLearn();
