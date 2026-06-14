@@ -1,0 +1,76 @@
+TASK: Build a TypeScript monorepo stock-screener app (rewrite of an existing Python project), architected so an iOS app can be added later with zero logic rewrite.
+
+CONTEXT I have an existing stock screener written in Python (FastAPI + SQLAlchemy + pandas + yfinance, optional TA-Lib) with a web dashboard (HTML/CSS/JS using TradingView lightweight-charts). The OLD Python project is in this repo as the REFERENCE implementation. DO NOT modify it. Build the NEW project as a separate TypeScript monorepo.
+
+The screener computes: ATR, EMA (5/10/21/50/150/200), volume dry-up, VCP contractions, Weinstein Stage 2, pivot proximity, and a 0-100 score producing signals: BREAKOUT_IMMINENT (score >= 70 and within 3% of pivot), CONSOLIDATING (score >= 40), NO_SIGNAL. Scoring weights: Stage 2 = 25, ATR contraction >= 30% = 20, price range < 5% = 15, volume dry-up >= 40% = 15, VCP contractions (3+) = 15, pivot proximity < 1% = 10.
+
+PRIMARY GOALS
+
+Eliminate Python: single-language TypeScript codebase.
+Ship as a macOS desktop app via Tauri v2 (no PyInstaller, no Python sidecar).
+Also deployable as a static web app for $0 (Cloudflare Pages / Netlify / Vercel free tier), intended for ~2 users.
+Architected so a future iOS app (React Native / Expo) reuses 100% of business logic and only adds a new UI.
+REQUIRED ARCHITECTURE: monorepo with a platform-agnostic core
+
+packages/core : PURE TypeScript, ZERO dependencies on Node-only APIs, Tauri, React, the DOM, the filesystem, or any UI framework. Must be importable unchanged by both the desktop app and a future React Native app. Subfolders under src/: indicators (ATR, EMA, volume dry-up), patterns (VCP, consolidation, Weinstein Stage 2, pivot), scoring (0-100 scoring + signal generation), screener (filter by score/signal/stage/sector + sorting), portfolio (paper-trading engine, see below), data (DataProvider interface + adapters), storage (Storage interface), analysis (AnalysisProvider interface, optional), types (OHLCV, Signal, Fundamentals, Account, Position, Order, etc.). Plus tests/.
+apps/desktop : Tauri v2 + web UI; imports @screener/core. Contains src/ (web UI, reuse the existing dashboard look) and src-tauri/ (Rust shell). External financial APIs MUST be called through Tauri's Rust HTTP layer (tauri-plugin-http) to avoid CORS.
+Root: package.json with workspaces, tsconfig.base.json.
+HARD CONSTRAINTS
+
+All platform-specific concerns (HTTP, storage, charts) go through interfaces defined in core; concrete implementations live in the app, NOT in core.
+Use the technicalindicators npm package for standard indicators where it matches; implement custom rolling/contraction logic by hand on plain arrays.
+Data providers: define a DataProvider interface (getOHLCV, getFundamentals, getFinancials, getSectorVolume). Implement TWO adapters behind it: a YahooProvider (default, free, e.g. via yahoo-finance2) and a FinnhubProvider (fallback/optional, reads API key from env/config, NEVER hardcoded). Make the provider swappable without touching screener/portfolio logic. Add caching and respect rate limits.
+Storage goes through a Storage interface (get/set/list/delete); desktop implements it with a local file or DB. Core must not import SQLite/fs directly.
+CRITICAL: logic-parity requirement The pattern engine, scoring, and portfolio math are the most important parts. You MUST:
+
+Port logic from the OLD Python project faithfully, criterion by criterion, preserving exact thresholds, weights, and signal rules. NOT approximately.
+Write unit tests in packages/core/tests with known input fixtures asserting score, signal, and portfolio metrics. Where possible derive expected values from the old Python implementation.
+If any detail is ambiguous, STOP and ask me rather than guessing.
+FEATURE 1: SCREENER (core of the app) Reuse the existing dashboard UI structure: tabs Top Picks, Screener, Watchlists, Sectors, Learn. Stock detail view with candlestick + volume chart (TradingView lightweight-charts), selectable 6M/1Y/2Y/5Y range, toggleable EMA overlays, entry/pivot/stop/target levels drawn on chart, fundamentals trend (Revenue/Net Income/EPS, annual/quarterly), and fundamentals panel. The UI calls into @screener/core.
+
+FEATURE 2: MARKDOWN REPORT / BLOG MODULE (static content)
+
+A blog module that renders Markdown files from a posts/ folder. Each post has YAML front matter: title, type (daily|weekly|monthly), date, period_start, period_end, tags, author, summary, status (draft|published).
+A "Weekly Analysis" tab/route: a list page (newest first, filterable by type, showing summary) and a reader page for a full post.
+Static content only, no backend, deploys with the static site.
+Report Markdown template sections (keep numbering/headings even when short): front matter; H1 title; TL;DR blockquote; 1. Market Overview (+ table); 2. Sector Rotation (+ table); 3. Top Setups This Period (per-ticker subsections with Signal/Score/Stage/Pivot/Entry/Stop/Target/R:R/pattern notes + thesis); 4. Watchlist Carryover (table); 5. Paper Trades Status Update (table, auto-fillable from Feature 3); 6. Lessons & Notes; 7. Next Period Watching.
+FEATURE 3: PAPER TRADING — MULTI-ACCOUNT (in core, module portfolio)
+
+Multiple independent Accounts, each to test a different strategy. Each Account: name, description, initialCapital (e.g. 50000), currency (EUR), createdAt, and its own trades. All cash/PnL/risk computed PER ACCOUNT, never mixed.
+Buying: user enters X shares, price, and date manually. Store as BuyLots (ticker, buyDate, buyPrice, shares, remainingShares, entry signal/reason, optional stop, optional target). Multiple lots per ticker allowed.
+Selling: user enters shares/price/date. Partial sells allowed; match against lots FIFO. The sold portion is realized (record realized PnL); the remainder keeps being tracked. Store SellRecords (ticker, matched lot, sellDate, sellPrice, shares, realizedPnL).
+Cash = initialCapital - total bought + total sold (computed, never stored stale). Account equity = cash + market value of open positions.
+Manual "Update" button: on click, pull latest (and any missed days') OHLC via DataProvider for all held tickers, recompute all metrics, append an EquitySnapshot (date, equity, cash, positionsValue) per account. No background jobs.
+PER-POSITION METRICS: current market value, unrealized PnL (€ and %), realized PnL, distance to stop and to target, R-multiple (= PnL / initial per-share risk where risk = entry - stop), days held, optional MFE/MAE.
+
+ACCOUNT / RISK METRICS: cash remaining, total equity, total PnL (€ and % vs initialCapital), unrealized vs realized PnL, per-position risk in € (= (entry - stop) * shares held) and as % of equity, total open risk (sum, as % of equity), max drawdown (from equity snapshots), win rate, average R-multiple, expectancy per trade, open vs closed trade counts, position concentration (% of account per ticker).
+
+STOP-LOSS POLICY: stop is optional at buy time. If no stop is set, the position is created normally, its risk is treated as "undefined" and EXCLUDED from total risk, and the UI shows a reminder to set a stop. Once a stop is entered, risk is computed normally and the stop-loss order becomes active. User can edit the stop anytime (e.g. trailing it up); risk recalculates.
+
+PENDING ORDERS (in core):
+
+Order types: BUY_STOP (fill when price rises through a threshold), STOP_LOSS (attached to a held position, fill when price falls through threshold), optional TAKE_PROFIT. Each order has status pending|filled|cancelled.
+Fill logic uses intraday High/Low, NOT just close: BUY_STOP fills when day High >= threshold, fill price = threshold; STOP_LOSS fills when day Low <= threshold, fill price = threshold. When the user clicks Update, scan EACH missed day in chronological order to detect fills (do not only check the latest day).
+If a BUY_STOP would fill but cash is insufficient for the full ordered shares: DO NOT fill (no partial), mark the order accordingly, and notify the user with the reason (needed vs available cash and the date).
+PER-ACCOUNT UI: an equity curve line chart (TradingView lightweight-charts) over time, optionally overlaid with the initial-capital baseline and optionally a benchmark; an account metrics panel (all account/risk metrics above); a list of open positions (with stop reminders) and closed-trade history. Plus a CROSS-ACCOUNT comparison view (side-by-side table: total return %, win rate, expectancy, max drawdown, etc.) to compare strategies.
+
+FEATURE 4 (optional, scaffold only): ANALYSIS PROVIDER
+
+Define an AnalysisProvider interface (e.g. summarize(structuredData) -> structured result) in core for optional LLM-generated qualitative summaries. NUMBERS MUST ALWAYS come from the DataProvider; the LLM only interprets data passed to it and must never invent figures. The provider returns STRUCTURED data (e.g. { summary, strengths, risks }) and the app renders it via fixed templates — never inject raw LLM HTML. Do not implement a concrete provider yet; just the interface and wiring.
+DELIVERABLES
+
+A building monorepo (workspaces + tsconfig).
+packages/core: types, indicators, patterns, scoring, screener, portfolio (paper-trading engine), data (Yahoo + Finnhub adapters behind DataProvider), storage interface, optional analysis interface.
+A passing test suite proving parity for scoring AND for portfolio math (PnL, FIFO partial sells, R-multiple, risk, equity/drawdown, order fills incl. the insufficient-cash case).
+apps/desktop: a Tauri v2 app reusing the dashboard UI, plus the Weekly Analysis blog module and the multi-account paper-trading UI with equity curves and cross-account comparison.
+A desktop Storage implementation (file or local DB).
+Static-web deploy config (Cloudflare Pages or Netlify) with a small serverless function to hide the Finnhub API key.
+A README: how to run core tests, run the desktop app in dev, build the .app, and deploy the static site.
+OUT OF SCOPE (but must not be architecturally blocked)
+
+The iOS / React Native app. Do NOT build it yet, but ensure core has zero UI/platform deps so adding it later is trivial.
+WORKING STYLE
+
+FIRST show me the proposed file tree and the core interfaces (DataProvider, Storage, and the portfolio types: Account, BuyLot, SellRecord, Position, Order, EquitySnapshot) and WAIT for my approval before implementing full logic.
+Work in small, reviewable steps: core scoring + tests first, then portfolio engine + tests, then desktop UI, then blog module, then deploy config.
+Keep prose minimal in code; prioritize correctness and matching the old Python logic.
