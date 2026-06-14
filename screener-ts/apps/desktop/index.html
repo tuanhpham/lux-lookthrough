@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Screener — TS</title>
+    <!-- Earliest possible error trap: catches module import-phase throws that
+         the module-level handlers would miss (those run too late). -->
+    <script>
+      (function () {
+        function paint(msg) {
+          var b = document.getElementById('boot-error') || document.createElement('div');
+          b.id = 'boot-error';
+          b.style.cssText =
+            'position:fixed;inset:12px;z-index:99999;background:#1a0d10;color:#ffb3ba;border:1px solid #ff5d6c;border-radius:12px;padding:16px;font:13px/1.5 monospace;white-space:pre-wrap;overflow:auto';
+          b.textContent = 'App error (boot):\n\n' + msg;
+          (document.body || document.documentElement).appendChild(b);
+        }
+        window.addEventListener('error', function (e) {
+          paint(String((e.error && e.error.stack) || e.message || e));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          paint('Unhandled rejection:\n' + String((e.reason && e.reason.stack) || e.reason));
+        });
+      })();
+    </script>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
