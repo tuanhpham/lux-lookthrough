@@ -101,6 +101,12 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
     );
 
     void wireWatchlistPicker(ctx, symbol);
+
+    // The richer fields (sector, beta, dividend yield, ROE, margin, company
+    // summary + website) arrive from a slow background crumb fetch. Poll the
+    // cache briefly and live-patch them into the open modal as they land, so
+    // the page renders instantly AND About/website fill in without a reopen.
+    void patchWhenEnriched(ctx, symbol, body);
   } catch (e) {
     body.innerHTML = `<div class="danger" style="text-align:center;padding:40px">${(e as Error).message}</div>`;
   }
@@ -146,7 +152,7 @@ function renderDetail(
     <div class="row" style="margin-bottom:12px">
       <div>
         <div style="font-size:22px;font-weight:700">${price != null ? '$' + num(price) : '—'}</div>
-        <div class="muted" style="font-size:12px">${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}</div>
+        <div id="detail-subtitle" class="muted" style="font-size:12px">${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}</div>
       </div>
       <div class="row" style="margin-left:auto;gap:8px">
         <button id="wl-toggle" class="btn-outline" style="padding:7px 12px">☆ Watchlist</button>
@@ -197,15 +203,23 @@ function renderDetail(
       ${stat('52w Range', f.week52Low != null && f.week52High != null ? '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0) : '—', 'week52')}
     </div>
     <div class="section-title">${t('detail.about')}</div>
-    ${
-      f.summary
-        ? `<p class="muted" style="line-height:1.6">${f.summary}</p>`
-        : `<p class="muted" style="line-height:1.6">${
-            f.name ? f.name + (f.currency ? ` · ${f.currency}` : '') : symbol
-          }. Yahoo no longer serves the company description without authentication; open TradingView above for the full profile.</p>`
-    }
+    <div id="about-block">${aboutHtml(symbol, f)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
   `;
+}
+
+/** About paragraph + website link (re-renderable as enrichment arrives). */
+function aboutHtml(
+  symbol: string,
+  f: { name?: string | null; currency?: string | null; summary?: string | null; website?: string | null; sector?: string | null; industry?: string | null },
+): string {
+  const link = f.website
+    ? `<a href="${f.website}" target="_blank" rel="noopener" class="accent" style="display:inline-block;margin-top:8px">${f.website} ↗</a>`
+    : '';
+  if (f.summary) return `<p class="muted" style="line-height:1.6">${f.summary}</p>${link}`;
+  return `<p class="muted" style="line-height:1.6">${
+    f.name ? f.name + (f.currency ? ` · ${f.currency}` : '') : symbol
+  } — fetching company profile…</p>`;
 }
 
 /**
@@ -263,6 +277,37 @@ async function wireWatchlistPicker(ctx: AppContext, symbol: string): Promise<voi
     if (!hidden) await renderPicker();
   });
   await refreshBtn();
+}
+
+/**
+ * Poll the fundamentals cache for a few seconds and live-patch the enriched
+ * fields (sector/industry subtitle, company About + website) into the open
+ * modal once the background crumb fetch resolves. Stops as soon as the summary
+ * lands or the modal is closed, and gives up after the budget.
+ */
+async function patchWhenEnriched(ctx: AppContext, symbol: string, body: HTMLElement): Promise<void> {
+  const deadline = Date.now() + 12_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1500));
+    // Modal closed or navigated to another symbol → stop polling.
+    if ($('#modal')!.classList.contains('hidden')) return;
+    const f = (await ctx.data.getFundamentals(symbol).catch(() => null)) as
+      | (Awaited<ReturnType<AppContext['data']['getFundamentals']>> & { website?: string | null })
+      | null;
+    if (!f) continue;
+    // Only patch the currently-open symbol.
+    if (!$('#modal-title')!.textContent?.toUpperCase().startsWith(symbol)) return;
+
+    if (f.summary || f.sector || f.beta != null) {
+      const about = body.querySelector('#about-block');
+      if (about) about.innerHTML = aboutHtml(symbol, f);
+      const sub = body.querySelector('#detail-subtitle');
+      if (sub && (f.sector || f.industry)) {
+        sub.textContent = `${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}`;
+      }
+      if (f.summary) return; // fully enriched — done
+    }
+  }
 }
 
 type FinPoint = { period: string; revenue: number | null; netIncome: number | null; eps: number | null };

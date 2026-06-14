@@ -100,15 +100,38 @@ export function drawCandles(
   };
 }
 
-/** Simple line chart for an equity curve, with an optional baseline. */
+export interface LineOptions {
+  baseline?: number;
+  /** Format the value axis as compact volume (1.2B / 340M / 5K) — matches the
+   * backend's sector volume chart. */
+  volume?: boolean;
+  height?: number;
+}
+
+/** Area line chart (equity curve / sector volume). With `volume:true` the value
+ * axis uses lightweight-charts' built-in B/M/K formatting and the time axis
+ * shows dates. */
 export function drawLine(
   container: HTMLElement,
   points: { time: string; value: number }[],
-  baseline?: number,
+  options: LineOptions = {},
 ): IChartApi {
+  const { baseline, volume = false, height = 240 } = options;
   container.innerHTML = '';
-  const chart = createChart(container, { ...themeOptions(), width: container.clientWidth, height: 240 });
-  const line = chart.addAreaSeries({ lineColor: '#00d49b', topColor: '#00d49b44', bottomColor: '#00d49b08', lineWidth: 2 });
+  const chart = createChart(container, {
+    ...themeOptions(),
+    width: container.clientWidth,
+    height,
+    // Show calendar dates on the time axis (year/month labels), not bar indices.
+    timeScale: { ...themeOptions().timeScale, timeVisible: false, secondsVisible: false },
+  });
+  const line = chart.addAreaSeries({
+    lineColor: '#00d49b',
+    topColor: '#00d49b44',
+    bottomColor: '#00d49b08',
+    lineWidth: 2,
+    ...(volume ? { priceFormat: { type: 'volume' as const } } : {}),
+  });
   line.setData(points);
   if (baseline != null && points.length) {
     const base = chart.addLineSeries({ color: '#5b6577', lineWidth: 1, lineStyle: LineStyle.Dashed, lastValueVisible: false });

@@ -162,7 +162,7 @@ function draw(ctx: AppContext): void {
     drawLine(
       eq,
       st.snapshots.map((s) => ({ time: s.date, value: s.equity })),
-      st.account.initialCapital,
+      { baseline: st.account.initialCapital },
     );
   } else {
     eq.innerHTML = `<div class="muted" style="text-align:center;padding:40px">No snapshots yet — click “Update prices”.</div>`;

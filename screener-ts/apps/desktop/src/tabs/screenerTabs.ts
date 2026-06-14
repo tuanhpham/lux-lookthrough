@@ -248,7 +248,10 @@ async function runSectors(ctx: AppContext): Promise<void> {
         chartEl.innerHTML = `<div class="muted" style="text-align:center;padding:40px">No volume data.</div>`;
         return;
       }
-      drawLine(chartEl, series.points.map((p) => ({ time: p.date, value: p.volume })));
+      drawLine(chartEl, series.points.map((p) => ({ time: p.date, value: p.volume })), {
+        volume: true,
+        height: 180,
+      });
     };
 
     head.addEventListener('click', () => {

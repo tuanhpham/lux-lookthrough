@@ -88,6 +88,9 @@ export class YahooProvider implements DataProvider {
   private finCache: TTLCache<Financials>;
   private chartBase: string;
   private quoteBase: string;
+  /** Symbols whose quoteSummary enrichment has run/started (avoids duplicate
+   * crumb fetches when the modal polls the cache). */
+  private enriched = new Set<string>();
 
   constructor(opts: YahooProviderOptions = {}) {
     const clock = opts.clock ?? (() => Date.now());
@@ -241,7 +244,12 @@ export class YahooProvider implements DataProvider {
     // BACKGROUND: it updates the cached object in place, and the enriched fields
     // appear the next time the stock is opened.
     this.fundCache.set(symbol, f);
-    void withTimeout(this.enrichFromQuoteSummary(symbol, f), 8000);
+    // Kick off the enrichment once per symbol; subsequent calls reuse the
+    // (in-place mutated) cached object rather than re-running the crumb fetch.
+    if (!this.enriched.has(symbol)) {
+      this.enriched.add(symbol);
+      void withTimeout(this.enrichFromQuoteSummary(symbol, f), 8000);
+    }
     return f;
   }
 
