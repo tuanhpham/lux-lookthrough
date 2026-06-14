@@ -119,37 +119,61 @@ export interface LineOptions {
   /** Format the value axis as compact volume (1.2B / 340M / 5K) — matches the
    * backend's sector volume chart. */
   volume?: boolean;
+  /** Format the value axis as money (e.g. €50,123) — for the equity curve. */
+  money?: boolean;
+  /** Currency symbol for `money` mode (default €). */
+  currency?: string;
   height?: number;
 }
 
+/**
+ * Money axis label. Equity moves are usually small relative to the total, so we
+ * show the FULL value with thousands separators (€50,080) — that keeps every
+ * change visible. Only ≥ €1M collapses to compact form to avoid huge labels.
+ */
+function compactMoney(v: number, sym: string): string {
+  const a = Math.abs(v);
+  const s = v < 0 ? '-' : '';
+  if (a >= 1e6) return `${s}${sym}${(a / 1e6).toFixed(2)}M`;
+  return `${s}${sym}${Math.round(a).toLocaleString('en-US')}`;
+}
+
 /** Area line chart (equity curve / sector volume). With `volume:true` the value
- * axis uses lightweight-charts' built-in B/M/K formatting and the time axis
- * shows dates. */
+ * axis uses lightweight-charts' built-in B/M/K formatting; with `money:true` it
+ * uses a compact currency formatter and pads the scale so small equity changes
+ * are readable rather than a flat line. The time axis shows calendar dates. */
 export function drawLine(
   container: HTMLElement,
   points: { time: string; value: number }[],
   options: LineOptions = {},
 ): IChartApi {
-  const { baseline, volume = false, height = 240 } = options;
+  const { baseline, volume = false, money = false, currency = '€', height = 240 } = options;
   container.innerHTML = '';
+  const base = themeOptions();
   const chart = createChart(container, {
-    ...themeOptions(),
+    ...base,
     width: container.clientWidth,
     height,
+    // Money mode: format the y-axis as compact currency so labels are readable.
+    localization: money ? { priceFormatter: (v: number) => compactMoney(v, currency) } : undefined,
+    // A touch of headroom top/bottom keeps small moves off the chart edges.
+    rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: 0.18, bottom: 0.18 } },
     // Show calendar dates on the time axis (year/month labels), not bar indices.
-    timeScale: { ...themeOptions().timeScale, timeVisible: false, secondsVisible: false },
+    timeScale: { ...base.timeScale, timeVisible: false, secondsVisible: false },
   });
   const line = chart.addAreaSeries({
     lineColor: '#00d49b',
     topColor: '#00d49b44',
     bottomColor: '#00d49b08',
     lineWidth: 2,
+    priceLineVisible: false,
     ...(volume ? { priceFormat: { type: 'volume' as const } } : {}),
+    ...(money ? { priceFormat: { type: 'price' as const, precision: 0, minMove: 1 } } : {}),
   });
   line.setData(points);
   if (baseline != null && points.length) {
-    const base = chart.addLineSeries({ color: '#5b6577', lineWidth: 1, lineStyle: LineStyle.Dashed, lastValueVisible: false });
-    base.setData(points.map((p) => ({ time: p.time, value: baseline })));
+    const baseSeries = chart.addLineSeries({ color: '#5b6577', lineWidth: 1, lineStyle: LineStyle.Dashed, lastValueVisible: false, priceLineVisible: false });
+    baseSeries.setData(points.map((p) => ({ time: p.time, value: baseline })));
   }
   chart.timeScale().fitContent();
   // Self-disconnecting observer: if the chart was disposed (container re-rendered

@@ -309,7 +309,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     .map(([time, value]) => ({ time, value }));
   if (points.length) {
     try {
-      drawLine(eq, points, { baseline: st.account.initialCapital });
+      const sym = st.account.currency === 'USD' ? '$' : st.account.currency === 'EUR' ? '€' : '';
+      drawLine(eq, points, { baseline: st.account.initialCapital, money: true, currency: sym });
     } catch (err) {
       eq.innerHTML = `<div class="muted" style="text-align:center;padding:40px">Chart unavailable.</div>`;
       console.error('equity chart error', err);
@@ -481,7 +482,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
   $('#acct-update')!.addEventListener('click', () => void update(ctx));
 
   // compare
-  $('#acct-compare')!.addEventListener('click', () => renderCompare());
+  $('#acct-compare')!.addEventListener('click', () => renderCompare(ctx));
 }
 
 /** Whole-day difference between two ISO dates (>= 0). */
@@ -636,7 +637,7 @@ async function update(ctx: AppContext): Promise<void> {
   $('#update-status')!.innerHTML = status.innerHTML;
 }
 
-function renderCompare(): void {
+function renderCompare(ctx: AppContext): void {
   const panel = $('#compare-panel')!;
   // Toggle: a second click hides it.
   if (panel.dataset.open === '1') {
@@ -650,7 +651,7 @@ function renderCompare(): void {
   const note =
     accounts.length < 2
       ? `<p class="muted" style="font-size:12px;margin:0 0 8px">Add another account (＋ New account) to compare strategies side by side.</p>`
-      : '';
+      : `<p class="muted" style="font-size:12px;margin:0 0 8px">Click an account name to open it.</p>`;
   panel.innerHTML = `
     <div class="section-title">Cross-account comparison</div>
     ${note}
@@ -659,9 +660,18 @@ function renderCompare(): void {
       <tbody>${rows
         .map(
           (r) =>
-            `<tr><td><strong>${r.name}</strong></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td>${money(r.equity)}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(r.expectancy)}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
+            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td>${money(r.equity)}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(r.expectancy)}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
         )
         .join('')}</tbody></table>
     </div>`;
+  // Click an account name → switch to that account and re-render the tab.
+  panel.querySelectorAll<HTMLElement>('[data-acct-open]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      activeId = a.dataset.acctOpen!;
+      draw(ctx);
+      $('#tab-portfolio')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }),
+  );
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }

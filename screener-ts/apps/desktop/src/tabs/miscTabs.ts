@@ -1,10 +1,10 @@
-import { screen, fetchMany } from '@screener/core';
+import { screen, fetchMany, type ScreenRow } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, el } from '../ui/dom.js';
-import { resultsTable } from '../ui/resultsTable.js';
+import { $, el, num, pct, scoreColor, signalBadge, stageBadge } from '../ui/dom.js';
 import { openStock } from '../ui/stockModal.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
+import { formDialog } from '../ui/forms.js';
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
 
 let activeId: string | null = null;
@@ -17,11 +17,10 @@ export function renderWatchlist(ctx: AppContext): void {
     <div class="toolbar" id="wl-tabs"></div>
     <div class="card" style="margin-bottom:14px">
       <div class="row">
-        <input id="wl-symbol" class="field" style="flex:1" placeholder="Add symbol e.g. AMD" />
+        <input id="wl-symbol" class="field" style="flex:1" placeholder="Add symbol e.g. AMD" autocomplete="off" />
         <button id="wl-add" class="btn">${t('wl.add')}</button>
-        <button id="wl-screen" class="btn-outline">${t('wl.screenall')}</button>
+        <button id="wl-refresh" class="btn-outline">↻ Refresh quotes</button>
       </div>
-      <div id="wl-chips" class="row" style="margin-top:12px"></div>
     </div>
     <div id="wl-results"></div>`;
 
@@ -33,30 +32,20 @@ export function renderWatchlist(ctx: AppContext): void {
     if (!sym || !activeId) return;
     await saveItems(ctx, activeId, [...(await loadItems(ctx, activeId)), sym]);
     input.value = '';
-    await refreshChips(ctx);
-    await refreshTabs(ctx); // update count
+    await refreshTabs(ctx);
+    await refreshRows(ctx);
   });
   ($('#wl-symbol') as HTMLInputElement).addEventListener('keydown', (e) => {
     if (e.key === 'Enter') ($('#wl-add') as HTMLButtonElement).click();
   });
-  $('#wl-screen')!.addEventListener('click', async () => {
-    const out = $('#wl-results')!;
-    if (!activeId) return;
-    const syms = await loadItems(ctx, activeId);
-    if (!syms.length) return;
-    out.innerHTML = `<div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div>`;
-    const data = await fetchMany(ctx.data, syms, '1y', 8);
-    const res = screen([...data.values()], { minScore: 0, sortBy: 'score', limit: 200 });
-    out.innerHTML = '';
-    out.appendChild(resultsTable(res.results, (sym) => void openStock(ctx, sym)));
-  });
+  $('#wl-refresh')!.addEventListener('click', () => void refreshRows(ctx, true));
 }
 
 async function refreshAll(ctx: AppContext): Promise<void> {
   const idx = await loadIndex(ctx);
   if (!activeId || !idx.some((w) => w.id === activeId)) activeId = idx[0]!.id;
   await refreshTabs(ctx);
-  await refreshChips(ctx);
+  await refreshRows(ctx);
 }
 
 async function refreshTabs(ctx: AppContext): Promise<void> {
@@ -75,15 +64,14 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
     tab.querySelector('[data-open]')!.addEventListener('click', async () => {
       activeId = w.id;
       await refreshTabs(ctx);
-      await refreshChips(ctx);
-      $('#wl-results')!.innerHTML = '';
+      await refreshRows(ctx);
     });
     tab.querySelector('[data-rename]')!.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const name = prompt('Rename watchlist:', w.name);
-      if (!name?.trim()) return;
-      const next = idx.map((x) => (x.id === w.id ? { ...x, name: name.trim() } : x));
-      await saveIndex(ctx, next);
+      const res = await formDialog('Rename watchlist', [{ key: 'name', label: 'Name', value: w.name }]);
+      const name = res?.name?.trim();
+      if (!name) return;
+      await saveIndex(ctx, idx.map((x) => (x.id === w.id ? { ...x, name } : x)));
       await refreshTabs(ctx);
     });
     tab.querySelector('[data-del]')?.addEventListener('click', async (e) => {
@@ -94,51 +82,103 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
       await saveIndex(ctx, next);
       if (activeId === w.id) activeId = next[0]?.id ?? null;
       await refreshAll(ctx);
-      $('#wl-results')!.innerHTML = '';
     });
     tabs.appendChild(tab);
   }
   const add = el(`<button class="range-btn" title="New watchlist">＋ New list</button>`);
   add.addEventListener('click', async () => {
-    const name = prompt('Name your new watchlist:', '');
-    if (!name?.trim()) return;
+    const res = await formDialog('New watchlist', [{ key: 'name', label: 'List name', placeholder: 'e.g. Semis' }]);
+    const name = res?.name?.trim();
+    if (!name) return;
     const id = newId();
-    const next = [...idx, { id, name: name.trim() }];
-    await saveIndex(ctx, next);
+    await saveIndex(ctx, [...idx, { id, name }]);
     activeId = id;
     await refreshAll(ctx);
-    $('#wl-results')!.innerHTML = '';
   });
   tabs.appendChild(add);
 }
 
-async function refreshChips(ctx: AppContext): Promise<void> {
-  const chips = $('#wl-chips')!;
+// Cache scan rows per list so switching tabs is instant; refetch on Refresh.
+const rowCache = new Map<string, ScreenRow[]>();
+
+/** Render the active list as a one-row-per-stock quick-info table. */
+async function refreshRows(ctx: AppContext, force = false): Promise<void> {
+  const out = $('#wl-results')!;
   if (!activeId) {
-    chips.innerHTML = '';
+    out.innerHTML = '';
     return;
   }
   const syms = await loadItems(ctx, activeId);
-  chips.innerHTML = syms.length
-    ? syms
-        .map(
-          (s) =>
-            `<span class="range-btn" data-sym="${s}">${s} <span data-del="${s}" style="color:var(--faint)">×</span></span>`,
-        )
-        .join('')
-    : `<span class="muted">No symbols yet.</span>`;
-  chips.querySelectorAll<HTMLElement>('[data-sym]').forEach((c) =>
-    c.addEventListener('click', (e) => {
-      const del = (e.target as HTMLElement).dataset.del;
+  if (!syms.length) {
+    out.innerHTML = `<div class="card muted" style="text-align:center;padding:28px">No symbols yet — add some above.</div>`;
+    return;
+  }
+
+  let rows = rowCache.get(activeId);
+  if (!rows || force) {
+    out.innerHTML = `<div class="muted" style="padding:10px"><span class="spinner"></span> ${t('msg.scanning')} ${syms.length}…</div>`;
+    const data = await fetchMany(ctx.data, syms, '1y', 8);
+    rows = [];
+    for (const sym of syms) {
+      const ohlcv = data.get(sym);
+      if (ohlcv && ohlcv.bars.length >= 60) {
+        rows.push(screen([ohlcv], { minScore: -1000, limit: 1 }).results[0]!);
+      } else {
+        // Keep the symbol visible even if data is missing/short.
+        rows.push({ symbol: sym, stage: 0, stageLabel: 'INSUFFICIENT_DATA', price: 0, score: 0, signal: 'NO_SIGNAL',
+          entryPrice: null, stopLoss: null, targetPrice: null, riskReward: null, pivotHigh: null,
+          distanceToPivotPct: null, priceRangePct: null, atrContractionPct: null, volumeDryUpPct: null,
+          vcpContractions: null, daysInBase: null } as ScreenRow);
+      }
+    }
+    rowCache.set(activeId, rows);
+  }
+  renderRows(ctx, out, rows);
+}
+
+function renderRows(ctx: AppContext, out: HTMLElement, rows: ScreenRow[]): void {
+  const card = el(`<div class="card" style="overflow-x:auto"></div>`);
+  card.innerHTML = `
+    <table><thead><tr>
+      <th>Symbol</th><th>Price</th><th>Score</th><th>Signal</th><th>Stage</th>
+      <th>Entry</th><th>Stop</th><th>Target</th><th>R:R</th><th>Dist</th><th>VCP</th><th></th>
+    </tr></thead><tbody>${rows
+      .map(
+        (r) => `<tr data-sym="${r.symbol}">
+        <td><strong>${r.symbol}</strong></td>
+        <td>${r.price ? '$' + num(r.price) : '—'}</td>
+        <td><span class="scorebar" style="width:46px"><span style="width:${Math.max(0, r.score)}%;background:${scoreColor(r.score)}"></span></span> <span style="color:${scoreColor(r.score)};font-weight:700">${num(r.score, 0)}</span></td>
+        <td>${signalBadge(r.signal)}</td>
+        <td>${stageBadge(r.stage, r.stageLabel)}</td>
+        <td>${r.entryPrice != null ? '$' + num(r.entryPrice) : '—'}</td>
+        <td class="danger">${r.stopLoss != null ? '$' + num(r.stopLoss) : '—'}</td>
+        <td class="accent">${r.targetPrice != null ? '$' + num(r.targetPrice) : '—'}</td>
+        <td>${r.riskReward != null ? num(r.riskReward, 1) + 'R' : '—'}</td>
+        <td>${r.distanceToPivotPct != null ? num(r.distanceToPivotPct, 1) + '%' : '—'}</td>
+        <td>${r.vcpContractions ?? '—'}</td>
+        <td><button class="icon-btn" data-del="${r.symbol}" title="Remove from list">✕</button></td>
+      </tr>`,
+      )
+      .join('')}</tbody></table>`;
+
+  card.querySelectorAll<HTMLElement>('tr[data-sym]').forEach((tr) =>
+    tr.addEventListener('click', (e) => {
+      const del = (e.target as HTMLElement).closest('[data-del]') as HTMLElement | null;
       if (del) {
+        e.stopPropagation();
         void (async () => {
-          await saveItems(ctx, activeId!, (await loadItems(ctx, activeId!)).filter((x) => x !== del));
-          await refreshChips(ctx);
+          await saveItems(ctx, activeId!, (await loadItems(ctx, activeId!)).filter((x) => x !== del.dataset.del));
+          rowCache.delete(activeId!);
           await refreshTabs(ctx);
+          await refreshRows(ctx);
         })();
-      } else void openStock(ctx, c.dataset.sym!);
+      } else {
+        void openStock(ctx, tr.dataset.sym!);
+      }
     }),
   );
+  out.innerHTML = '';
+  out.appendChild(card);
 }
 
 // ── Learn (full bilingual glossary, grouped) ────────────────────────────────────
