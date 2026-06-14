@@ -120,6 +120,23 @@ tbody tr:hover { background: var(--cardhover); }
 .link-ext:hover { text-decoration: underline; }
 .price-hint { font-size: 11px; color: var(--faint); margin-top: 4px; }
 .price-hint b { color: var(--accent); }
+.price-hint a { color: var(--accent); text-decoration: none; }
+.price-hint a:hover { text-decoration: underline; }
+
+/* ── In-app dialog (replaces window.prompt) ───────────────────────────────── */
+.dialog-host { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; }
+.dialog-backdrop { position: absolute; inset: 0; background: rgba(5,8,14,.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.dialog { position: relative; width: min(380px, 92vw); background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,.5); padding: 18px; animation: modalIn .22s cubic-bezier(.22,1,.36,1); }
+.dialog-title { font-weight: 800; font-size: 17px; margin-bottom: 12px; letter-spacing: -0.01em; }
+.dialog-body .field { margin-bottom: 10px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+/* ── Ticker combobox ──────────────────────────────────────────────────────── */
+.combo { position: relative; display: inline-block; }
+.combo-panel { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 160px; max-height: 240px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 4px; }
+.combo-item { padding: 7px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--subtext); }
+.combo-item:hover, .combo-item.active { background: var(--cardhover); color: var(--text); }
 .danger { color: var(--danger); }
 .accent { color: var(--accent); }
 .warn { color: var(--warn); }

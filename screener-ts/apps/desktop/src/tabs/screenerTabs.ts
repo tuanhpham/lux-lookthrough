@@ -14,9 +14,10 @@ import { resultsTable } from '../ui/resultsTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
+import { getBroadUniverse } from '../adapters/universe.js';
 
 const PERIOD: Period = '1y';
-const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // 546 symbols
+const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
 
 // ── Top Picks ─────────────────────────────────────────────────────────────────
 let picksStrategy: StrategyKey = 'breakout';
@@ -64,14 +65,14 @@ export function renderPicks(ctx: AppContext): void {
 async function runPicks(ctx: AppContext): Promise<void> {
   const status = $('#picks-status')!;
   const out = $('#picks-results')!;
-  // We scan the full curated universe (the same set the Python backend falls
-  // back to). The "broad" toggle raises concurrency to fetch faster/more fully;
-  // a true S&P-1500 expansion would slot in here behind the same flag.
-  const symbols = CURATED;
-  const concurrency = picksBroad ? 12 : 8;
-  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${symbols.length}…`;
+  // Broad ON → fetch the full S&P 500/400/600 constituents (~1500) from
+  // Wikipedia; OFF → the fast curated set. Keep concurrency modest so we don't
+  // trip Yahoo's rate limit (which silently drops symbols → fewer scanned).
   out.innerHTML = '';
-  const data = await fetchMany(ctx.data, symbols, PERIOD, concurrency);
+  status.innerHTML = `<span class="spinner"></span> ${picksBroad ? 'Loading broad universe…' : t('msg.scanning')}`;
+  const symbols = picksBroad ? await getBroadUniverse() : CURATED;
+  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${symbols.length}…`;
+  const data = await fetchMany(ctx.data, symbols, PERIOD, 6);
   const series = [...data.values()];
   const res = recommend(series, picksStrategy, 30);
   const dropped = symbols.length - res.scanned;

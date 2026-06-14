@@ -18,14 +18,15 @@ import {
 import type { AppContext } from '../context.js';
 import { $, el, num, money, pct } from '../ui/dom.js';
 import { drawLine } from '../ui/charts.js';
+import { formDialog } from '../ui/forms.js';
+import { attachCombobox } from '../ui/combobox.js';
 
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())].sort();
 
-/** <option> list for the ticker pickers: held tickers first, then the universe. */
-function tickerOptions(): string {
+/** Ticker list for the pickers: held tickers first, then the curated universe. */
+function tickerList(): string[] {
   const held = [...new Set(active().lots.filter((l) => l.remainingShares > 0).map((l) => l.ticker))];
-  const all = [...new Set([...held, ...CURATED])];
-  return all.map((t) => `<option value="${t}"></option>`).join('');
+  return [...new Set([...held, ...CURATED])];
 }
 
 /**
@@ -165,11 +166,10 @@ function draw(ctx: AppContext): void {
       }</tbody></table>
     </div>
 
-    <datalist id="ticker-options">${tickerOptions()}</datalist>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
         <div class="section-title" style="margin-top:0">Record a Buy / Sell</div>
-        <div class="row"><input id="b-ticker" class="field" list="ticker-options" placeholder="Ticker" style="width:110px" />
+        <div class="row"><input id="b-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
           <input id="b-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
           <input id="b-price" class="field" type="number" step="any" placeholder="Price" style="width:90px" />
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
@@ -181,7 +181,7 @@ function draw(ctx: AppContext): void {
       </div>
       <div class="card">
         <div class="section-title" style="margin-top:0">Pending BUY_STOP Order</div>
-        <div class="row"><input id="o-ticker" class="field" list="ticker-options" placeholder="Ticker" style="width:110px" />
+        <div class="row"><input id="o-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
           <input id="o-thresh" class="field" type="number" step="any" placeholder="Trigger ≥" style="width:100px" />
           <input id="o-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
           <button id="o-go" class="btn">Place</button></div>
@@ -199,10 +199,13 @@ function draw(ctx: AppContext): void {
     }),
   );
   $('#acct-new')!.addEventListener('click', async () => {
-    const name = prompt('Account name:', `Strategy ${String.fromCharCode(65 + accounts.length)}`);
-    if (!name) return;
-    const cap = Number(prompt('Initial capital (EUR):', '50000')) || 50000;
-    accounts.push(createAccount({ name, initialCapital: cap, currency: 'EUR', createdAt: today() }, uuid));
+    const res = await formDialog('New account', [
+      { key: 'name', label: 'Account name', value: `Strategy ${String.fromCharCode(65 + accounts.length)}` },
+      { key: 'cap', label: 'Initial capital (EUR)', type: 'number', value: '50000' },
+    ]);
+    if (!res || !res.name) return;
+    const cap = Number(res.cap) > 0 ? Number(res.cap) : 50000;
+    accounts.push(createAccount({ name: res.name, initialCapital: cap, currency: 'EUR', createdAt: today() }, uuid));
     activeId = accounts[accounts.length - 1]!.account.id;
     await save(ctx);
     draw(ctx);
@@ -211,13 +214,14 @@ function draw(ctx: AppContext): void {
   // Edit the active account — rename and/or change its initial capital.
   $('#acct-edit')!.addEventListener('click', async () => {
     const a = active().account;
-    const name = prompt('Account name:', a.name);
-    if (name && name.trim()) a.name = name.trim();
-    const capStr = prompt('Initial capital (EUR):', String(a.initialCapital));
-    if (capStr != null) {
-      const cap = Number(capStr);
-      if (cap > 0) a.initialCapital = cap; // cash & PnL recompute from this
-    }
+    const res = await formDialog('Edit account', [
+      { key: 'name', label: 'Account name', value: a.name },
+      { key: 'cap', label: 'Initial capital (EUR)', type: 'number', value: String(a.initialCapital) },
+    ]);
+    if (!res) return;
+    if (res.name) a.name = res.name;
+    const cap = Number(res.cap);
+    if (cap > 0) a.initialCapital = cap; // cash & PnL recompute from this
     await save(ctx);
     draw(ctx);
   });
@@ -237,7 +241,10 @@ function draw(ctx: AppContext): void {
   // orders list
   renderOrders();
 
-  // Live latest-close hints next to the price inputs (fetch on ticker change).
+  // Styled ticker comboboxes + live latest-close hints.
+  const tickers = tickerList();
+  attachCombobox({ input: $('#b-ticker') as HTMLInputElement, options: tickers });
+  attachCombobox({ input: $('#o-ticker') as HTMLInputElement, options: tickers });
   wirePriceHint(ctx, '#b-ticker', '#b-pricehint', '#b-price');
   wirePriceHint(ctx, '#o-ticker', '#o-pricehint', '#o-thresh');
 

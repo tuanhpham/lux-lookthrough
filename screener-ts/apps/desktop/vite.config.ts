@@ -81,12 +81,17 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: false,
-    // Finnhub is optional and needs no crumb; keep the simple proxy for it.
+    // Finnhub + Wikipedia need no crumb; simple same-origin proxies.
     proxy: {
       '/api/finnhub': {
         target: 'https://finnhub.io/api/v1',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/finnhub/, ''),
+      },
+      '/api/wiki': {
+        target: 'https://en.wikipedia.org/wiki',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/wiki/, ''),
       },
     },
   },

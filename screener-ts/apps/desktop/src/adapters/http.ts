@@ -7,6 +7,7 @@
 
 export interface HttpClient {
   getJson<T>(url: string, headers?: Record<string, string>): Promise<T>;
+  getText(url: string, headers?: Record<string, string>): Promise<string>;
 }
 
 declare global {
@@ -27,6 +28,12 @@ class TauriHttp implements HttpClient {
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
     return (await res.json()) as T;
   }
+  async getText(url: string, headers: Record<string, string> = {}): Promise<string> {
+    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+    const res = await tauriFetch(url, { method: 'GET', headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return res.text();
+  }
 }
 
 /** Browser fetch client (static web build, talking to same-origin proxies). */
@@ -35,6 +42,11 @@ class WebHttp implements HttpClient {
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
     return (await res.json()) as T;
+  }
+  async getText(url: string, headers: Record<string, string> = {}): Promise<string> {
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return res.text();
   }
 }
 
