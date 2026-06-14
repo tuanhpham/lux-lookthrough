@@ -12,6 +12,7 @@ export interface ComboboxOptions {
 }
 
 export function attachCombobox({ input, options, onPick, max = 50 }: ComboboxOptions): void {
+  if (!input || !input.parentNode) return; // nothing to attach to
   const wrap = document.createElement('div');
   wrap.className = 'combo';
   input.parentNode!.insertBefore(wrap, input);

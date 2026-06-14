@@ -20,6 +20,7 @@ import { $, el, num, money, pct } from '../ui/dom.js';
 import { drawLine } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
 import { attachCombobox } from '../ui/combobox.js';
+import { openStock } from '../ui/stockModal.js';
 
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())].sort();
 
@@ -146,25 +147,34 @@ function draw(ctx: AppContext): void {
 
     ${m.openPositionsWithoutStop > 0 ? `<div class="notice" style="margin-bottom:12px">${m.openPositionsWithoutStop} open position(s) have no stop set — risk is excluded until you add one.</div>` : ''}
 
-    <div class="section-title">Open Positions</div>
+    <div class="section-title">Open Positions <span class="muted" style="text-transform:none;font-weight:400">— click a ticker to open its chart</span></div>
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
-      <table><thead><tr><th>Ticker</th><th>Shares</th><th>Avg cost</th><th>Last</th><th>Mkt value</th><th>Unreal. PnL</th><th>Risk €</th><th>R</th><th>Stop</th><th>Days</th><th>Conc.</th><th></th></tr></thead>
+      <table><thead><tr><th>Ticker</th><th>Shares</th><th>Avg cost</th><th>Last</th><th>Mkt value</th><th>Unreal. PnL</th><th>Risk €</th><th>R</th><th>Stop</th><th>Target</th><th>Days</th><th>Conc.</th><th>Actions</th></tr></thead>
       <tbody>${
         positions.length
           ? positions
               .map(
                 (pos) =>
-                  `<tr><td><strong>${pos.ticker}</strong></td><td>${pos.shares}</td><td>$${num(pos.avgCost)}</td><td>$${num(pos.lastPrice)}</td><td>${money(pos.marketValue)}</td>
+                  `<tr><td><a href="#" class="link-ticker" data-open="${pos.ticker}"><strong>${pos.ticker}</strong></a></td><td>${pos.shares}</td><td>$${num(pos.avgCost)}</td><td>$${num(pos.lastPrice)}</td><td>${money(pos.marketValue)}</td>
           <td style="color:${pos.unrealizedPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(pos.unrealizedPnL)} (${pct(pos.unrealizedPnLPct)})</td>
-          <td>${pos.riskEur != null ? money(pos.riskEur) : '<span class="warn">— set stop</span>'}</td>
+          <td>${pos.riskEur != null ? money(pos.riskEur) : '<span class="warn">—</span>'}</td>
           <td>${pos.rMultiple != null ? num(pos.rMultiple, 2) + 'R' : '—'}</td>
-          <td>${pos.stop != null ? '$' + num(pos.stop) : '—'}</td><td>${pos.daysHeld}</td><td>${num(pos.concentrationPct, 0)}%</td>
-          <td><button class="range-btn" data-sell="${pos.ticker}">Sell</button></td></tr>`,
+          <td>${pos.stop != null ? '$' + num(pos.stop) : '<span class="warn">none</span>'}</td>
+          <td>${pos.target != null ? '$' + num(pos.target) : '—'}</td>
+          <td>${pos.daysHeld}</td><td>${num(pos.concentrationPct, 0)}%</td>
+          <td class="row" style="gap:4px;flex-wrap:nowrap">
+            <button class="range-btn" data-stop="${pos.ticker}">${pos.stop != null ? 'Edit stop' : 'Set stop'}</button>
+            <button class="range-btn" data-target="${pos.ticker}">Target</button>
+            <button class="range-btn" data-sell="${pos.ticker}">Sell</button></td></tr>`,
               )
               .join('')
-          : `<tr><td colspan="12" class="muted" style="text-align:center;padding:20px">No open positions.</td></tr>`
+          : `<tr><td colspan="13" class="muted" style="text-align:center;padding:20px">No open positions.</td></tr>`
       }</tbody></table>
     </div>
+    <p class="muted" style="font-size:11px;margin:-6px 0 14px">
+      <b>Stop</b> = exit level that caps your loss (risk = entry − stop). <b>Target</b> = your profit objective.
+      Set or edit either anytime with the buttons above; risk recalculates. Clearing the stop removes it.
+    </p>
 
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
@@ -191,6 +201,18 @@ function draw(ctx: AppContext): void {
     </div>
     <div id="compare-panel" style="margin-top:16px"></div>`;
 
+  try {
+    wire(ctx, root);
+  } catch (e) {
+    // Never let one wiring failure dead-end the whole tab.
+    const s = $('#update-status');
+    if (s) s.innerHTML = `<span class="danger">UI error: ${(e as Error).message}</span>`;
+    console.error('portfolio wire error', e);
+  }
+}
+
+/** All event wiring for the portfolio tab, isolated so a failure is contained. */
+function wire(ctx: AppContext, root: HTMLElement): void {
   // account switch / new
   root.querySelectorAll<HTMLElement>('[data-acct]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -227,6 +249,7 @@ function draw(ctx: AppContext): void {
   });
 
   // equity curve
+  const st = active();
   const eq = $('#equity-chart')!;
   if (st.snapshots.length) {
     drawLine(
@@ -239,7 +262,7 @@ function draw(ctx: AppContext): void {
   }
 
   // orders list
-  renderOrders();
+  renderOrders(ctx);
 
   // Styled ticker comboboxes + live latest-close hints.
   const tickers = tickerList();
@@ -278,20 +301,70 @@ function draw(ctx: AppContext): void {
     }
   });
 
-  // sell from a position row
+  // open a position's stock detail by clicking its ticker
+  root.querySelectorAll<HTMLElement>('[data-open]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      void openStock(ctx, a.dataset.open!);
+    }),
+  );
+
+  // sell from a position row (in-app form, not prompt)
   root.querySelectorAll<HTMLElement>('[data-sell]').forEach((b) =>
     b.addEventListener('click', async () => {
       const t = b.dataset.sell!;
-      const shares = Number(prompt(`Sell how many shares of ${t}?`, '0'));
-      const price = Number(prompt('Sell price?', '0'));
+      const res = await formDialog(`Sell ${t}`, [
+        { key: 'shares', label: 'Shares to sell', type: 'number' },
+        { key: 'price', label: 'Sell price', type: 'number' },
+        { key: 'date', label: 'Date', value: today() },
+      ]);
+      if (!res) return;
+      const shares = Number(res.shares);
+      const price = Number(res.price);
       if (shares <= 0 || price <= 0) return;
       try {
-        sell(active(), { ticker: t, sellDate: today(), sellPrice: price, shares }, uuid);
+        sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: price, shares }, uuid);
         await save(ctx);
         draw(ctx);
       } catch (e) {
         alert((e as Error).message);
       }
+    }),
+  );
+
+  // set / edit the stop on every open lot of a ticker
+  root.querySelectorAll<HTMLElement>('[data-stop]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const t = b.dataset.stop!;
+      const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.stop;
+      const res = await formDialog(`Stop-loss for ${t}`, [
+        { key: 'stop', label: 'Stop price (blank to clear)', type: 'number', value: cur != null ? String(cur) : '' },
+      ]);
+      if (!res) return;
+      const stop = res.stop === '' ? undefined : Number(res.stop);
+      for (const l of active().lots) {
+        if (l.ticker === t && l.remainingShares > 0) setStop(active(), l.id, stop);
+      }
+      await save(ctx);
+      draw(ctx);
+    }),
+  );
+
+  // set / edit the target on every open lot of a ticker
+  root.querySelectorAll<HTMLElement>('[data-target]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const t = b.dataset.target!;
+      const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.target;
+      const res = await formDialog(`Target for ${t}`, [
+        { key: 'target', label: 'Target price (blank to clear)', type: 'number', value: cur != null ? String(cur) : '' },
+      ]);
+      if (!res) return;
+      const target = res.target === '' ? undefined : Number(res.target);
+      for (const l of active().lots) {
+        if (l.ticker === t && l.remainingShares > 0) l.target = target;
+      }
+      await save(ctx);
+      draw(ctx);
     }),
   );
 
@@ -313,19 +386,33 @@ function draw(ctx: AppContext): void {
   $('#acct-compare')!.addEventListener('click', () => renderCompare());
 }
 
-function renderOrders(): void {
-  const list = $('#orders-list')!;
+function renderOrders(ctx: AppContext): void {
+  const list = $('#orders-list');
+  if (!list) return;
   const orders = active().orders;
   if (!orders.length) {
-    list.textContent = 'No orders.';
+    list.textContent = 'No pending or filled orders yet.';
     return;
   }
   list.innerHTML = orders
     .map(
       (o) =>
-        `${o.ticker} ${o.type} ${o.shares}@${o.threshold} — <strong>${o.status}</strong>${o.note ? ` <span class="warn">(${o.note})</span>` : ''}`,
+        `<div class="order-row" style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
+          <b>${o.ticker}</b> ${o.type} ${o.shares}@$${num(o.threshold)} —
+          <span class="${o.status === 'pending' ? 'warn' : o.status === 'filled' ? 'accent' : 'muted'}">${o.status}</span>
+          ${o.note ? `<span class="muted">(${o.note})</span>` : ''}
+          ${o.status === 'pending' ? `<button class="range-btn" data-cancel="${o.id}" style="margin-left:auto">Cancel</button>` : ''}
+        </div>`,
     )
-    .join('<br>');
+    .join('');
+  list.querySelectorAll<HTMLElement>('[data-cancel]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const o = active().orders.find((x) => x.id === b.dataset.cancel);
+      if (o && o.status === 'pending') o.status = 'cancelled';
+      await save(ctx);
+      draw(ctx);
+    }),
+  );
 }
 
 async function update(ctx: AppContext): Promise<void> {

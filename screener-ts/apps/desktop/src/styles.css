@@ -137,6 +137,8 @@ tbody tr:hover { background: var(--cardhover); }
   background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 4px; }
 .combo-item { padding: 7px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--subtext); }
 .combo-item:hover, .combo-item.active { background: var(--cardhover); color: var(--text); }
+.link-ticker { color: var(--accent); text-decoration: none; }
+.link-ticker:hover { text-decoration: underline; }
 .danger { color: var(--danger); }
 .accent { color: var(--accent); }
 .warn { color: var(--warn); }
