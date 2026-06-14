@@ -3,87 +3,197 @@ import type { AppContext } from '../context.js';
 import { $, el } from '../ui/dom.js';
 import { resultsTable } from '../ui/resultsTable.js';
 import { openStock } from '../ui/stockModal.js';
+import { t, getLang } from '../ui/i18n.js';
+import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 
-const WL_KEY = 'watchlist:default';
+// ── Multiple named watchlists ───────────────────────────────────────────────────
+// Stored as: `watchlists:index` → [{id,name}], `watchlists:items:<id>` → string[].
+interface WatchlistMeta {
+  id: string;
+  name: string;
+}
+const INDEX_KEY = 'watchlists:index';
+const itemsKey = (id: string) => `watchlists:items:${id}`;
 
-async function loadSymbols(ctx: AppContext): Promise<string[]> {
-  return (await ctx.storage.get<string[]>(WL_KEY)) ?? [];
+let activeId: string | null = null;
+
+async function loadIndex(ctx: AppContext): Promise<WatchlistMeta[]> {
+  let idx = (await ctx.storage.get<WatchlistMeta[]>(INDEX_KEY)) ?? [];
+  if (!idx.length) {
+    // Seed a default list, migrating any legacy single-list symbols.
+    const legacy = (await ctx.storage.get<string[]>('watchlist:default')) ?? [];
+    const def: WatchlistMeta = { id: 'default', name: 'My Watchlist' };
+    idx = [def];
+    await ctx.storage.set(INDEX_KEY, idx);
+    if (legacy.length) await ctx.storage.set(itemsKey('default'), legacy);
+  }
+  return idx;
 }
-async function saveSymbols(ctx: AppContext, syms: string[]): Promise<void> {
-  await ctx.storage.set(WL_KEY, [...new Set(syms)]);
+async function loadItems(ctx: AppContext, id: string): Promise<string[]> {
+  return (await ctx.storage.get<string[]>(itemsKey(id))) ?? [];
 }
+async function saveItems(ctx: AppContext, id: string, syms: string[]): Promise<void> {
+  await ctx.storage.set(itemsKey(id), [...new Set(syms)]);
+}
+const newId = (): string =>
+  globalThis.crypto?.randomUUID?.() ?? 'wl-' + Math.random().toString(36).slice(2);
 
 export function renderWatchlist(ctx: AppContext): void {
   const root = $('#tab-watchlist')!;
   root.innerHTML = `
-    <h1>Watchlist</h1>
-    <p class="subtitle">Track symbols and screen them in one click. Stored locally.</p>
+    <h1>${t('wl.title')}</h1>
+    <p class="subtitle">${t('wl.sub')}</p>
+    <div class="toolbar" id="wl-tabs"></div>
     <div class="card" style="margin-bottom:14px">
       <div class="row">
         <input id="wl-symbol" class="field" style="flex:1" placeholder="Add symbol e.g. AMD" />
-        <button id="wl-add" class="btn">Add</button>
-        <button id="wl-screen" class="btn-outline">Screen All</button>
+        <button id="wl-add" class="btn">${t('wl.add')}</button>
+        <button id="wl-screen" class="btn-outline">${t('wl.screenall')}</button>
       </div>
       <div id="wl-chips" class="row" style="margin-top:12px"></div>
     </div>
     <div id="wl-results"></div>`;
 
-  const refreshChips = async () => {
-    const syms = await loadSymbols(ctx);
-    const chips = $('#wl-chips')!;
-    chips.innerHTML = syms.length
-      ? syms.map((s) => `<span class="range-btn" data-sym="${s}">${s} <span data-del="${s}" style="color:var(--faint)">×</span></span>`).join('')
-      : `<span class="muted">No symbols yet.</span>`;
-    chips.querySelectorAll<HTMLElement>('[data-sym]').forEach((c) =>
-      c.addEventListener('click', (e) => {
-        const del = (e.target as HTMLElement).dataset.del;
-        if (del) {
-          void (async () => {
-            await saveSymbols(ctx, (await loadSymbols(ctx)).filter((x) => x !== del));
-            await refreshChips();
-          })();
-        } else void openStock(ctx, c.dataset.sym!);
-      }),
-    );
-  };
+  void refreshAll(ctx);
 
   $('#wl-add')!.addEventListener('click', async () => {
     const input = $('#wl-symbol') as HTMLInputElement;
     const sym = input.value.trim().toUpperCase();
-    if (!sym) return;
-    await saveSymbols(ctx, [...(await loadSymbols(ctx)), sym]);
+    if (!sym || !activeId) return;
+    await saveItems(ctx, activeId, [...(await loadItems(ctx, activeId)), sym]);
     input.value = '';
-    await refreshChips();
+    await refreshChips(ctx);
+    await refreshTabs(ctx); // update count
+  });
+  ($('#wl-symbol') as HTMLInputElement).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') ($('#wl-add') as HTMLButtonElement).click();
   });
   $('#wl-screen')!.addEventListener('click', async () => {
     const out = $('#wl-results')!;
-    const syms = await loadSymbols(ctx);
+    if (!activeId) return;
+    const syms = await loadItems(ctx, activeId);
     if (!syms.length) return;
-    out.innerHTML = `<div class="muted"><span class="spinner"></span> Screening…</div>`;
+    out.innerHTML = `<div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div>`;
     const data = await fetchMany(ctx.data, syms, '1y', 8);
     const res = screen([...data.values()], { minScore: 0, sortBy: 'score', limit: 200 });
     out.innerHTML = '';
     out.appendChild(resultsTable(res.results, (sym) => void openStock(ctx, sym)));
   });
-
-  void refreshChips();
 }
 
-const GLOSSARY: { term: string; body: string }[] = [
-  { term: 'Conviction Score (0–100)', body: 'Blends Weinstein stage, ATR contraction, range tightness, volume dry-up, VCP count, and pivot proximity. 70+ high, 40–69 developing, <40 weak.' },
-  { term: 'Signal', body: 'BREAKOUT_IMMINENT: score ≥ 70 within 3% of pivot. CONSOLIDATING: score ≥ 40. NO_SIGNAL otherwise.' },
-  { term: 'Weinstein Stage', body: 'Stage 1 basing, Stage 2 advancing (buy zone), Stage 3 topping, Stage 4 declining — classified via simple moving averages of close.' },
-  { term: 'VCP', body: 'Volatility Contraction Pattern: successively tighter, quieter pullbacks. 3+ contractions is textbook.' },
-  { term: 'R:R', body: 'Reward ÷ risk. Default target is 3R (entry + 3×(entry−stop)); stop is 1.5×ATR below entry.' },
-  { term: 'R-multiple (portfolio)', body: 'Trade PnL ÷ initial per-share risk, where risk = entry − stop. +2R means you made twice what you risked.' },
-];
+async function refreshAll(ctx: AppContext): Promise<void> {
+  const idx = await loadIndex(ctx);
+  if (!activeId || !idx.some((w) => w.id === activeId)) activeId = idx[0]!.id;
+  await refreshTabs(ctx);
+  await refreshChips(ctx);
+}
 
+async function refreshTabs(ctx: AppContext): Promise<void> {
+  const idx = await loadIndex(ctx);
+  const tabs = $('#wl-tabs')!;
+  tabs.innerHTML = '';
+  for (const w of idx) {
+    const count = (await loadItems(ctx, w.id)).length;
+    const tab = el(
+      `<span class="range-btn ${w.id === activeId ? 'active' : ''}" data-wl="${w.id}" style="display:inline-flex;gap:6px;align-items:center">
+        <span data-open>${w.name}</span><span class="muted">${count}</span>
+        <span data-rename title="Rename" style="cursor:pointer">✎</span>${
+          idx.length > 1 ? `<span data-del title="Delete" style="cursor:pointer;color:var(--faint)">×</span>` : ''
+        }</span>`,
+    );
+    tab.querySelector('[data-open]')!.addEventListener('click', async () => {
+      activeId = w.id;
+      await refreshTabs(ctx);
+      await refreshChips(ctx);
+      $('#wl-results')!.innerHTML = '';
+    });
+    tab.querySelector('[data-rename]')!.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const name = prompt('Rename watchlist:', w.name);
+      if (!name?.trim()) return;
+      const next = idx.map((x) => (x.id === w.id ? { ...x, name: name.trim() } : x));
+      await ctx.storage.set(INDEX_KEY, next);
+      await refreshTabs(ctx);
+    });
+    tab.querySelector('[data-del]')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm(`Delete watchlist "${w.name}"?`)) return;
+      await ctx.storage.delete(itemsKey(w.id));
+      const next = idx.filter((x) => x.id !== w.id);
+      await ctx.storage.set(INDEX_KEY, next);
+      if (activeId === w.id) activeId = next[0]?.id ?? null;
+      await refreshAll(ctx);
+      $('#wl-results')!.innerHTML = '';
+    });
+    tabs.appendChild(tab);
+  }
+  const add = el(`<button class="range-btn" title="New watchlist">＋ New list</button>`);
+  add.addEventListener('click', async () => {
+    const name = prompt('Name your new watchlist:', '');
+    if (!name?.trim()) return;
+    const id = newId();
+    const next = [...idx, { id, name: name.trim() }];
+    await ctx.storage.set(INDEX_KEY, next);
+    activeId = id;
+    await refreshAll(ctx);
+    $('#wl-results')!.innerHTML = '';
+  });
+  tabs.appendChild(add);
+}
+
+async function refreshChips(ctx: AppContext): Promise<void> {
+  const chips = $('#wl-chips')!;
+  if (!activeId) {
+    chips.innerHTML = '';
+    return;
+  }
+  const syms = await loadItems(ctx, activeId);
+  chips.innerHTML = syms.length
+    ? syms
+        .map(
+          (s) =>
+            `<span class="range-btn" data-sym="${s}">${s} <span data-del="${s}" style="color:var(--faint)">×</span></span>`,
+        )
+        .join('')
+    : `<span class="muted">No symbols yet.</span>`;
+  chips.querySelectorAll<HTMLElement>('[data-sym]').forEach((c) =>
+    c.addEventListener('click', (e) => {
+      const del = (e.target as HTMLElement).dataset.del;
+      if (del) {
+        void (async () => {
+          await saveItems(ctx, activeId!, (await loadItems(ctx, activeId!)).filter((x) => x !== del));
+          await refreshChips(ctx);
+          await refreshTabs(ctx);
+        })();
+      } else void openStock(ctx, c.dataset.sym!);
+    }),
+  );
+}
+
+// ── Learn (full bilingual glossary, grouped) ────────────────────────────────────
 export function renderLearn(): void {
   const root = $('#tab-learn')!;
-  root.innerHTML = `<h1>Learn the Terminology</h1><p class="subtitle">Every metric, in plain English.</p>`;
-  const grid = el(`<div class="grid grid-cards"></div>`);
-  for (const g of GLOSSARY) {
-    grid.appendChild(el(`<div class="card"><strong>${g.term}</strong><p class="muted" style="margin:6px 0 0;line-height:1.55">${g.body}</p></div>`));
+  const lang = getLang();
+  root.innerHTML = `<h1>${lang === 'vi' ? 'Tìm hiểu thuật ngữ' : 'Learn the Terminology'}</h1>
+    <p class="subtitle">${lang === 'vi' ? 'Mọi chỉ số trong ứng dụng, giải thích dễ hiểu.' : 'Every metric in this app, explained in plain English.'}</p>`;
+  for (const group of GLOSSARY_GROUPS) {
+    const section = el(`<div style="margin-bottom:18px"></div>`);
+    section.appendChild(
+      el(
+        `<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:0 0 8px">${
+          group.title[lang] ?? group.title.en
+        }</h2>`,
+      ),
+    );
+    const grid = el(`<div class="grid grid-cards"></div>`);
+    for (const key of group.keys) {
+      const g = gloss(key);
+      if (!g) continue;
+      grid.appendChild(
+        el(`<div class="card"><strong>${g.term}</strong><p class="muted" style="margin:6px 0 0;line-height:1.55">${g.long}</p></div>`),
+      );
+    }
+    section.appendChild(grid);
+    root.appendChild(section);
   }
-  root.appendChild(grid);
 }

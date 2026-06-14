@@ -125,6 +125,8 @@ tbody tr:hover { background: var(--cardhover); }
 .lang-toggle button { background: transparent; border: 0; color: var(--subtext); font-weight: 800; font-size: 11px; padding: 4px 10px; cursor: pointer; }
 .lang-toggle button + button { border-left: 1px solid var(--border); }
 .lang-toggle button.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.theme-toggle { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 3px 8px; cursor: pointer; font-size: 13px; line-height: 1; }
+.theme-toggle:hover { border-color: var(--accent); }
 
 /* ── Sector expandable rows ───────────────────────────────────────────────── */
 .sector-row { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }

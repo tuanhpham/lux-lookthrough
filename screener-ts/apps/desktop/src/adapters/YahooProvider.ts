@@ -29,9 +29,26 @@ const RANGE_BY_PERIOD: Record<Period, string> = {
   max: 'max',
 };
 
+interface TimeseriesPoint {
+  date: string;
+  value: number;
+}
+
+interface ChartMeta {
+  currency?: string;
+  symbol?: string;
+  longName?: string;
+  shortName?: string;
+  regularMarketPrice?: number;
+  fiftyTwoWeekHigh?: number;
+  fiftyTwoWeekLow?: number;
+  regularMarketVolume?: number;
+}
+
 interface ChartResult {
   chart: {
     result?: Array<{
+      meta?: ChartMeta;
       timestamp?: number[];
       indicators: {
         quote: Array<{
@@ -116,89 +133,139 @@ export class YahooProvider implements DataProvider {
     return ohlcv;
   }
 
+  /**
+   * Fundamentals. Yahoo's `quoteSummary` endpoint now requires a cookie+crumb
+   * and returns 401 for anonymous requests, so we source what's reachable
+   * without auth: name / price / currency / 52-week range from the chart `meta`,
+   * and market cap + P/E + EPS from the (auth-free) fundamentals-timeseries.
+   * Fields Yahoo no longer exposes anonymously (sector, beta, ROE, margins,
+   * dividend yield, company summary) are left null and the UI degrades cleanly.
+   */
   async getFundamentals(symbol: string): Promise<Fundamentals> {
     const cached = this.fundCache.get(symbol);
     if (cached) return cached;
-    const modules = 'summaryDetail,defaultKeyStatistics,financialData,assetProfile,price';
-    const url = `${this.quoteBase}/v10/finance/quoteSummary/${encodeURIComponent(
-      symbol,
-    )}?modules=${modules}`;
-    type QS = {
-      quoteSummary: { result?: Array<Record<string, Record<string, { raw?: number } | unknown>>> };
+
+    // Price/name/currency/52w from chart meta.
+    let meta: ChartMeta = {};
+    try {
+      const chartUrl = `${this.chartBase}/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`;
+      const chart = await http().getJson<ChartResult>(chartUrl);
+      meta = chart.chart.result?.[0]?.meta ?? {};
+    } catch {
+      /* leave meta empty */
+    }
+
+    // Valuation snapshot (most recent annual point) from fundamentals-timeseries.
+    const ts = await this.fetchTimeseries(symbol, 'annual', [
+      'annualMarketCap',
+      'annualPeRatio',
+      'annualDilutedEPS',
+      'annualNetMargin',
+    ]).catch(() => ({} as Record<string, TimeseriesPoint[]>));
+    const latest = (key: string): number | null => {
+      const arr = ts[key];
+      if (!arr || !arr.length) return null;
+      return arr[arr.length - 1]?.value ?? null;
     };
-    const data = await http().getJson<QS>(url);
-    const r = (data.quoteSummary.result?.[0] ?? {}) as Record<string, Record<string, { raw?: number; fmt?: string } | string>>;
-    const raw = (mod: string, field: string): number | null => {
-      const cell = r[mod]?.[field] as { raw?: number } | undefined;
-      return cell && typeof cell.raw === 'number' ? cell.raw : null;
-    };
-    const str = (mod: string, field: string): string | null => {
-      const cell = r[mod]?.[field];
-      return typeof cell === 'string' ? cell : null;
-    };
+
     const f: Fundamentals = {
       symbol,
-      name: str('price', 'longName') ?? str('price', 'shortName'),
-      shortName: str('price', 'shortName'),
-      sector: str('assetProfile', 'sector'),
-      industry: str('assetProfile', 'industry'),
-      marketCap: raw('price', 'marketCap'),
-      peRatio: raw('summaryDetail', 'trailingPE'),
-      forwardPe: raw('summaryDetail', 'forwardPE'),
-      eps: raw('defaultKeyStatistics', 'trailingEps'),
-      forwardEps: raw('defaultKeyStatistics', 'forwardEps'),
-      dividendYield: raw('summaryDetail', 'dividendYield'),
-      beta: raw('summaryDetail', 'beta'),
-      week52High: raw('summaryDetail', 'fiftyTwoWeekHigh'),
-      week52Low: raw('summaryDetail', 'fiftyTwoWeekLow'),
-      avgVolume: raw('summaryDetail', 'averageVolume'),
-      profitMargin: raw('financialData', 'profitMargins'),
-      revenueGrowth: raw('financialData', 'revenueGrowth'),
-      roe: raw('financialData', 'returnOnEquity'),
-      currency: str('price', 'currency'),
-      website: str('assetProfile', 'website'),
-      summary: str('assetProfile', 'longBusinessSummary'),
-      currentPrice: raw('financialData', 'currentPrice') ?? raw('price', 'regularMarketPrice'),
+      name: meta.longName ?? meta.shortName ?? null,
+      shortName: meta.shortName ?? null,
+      sector: null,
+      industry: null,
+      marketCap: latest('annualMarketCap'),
+      peRatio: latest('annualPeRatio'),
+      forwardPe: null,
+      eps: latest('annualDilutedEPS'),
+      forwardEps: null,
+      dividendYield: null,
+      beta: null,
+      week52High: meta.fiftyTwoWeekHigh ?? null,
+      week52Low: meta.fiftyTwoWeekLow ?? null,
+      avgVolume: meta.regularMarketVolume ?? null,
+      profitMargin: latest('annualNetMargin'),
+      revenueGrowth: null,
+      roe: null,
+      currency: meta.currency ?? null,
+      website: null,
+      summary: null,
+      currentPrice: meta.regularMarketPrice ?? null,
     };
     this.fundCache.set(symbol, f);
     return f;
   }
 
+  /**
+   * Revenue / net income / diluted EPS history (annual + quarterly) from the
+   * auth-free `fundamentals-timeseries` endpoint. This is what powers the
+   * fundamentals trend chart.
+   */
   async getFinancials(symbol: string): Promise<Financials> {
     const cached = this.finCache.get(symbol);
     if (cached) return cached;
-    const modules =
-      'incomeStatementHistory,incomeStatementHistoryQuarterly,earnings';
-    const url = `${this.quoteBase}/v10/finance/quoteSummary/${encodeURIComponent(
-      symbol,
-    )}?modules=${modules}`;
-    type Stmt = { endDate?: { raw?: number }; totalRevenue?: { raw?: number }; netIncome?: { raw?: number } };
-    type QS = {
-      quoteSummary: {
-        result?: Array<{
-          incomeStatementHistory?: { incomeStatementHistory?: Stmt[] };
-          incomeStatementHistoryQuarterly?: { incomeStatementHistory?: Stmt[] };
-        }>;
+
+    const build = async (freq: 'annual' | 'quarterly'): Promise<FinancialPoint[]> => {
+      const p = freq === 'annual' ? 'annual' : 'quarterly';
+      const ts = await this.fetchTimeseries(symbol, freq, [
+        `${p}TotalRevenue`,
+        `${p}NetIncome`,
+        `${p}DilutedEPS`,
+      ]).catch(() => ({} as Record<string, TimeseriesPoint[]>));
+      // Merge the three series on asOfDate.
+      const byDate = new Map<string, FinancialPoint>();
+      const ingest = (key: string, field: 'revenue' | 'netIncome' | 'eps') => {
+        for (const pt of ts[key] ?? []) {
+          const row = byDate.get(pt.date) ?? { period: pt.date, revenue: null, netIncome: null, eps: null };
+          row[field] = pt.value;
+          byDate.set(pt.date, row);
+        }
       };
+      ingest(`${p}TotalRevenue`, 'revenue');
+      ingest(`${p}NetIncome`, 'netIncome');
+      ingest(`${p}DilutedEPS`, 'eps');
+      return [...byDate.values()].sort((a, b) => (a.period < b.period ? -1 : 1));
     };
-    const data = await http().getJson<QS>(url);
-    const r = data.quoteSummary.result?.[0];
-    const toPoints = (rows?: Stmt[]): FinancialPoint[] =>
-      (rows ?? [])
-        .map((s) => ({
-          period: s.endDate?.raw ? new Date(s.endDate.raw * 1000).toISOString().slice(0, 10) : '',
-          revenue: s.totalRevenue?.raw ?? null,
-          netIncome: s.netIncome?.raw ?? null,
-          eps: null as number | null,
-        }))
-        .reverse(); // Yahoo returns newest-first; emit chronological
+
     const fin: Financials = {
       symbol,
-      annual: toPoints(r?.incomeStatementHistory?.incomeStatementHistory),
-      quarterly: toPoints(r?.incomeStatementHistoryQuarterly?.incomeStatementHistory),
+      annual: await build('annual'),
+      quarterly: await build('quarterly'),
     };
     this.finCache.set(symbol, fin);
     return fin;
+  }
+
+  /** Low-level fundamentals-timeseries fetch → { type: [{date, value}] }. */
+  private async fetchTimeseries(
+    symbol: string,
+    _freq: 'annual' | 'quarterly',
+    types: string[],
+  ): Promise<Record<string, TimeseriesPoint[]>> {
+    const url = `${this.chartBase}/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(
+      symbol,
+    )}?symbol=${encodeURIComponent(symbol)}&type=${types.join(',')}&period1=493590046&period2=2000000000`;
+    type TS = {
+      timeseries: {
+        result?: Array<{
+          meta: { type: string[] };
+          timestamp?: number[];
+          [k: string]: unknown;
+        }>;
+      };
+    };
+    const data = await http().getJson<TS>(url);
+    const out: Record<string, TimeseriesPoint[]> = {};
+    for (const block of data.timeseries.result ?? []) {
+      const type = block.meta.type[0];
+      if (!type) continue;
+      const rows = block[type] as Array<{ asOfDate?: string; reportedValue?: { raw?: number } }> | undefined;
+      if (!rows) continue;
+      out[type] = rows
+        .filter((r) => r && r.asOfDate && r.reportedValue?.raw != null)
+        .map((r) => ({ date: r.asOfDate!, value: r.reportedValue!.raw! }));
+    }
+    return out;
   }
 
   async getSectorVolume(

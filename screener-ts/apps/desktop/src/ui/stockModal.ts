@@ -79,11 +79,21 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
       }),
     );
 
-    renderFundChart(fin);
+    let fundMetric: 'revenue' | 'netIncome' | 'eps' = 'revenue';
+    let fundFreq: 'annual' | 'quarterly' = 'annual';
+    renderFundChart(fin, fundMetric, fundFreq);
     body.querySelectorAll<HTMLElement>('[data-fund]').forEach((btn) =>
       btn.addEventListener('click', () => {
+        fundMetric = btn.dataset.fund as 'revenue' | 'netIncome' | 'eps';
         body.querySelectorAll('[data-fund]').forEach((b) => b.classList.toggle('active', b === btn));
-        renderFundChart(fin, btn.dataset.fund as 'revenue' | 'netIncome');
+        renderFundChart(fin, fundMetric, fundFreq);
+      }),
+    );
+    body.querySelectorAll<HTMLElement>('[data-freq]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        fundFreq = btn.dataset.freq as 'annual' | 'quarterly';
+        body.querySelectorAll('[data-freq]').forEach((b) => b.classList.toggle('active', b === btn));
+        renderFundChart(fin, fundMetric, fundFreq);
       }),
     );
   } catch (e) {
@@ -149,9 +159,16 @@ function renderDetail(
     <div class="card" style="margin-top:14px;padding:8px">
       <div class="toolbar" style="margin:4px 6px">
         <span class="section-title" style="margin:0">${t('detail.fundtrend')}</span>
-        <div class="row" style="margin-left:auto">
-          <button class="range-btn active" data-fund="revenue">Revenue</button>
-          <button class="range-btn" data-fund="netIncome">Net Income</button>
+        <div class="row" style="margin-left:auto;gap:10px">
+          <div class="row">
+            <button class="range-btn active" data-fund="revenue">Revenue</button>
+            <button class="range-btn" data-fund="netIncome">Net Income</button>
+            <button class="range-btn" data-fund="eps">EPS</button>
+          </div>
+          <div class="row">
+            <button class="range-btn active" data-freq="annual">Annual</button>
+            <button class="range-btn" data-freq="quarterly">Quarterly</button>
+          </div>
         </div>
       </div>
       <div id="fund-chart" class="chart" style="height:160px"></div>
@@ -173,35 +190,50 @@ function renderDetail(
   `;
 }
 
+type FinPoint = { period: string; revenue: number | null; netIncome: number | null; eps: number | null };
+
 function renderFundChart(
-  fin: { annual: { period: string; revenue: number | null; netIncome: number | null }[] },
-  metric: 'revenue' | 'netIncome' = 'revenue',
+  fin: { annual: FinPoint[]; quarterly: FinPoint[] },
+  metric: 'revenue' | 'netIncome' | 'eps' = 'revenue',
+  freq: 'annual' | 'quarterly' = 'annual',
 ): void {
   const el = $('#fund-chart');
   if (!el) return;
-  const series = fin.annual.filter((p) => p[metric] != null);
+  let series = (freq === 'annual' ? fin.annual : fin.quarterly).filter((p) => p[metric] != null);
+  // Keep the most recent ~12 quarters so labels stay readable.
+  if (freq === 'quarterly' && series.length > 12) series = series.slice(-12);
   if (!series.length) {
-    el.innerHTML = `<div class="muted" style="text-align:center;padding:30px">No data.</div>`;
+    el.innerHTML = `<div class="muted" style="text-align:center;padding:30px">No data available.</div>`;
     return;
   }
+  const isEps = metric === 'eps';
   const values = series.map((p) => p[metric] as number);
   const max = Math.max(...values, 0);
   const min = Math.min(...values, 0);
   const span = max - min || 1;
-  const W = Math.max(el.clientWidth || 600, series.length * 60);
+  const W = Math.max(el.clientWidth || 600, series.length * 52);
   const H = 160;
   const zeroY = 18 + (max / span) * (H - 40);
   const slot = W / series.length;
+  const label = (p: FinPoint): string => {
+    const d = new Date(p.period);
+    if (freq === 'annual' || Number.isNaN(d.getTime())) return p.period.slice(0, 4);
+    const q = Math.floor(d.getUTCMonth() / 3) + 1;
+    return `Q${q} '${String(d.getUTCFullYear()).slice(2)}`;
+  };
+  const fmtVal = (v: number): string =>
+    isEps ? (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(2) : (v < 0 ? '-$' : '$') + fmtBig(Math.abs(v));
   const bars = series
     .map((p, i) => {
       const v = p[metric] as number;
       const h = (Math.abs(v) / span) * (H - 40);
       const y = v >= 0 ? zeroY - h : zeroY;
       const cx = i * slot + slot / 2;
+      const bw = Math.min(slot * 0.6, 40);
       const color = v >= 0 ? '#00d49b' : '#ff5260';
-      const lbl = (v < 0 ? '-$' : '$') + fmtBig(Math.abs(v));
-      return `<rect x="${cx - 16}" y="${y}" width="32" height="${Math.max(h, 1)}" rx="3" fill="${color}" opacity=".85"><title>${p.period}: ${lbl}</title></rect>
-        <text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="9" fill="#5b6577">${p.period.slice(0, 4)}</text>`;
+      return `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${Math.max(h, 1)}" rx="3" fill="${color}" opacity=".85"><title>${label(p)}: ${fmtVal(v)}</title></rect>
+        <text x="${cx}" y="${(v >= 0 ? y - 4 : y + h + 11)}" text-anchor="middle" font-size="9" fill="#aab3c4">${fmtVal(v)}</text>
+        <text x="${cx}" y="${H - 5}" text-anchor="middle" font-size="9" fill="#5b6577">${label(p)}</text>`;
     })
     .join('');
   el.innerHTML = `<div style="overflow-x:auto"><svg width="${W}" height="${H}">${bars}</svg></div>`;

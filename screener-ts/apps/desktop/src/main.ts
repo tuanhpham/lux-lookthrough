@@ -8,8 +8,10 @@ import { renderPortfolio } from './tabs/portfolioTab.js';
 import { renderBlog } from './tabs/blogTab.js';
 import { renderLanding } from './ui/landing.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
+import { initTheme, onThemeChange } from './ui/theme.js';
 
 const ctx = new AppContext(loadConfig());
+initTheme();
 initModal();
 
 const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'blog', 'learn'] as const;
@@ -86,6 +88,11 @@ $$('[data-lang-btn]').forEach((b) =>
 );
 onLangChange(() => {
   applyStaticI18n();
+  if (entered) renderTab(currentTab);
+});
+
+// Re-render the open tab on theme switch so charts pick up the new CSS colors.
+onThemeChange(() => {
   if (entered) renderTab(currentTab);
 });
 

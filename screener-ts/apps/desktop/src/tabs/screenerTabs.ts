@@ -114,7 +114,7 @@ export function renderScreener(ctx: AppContext): void {
         <div id="sector-chips" class="row"></div>
       </div>
       <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:12px">
-        <div><label class="field-label">${t('screener.minscore')}</label><input id="min-score" class="field" type="number" value="40" /></div>
+        <div><label class="field-label">${t('screener.minscore')}</label><input id="min-score" class="field" type="number" value="0" /></div>
         <div><label class="field-label">${t('screener.signal')}</label><select id="signal-filter" class="field">
           <option value="">${t('opt.any')}</option><option value="BREAKOUT_IMMINENT">Breakout</option><option value="CONSOLIDATING">Consolidating</option></select></div>
         <div><label class="field-label">${t('screener.stage')}</label><select id="stage-filter" class="field">
