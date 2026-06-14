@@ -81,7 +81,19 @@ export function drawCandles(
     }
   }
   chart.timeScale().fitContent();
-  new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth })).observe(container);
+  // Keep width in sync, but stop once disposed — a ResizeObserver that outlives
+  // the chart calls applyOptions on a dead object → "Object is disposed".
+  let disposed = false;
+  const ro = new ResizeObserver(() => {
+    if (disposed) return;
+    try {
+      chart.applyOptions({ width: container.clientWidth });
+    } catch {
+      disposed = true;
+      ro.disconnect();
+    }
+  });
+  ro.observe(container);
 
   return {
     chart,
@@ -95,6 +107,8 @@ export function drawCandles(
       }
     },
     destroy() {
+      disposed = true;
+      ro.disconnect();
       chart.remove();
     },
   };
@@ -138,7 +152,20 @@ export function drawLine(
     base.setData(points.map((p) => ({ time: p.time, value: baseline })));
   }
   chart.timeScale().fitContent();
-  new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth })).observe(container);
+  // Self-disconnecting observer: if the chart was disposed (container re-rendered
+  // or detached), stop instead of throwing "Object is disposed".
+  const ro = new ResizeObserver(() => {
+    if (!container.isConnected) {
+      ro.disconnect();
+      return;
+    }
+    try {
+      chart.applyOptions({ width: container.clientWidth });
+    } catch {
+      ro.disconnect();
+    }
+  });
+  ro.observe(container);
   return chart;
 }
 

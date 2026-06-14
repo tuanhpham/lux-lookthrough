@@ -4,11 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Screener — TS</title>
-    <!-- Earliest possible error trap: catches module import-phase throws that
-         the module-level handlers would miss (those run too late). -->
+    <!-- Boot-phase error trap: surfaces module import/init failures (which would
+         otherwise be a silent black screen). It disarms once the app mounts
+         (window.__APP_READY__), so benign runtime errors after load — e.g. a
+         chart resize firing after disposal — never blank the whole app. -->
     <script>
       (function () {
+        function ignorable(msg) {
+          // Known-benign lightweight-charts teardown noise.
+          return /Object is disposed/i.test(msg);
+        }
         function paint(msg) {
+          if (window.__APP_READY__ || ignorable(msg)) return;
           var b = document.getElementById('boot-error') || document.createElement('div');
           b.id = 'boot-error';
           b.style.cssText =

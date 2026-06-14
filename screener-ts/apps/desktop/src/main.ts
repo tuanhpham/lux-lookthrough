@@ -10,8 +10,10 @@ import { renderLanding } from './ui/landing.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange } from './ui/theme.js';
 
-// Visible crash overlay: a blank screen hides the real cause, so paint any
-// uncaught error/rejection onto the page instead of failing silently.
+// Surface a FATAL init failure visibly (a blank screen hides the cause). This is
+// only used for the synchronous init below — we deliberately do NOT trap every
+// async/window error, since benign runtime hiccups (e.g. a chart resize after
+// disposal) must not blank the whole app.
 function showFatal(msg: string): void {
   const box = document.createElement('div');
   box.style.cssText =
@@ -19,10 +21,6 @@ function showFatal(msg: string): void {
   box.textContent = 'App error:\n\n' + msg;
   document.body.appendChild(box);
 }
-window.addEventListener('error', (e) => showFatal(String(e.error?.stack || e.message)));
-window.addEventListener('unhandledrejection', (e) =>
-  showFatal('Unhandled promise rejection:\n' + String((e.reason as Error)?.stack || e.reason)),
-);
 
 const ctx = new AppContext(loadConfig());
 initTheme();
@@ -121,6 +119,9 @@ onThemeChange(() => {
 try {
   renderLanding($('#landing')!, enterApp);
   applyStaticI18n();
+  // App mounted successfully → disarm the boot-phase error trap so benign
+  // runtime errors don't blank the screen.
+  (window as unknown as { __APP_READY__?: boolean }).__APP_READY__ = true;
 } catch (e) {
   showFatal(String((e as Error)?.stack || e));
 }
