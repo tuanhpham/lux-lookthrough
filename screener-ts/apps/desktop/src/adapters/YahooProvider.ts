@@ -233,14 +233,15 @@ export class YahooProvider implements DataProvider {
       currentPrice: meta.regularMarketPrice ?? null,
     };
 
-    // Best-effort upgrade: quoteSummary (behind a cookie+crumb handshake the
-    // proxy/Rust layer performs) adds sector, beta, dividend yield, ROE, profit
-    // margin, and the company description. Time-bounded so a slow/stalled crumb
-    // call (common behind a corporate proxy) can NEVER block the detail page —
-    // if it doesn't answer in time we keep the timeseries-derived values.
-    await withTimeout(this.enrichFromQuoteSummary(symbol, f), 6000);
-
+    // Cache and return the FAST result immediately so the detail page always
+    // renders promptly. The quoteSummary enrichment (sector, beta, dividend
+    // yield, ROE, margin, company summary) sits behind a slow cookie+crumb
+    // handshake (~4s, or a stall behind a corporate proxy) — running it inline
+    // was blocking cold opens, making stocks "not show". So we fire it in the
+    // BACKGROUND: it updates the cached object in place, and the enriched fields
+    // appear the next time the stock is opened.
     this.fundCache.set(symbol, f);
+    void withTimeout(this.enrichFromQuoteSummary(symbol, f), 8000);
     return f;
   }
 
