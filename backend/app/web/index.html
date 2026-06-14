@@ -62,51 +62,57 @@
             <div class="text-faint text-[11px] leading-tight tracking-wide">STOCK SCREENER</div>
           </div>
         </div>
-        <button class="theme-toggle" id="theme-toggle-landing" title="Toggle theme" aria-label="Toggle theme">
-          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        </button>
+        <div class="flex items-center gap-3">
+          <div class="lang-toggle" role="group" aria-label="Language">
+            <button data-lang-btn="en">EN</button>
+            <button data-lang-btn="vi">VI</button>
+          </div>
+          <button class="theme-toggle" id="theme-toggle-landing" title="Toggle theme" aria-label="Toggle theme">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+        </div>
       </div>
 
       <div class="max-w-3xl">
-        <span class="inline-block text-accent text-xs font-bold uppercase tracking-widest mb-4">Pattern-based US equity screener</span>
+        <span class="inline-block text-accent text-xs font-bold uppercase tracking-widest mb-4" data-i18n="landing.badge">Pattern-based US equity screener</span>
         <h1 class="text-4xl sm:text-5xl font-extrabold leading-tight mb-5">
-          Find tomorrow's breakouts,<br /><span class="text-accent">before they break out.</span>
+          <span data-i18n="landing.h1a">Find tomorrow's breakouts,</span><br /><span class="text-accent" data-i18n="landing.h1b">before they break out.</span>
         </h1>
-        <p class="text-subtext text-lg leading-relaxed mb-8 max-w-2xl">
+        <p class="text-subtext text-lg leading-relaxed mb-8 max-w-2xl" data-i18n="landing.subtitle">
           Scan any stock or sector for tight consolidations, VCP setups and Stage-2 momentum —
           ranked by a 0–100 conviction score, with interactive charts, EMAs, and fundamentals trends.
         </p>
         <div class="flex flex-wrap items-center gap-4 mb-16">
-          <button id="enter-app" class="hero-cta">Launch the Screener →</button>
-          <span class="text-faint text-sm">No sign-up · runs in your browser</span>
+          <button id="enter-app" class="hero-cta" data-i18n="landing.cta">Launch the Screener →</button>
+          <span class="text-faint text-sm" data-i18n="landing.nosignup">No sign-up · runs in your browser</span>
         </div>
       </div>
 
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="hero-feature">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <h3 class="font-bold mt-3 mb-1">Custom Screener</h3>
-          <p class="text-subtext text-sm leading-relaxed">Type tickers or pick sectors. Filter by score, signal and stage across the broad market.</p>
+          <h3 class="font-bold mt-3 mb-1" data-i18n="landing.f1.title">Custom Screener</h3>
+          <p class="text-subtext text-sm leading-relaxed" data-i18n="landing.f1.desc">Type tickers or pick sectors. Filter by score, signal and stage across the broad market.</p>
         </div>
         <div class="hero-feature">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
-          <h3 class="font-bold mt-3 mb-1">Pro Charts</h3>
-          <p class="text-subtext text-sm leading-relaxed">Candles with EMA 5/10/21/50/150/200, volume, and trade levels drawn right on the chart.</p>
+          <h3 class="font-bold mt-3 mb-1" data-i18n="landing.f2.title">Pro Charts</h3>
+          <p class="text-subtext text-sm leading-relaxed" data-i18n="landing.f2.desc">Candles with EMA 5/10/21/50/150/200, volume, and trade levels drawn right on the chart.</p>
         </div>
         <div class="hero-feature">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg>
-          <h3 class="font-bold mt-3 mb-1">Top Picks</h3>
-          <p class="text-subtext text-sm leading-relaxed">Auto-ranked best setups across the market by the built-in breakout strategy.</p>
+          <h3 class="font-bold mt-3 mb-1" data-i18n="landing.f3.title">Top Picks</h3>
+          <p class="text-subtext text-sm leading-relaxed" data-i18n="landing.f3.desc">Auto-ranked best setups across the market by the built-in breakout strategy.</p>
         </div>
         <div class="hero-feature">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
-          <h3 class="font-bold mt-3 mb-1">Watchlists</h3>
-          <p class="text-subtext text-sm leading-relaxed">Organize ideas into multiple named lists and screen each in one click.</p>
+          <h3 class="font-bold mt-3 mb-1" data-i18n="landing.f4.title">Watchlists</h3>
+          <p class="text-subtext text-sm leading-relaxed" data-i18n="landing.f4.desc">Organize ideas into multiple named lists and screen each in one click.</p>
         </div>
       </div>
 
-      <p class="text-faint text-xs mt-12 text-center">Educational use only. Not financial advice.</p>
+      <p class="text-faint text-xs mt-12 text-center" data-i18n="landing.disclaimer">Educational use only. Not financial advice.</p>
     </div>
   </div>
 
@@ -118,24 +124,28 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg>
         </div>
         <div>
-          <div class="font-bold leading-tight">Customized</div>
-          <div class="text-faint text-[11px] leading-tight">STOCK Screener</div>
+          <div class="font-bold leading-tight" data-i18n="brand.name">Customized</div>
+          <div class="text-faint text-[11px] leading-tight" data-i18n="brand.tagline">STOCK Screener</div>
         </div>
       </button>
       <nav class="flex flex-col gap-1 text-sm flex-1">
         <button data-tab="picks" class="nav-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg> Top Picks</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg> <span data-i18n="nav.picks">Top Picks</span></button>
         <button data-tab="screener" class="nav-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> Screener</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> <span data-i18n="nav.screener">Screener</span></button>
         <button data-tab="watchlist" class="nav-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg> Watchlists</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg> <span data-i18n="nav.watchlist">Watchlists</span></button>
         <button data-tab="sectors" class="nav-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg> Sectors</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg> <span data-i18n="nav.sectors">Sectors</span></button>
         <button data-tab="learn" class="nav-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h7v18H6a2 2 0 0 0-2 2z"/><path d="M20 3v18a2 2 0 0 0-2-2h-5V3z"/></svg> Learn</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h7v18H6a2 2 0 0 0-2 2z"/><path d="M20 3v18a2 2 0 0 0-2-2h-5V3z"/></svg> <span data-i18n="nav.learn">Learn</span></button>
       </nav>
+      <div class="lang-toggle mb-3 self-start" role="group" aria-label="Language">
+        <button data-lang-btn="en">EN</button>
+        <button data-lang-btn="vi">VI</button>
+      </div>
       <div class="flex items-center justify-between border-t border-border pt-3 px-2">
-        <span class="text-faint text-[11px] leading-relaxed">Educational use only.<br />Not financial advice.</span>
+        <span class="text-faint text-[11px] leading-relaxed" data-i18n="edu.note" data-i18n-html>Educational use only.<br />Not financial advice.</span>
         <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
           <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -152,22 +162,28 @@
           </div>
           <span class="font-bold">Customized STOCK Screener</span>
         </div>
-        <button class="theme-toggle" id="theme-toggle-mobile" title="Toggle theme" aria-label="Toggle theme">
-          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        </button>
+        <div class="flex items-center gap-2">
+          <div class="lang-toggle" role="group" aria-label="Language">
+            <button data-lang-btn="en">EN</button>
+            <button data-lang-btn="vi">VI</button>
+          </div>
+          <button class="theme-toggle" id="theme-toggle-mobile" title="Toggle theme" aria-label="Toggle theme">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+        </div>
       </div>
       <nav class="flex border-t border-border text-[11px]">
         <button data-tab="picks" class="mnav-btn flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg>Picks</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg><span data-i18n="nav.picks.short">Picks</span></button>
         <button data-tab="screener" class="mnav-btn flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Screener</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span data-i18n="nav.screener">Screener</span></button>
         <button data-tab="watchlist" class="mnav-btn flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Lists</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span data-i18n="nav.watchlist.short">Lists</span></button>
         <button data-tab="sectors" class="mnav-btn flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>Sectors</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg><span data-i18n="nav.sectors">Sectors</span></button>
         <button data-tab="learn" class="mnav-btn flex-1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h7v18H6a2 2 0 0 0-2 2z"/><path d="M20 3v18a2 2 0 0 0-2-2h-5V3z"/></svg>Learn</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h7v18H6a2 2 0 0 0-2 2z"/><path d="M20 3v18a2 2 0 0 0-2-2h-5V3z"/></svg><span data-i18n="nav.learn">Learn</span></button>
       </nav>
     </header>
 
@@ -178,22 +194,22 @@
       <section id="tab-picks" class="hidden">
         <div class="flex items-start justify-between mb-5 gap-3 flex-wrap">
           <div>
-            <h1 class="text-2xl font-bold">Top Picks</h1>
-            <p class="text-subtext text-sm mt-0.5">Highest-conviction breakout &amp; VCP setups, auto-ranked across the market by the built-in strategy.</p>
+            <h1 class="text-2xl font-bold" data-i18n="picks.title">Top Picks</h1>
+            <p class="text-subtext text-sm mt-0.5" data-i18n="picks.subtitle">Highest-conviction breakout &amp; VCP setups, auto-ranked across the market by the built-in strategy.</p>
           </div>
-          <button id="picks-refresh" class="btn-outline whitespace-nowrap">↻ Refresh</button>
+          <button id="picks-refresh" class="btn-outline whitespace-nowrap" data-i18n="picks.refresh">↻ Refresh</button>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 mb-4">
-          <span class="field-label !mb-0 mr-1">Strategy</span>
+          <span class="field-label !mb-0 mr-1" data-i18n="picks.strategy">Strategy</span>
           <div id="picks-strategy" class="flex flex-wrap gap-1">
-            <button class="range-btn active" data-strategy="breakout">Breakout-ready</button>
-            <button class="range-btn" data-strategy="momentum">Stage-2 momentum</button>
-            <button class="range-btn" data-strategy="vcp">Tight VCP near pivot</button>
+            <button class="range-btn active" data-strategy="breakout" data-i18n="picks.strategy.breakout">Breakout-ready</button>
+            <button class="range-btn" data-strategy="momentum" data-i18n="picks.strategy.momentum">Stage-2 momentum</button>
+            <button class="range-btn" data-strategy="vcp" data-i18n="picks.strategy.vcp">Tight VCP near pivot</button>
           </div>
           <label class="flex items-center gap-2 ml-auto text-sm text-subtext cursor-pointer select-none">
             <input id="picks-broad" type="checkbox" class="accent-accent w-4 h-4" />
-            <span>Broad universe <span class="text-faint">(slower)</span></span>
+            <span><span data-i18n="picks.broad">Broad universe</span> <span class="text-faint" data-i18n="common.slower">(slower)</span></span>
           </label>
         </div>
 
@@ -204,64 +220,64 @@
       <!-- ════ SCREENER ════ -->
       <section id="tab-screener" class="hidden">
         <div class="mb-5">
-          <h1 class="text-2xl font-bold">Custom Screener</h1>
-          <p class="text-subtext text-sm mt-0.5">Find consolidation &amp; breakout setups across any stocks or sectors.</p>
+          <h1 class="text-2xl font-bold" data-i18n="screener.title">Custom Screener</h1>
+          <p class="text-subtext text-sm mt-0.5" data-i18n="screener.subtitle">Find consolidation &amp; breakout setups across any stocks or sectors.</p>
         </div>
 
         <div class="bg-card border border-border rounded-2xl p-5 mb-5">
           <div>
-            <label class="field-label">Symbols <span class="text-faint">(comma separated)</span></label>
+            <label class="field-label"><span data-i18n="screener.symbols">Symbols</span> <span class="text-faint" data-i18n="screener.symbols.hint">(comma separated)</span></label>
             <input id="sym-input" type="text" placeholder="AAPL, MSFT, NVDA, TSLA" class="field" />
           </div>
 
           <div class="mt-4">
             <div class="flex items-center justify-between mb-2">
-              <label class="field-label !mb-0">Or pick sectors</label>
-              <button id="sector-clear" type="button" class="text-faint hover:text-accent text-xs font-semibold hidden">Clear</button>
+              <label class="field-label !mb-0" data-i18n="screener.orsectors">Or pick sectors</label>
+              <button id="sector-clear" type="button" class="text-faint hover:text-accent text-xs font-semibold hidden" data-i18n="screener.clear">Clear</button>
             </div>
             <div id="sector-chips" class="flex flex-wrap gap-2"></div>
             <label class="flex items-center gap-2 mt-3 text-sm text-subtext cursor-pointer select-none">
               <input id="broad-universe" type="checkbox" class="accent-accent w-4 h-4" />
-              <span>Scan the <span class="text-text font-semibold">broad universe</span> (S&amp;P 1500+ — slower, far more stocks)</span>
+              <span><span data-i18n="screener.broaduniverse.pre">Scan the</span> <span class="text-text font-semibold" data-i18n="screener.broaduniverse.bold">broad universe</span> <span data-i18n="screener.broaduniverse.post">(S&amp;P 1500+ — slower, far more stocks)</span></span>
             </label>
           </div>
 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
             <div>
-              <label class="field-label">Min score <span class="info" data-tip="score">i</span></label>
+              <label class="field-label"><span data-i18n="screener.minscore">Min score</span> <span class="info" data-tip="score">i</span></label>
               <input id="min-score" type="number" value="0" min="0" max="100" class="field" />
             </div>
             <div>
-              <label class="field-label">Signal <span class="info" data-tip="signal">i</span></label>
+              <label class="field-label"><span data-i18n="screener.signal">Signal</span> <span class="info" data-tip="signal">i</span></label>
               <select id="signal-filter" class="field">
-                <option value="">Any</option>
-                <option value="BREAKOUT_IMMINENT">Breakout imminent</option>
-                <option value="CONSOLIDATING">Consolidating</option>
+                <option value="" data-i18n="screener.any">Any</option>
+                <option value="BREAKOUT_IMMINENT" data-i18n="opt.breakout">Breakout imminent</option>
+                <option value="CONSOLIDATING" data-i18n="opt.consolidating">Consolidating</option>
               </select>
             </div>
             <div>
-              <label class="field-label">Stage <span class="info" data-tip="stage">i</span></label>
+              <label class="field-label"><span data-i18n="screener.stage">Stage</span> <span class="info" data-tip="stage">i</span></label>
               <select id="stage-filter" class="field">
-                <option value="">Any</option>
-                <option value="2">Stage 2 · Advancing</option>
-                <option value="1">Stage 1 · Basing</option>
-                <option value="3">Stage 3 · Topping</option>
-                <option value="4">Stage 4 · Declining</option>
+                <option value="" data-i18n="screener.any">Any</option>
+                <option value="2" data-i18n="opt.stage2">Stage 2 · Advancing</option>
+                <option value="1" data-i18n="opt.stage1">Stage 1 · Basing</option>
+                <option value="3" data-i18n="opt.stage3">Stage 3 · Topping</option>
+                <option value="4" data-i18n="opt.stage4">Stage 4 · Declining</option>
               </select>
             </div>
             <div>
-              <label class="field-label">Sort by</label>
+              <label class="field-label" data-i18n="screener.sortby">Sort by</label>
               <select id="sort-by" class="field">
-                <option value="score">Score</option>
-                <option value="distance">Distance to pivot</option>
-                <option value="range">Price range</option>
-                <option value="volume_dryup">Volume dry-up</option>
+                <option value="score" data-i18n="sort.score">Score</option>
+                <option value="distance" data-i18n="sort.distance">Distance to pivot</option>
+                <option value="range" data-i18n="sort.range">Price range</option>
+                <option value="volume_dryup" data-i18n="sort.volume_dryup">Volume dry-up</option>
               </select>
             </div>
           </div>
 
           <div class="flex items-center gap-3 mt-5">
-            <button id="run-screen" class="btn-primary">Run Screen</button>
+            <button id="run-screen" class="btn-primary" data-i18n="screener.run">Run Screen</button>
             <span id="screen-status" class="text-subtext text-sm"></span>
           </div>
         </div>
@@ -272,22 +288,22 @@
       <!-- ════ WATCHLIST ════ -->
       <section id="tab-watchlist" class="hidden">
         <div class="mb-5">
-          <h1 class="text-2xl font-bold">My Watchlists</h1>
-          <p class="text-subtext text-sm mt-0.5">Organize favorites into multiple lists, screen each in one click, expand for charts &amp; fundamentals.</p>
+          <h1 class="text-2xl font-bold" data-i18n="wl.title">My Watchlists</h1>
+          <p class="text-subtext text-sm mt-0.5" data-i18n="wl.subtitle">Organize favorites into multiple lists, screen each in one click, expand for charts &amp; fundamentals.</p>
         </div>
 
         <!-- list tabs -->
         <div class="flex items-center gap-2 mb-4 flex-wrap">
           <div id="wl-tabs" class="flex items-center gap-2 flex-wrap"></div>
-          <button id="wl-new" class="wl-tab-add" title="New watchlist">＋ New list</button>
+          <button id="wl-new" class="wl-tab-add" title="New watchlist" data-i18n="wl.new">＋ New list</button>
         </div>
 
         <div class="bg-card border border-border rounded-2xl p-5 mb-5">
           <div class="flex flex-col sm:flex-row gap-2">
-            <input id="wl-symbol" type="text" placeholder="Add symbol e.g. AMD" class="field flex-1" />
+            <input id="wl-symbol" type="text" placeholder="Add symbol e.g. AMD" class="field flex-1" data-i18n-ph="wl.addplaceholder" />
             <div class="flex gap-2">
-              <button id="wl-add" class="btn-primary">Add</button>
-              <button id="wl-screen" class="btn-outline">Screen All</button>
+              <button id="wl-add" class="btn-primary" data-i18n="wl.add">Add</button>
+              <button id="wl-screen" class="btn-outline" data-i18n="wl.screenall">Screen All</button>
             </div>
           </div>
           <div id="wl-chips" class="flex flex-wrap gap-2 mt-4"></div>
@@ -299,10 +315,10 @@
       <section id="tab-sectors" class="hidden">
         <div class="flex items-start justify-between mb-5">
           <div>
-            <h1 class="text-2xl font-bold">Industry Volume Scanner</h1>
-            <p class="text-subtext text-sm mt-0.5">Sectors ranked by volume change (3m vs 6m). Click one to see its volume trend.</p>
+            <h1 class="text-2xl font-bold" data-i18n="sectors.title">Industry Volume Scanner</h1>
+            <p class="text-subtext text-sm mt-0.5" data-i18n="sectors.subtitle">Sectors ranked by volume change (3m vs 6m). Click one to see its volume trend.</p>
           </div>
-          <button id="load-sectors" class="btn-outline whitespace-nowrap">↻ Refresh</button>
+          <button id="load-sectors" class="btn-outline whitespace-nowrap" data-i18n="sectors.refresh">↻ Refresh</button>
         </div>
         <div id="sector-results"></div>
       </section>
@@ -310,8 +326,8 @@
       <!-- ════ LEARN ════ -->
       <section id="tab-learn" class="hidden">
         <div class="mb-5">
-          <h1 class="text-2xl font-bold">Learn the Terminology</h1>
-          <p class="text-subtext text-sm mt-0.5">Every metric in this app, explained in plain English.</p>
+          <h1 class="text-2xl font-bold" data-i18n="learn.title">Learn the Terminology</h1>
+          <p class="text-subtext text-sm mt-0.5" data-i18n="learn.subtitle">Every metric in this app, explained in plain English.</p>
         </div>
         <div id="learn-content" class="space-y-4"></div>
       </section>
@@ -336,6 +352,7 @@
   <!-- floating tooltip -->
   <div id="tooltip" class="hidden fixed z-[60] max-w-xs bg-[#0a0d13] border border-border rounded-lg px-3 py-2 text-xs text-text shadow-xl pointer-events-none"></div>
 
+  <script src="/static/i18n.js"></script>
   <script src="/static/glossary.js"></script>
   <script src="/static/app.js"></script>
 </body>

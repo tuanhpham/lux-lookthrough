@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.core.constants import ALL_SECTORS, SECTOR_STOCKS
 from app.schemas.pattern import PatternSignalOut, SectorScanOut
+from app.services.analysis_summary import build_summary
 from app.services.data_fetcher import fetch_multiple, fetch_ohlcv
 from app.services.pattern_engine import scan_stock
 
@@ -15,8 +16,15 @@ router = APIRouter()
 SECTOR_SCAN_MIN_SCORE = 55.0
 
 
-def _result_to_schema(result) -> PatternSignalOut:
-    """Convert a PatternResult dataclass to the Pydantic output schema."""
+def _result_to_schema(result, *, with_summary: bool = False) -> PatternSignalOut:
+    """Convert a PatternResult dataclass to the Pydantic output schema.
+
+    Args:
+        result: The PatternResult from ``scan_stock``.
+        with_summary: When True, attach the bilingual analysis narrative
+            (skipped for bulk sector scans to keep payloads light).
+    """
+    summary = build_summary(result) if with_summary else {}
     return PatternSignalOut(
         symbol=result.symbol,
         sector=None,  # populated by callers when available
@@ -34,6 +42,9 @@ def _result_to_schema(result) -> PatternSignalOut:
         volume_dry_up_pct=result.consolidation.volume_dry_up_pct,
         pivot_high=result.pivot.pivot_high,
         days_in_base=result.consolidation.days_in_base,
+        distance_to_pivot_pct=result.pivot.distance_to_pivot_pct,
+        summary_en=summary.get("en"),
+        summary_vi=summary.get("vi"),
     )
 
 
@@ -56,7 +67,7 @@ async def scan_symbol(symbol: str, sector: str | None = None) -> PatternSignalOu
         )
 
     result = scan_stock(symbol.upper(), df, sector=sector)
-    out = _result_to_schema(result)
+    out = _result_to_schema(result, with_summary=True)
     out.sector = sector
     return out
 

@@ -3,7 +3,8 @@ const API = "";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-const G = window.GLOSSARY;
+// Translate a dynamic string by key (see i18n.js). Falls back to the key.
+const t = (k) => (window.I18N ? window.I18N.t(k) : k);
 
 async function api(path, opts = {}) {
   const res = await fetch(API + path, {
@@ -32,12 +33,13 @@ function fmtBig(v) {
 const pct = (v, d = 1) => (v === null || v === undefined ? "—" : (v >= 0 ? "+" : "") + Number(v).toFixed(d) + "%");
 
 function signalBadge(signal) {
-  const map = {
-    BREAKOUT_IMMINENT: ["#00d49b", "BREAKOUT"],
-    CONSOLIDATING: ["#f5a623", "CONSOLIDATING"],
-    NO_SIGNAL: ["#5b6577", "NO SIGNAL"],
+  const colors = {
+    BREAKOUT_IMMINENT: "#00d49b",
+    CONSOLIDATING: "#f5a623",
+    NO_SIGNAL: "#5b6577",
   };
-  const [c, label] = map[signal] || map.NO_SIGNAL;
+  const c = colors[signal] || colors.NO_SIGNAL;
+  const label = t("signal." + (colors[signal] ? signal : "NO_SIGNAL"));
   return `<span class="badge" style="background:${c}22;color:${c}">${label}</span>`;
 }
 function scoreColor(s) { return s >= 70 ? "#00d49b" : s >= 40 ? "#f5a623" : "#5b6577"; }
@@ -51,7 +53,7 @@ function stageBadge(stage, label) {
 const tip = $("#tooltip");
 function attachTips(root = document) {
   $$(".info[data-tip]", root).forEach((el) => {
-    const def = G[el.dataset.tip];
+    const def = window.gloss(el.dataset.tip);
     if (!def) return;
     const show = (e) => {
       tip.innerHTML = `<div class="font-semibold text-text mb-0.5">${def.term}</div><div class="text-subtext">${def.short}</div>`;
@@ -74,20 +76,20 @@ function infoIcon(key) { return `<span class="info" data-tip="${key}">i</span>`;
 function resultsTable(rows) {
   if (!rows || rows.length === 0) {
     return `<div class="bg-card border border-border rounded-2xl text-subtext text-sm text-center py-12">
-      No matches. Try lowering the min score or widening filters.</div>`;
+      ${t("table.empty")}</div>`;
   }
   const head = `
-    <th>Symbol</th>
-    <th>Score ${infoIcon("score")}</th>
-    <th>Signal ${infoIcon("signal")}</th>
-    <th>Stage ${infoIcon("stage")}</th>
-    <th>Price</th>
-    <th>Entry ${infoIcon("entry")}</th>
-    <th>Stop ${infoIcon("stop")}</th>
-    <th>Target ${infoIcon("target")}</th>
-    <th>R:R ${infoIcon("rr")}</th>
-    <th>Dist ${infoIcon("distance")}</th>
-    <th>VCP ${infoIcon("vcp")}</th>`;
+    <th>${t("table.symbol")}</th>
+    <th>${t("table.score")} ${infoIcon("score")}</th>
+    <th>${t("table.signal")} ${infoIcon("signal")}</th>
+    <th>${t("table.stage")} ${infoIcon("stage")}</th>
+    <th>${t("table.price")}</th>
+    <th>${t("table.entry")} ${infoIcon("entry")}</th>
+    <th>${t("table.stop")} ${infoIcon("stop")}</th>
+    <th>${t("table.target")} ${infoIcon("target")}</th>
+    <th>${t("table.rr")} ${infoIcon("rr")}</th>
+    <th>${t("table.dist")} ${infoIcon("distance")}</th>
+    <th>${t("table.vcp")} ${infoIcon("vcp")}</th>`;
   const body = rows.map((r) => `
     <tr onclick="openStock('${r.symbol}')">
       <td>${r.symbol}</td>
@@ -111,7 +113,7 @@ function resultsTable(rows) {
     <div class="bg-card border border-border rounded-2xl overflow-x-auto fade-in">
       <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     </div>
-    <p class="text-faint text-xs mt-2">Tip: click any row for charts &amp; fundamentals. Hover the “i” icons for definitions.</p>`;
+    <p class="text-faint text-xs mt-2">${t("table.tip")}</p>`;
   return out;
 }
 
@@ -190,25 +192,23 @@ function refreshChartsForTheme() {
 // ── Learn page ─────────────────────────────────────────────────────────────────
 function renderLearn() {
   const el = $("#learn-content");
-  if (el.dataset.rendered) return;
   const groups = [
-    { title: "Screener Metrics", keys: ["score", "signal", "stage", "vcp", "atr_contraction", "price_range", "volume_dryup", "days_in_base"] },
-    { title: "Pivots & Trade Levels", keys: ["pivot", "distance", "entry", "stop", "target", "rr"] },
-    { title: "Fundamentals", keys: ["pe_ratio", "eps", "market_cap", "roe", "profit_margin", "revenue_growth", "beta", "dividend_yield", "week52"] },
-    { title: "Sector Scanner", keys: ["volume_change"] },
+    { title: t("learn.group.metrics"), keys: ["score", "signal", "stage", "vcp", "atr_contraction", "price_range", "volume_dryup", "days_in_base"] },
+    { title: t("learn.group.levels"), keys: ["pivot", "distance", "entry", "stop", "target", "rr"] },
+    { title: t("learn.group.fundamentals"), keys: ["pe_ratio", "eps", "market_cap", "roe", "profit_margin", "revenue_growth", "beta", "dividend_yield", "week52"] },
+    { title: t("learn.group.sector"), keys: ["volume_change"] },
   ];
   el.innerHTML = groups.map((grp) => `
     <div>
       <h2 class="text-sm font-bold text-accent uppercase tracking-wide mb-2 mt-2">${grp.title}</h2>
       <div class="grid md:grid-cols-2 gap-3">
-        ${grp.keys.map((k) => G[k] ? `
+        ${grp.keys.map((k) => { const g = window.gloss(k); return g ? `
           <div class="learn-card">
-            <h3>${G[k].term}</h3>
-            <p>${G[k].long}</p>
-          </div>` : "").join("")}
+            <h3>${g.term}</h3>
+            <p>${g.long}</p>
+          </div>` : ""; }).join("")}
       </div>
     </div>`).join("");
-  el.dataset.rendered = "1";
 }
 
 // ── Screener ───────────────────────────────────────────────────────────────────
@@ -273,15 +273,15 @@ function buildScreenPayload() {
 }
 $("#run-screen").addEventListener("click", async () => {
   const p = buildScreenPayload();
-  if (!p.symbols && !p.sectors) { $("#screen-status").textContent = "Enter symbols or pick a sector."; return; }
-  $("#screen-status").innerHTML = `<span class="spinner"></span> Scanning${p.broad && p.sectors ? " the broad universe — this can take a minute…" : "…"}`;
+  if (!p.symbols && !p.sectors) { $("#screen-status").textContent = t("msg.enterSymbols"); return; }
+  $("#screen-status").innerHTML = `<span class="spinner"></span> ${p.broad && p.sectors ? t("msg.scanningBroad") : t("msg.scanning")}`;
   $("#screen-results").innerHTML = "";
   try {
     const data = await api("/api/screener/screen", { method: "POST", body: JSON.stringify(p) });
-    $("#screen-status").textContent = `${data.matched} match(es) of ${data.scanned} scanned.`;
+    $("#screen-status").textContent = `${data.matched} / ${data.scanned}`;
     $("#screen-results").innerHTML = resultsTable(data.results);
     attachTips($("#screen-results"));
-  } catch (e) { $("#screen-status").textContent = "Error: " + e.message; }
+  } catch (e) { $("#screen-status").textContent = t("msg.error") + ": " + e.message; }
 });
 
 // ── Watchlists (multiple named lists) ────────────────────────────────────────────
@@ -323,7 +323,7 @@ function renderWatchlistTabs() {
     tab.querySelector('[data-act="rename"]')?.addEventListener("click", async (e) => {
       e.stopPropagation();
       const w = watchlists.find((x) => x.id === id);
-      const name = prompt("Rename watchlist:", w?.name || "");
+      const name = prompt(t("prompt.renameWl"), w?.name || "");
       if (!name || !name.trim()) return;
       try {
         await api("/api/screener/watchlists/" + id, { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
@@ -333,7 +333,7 @@ function renderWatchlistTabs() {
     tab.querySelector('[data-act="delete"]')?.addEventListener("click", async (e) => {
       e.stopPropagation();
       const w = watchlists.find((x) => x.id === id);
-      if (!confirm(`Delete watchlist "${w?.name}" and its symbols?`)) return;
+      if (!confirm(`${t("prompt.deleteWl")} ("${w?.name}")`)) return;
       try {
         await api("/api/screener/watchlists/" + id, { method: "DELETE" });
         if (activeWatchlistId === id) activeWatchlistId = null;
@@ -353,7 +353,7 @@ function renderWatchlistChips() {
         <span onclick="openStock('${i.symbol}')" class="cursor-pointer">${i.symbol}</span>
         <button data-sym="${i.symbol}" class="wl-del" title="Remove">×</button>
       </span>`).join("")
-    : `<span class="text-subtext text-sm">No symbols yet — add some above.</span>`;
+    : `<span class="text-subtext text-sm">${t("wl.nosymbols")}</span>`;
   $$(".wl-del").forEach((b) => b.addEventListener("click", async (e) => {
     e.stopPropagation();
     await api(`/api/screener/watchlist/${b.dataset.sym}?watchlist_id=${activeWatchlistId}`, { method: "DELETE" });
@@ -362,7 +362,7 @@ function renderWatchlistChips() {
 }
 
 $("#wl-new").addEventListener("click", async () => {
-  const name = prompt("Name your new watchlist:", "");
+  const name = prompt(t("prompt.newWl"), "");
   if (!name || !name.trim()) return;
   try {
     const created = await api("/api/screener/watchlists", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
@@ -386,7 +386,7 @@ $("#wl-add").addEventListener("click", async () => {
 $("#wl-symbol").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#wl-add").click(); });
 $("#wl-screen").addEventListener("click", async () => {
   if (!activeWatchlistId) return;
-  $("#wl-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> Screening watchlist…</div>`;
+  $("#wl-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> ${t("msg.screeningWl")}</div>`;
   try {
     const data = await api(`/api/screener/watchlists/${activeWatchlistId}/screen`, { method: "POST", body: JSON.stringify({ sort_by: "score", limit: 200 }) });
     $("#wl-results").innerHTML = resultsTable(data.results);
@@ -405,7 +405,7 @@ const sectorCharts = {};          // sector -> { chart, freq, period }
 // via the Refresh button.
 async function loadSectors(force = false) {
   if (sectorsLoaded && !force) return;
-  $("#sector-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> Scanning all 11 sectors…</div>`;
+  $("#sector-results").innerHTML = `<div class="text-subtext text-sm py-6"><span class="spinner"></span> ${t("msg.scanningSectors")}</div>`;
   try {
     sectorData = await api("/api/industries");
     renderSectors();
@@ -446,11 +446,11 @@ function renderSectors() {
           </div>
           <div class="sector-chart px-2 pb-2" data-sector-chart="${s.sector}" style="height:180px;width:100%"></div>
           <div class="px-4 pb-4">
-            <button class="btn-outline text-xs" onclick="screenSector('${safe}')">Screen ${s.sector} stocks →</button>
+            <button class="btn-outline text-xs" onclick="screenSector('${safe}')">${t("screener.run")}: ${s.sector} →</button>
           </div>
         </div>
       </div>`;
-  }).join("") + `</div><p class="text-faint text-xs mt-2">Click a sector to expand its volume trend, or screen its stocks.</p>`;
+  }).join("") + `</div><p class="text-faint text-xs mt-2">${t("sectors.clickhint")}</p>`;
 
   $$("[data-sector-toggle]").forEach((row) => {
     row.addEventListener("click", () => toggleSectorDetail(row.dataset.sectorToggle));
@@ -501,7 +501,7 @@ async function drawSectorChart(sector) {
   try {
     const res = await api(`/api/industries/${encodeURIComponent(sector)}/volume-series?period=${state.period}&freq=${state.freq}`);
     if (!res.points || !res.points.length) {
-      el.innerHTML = `<div class="text-faint text-sm text-center py-12">No volume data.</div>`;
+      el.innerHTML = `<div class="text-faint text-sm text-center py-12">${t("msg.noVolume")}</div>`;
       return;
     }
     el.innerHTML = "";
@@ -565,16 +565,16 @@ async function loadPicks(force = false) {
   if (!appEntered) return;          // don't scan until the user enters the app
   if (picksLoadedOnce && !force) return;
   const broad = $("#picks-broad").checked;
-  $("#picks-status").innerHTML = `<span class="spinner"></span> Ranking the ${broad ? "broad universe — this can take a minute on first run" : "market"}…`;
+  $("#picks-status").innerHTML = `<span class="spinner"></span> ${broad ? t("msg.rankingBroad") : t("msg.rankingMarket")}`;
   $("#picks-results").innerHTML = "";
   try {
     const data = await api(`/api/screener/recommend?strategy=${picksStrategy}&broad=${broad}&limit=30`);
-    $("#picks-status").textContent = `${data.matched} ${data.strategy_label} setup(s) from ${data.scanned} scanned.`;
+    $("#picks-status").textContent = `${data.matched} / ${data.scanned}`;
     $("#picks-results").innerHTML = data.results.length
       ? `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">` + data.results.map(picksCard).join("") + `</div>`
-      : `<div class="bg-card border border-border rounded-2xl text-subtext text-sm text-center py-12">No setups matched this strategy right now. Try another strategy.</div>`;
+      : `<div class="bg-card border border-border rounded-2xl text-subtext text-sm text-center py-12">${t("msg.noPicks")}</div>`;
     picksLoadedOnce = true;
-  } catch (e) { $("#picks-status").innerHTML = `<span class="text-danger">Error: ${e.message}</span>`; }
+  } catch (e) { $("#picks-status").innerHTML = `<span class="text-danger">${t("msg.error")}: ${e.message}</span>`; }
 }
 
 $$("#picks-strategy .range-btn").forEach((b) => {
@@ -647,7 +647,7 @@ window.openStock = async function (symbol) {
   symbol = symbol.toUpperCase();
   modal.classList.remove("hidden");
   $("#modal-title").textContent = symbol;
-  $("#modal-body").innerHTML = `<div class="py-16 text-center text-subtext"><span class="spinner"></span> Loading ${symbol}…</div>`;
+  $("#modal-body").innerHTML = `<div class="py-16 text-center text-subtext"><span class="spinner"></span> ${t("msg.loading")} ${symbol}…</div>`;
   detailState = {
     symbol, pattern: null, period: "1y", financials: null,
     metric: "revenue", freq: "annual", candles: [], emaOn: defaultEmaOn(),
@@ -683,7 +683,7 @@ window.openStock = async function (symbol) {
       }
       const now = await isOnWatchlist(symbol);
       const btn = $("#detail-wl-toggle");
-      btn.textContent = now ? "★ On Watchlist" : "☆ Add to Watchlist";
+      btn.textContent = now ? t("detail.onwatch") : t("detail.addwatch");
       btn.className = now ? "btn-outline text-sm" : "btn-primary text-sm";
       loadWatchlist();
     });
@@ -718,29 +718,40 @@ function stat(label, value, tipKey) {
 
 function renderStockDetail(symbol, f, p, onWatch) {
   const price = f.current_price ?? (p ? p_price(p) : null);
-  const wlBtn = `<button id="detail-wl-toggle" class="${onWatch ? "btn-outline" : "btn-primary"} text-sm">${onWatch ? "★ On Watchlist" : "☆ Add to Watchlist"}</button>`;
+  const wlBtn = `<button id="detail-wl-toggle" class="${onWatch ? "btn-outline" : "btn-primary"} text-sm">${onWatch ? t("detail.onwatch") : t("detail.addwatch")}</button>`;
 
   let patternBlock = "";
   if (p) {
+    // Bilingual analysis narrative from the backend (summary_en / summary_vi).
+    const summaryText = window.I18N && window.I18N.getLang() === "vi"
+      ? (p.summary_vi || p.summary_en)
+      : (p.summary_en || p.summary_vi);
+    const summaryBlock = summaryText ? `
+      <div class="bg-surface border border-border rounded-xl p-3 mb-4">
+        <div class="text-xs text-subtext font-semibold uppercase tracking-wide mb-1">${t("detail.analysis")}</div>
+        <p class="text-sm leading-relaxed text-text">${summaryText}</p>
+      </div>` : "";
+
     patternBlock = `
       <div class="flex flex-wrap items-center gap-2 mb-3">
         ${signalBadge(p.signal)} ${stageBadge(p.stage, p.stage_label)}
         <div class="flex items-center gap-2 ml-auto">
           <div class="scorebar w-24"><span style="width:${p.score}%;background:${scoreColor(p.score)}"></span></div>
           <span style="color:${scoreColor(p.score)};font-weight:800;font-size:1.1rem">${num(p.score, 0)}</span>
-          <span class="text-faint text-xs">score ${infoIcon("score")}</span>
+          <span class="text-faint text-xs">${t("table.score").toLowerCase()} ${infoIcon("score")}</span>
         </div>
       </div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-        ${stat("Entry", p.entry_price ? "$" + num(p.entry_price) : "—", "entry")}
-        ${stat("Stop", p.stop_loss ? "$" + num(p.stop_loss) : "—", "stop")}
-        ${stat("Target", p.target_price ? "$" + num(p.target_price) : "—", "target")}
-        ${stat("R:R", p.risk_reward ? num(p.risk_reward, 1) + "R" : "—", "rr")}
-        ${stat("Pivot", p.pivot_high ? "$" + num(p.pivot_high) : "—", "pivot")}
-        ${stat("Range", p.price_range_pct != null ? num(p.price_range_pct, 1) + "%" : "—", "price_range")}
-        ${stat("Vol dry-up", p.volume_dry_up_pct != null ? num(p.volume_dry_up_pct, 1) + "%" : "—", "volume_dryup")}
-        ${stat("VCP", p.vcp_contractions ?? "—", "vcp")}
-      </div>`;
+        ${stat(t("stat.entry"), p.entry_price ? "$" + num(p.entry_price) : "—", "entry")}
+        ${stat(t("stat.stop"), p.stop_loss ? "$" + num(p.stop_loss) : "—", "stop")}
+        ${stat(t("stat.target"), p.target_price ? "$" + num(p.target_price) : "—", "target")}
+        ${stat(t("stat.rr"), p.risk_reward ? num(p.risk_reward, 1) + "R" : "—", "rr")}
+        ${stat(t("stat.pivot"), p.pivot_high ? "$" + num(p.pivot_high) : "—", "pivot")}
+        ${stat(t("stat.range"), p.price_range_pct != null ? num(p.price_range_pct, 1) + "%" : "—", "price_range")}
+        ${stat(t("stat.voldryup"), p.volume_dry_up_pct != null ? num(p.volume_dry_up_pct, 1) + "%" : "—", "volume_dryup")}
+        ${stat(t("stat.vcp"), p.vcp_contractions ?? "—", "vcp")}
+      </div>
+      ${summaryBlock}`;
   }
 
   return `
@@ -756,7 +767,7 @@ function renderStockDetail(symbol, f, p, onWatch) {
 
     <div class="bg-surface border border-border rounded-xl p-2 mb-4">
       <div class="flex items-center justify-between px-2 py-1 gap-2 flex-wrap">
-        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">Price History</span>
+        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">${t("detail.pricehistory")}</span>
         <div id="chart-ranges" class="flex gap-1">
           ${CHART_RANGES.map((r) => `<button class="range-btn ${r.period === detailState.period ? "active" : ""}" data-period="${r.period}">${r.label}</button>`).join("")}
         </div>
@@ -769,36 +780,36 @@ function renderStockDetail(symbol, f, p, onWatch) {
 
     <div class="bg-surface border border-border rounded-xl p-2 mb-4">
       <div class="flex items-center justify-between px-2 py-1 gap-2 flex-wrap">
-        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">Fundamentals Trend</span>
+        <span class="text-xs text-subtext font-semibold uppercase tracking-wide">${t("detail.fundtrend")}</span>
         <div class="flex items-center gap-2">
           <div id="fund-metric" class="flex gap-1">
-            <button class="range-btn active" data-metric="revenue">Revenue</button>
-            <button class="range-btn" data-metric="net_income">Profit</button>
-            <button class="range-btn" data-metric="eps">EPS</button>
+            <button class="range-btn active" data-metric="revenue">${t("detail.revenue")}</button>
+            <button class="range-btn" data-metric="net_income">${t("detail.profit")}</button>
+            <button class="range-btn" data-metric="eps">${t("detail.eps")}</button>
           </div>
           <div id="fund-freq" class="flex gap-1">
-            <button class="range-btn active" data-freq="annual">Annual</button>
-            <button class="range-btn" data-freq="quarterly">Quarterly</button>
+            <button class="range-btn active" data-freq="annual">${t("detail.annual")}</button>
+            <button class="range-btn" data-freq="quarterly">${t("detail.quarterly")}</button>
           </div>
         </div>
       </div>
       <div id="fund-chart" style="height:150px;width:100%"></div>
     </div>
 
-    <h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">Fundamentals</h3>
+    <h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">${t("detail.fundamentals")}</h3>
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-      ${stat("Market Cap", fmtBig(f.market_cap), "market_cap")}
-      ${stat("P/E", num(f.pe_ratio, 1), "pe_ratio")}
-      ${stat("EPS", f.eps != null ? "$" + num(f.eps) : "—", "eps")}
-      ${stat("ROE", f.roe != null ? num(f.roe * 100, 1) + "%" : "—", "roe")}
-      ${stat("Profit Margin", f.profit_margin != null ? num(f.profit_margin * 100, 1) + "%" : "—", "profit_margin")}
-      ${stat("Rev Growth", f.revenue_growth != null ? num(f.revenue_growth * 100, 1) + "%" : "—", "revenue_growth")}
-      ${stat("Beta", num(f.beta, 2), "beta")}
-      ${stat("Div Yield", f.dividend_yield != null ? num(f.dividend_yield, 2) + "%" : "—", "dividend_yield")}
-      ${stat("52w Range", (f.week52_low != null && f.week52_high != null) ? "$" + num(f.week52_low, 0) + "–" + num(f.week52_high, 0) : "—", "week52")}
+      ${stat(t("stat.marketcap"), fmtBig(f.market_cap), "market_cap")}
+      ${stat(t("stat.pe"), num(f.pe_ratio, 1), "pe_ratio")}
+      ${stat(t("stat.eps"), f.eps != null ? "$" + num(f.eps) : "—", "eps")}
+      ${stat(t("stat.roe"), f.roe != null ? num(f.roe * 100, 1) + "%" : "—", "roe")}
+      ${stat(t("stat.profitmargin"), f.profit_margin != null ? num(f.profit_margin * 100, 1) + "%" : "—", "profit_margin")}
+      ${stat(t("stat.revgrowth"), f.revenue_growth != null ? num(f.revenue_growth * 100, 1) + "%" : "—", "revenue_growth")}
+      ${stat(t("stat.beta"), num(f.beta, 2), "beta")}
+      ${stat(t("stat.divyield"), f.dividend_yield != null ? num(f.dividend_yield, 2) + "%" : "—", "dividend_yield")}
+      ${stat(t("stat.week52"), (f.week52_low != null && f.week52_high != null) ? "$" + num(f.week52_low, 0) + "–" + num(f.week52_high, 0) : "—", "week52")}
     </div>
 
-    ${f.summary ? `<h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">About</h3>
+    ${f.summary ? `<h3 class="text-sm font-bold uppercase tracking-wide text-subtext mb-2">${t("detail.about")}</h3>
       <p class="text-subtext text-sm leading-relaxed">${f.summary}</p>
       ${f.website ? `<a href="${f.website}" target="_blank" class="text-accent text-sm mt-2 inline-block">${f.website} ↗</a>` : ""}` : ""}
   `;
@@ -812,7 +823,7 @@ function drawChart(candles, pattern) {
   emaSeries = {};
   detailState.candles = candles || [];
   if (!candles.length) {
-    el.innerHTML = `<div class="text-faint text-sm text-center py-16">No chart data.</div>`;
+    el.innerHTML = `<div class="text-faint text-sm text-center py-16">${t("msg.noChart")}</div>`;
     return;
   }
   el.innerHTML = "";
@@ -1013,6 +1024,21 @@ function drawFundChart() {
         ${baseline}${bars}
       </svg>
     </div>`;
+}
+
+// ── Language ────────────────────────────────────────────────────────────────
+// Re-render dynamic content when the user flips EN ⇄ VI. Static [data-i18n]
+// nodes are handled inside I18N.setLang; here we refresh JS-rendered views.
+if (window.I18N) {
+  window.I18N.init();
+  window.I18N.onChange(() => {
+    renderLearn();                                  // Learn cards (bilingual glossary)
+    if (sectorsLoaded) renderSectors();             // sector list labels
+    if (picksLoadedOnce) loadPicks(true);           // re-fetch + relabel picks
+    if (!modal.classList.contains("hidden") && detailState.symbol) {
+      openStock(detailState.symbol);                // re-render the open stock modal
+    }
+  });
 }
 
 // ── init ────────────────────────────────────────────────────────────────────

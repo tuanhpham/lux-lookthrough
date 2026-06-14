@@ -196,6 +196,21 @@ tbody td:first-child { font-weight: 600; }
 html.light .theme-toggle .icon-moon { display: none; }
 html:not(.light) .theme-toggle .icon-sun { display: none; }
 
+/* ── Language toggle (EN / VI) ────────────────────────────────────────────── */
+.lang-toggle {
+  display: inline-flex; align-items: center; height: 34px;
+  border: 1px solid var(--border); border-radius: 0.6rem; overflow: hidden;
+  background: var(--surface);
+}
+.lang-toggle button {
+  padding: 0 0.55rem; height: 100%; font-size: 0.7rem; font-weight: 800;
+  letter-spacing: 0.03em; color: var(--subtext); background: transparent;
+  transition: all 0.15s;
+}
+.lang-toggle button + button { border-left: 1px solid var(--border); }
+.lang-toggle button:hover { color: var(--text); }
+.lang-toggle button.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+
 /* ── Info "i" tooltip badge ───────────────────────────────────────────────── */
 .info {
   display: inline-flex; align-items: center; justify-content: center;

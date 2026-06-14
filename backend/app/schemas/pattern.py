@@ -20,6 +20,9 @@ class PatternSignalOut(BaseModel):
     volume_dry_up_pct: float | None = None
     pivot_high: float | None = None
     days_in_base: int | None = None
+    distance_to_pivot_pct: float | None = None
+    summary_en: str | None = Field(default=None, description="Plain-language analysis (English)")
+    summary_vi: str | None = Field(default=None, description="Plain-language analysis (Vietnamese)")
 
     model_config = {"from_attributes": True}
 
