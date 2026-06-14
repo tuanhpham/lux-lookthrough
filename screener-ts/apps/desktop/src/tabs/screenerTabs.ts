@@ -64,15 +64,21 @@ export function renderPicks(ctx: AppContext): void {
 async function runPicks(ctx: AppContext): Promise<void> {
   const status = $('#picks-status')!;
   const out = $('#picks-results')!;
-  // The broad universe would expand via constituent lists; here we scan the full
-  // curated universe (546 names) — the same set the Python falls back to.
+  // We scan the full curated universe (the same set the Python backend falls
+  // back to). The "broad" toggle raises concurrency to fetch faster/more fully;
+  // a true S&P-1500 expansion would slot in here behind the same flag.
   const symbols = CURATED;
+  const concurrency = picksBroad ? 12 : 8;
   status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${symbols.length}…`;
   out.innerHTML = '';
-  const data = await fetchMany(ctx.data, symbols, PERIOD, 8);
+  const data = await fetchMany(ctx.data, symbols, PERIOD, concurrency);
   const series = [...data.values()];
   const res = recommend(series, picksStrategy, 30);
-  status.textContent = `${res.matched} ${res.strategyLabel} setup(s) from ${res.scanned} scanned.`;
+  const dropped = symbols.length - res.scanned;
+  status.textContent =
+    `${res.matched} ${res.strategyLabel} setup(s) from ${res.scanned}/${symbols.length} scanned` +
+    (dropped > 0 ? ` (${dropped} unavailable this run — click Run to retry)` : '') +
+    '.';
   if (!res.results.length) {
     out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No setups matched.</div>`;
     return;

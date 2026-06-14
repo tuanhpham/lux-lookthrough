@@ -148,6 +148,34 @@ export const GLOSSARY: Record<string, Entry> = {
       vi: 'Lợi nhuận ròng chia cho doanh thu — mỗi đồng doanh thu còn lại bao nhiêu xu là lợi nhuận.',
     },
   },
+  roe: {
+    term: { en: 'ROE — Return on Equity', vi: 'ROE — Lợi nhuận trên vốn chủ' },
+    long: {
+      en: 'Return on Equity = net income ÷ shareholder equity. How efficiently a company turns capital into profit. Consistently high ROE (15%+) is a hallmark of quality businesses.',
+      vi: 'ROE = lợi nhuận ròng ÷ vốn chủ sở hữu. Mức độ hiệu quả công ty biến vốn thành lợi nhuận. ROE cao ổn định (15%+) là dấu hiệu doanh nghiệp chất lượng.',
+    },
+  },
+  revenue_growth: {
+    term: { en: 'Revenue Growth', vi: 'Tăng trưởng doanh thu' },
+    long: {
+      en: 'Year-over-year percentage change in revenue. Strong, accelerating sales growth often precedes big winners.',
+      vi: 'Phần trăm thay đổi doanh thu so với cùng kỳ năm trước. Tăng trưởng mạnh và tăng tốc thường đi trước những cổ phiếu thắng lớn.',
+    },
+  },
+  beta: {
+    term: { en: 'Beta', vi: 'Beta' },
+    long: {
+      en: 'How much a stock moves relative to the market. Beta 1.0 moves with the market; 1.5 swings ~50% more; 0.7 is calmer.',
+      vi: 'Mức độ biến động của cổ phiếu so với thị trường. Beta 1,0 dao động cùng thị trường; 1,5 mạnh hơn ~50%; 0,7 êm hơn.',
+    },
+  },
+  dividend_yield: {
+    term: { en: 'Dividend Yield', vi: 'Tỷ suất cổ tức' },
+    long: {
+      en: 'The annual dividend expressed as a percentage of the current share price.',
+      vi: 'Khoản cổ tức hằng năm biểu thị theo phần trăm giá cổ phiếu hiện tại.',
+    },
+  },
   week52: {
     term: { en: '52-Week High / Low', vi: 'Đỉnh / Đáy 52 tuần' },
     long: {

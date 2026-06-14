@@ -5,38 +5,9 @@ import { resultsTable } from '../ui/resultsTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
-
-// ── Multiple named watchlists ───────────────────────────────────────────────────
-// Stored as: `watchlists:index` → [{id,name}], `watchlists:items:<id>` → string[].
-interface WatchlistMeta {
-  id: string;
-  name: string;
-}
-const INDEX_KEY = 'watchlists:index';
-const itemsKey = (id: string) => `watchlists:items:${id}`;
+import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
 
 let activeId: string | null = null;
-
-async function loadIndex(ctx: AppContext): Promise<WatchlistMeta[]> {
-  let idx = (await ctx.storage.get<WatchlistMeta[]>(INDEX_KEY)) ?? [];
-  if (!idx.length) {
-    // Seed a default list, migrating any legacy single-list symbols.
-    const legacy = (await ctx.storage.get<string[]>('watchlist:default')) ?? [];
-    const def: WatchlistMeta = { id: 'default', name: 'My Watchlist' };
-    idx = [def];
-    await ctx.storage.set(INDEX_KEY, idx);
-    if (legacy.length) await ctx.storage.set(itemsKey('default'), legacy);
-  }
-  return idx;
-}
-async function loadItems(ctx: AppContext, id: string): Promise<string[]> {
-  return (await ctx.storage.get<string[]>(itemsKey(id))) ?? [];
-}
-async function saveItems(ctx: AppContext, id: string, syms: string[]): Promise<void> {
-  await ctx.storage.set(itemsKey(id), [...new Set(syms)]);
-}
-const newId = (): string =>
-  globalThis.crypto?.randomUUID?.() ?? 'wl-' + Math.random().toString(36).slice(2);
 
 export function renderWatchlist(ctx: AppContext): void {
   const root = $('#tab-watchlist')!;
@@ -112,7 +83,7 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
       const name = prompt('Rename watchlist:', w.name);
       if (!name?.trim()) return;
       const next = idx.map((x) => (x.id === w.id ? { ...x, name: name.trim() } : x));
-      await ctx.storage.set(INDEX_KEY, next);
+      await saveIndex(ctx, next);
       await refreshTabs(ctx);
     });
     tab.querySelector('[data-del]')?.addEventListener('click', async (e) => {
@@ -120,7 +91,7 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
       if (!confirm(`Delete watchlist "${w.name}"?`)) return;
       await ctx.storage.delete(itemsKey(w.id));
       const next = idx.filter((x) => x.id !== w.id);
-      await ctx.storage.set(INDEX_KEY, next);
+      await saveIndex(ctx, next);
       if (activeId === w.id) activeId = next[0]?.id ?? null;
       await refreshAll(ctx);
       $('#wl-results')!.innerHTML = '';
@@ -133,7 +104,7 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
     if (!name?.trim()) return;
     const id = newId();
     const next = [...idx, { id, name: name.trim() }];
-    await ctx.storage.set(INDEX_KEY, next);
+    await saveIndex(ctx, next);
     activeId = id;
     await refreshAll(ctx);
     $('#wl-results')!.innerHTML = '';

@@ -29,7 +29,8 @@ body {
   width: 220px; background: var(--surface); border-right: 1px solid var(--border);
   padding: 18px 14px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
 }
-.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; background: transparent; border: 0; padding: 0; cursor: pointer; text-align: left; color: inherit; width: 100%; }
+.brand:hover { opacity: 0.85; }
 .logo {
   width: 34px; height: 34px; border-radius: 10px; background: var(--accent);
   color: #04201a; display: grid; place-items: center; font-weight: 800;
@@ -127,6 +128,8 @@ tbody tr:hover { background: var(--cardhover); }
 .lang-toggle button.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
 .theme-toggle { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 3px 8px; cursor: pointer; font-size: 13px; line-height: 1; }
 .theme-toggle:hover { border-color: var(--accent); }
+.info-i { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 999px; background: var(--border); color: var(--subtext); font-size: 9px; font-weight: 700; font-style: normal; cursor: help; vertical-align: middle; }
+.info-i:hover { background: var(--accent); color: var(--bg); }
 
 /* ── Sector expandable rows ───────────────────────────────────────────────── */
 .sector-row { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }

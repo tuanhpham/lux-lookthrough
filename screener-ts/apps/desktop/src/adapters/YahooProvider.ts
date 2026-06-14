@@ -103,7 +103,14 @@ export class YahooProvider implements DataProvider {
     const url = `${this.chartBase}/v8/finance/chart/${encodeURIComponent(
       symbol,
     )}?range=${range}&interval=1d&events=div%2Csplit`;
-    const data = await http().getJson<ChartResult>(url);
+    // Retry once on transient failure so a single dropped request doesn't make
+    // a symbol vanish from a universe scan (a cause of "missing" results).
+    let data: ChartResult;
+    try {
+      data = await http().getJson<ChartResult>(url);
+    } catch {
+      data = await http().getJson<ChartResult>(url);
+    }
 
     const result = data.chart.result?.[0];
     const bars: Bar[] = [];
@@ -138,8 +145,13 @@ export class YahooProvider implements DataProvider {
    * and returns 401 for anonymous requests, so we source what's reachable
    * without auth: name / price / currency / 52-week range from the chart `meta`,
    * and market cap + P/E + EPS from the (auth-free) fundamentals-timeseries.
-   * Fields Yahoo no longer exposes anonymously (sector, beta, ROE, margins,
-   * dividend yield, company summary) are left null and the UI degrades cleanly.
+   *
+   * Yahoo no longer publishes margin/ROE/growth fields directly, but the raw
+   * income-statement + balance-sheet lines ARE available, so we DERIVE:
+   *   profitMargin = netIncome / totalRevenue
+   *   roe          = netIncome / stockholdersEquity
+   *   revenueGrowth = (rev[-1] - rev[-2]) / rev[-2]
+   * Beta and dividend yield are not exposed anonymously → left null (UI shows —).
    */
   async getFundamentals(symbol: string): Promise<Fundamentals> {
     const cached = this.fundCache.get(symbol);
@@ -155,18 +167,30 @@ export class YahooProvider implements DataProvider {
       /* leave meta empty */
     }
 
-    // Valuation snapshot (most recent annual point) from fundamentals-timeseries.
+    // Annual valuation + statement lines from fundamentals-timeseries.
     const ts = await this.fetchTimeseries(symbol, 'annual', [
       'annualMarketCap',
       'annualPeRatio',
       'annualDilutedEPS',
-      'annualNetMargin',
+      'annualTotalRevenue',
+      'annualNetIncome',
+      'annualStockholdersEquity',
     ]).catch(() => ({} as Record<string, TimeseriesPoint[]>));
     const latest = (key: string): number | null => {
       const arr = ts[key];
-      if (!arr || !arr.length) return null;
-      return arr[arr.length - 1]?.value ?? null;
+      return arr && arr.length ? (arr[arr.length - 1]?.value ?? null) : null;
     };
+    const prev = (key: string): number | null => {
+      const arr = ts[key];
+      return arr && arr.length >= 2 ? (arr[arr.length - 2]?.value ?? null) : null;
+    };
+    const safeDiv = (a: number | null, b: number | null): number | null =>
+      a != null && b != null && b !== 0 ? a / b : null;
+
+    const rev = latest('annualTotalRevenue');
+    const revPrev = prev('annualTotalRevenue');
+    const ni = latest('annualNetIncome');
+    const equity = latest('annualStockholdersEquity');
 
     const f: Fundamentals = {
       symbol,
@@ -184,9 +208,9 @@ export class YahooProvider implements DataProvider {
       week52High: meta.fiftyTwoWeekHigh ?? null,
       week52Low: meta.fiftyTwoWeekLow ?? null,
       avgVolume: meta.regularMarketVolume ?? null,
-      profitMargin: latest('annualNetMargin'),
-      revenueGrowth: null,
-      roe: null,
+      profitMargin: safeDiv(ni, rev), // fraction (0–1), UI ×100
+      revenueGrowth: revPrev != null && rev != null ? safeDiv(rev - revPrev, revPrev) : null,
+      roe: safeDiv(ni, equity),
       currency: meta.currency ?? null,
       website: null,
       summary: null,

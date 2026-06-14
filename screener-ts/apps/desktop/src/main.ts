@@ -67,19 +67,26 @@ function show(tab: Tab): void {
 }
 
 function enterApp(): void {
-  if (entered) return;
-  entered = true;
   $('#landing')!.classList.add('hidden');
   $('#app')!.classList.remove('hidden');
   applyStaticI18n();
+  if (entered) return; // already initialised — just reveal
+  entered = true;
   // Auto-run Top Picks as soon as the app is entered (matches the backend).
   show('picks');
+}
+
+function goToLanding(): void {
+  $('#app')!.classList.add('hidden');
+  $('#landing')!.classList.remove('hidden');
+  renderLanding($('#landing')!, enterApp);
 }
 
 // Nav wiring.
 $$('[data-tab]').forEach((b) =>
   b.addEventListener('click', () => show((b as HTMLElement).dataset.tab as Tab)),
 );
+$('#logo-home')?.addEventListener('click', goToLanding);
 
 // Language toggle: persist, re-translate static chrome, and re-render the open tab
 // so dynamic content (and the analysis summary's EN/VI) follows the switch.

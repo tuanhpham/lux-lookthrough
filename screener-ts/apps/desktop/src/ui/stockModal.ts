@@ -3,6 +3,16 @@ import type { AppContext } from '../context.js';
 import { $, num, fmtBig, money, scoreColor, signalBadge, stageBadge } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
 import { t, getLang } from './i18n.js';
+import { gloss } from './glossary.js';
+import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
+
+/** Small "i" info icon with a native-title tooltip pulling from the glossary. */
+function info(key: string): string {
+  const g = gloss(key);
+  if (!g) return '';
+  const tip = `${g.term} — ${g.long}`.replace(/"/g, '&quot;');
+  return `<span class="info-i" title="${tip}">i</span>`;
+}
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -96,18 +106,20 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
         renderFundChart(fin, fundMetric, fundFreq);
       }),
     );
+
+    void wireWatchlistPicker(ctx, symbol);
   } catch (e) {
     body.innerHTML = `<div class="danger" style="text-align:center;padding:40px">${(e as Error).message}</div>`;
   }
 }
 
-function stat(k: string, v: string): string {
-  return `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+function stat(k: string, v: string, tipKey?: string): string {
+  return `<div class="stat"><div class="k">${k}${tipKey ? ' ' + info(tipKey) : ''}</div><div class="v">${v}</div></div>`;
 }
 
 function renderDetail(
   symbol: string,
-  f: { sector?: string | null; industry?: string | null; currentPrice?: number | null; marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null; profitMargin?: number | null; revenueGrowth?: number | null; beta?: number | null; dividendYield?: number | null; week52Low?: number | null; week52High?: number | null; summary?: string | null },
+  f: { name?: string | null; currency?: string | null; sector?: string | null; industry?: string | null; currentPrice?: number | null; marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null; profitMargin?: number | null; revenueGrowth?: number | null; beta?: number | null; dividendYield?: number | null; week52Low?: number | null; week52High?: number | null; summary?: string | null },
   p: ReturnType<typeof scanStock> | null,
 ): string {
   const price = f.currentPrice ?? (p ? p.stage.price : null);
@@ -122,27 +134,33 @@ function renderDetail(
         </div>
       </div>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
-        ${stat('Entry', p.entryPrice != null ? '$' + num(p.entryPrice) : '—')}
-        ${stat('Stop', p.stopLoss != null ? '$' + num(p.stopLoss) : '—')}
-        ${stat('Target', p.targetPrice != null ? '$' + num(p.targetPrice) : '—')}
-        ${stat('R:R', p.riskReward != null ? num(p.riskReward, 1) + 'R' : '—')}
-        ${stat('Pivot', p.pivot.pivotHigh != null ? '$' + num(p.pivot.pivotHigh) : '—')}
-        ${stat('Range', num(p.consolidation.priceRangePct, 1) + '%')}
-        ${stat('Vol dry-up', num(p.consolidation.volumeDryUpPct, 1) + '%')}
-        ${stat('VCP', String(p.consolidation.vcpContractions))}
+        ${stat('Entry', p.entryPrice != null ? '$' + num(p.entryPrice) : '—', 'entry')}
+        ${stat('Stop', p.stopLoss != null ? '$' + num(p.stopLoss) : '—', 'stop')}
+        ${stat('Target', p.targetPrice != null ? '$' + num(p.targetPrice) : '—', 'target')}
+        ${stat('R:R', p.riskReward != null ? num(p.riskReward, 1) + 'R' : '—', 'rr')}
+        ${stat('Pivot', p.pivot.pivotHigh != null ? '$' + num(p.pivot.pivotHigh) : '—', 'pivot')}
+        ${stat('Range', num(p.consolidation.priceRangePct, 1) + '%', 'price_range')}
+        ${stat('Vol dry-up', num(p.consolidation.volumeDryUpPct, 1) + '%', 'volume_dryup')}
+        ${stat('VCP', String(p.consolidation.vcpContractions), 'vcp')}
       </div>
       <div class="card" style="margin-top:12px;background:var(--surface)">
         <div class="section-title" style="margin-top:0">${t('detail.analysis')}</div>
         <p style="line-height:1.6;margin:0">${buildSummary(p)[getLang()]}</p>
       </div>`;
   }
+  const tvUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`;
   return `
     <div class="row" style="margin-bottom:12px">
       <div>
         <div style="font-size:22px;font-weight:700">${price != null ? '$' + num(price) : '—'}</div>
         <div class="muted" style="font-size:12px">${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}</div>
       </div>
+      <div class="row" style="margin-left:auto;gap:8px">
+        <button id="wl-toggle" class="btn-outline" style="padding:7px 12px">☆ Watchlist</button>
+        <a class="btn-outline" style="padding:7px 12px;text-decoration:none" href="${tvUrl}" target="_blank" rel="noopener" title="Open in TradingView">📈 TradingView ↗</a>
+      </div>
     </div>
+    <div id="wl-picker" class="card hidden" style="margin-bottom:12px;background:var(--surface)"></div>
     ${patternBlock}
     <div class="card" style="margin-top:14px;padding:8px">
       <div class="toolbar" style="margin:4px 6px">
@@ -175,19 +193,83 @@ function renderDetail(
     </div>
     <div class="section-title">${t('detail.fundamentals')}</div>
     <div class="grid" style="grid-template-columns:repeat(3,1fr)">
-      ${stat('Market Cap', fmtBig(f.marketCap))}
-      ${stat('P/E', num(f.peRatio, 1))}
-      ${stat('EPS', f.eps != null ? '$' + num(f.eps) : '—')}
-      ${stat('ROE', f.roe != null ? num(f.roe * 100, 1) + '%' : '—')}
-      ${stat('Profit Margin', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—')}
-      ${stat('Rev Growth', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—')}
-      ${stat('Beta', num(f.beta, 2))}
-      ${stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—')}
-      ${stat('52w Range', f.week52Low != null && f.week52High != null ? '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0) : '—')}
+      ${stat('Market Cap', fmtBig(f.marketCap), 'market_cap')}
+      ${stat('P/E', num(f.peRatio, 1), 'pe_ratio')}
+      ${stat('EPS', f.eps != null ? '$' + num(f.eps) : '—', 'eps')}
+      ${stat('ROE', f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe')}
+      ${stat('Profit Margin', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin')}
+      ${stat('Rev Growth', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—', 'revenue_growth')}
+      ${stat('Beta', num(f.beta, 2), 'beta')}
+      ${stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—', 'dividend_yield')}
+      ${stat('52w Range', f.week52Low != null && f.week52High != null ? '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0) : '—', 'week52')}
     </div>
-    ${f.summary ? `<div class="section-title">${t('detail.about')}</div><p class="muted" style="line-height:1.6">${f.summary}</p>` : ''}
+    <div class="section-title">${t('detail.about')}</div>
+    ${
+      f.summary
+        ? `<p class="muted" style="line-height:1.6">${f.summary}</p>`
+        : `<p class="muted" style="line-height:1.6">${
+            f.name ? f.name + (f.currency ? ` · ${f.currency}` : '') : symbol
+          }. Yahoo no longer serves the company description without authentication; open TradingView above for the full profile.</p>`
+    }
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
   `;
+}
+
+/**
+ * Wires the "☆ Watchlist" button: shows which lists already contain the symbol,
+ * lets the user toggle membership per list, and create a new list inline.
+ */
+async function wireWatchlistPicker(ctx: AppContext, symbol: string): Promise<void> {
+  const btn = $('#wl-toggle');
+  const picker = $('#wl-picker');
+  if (!btn || !picker) return;
+
+  const refreshBtn = async () => {
+    const inLists = await listsContaining(ctx, symbol);
+    btn.textContent = inLists.size ? `★ Watchlist (${inLists.size})` : '☆ Watchlist';
+  };
+
+  const renderPicker = async () => {
+    const idx = await loadIndex(ctx);
+    const inLists = await listsContaining(ctx, symbol);
+    picker.innerHTML = `
+      <div class="section-title" style="margin-top:0">Add ${symbol} to…</div>
+      <div class="row" style="flex-wrap:wrap">
+        ${idx
+          .map(
+            (w) =>
+              `<button class="range-btn ${inLists.has(w.id) ? 'active' : ''}" data-list="${w.id}">${
+                inLists.has(w.id) ? '★ ' : '＋ '
+              }${w.name}</button>`,
+          )
+          .join('')}
+        <button class="range-btn" data-new>＋ New list…</button>
+      </div>`;
+    picker.querySelectorAll<HTMLElement>('[data-list]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const id = b.dataset.list!;
+        const items = await loadItems(ctx, id);
+        const has = items.includes(symbol);
+        await saveItems(ctx, id, has ? items.filter((s) => s !== symbol) : [...items, symbol]);
+        await renderPicker();
+        await refreshBtn();
+      }),
+    );
+    picker.querySelector<HTMLElement>('[data-new]')!.addEventListener('click', async () => {
+      const name = prompt('Name your new watchlist:', '');
+      if (!name?.trim()) return;
+      const meta = await createList(ctx, name.trim());
+      await saveItems(ctx, meta.id, [symbol]);
+      await renderPicker();
+      await refreshBtn();
+    });
+  };
+
+  btn.addEventListener('click', async () => {
+    const hidden = picker.classList.toggle('hidden');
+    if (!hidden) await renderPicker();
+  });
+  await refreshBtn();
 }
 
 type FinPoint = { period: string; revenue: number | null; netIncome: number | null; eps: number | null };

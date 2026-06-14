@@ -1,10 +1,19 @@
-import { t } from './i18n.js';
+import { t, getLang, setLang } from './i18n.js';
+import { applyTheme } from './theme.js';
 
 /** Full-screen hero landing, shown before the app. Calls `onEnter` on CTA. */
 export function renderLanding(host: HTMLElement, onEnter: () => void): void {
+  const isLight = document.documentElement.classList.contains('light');
   host.innerHTML = `
     <div class="landing">
       <div class="landing-inner">
+        <div class="row" style="justify-content:flex-end;gap:8px;margin-bottom:8px">
+          <div class="lang-toggle" role="group" aria-label="Language">
+            <button data-ll="en" class="${getLang() === 'en' ? 'active' : ''}">EN</button>
+            <button data-ll="vi" class="${getLang() === 'vi' ? 'active' : ''}">VI</button>
+          </div>
+          <button id="landing-theme" class="theme-toggle" title="Toggle theme">${isLight ? '☀️' : '🌙'}</button>
+        </div>
         <div class="landing-badge">${t('landing.badge')}</div>
         <h1 class="landing-h1">${t('landing.h1a')}<br /><span class="accent">${t('landing.h1b')}</span></h1>
         <p class="landing-sub">${t('landing.sub')}</p>
@@ -29,4 +38,15 @@ export function renderLanding(host: HTMLElement, onEnter: () => void): void {
       </div>
     </div>`;
   host.querySelector('#enter-app')!.addEventListener('click', onEnter);
+  host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
+    b.addEventListener('click', () => {
+      setLang(b.dataset.ll as 'en' | 'vi');
+      renderLanding(host, onEnter); // re-render landing in the new language
+    }),
+  );
+  host.querySelector('#landing-theme')!.addEventListener('click', () => {
+    const light = document.documentElement.classList.contains('light');
+    applyTheme(light ? 'dark' : 'light');
+    renderLanding(host, onEnter);
+  });
 }
