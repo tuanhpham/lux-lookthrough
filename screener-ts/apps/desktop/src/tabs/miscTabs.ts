@@ -1,7 +1,8 @@
 import { screen, fetchMany, type ScreenRow } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, el, num, pct, scoreColor, signalBadge, stageBadge } from '../ui/dom.js';
+import { $, el } from '../ui/dom.js';
 import { openStock } from '../ui/stockModal.js';
+import { sortableTable, type SortKey } from '../ui/sortableTable.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
@@ -98,10 +99,13 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
   tabs.appendChild(add);
 }
 
-// Cache scan rows per list so switching tabs is instant; refetch on Refresh.
-const rowCache = new Map<string, ScreenRow[]>();
+// Cache scan rows per list so switching tabs is instant. Each entry remembers
+// the symbol set it was built for, so a change (e.g. a stock added from the
+// detail modal) is detected and the rows refetched automatically.
+const rowCache = new Map<string, { syms: string[]; rows: ScreenRow[] }>();
+let wlSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 
-/** Render the active list as a one-row-per-stock quick-info table. */
+/** Render the active list as a sortable one-row-per-stock quick-info table. */
 async function refreshRows(ctx: AppContext, force = false): Promise<void> {
   const out = $('#wl-results')!;
   if (!activeId) {
@@ -114,8 +118,12 @@ async function refreshRows(ctx: AppContext, force = false): Promise<void> {
     return;
   }
 
-  let rows = rowCache.get(activeId);
-  if (!rows || force) {
+  const cached = rowCache.get(activeId);
+  // Refetch when forced, when nothing cached, or when the symbol set changed
+  // (e.g. a stock was just added/removed from the detail modal).
+  const stale = !cached || cached.syms.join(',') !== syms.join(',');
+  let rows = cached?.rows;
+  if (stale || force) {
     out.innerHTML = `<div class="muted" style="padding:10px"><span class="spinner"></span> ${t('msg.scanning')} ${syms.length}…</div>`;
     const data = await fetchMany(ctx.data, syms, '1y', 8);
     rows = [];
@@ -131,54 +139,36 @@ async function refreshRows(ctx: AppContext, force = false): Promise<void> {
           vcpContractions: null, daysInBase: null } as ScreenRow);
       }
     }
-    rowCache.set(activeId, rows);
+    rowCache.set(activeId, { syms: [...syms], rows });
   }
-  renderRows(ctx, out, rows);
-}
 
-function renderRows(ctx: AppContext, out: HTMLElement, rows: ScreenRow[]): void {
-  const card = el(`<div class="card" style="overflow-x:auto"></div>`);
-  card.innerHTML = `
-    <table><thead><tr>
-      <th>Symbol</th><th>Price</th><th>Score</th><th>Signal</th><th>Stage</th>
-      <th>Entry</th><th>Stop</th><th>Target</th><th>R:R</th><th>Dist</th><th>VCP</th><th></th>
-    </tr></thead><tbody>${rows
-      .map(
-        (r) => `<tr data-sym="${r.symbol}">
-        <td><strong>${r.symbol}</strong></td>
-        <td>${r.price ? '$' + num(r.price) : '—'}</td>
-        <td><span class="scorebar" style="width:46px"><span style="width:${Math.max(0, r.score)}%;background:${scoreColor(r.score)}"></span></span> <span style="color:${scoreColor(r.score)};font-weight:700">${num(r.score, 0)}</span></td>
-        <td>${signalBadge(r.signal)}</td>
-        <td>${stageBadge(r.stage, r.stageLabel)}</td>
-        <td>${r.entryPrice != null ? '$' + num(r.entryPrice) : '—'}</td>
-        <td class="danger">${r.stopLoss != null ? '$' + num(r.stopLoss) : '—'}</td>
-        <td class="accent">${r.targetPrice != null ? '$' + num(r.targetPrice) : '—'}</td>
-        <td>${r.riskReward != null ? num(r.riskReward, 1) + 'R' : '—'}</td>
-        <td>${r.distanceToPivotPct != null ? num(r.distanceToPivotPct, 1) + '%' : '—'}</td>
-        <td>${r.vcpContractions ?? '—'}</td>
-        <td><button class="icon-btn" data-del="${r.symbol}" title="Remove from list">✕</button></td>
-      </tr>`,
-      )
-      .join('')}</tbody></table>`;
-
-  card.querySelectorAll<HTMLElement>('tr[data-sym]').forEach((tr) =>
-    tr.addEventListener('click', (e) => {
-      const del = (e.target as HTMLElement).closest('[data-del]') as HTMLElement | null;
-      if (del) {
-        e.stopPropagation();
-        void (async () => {
-          await saveItems(ctx, activeId!, (await loadItems(ctx, activeId!)).filter((x) => x !== del.dataset.del));
-          rowCache.delete(activeId!);
-          await refreshTabs(ctx);
-          await refreshRows(ctx);
-        })();
-      } else {
-        void openStock(ctx, tr.dataset.sym!);
-      }
+  out.innerHTML = '';
+  out.appendChild(
+    sortableTable(rows!, {
+      sortKey: wlSort.key,
+      sortDesc: wlSort.desc,
+      onRowClick: (sym) => void openStock(ctx, sym),
+      onSortChange: (key, desc) => {
+        wlSort = { key, desc };
+      },
+      action: {
+        header: '',
+        html: (r) => `<button class="icon-btn" data-row-action data-del="${r.symbol}" title="Remove from list">✕</button>`,
+      },
     }),
   );
-  out.innerHTML = '';
-  out.appendChild(card);
+
+  // Wire the remove buttons (the table forwards row clicks but leaves actions to us).
+  out.querySelectorAll<HTMLElement>('[data-del]').forEach((b) =>
+    b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const sym = b.dataset.del!;
+      await saveItems(ctx, activeId!, (await loadItems(ctx, activeId!)).filter((x) => x !== sym));
+      rowCache.delete(activeId!);
+      await refreshTabs(ctx);
+      await refreshRows(ctx);
+    }),
+  );
 }
 
 // ── Learn (full bilingual glossary, grouped) ────────────────────────────────────

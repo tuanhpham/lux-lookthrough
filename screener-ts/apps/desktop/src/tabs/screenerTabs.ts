@@ -10,7 +10,7 @@ import {
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num, pct, fmtBig, scoreColor, signalBadge, stageBadge } from '../ui/dom.js';
-import { resultsTable } from '../ui/resultsTable.js';
+import { sortableTable, type SortKey } from '../ui/sortableTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
@@ -22,6 +22,8 @@ const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbo
 // ── Top Picks ─────────────────────────────────────────────────────────────────
 let picksStrategy: StrategyKey = 'breakout';
 let picksBroad = false;
+let picksSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
+let screenSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 
 export function renderPicks(ctx: AppContext): void {
   const root = $('#tab-picks')!;
@@ -84,25 +86,17 @@ async function runPicks(ctx: AppContext): Promise<void> {
     out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No setups matched.</div>`;
     return;
   }
-  const grid = el(`<div class="grid grid-cards"></div>`);
-  for (const r of res.results) {
-    const card = el(`
-      <div class="card" style="cursor:pointer">
-        <div class="row"><strong style="font-size:16px">${r.symbol}</strong> ${signalBadge(r.signal)}
-          <span style="margin-left:auto;color:${scoreColor(r.score)};font-weight:800">${num(r.score, 0)}</span></div>
-        <div class="row" style="margin-top:6px">${stageBadge(r.stage, r.stageLabel)}<span class="muted" style="margin-left:auto">$${num(
-          r.price,
-        )}</span></div>
-        <div class="muted" style="font-size:11px;margin-top:8px">Entry ${
-          r.entryPrice != null ? '$' + num(r.entryPrice) : '—'
-        } · Stop ${r.stopLoss != null ? '$' + num(r.stopLoss) : '—'} · ${
-          r.riskReward != null ? num(r.riskReward, 1) + 'R' : '—'
-        }</div>
-      </div>`);
-    card.addEventListener('click', () => void openStock(ctx, r.symbol));
-    grid.appendChild(card);
-  }
-  out.appendChild(grid);
+  out.innerHTML = '';
+  out.appendChild(
+    sortableTable(res.results, {
+      sortKey: picksSort.key,
+      sortDesc: picksSort.desc,
+      onRowClick: (sym) => void openStock(ctx, sym),
+      onSortChange: (key, desc) => {
+        picksSort = { key, desc };
+      },
+    }),
+  );
 }
 
 // ── Screener ────────────────────────────────────────────────────────────────────
@@ -185,7 +179,16 @@ async function runScreen(ctx: AppContext): Promise<void> {
     limit: 200,
   });
   status.textContent = `${res.matched} match(es) of ${res.scanned} scanned.`;
-  out.appendChild(resultsTable(res.results, (sym) => void openStock(ctx, sym)));
+  out.appendChild(
+    sortableTable(res.results, {
+      sortKey: screenSort.key,
+      sortDesc: screenSort.desc,
+      onRowClick: (sym) => void openStock(ctx, sym),
+      onSortChange: (key, desc) => {
+        screenSort = { key, desc };
+      },
+    }),
+  );
 }
 
 // ── Sectors (rank + expandable volume charts) ──────────────────────────────────

@@ -14,6 +14,13 @@ export function newId(): string {
   return globalThis.crypto?.randomUUID?.() ?? 'wl-' + Math.random().toString(36).slice(2);
 }
 
+// Bumped whenever any list's items change (add/remove/from modal or tab), so
+// views can detect staleness and refetch without an explicit refresh click.
+let _version = 0;
+export function watchlistsVersion(): number {
+  return _version;
+}
+
 export async function loadIndex(ctx: AppContext): Promise<WatchlistMeta[]> {
   let idx = (await ctx.storage.get<WatchlistMeta[]>(INDEX_KEY)) ?? [];
   if (!idx.length) {
@@ -35,6 +42,7 @@ export async function loadItems(ctx: AppContext, id: string): Promise<string[]> 
 
 export async function saveItems(ctx: AppContext, id: string, syms: string[]): Promise<void> {
   await ctx.storage.set(itemsKey(id), [...new Set(syms)]);
+  _version++;
 }
 
 export async function createList(ctx: AppContext, name: string): Promise<WatchlistMeta> {

@@ -99,6 +99,9 @@ button.btn:active, button.btn-outline:active { transform: scale(.97); }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
 th { color: var(--faint); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--text); }
+th.sorted { color: var(--accent); }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--cardhover); }
 .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }

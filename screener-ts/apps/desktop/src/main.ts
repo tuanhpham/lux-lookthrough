@@ -1,7 +1,7 @@
 import './styles.css';
 import { AppContext, loadConfig } from './context.js';
 import { $, $$ } from './ui/dom.js';
-import { initModal } from './ui/stockModal.js';
+import { initModal, onModalClose } from './ui/stockModal.js';
 import { renderPicks, renderScreener, renderSectors } from './tabs/screenerTabs.js';
 import { renderWatchlist, renderLearn } from './tabs/miscTabs.js';
 import { renderPortfolio } from './tabs/portfolioTab.js';
@@ -25,6 +25,11 @@ function showFatal(msg: string): void {
 const ctx = new AppContext(loadConfig());
 initTheme();
 initModal();
+// When the stock modal closes, re-render the open tab so any watchlist change
+// made inside it (add/remove via the picker) shows immediately.
+onModalClose(() => {
+  if (entered && currentTab === 'watchlist') renderTab('watchlist');
+});
 
 const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'blog', 'learn'] as const;
 type Tab = (typeof TABS)[number];

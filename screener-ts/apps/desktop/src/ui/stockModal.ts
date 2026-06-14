@@ -16,20 +16,29 @@ const RANGES: { label: string; period: Period }[] = [
 let chart: CandleChart | null = null;
 const emaState: Record<number, boolean> = Object.fromEntries(EMA_CONFIG.map((e) => [e.period, e.on]));
 
+let onCloseCb: (() => void) | null = null;
+/** Register a callback fired whenever the stock modal closes — used to refresh
+ * the active tab so watchlist changes made in the modal show immediately. */
+export function onModalClose(cb: () => void): void {
+  onCloseCb = cb;
+}
+
 export function initModal(): void {
   $('#modal-close')!.addEventListener('click', closeModal);
   $('#modal-backdrop')!.addEventListener('click', closeModal);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape' && !$('#modal')!.classList.contains('hidden')) closeModal();
   });
 }
 
 function closeModal(): void {
+  if ($('#modal')!.classList.contains('hidden')) return;
   $('#modal')!.classList.add('hidden');
   if (chart) {
     chart.destroy();
     chart = null;
   }
+  onCloseCb?.();
 }
 
 export async function openStock(ctx: AppContext, symbol: string): Promise<void> {
