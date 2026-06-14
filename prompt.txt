@@ -74,3 +74,7 @@ WORKING STYLE
 FIRST show me the proposed file tree and the core interfaces (DataProvider, Storage, and the portfolio types: Account, BuyLot, SellRecord, Position, Order, EquitySnapshot) and WAIT for my approval before implementing full logic.
 Work in small, reviewable steps: core scoring + tests first, then portfolio engine + tests, then desktop UI, then blog module, then deploy config.
 Keep prose minimal in code; prioritize correctness and matching the old Python logic.
+
+App error (boot):
+
+SyntaxError: The requested module '/@fs/Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/packages/core/dist/index.js' does not provide an export named 'deleteLot'
