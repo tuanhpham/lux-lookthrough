@@ -10,7 +10,9 @@
       "allow": [
         { "url": "https://query1.finance.yahoo.com/*" },
         { "url": "https://query2.finance.yahoo.com/*" },
-        { "url": "https://finnhub.io/*" }
+        { "url": "https://finnhub.io/*" },
+        { "url": "https://en.wikipedia.org/*" },
+        { "url": "https://www.nasdaqtrader.com/*" }
       ]
     },
     "fs:default",

@@ -215,6 +215,10 @@ tbody tr:hover { background: var(--cardhover); }
 .tooltip .tt-term { font-weight: 700; font-size: 12px; margin-bottom: 3px; color: var(--text); }
 .tooltip .tt-body { font-size: 12px; line-height: 1.45; color: var(--subtext); }
 
+/* ── Top Picks scan progress bar ───────────────────────────────────────────── */
+.picks-progress { width: 100%; height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+#picks-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #06b888); border-radius: 999px; transition: width .25s ease; }
+
 /* ── Sector expandable rows ───────────────────────────────────────────────── */
 .sector-row { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }
 .sector-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
