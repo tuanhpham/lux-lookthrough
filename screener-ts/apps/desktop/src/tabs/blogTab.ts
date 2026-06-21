@@ -4,6 +4,7 @@ import {
   saveUserPost,
   deleteUserPost,
   parseMarkdown,
+  serializeMarkdown,
   slugify,
   type Post,
 } from '../blog/posts.js';
@@ -16,10 +17,17 @@ export function renderBlog(ctx: AppContext): void {
   const root = $('#tab-blog')!;
   root.innerHTML = `
     <div class="row" style="margin-bottom:4px">
-      <h1 style="margin:0">Weekly Analysis</h1>
+      <h1 style="margin:0">Analysis</h1>
       <button id="post-new" class="btn" style="margin-left:auto">＋ New post</button>
     </div>
     <p class="subtitle">Market reports rendered from Markdown. Add your own — paste/write Markdown or import a .md file.</p>
+    <div class="card muted" style="font-size:12px;line-height:1.6;padding:10px 12px;margin-bottom:10px">
+      ℹ️ <b>Two kinds of posts.</b> Posts you create here are saved in <b>this browser only</b>
+      (localStorage) — that is why a new post shows on your machine but not in another browser or
+      the deployed site. To publish a post <b>everywhere</b>, open it in the editor, click
+      <b>⬇ Download .md</b>, drop the file into <code>apps/desktop/posts/</code>, then commit &amp;
+      redeploy. Bundled <code>posts/*.md</code> files appear for all visitors.
+    </div>
     <div class="toolbar">
       ${(['all', 'daily', 'weekly', 'monthly'] as const)
         .map(
@@ -121,7 +129,7 @@ function openEditor(ctx: AppContext, existing: Post | null): void {
   $('#modal-title')!.textContent = existing ? 'Edit post' : 'New post';
   $('#modal-body')!.innerHTML = `
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="field-label">Title</label><input id="e-title" class="field" value="${escapeAttr(p.title)}" placeholder="Weekly Analysis — …" /></div>
+      <div><label class="field-label">Title</label><input id="e-title" class="field" value="${escapeAttr(p.title)}" placeholder="Analysis — …" /></div>
       <div><label class="field-label">Type</label><select id="e-type" class="field">
         ${(['daily', 'weekly', 'monthly'] as const).map((tp) => `<option value="${tp}" ${p.type === tp ? 'selected' : ''}>${tp}</option>`).join('')}
       </select></div>
@@ -139,6 +147,7 @@ function openEditor(ctx: AppContext, existing: Post | null): void {
     <div class="row" style="margin-top:12px">
       <label class="field-label" style="margin:0">Markdown</label>
       <button id="e-import" class="range-btn" style="margin-left:auto">⬆ Import .md</button>
+      <button id="e-download" class="range-btn" title="Download as a .md file to drop into posts/ and deploy">⬇ Download .md</button>
       <button id="e-preview-toggle" class="range-btn">Toggle preview</button>
       <input id="e-file" type="file" accept=".md,.markdown,text/markdown" style="display:none" />
     </div>
@@ -188,14 +197,14 @@ function openEditor(ctx: AppContext, existing: Post | null): void {
     if (preview.style.display !== 'none') updatePreview();
   });
 
-  body.querySelector('#e-cancel')!.addEventListener('click', () => modal.classList.add('hidden'));
-  body.querySelector('#e-save')!.addEventListener('click', async () => {
+  // Collect the current editor state into a Post object (shared by Save + Download).
+  const collect = (): Post | null => {
     const title = (body.querySelector('#e-title') as HTMLInputElement).value.trim();
     if (!title) {
       alert('Please enter a title.');
-      return;
+      return null;
     }
-    const next: Post = {
+    return {
       title,
       type: (body.querySelector('#e-type') as HTMLSelectElement).value as Post['type'],
       date: (body.querySelector('#e-date') as HTMLInputElement).value || p.date,
@@ -209,6 +218,28 @@ function openEditor(ctx: AppContext, existing: Post | null): void {
       body: ta.value,
       editable: true,
     };
+  };
+
+  // Download the post as a deploy-ready .md file (drop into posts/ to publish everywhere).
+  body.querySelector('#e-download')!.addEventListener('click', () => {
+    const post = collect();
+    if (!post) return;
+    const md = serializeMarkdown(post);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${post.slug}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  body.querySelector('#e-cancel')!.addEventListener('click', () => modal.classList.add('hidden'));
+  body.querySelector('#e-save')!.addEventListener('click', async () => {
+    const next = collect();
+    if (!next) return;
     await saveUserPost(ctx.storage, next);
     modal.classList.add('hidden');
     renderBlog(ctx);

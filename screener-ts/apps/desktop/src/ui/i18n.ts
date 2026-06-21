@@ -13,7 +13,8 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.watchlist': { en: 'Watchlists', vi: 'Danh sách theo dõi' },
   'nav.sectors': { en: 'Sectors', vi: 'Ngành' },
   'nav.portfolio': { en: 'Paper Trading', vi: 'Giao dịch giấy' },
-  'nav.blog': { en: 'Weekly Analysis', vi: 'Phân tích tuần' },
+  'nav.blog': { en: 'Analysis', vi: 'Phân tích' },
+  'nav.playbook': { en: 'Playbook', vi: 'Sổ tay' },
   'nav.learn': { en: 'Learn', vi: 'Tìm hiểu' },
   'foot.disclaimer': { en: 'Educational use only. Not financial advice.', vi: 'Chỉ dùng cho mục đích học tập. Không phải lời khuyên đầu tư.' },
 
