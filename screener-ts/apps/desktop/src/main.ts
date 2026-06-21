@@ -134,3 +134,16 @@ try {
 } catch (e) {
   showFatal(String((e as Error)?.stack || e));
 }
+
+// PWA: register the service worker so the app is installable ("Add to Home
+// Screen") and opens instantly / offline. Skipped inside the Tauri shell (it
+// has no SW) and on insecure origins. The SW never caches /api/* so stock data
+// stays live.
+const isTauriShell = typeof window !== 'undefined' && '__TAURI__' in window;
+if (!isTauriShell && 'serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* non-fatal: app still works without the SW */
+    });
+  });
+}
