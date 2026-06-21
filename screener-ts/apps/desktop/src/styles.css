@@ -22,7 +22,14 @@ html.light {
   --subtext: #5a6577; --faint: #9aa4b5; --shadow: 0 10px 30px rgba(20,30,60,.08);
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* iOS (esp. landscape) inflates text in some blocks via auto text-sizing,
+     making e.g. the Analysis bullets jarringly large. Pin it to 100% so text
+     scales only with our own CSS / the device zoom. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0; background: var(--bg); color: var(--text); font-size: 14px;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, 'Segoe UI', sans-serif;
@@ -322,4 +329,25 @@ tbody tr:hover { background: var(--cardhover); }
 
   /* Toolbars/rows wrap nicely and buttons stay tappable. */
   .toolbar .btn, .toolbar .btn-outline, .row .btn, .row .btn-outline { padding: 10px 14px; }
+
+  /* Stock detail: chart toolbars (range / EMA / fundamental switchers) wrap to
+     their own line instead of being shoved off-screen by margin-left:auto. */
+  .modal-body .toolbar { gap: 8px 10px; }
+  .modal-body .toolbar > .row[style*="margin-left"] { margin-left: 0 !important; flex-basis: 100%; }
+  .modal-body .toolbar .range-btn { padding: 7px 12px; font-size: 12px; }
+
+  /* Pattern stat grid: 4 cols is too tight on a phone → 2 cols. */
+  .modal-body .grid[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Fundamentals grid: 3 cols → 2 cols. */
+  #fund-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ── Stock detail analysis: keep text readable in every orientation ──────────
+   The Analysis bullets were jarringly large on iPhone landscape. Pin a sane
+   font-size/line-height so iOS can't inflate them, in any orientation. */
+.analysis-list, .analysis-list li { font-size: 13px; line-height: 1.6; }
+@media (max-width: 900px) {
+  .analysis-card { padding: 13px; }
+  .analysis-list { padding-left: 16px; }
+  .analysis-list li { font-size: 13px; line-height: 1.55; margin-bottom: 5px; }
 }
