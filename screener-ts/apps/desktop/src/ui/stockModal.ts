@@ -16,6 +16,12 @@ const RANGES: { label: string; period: Period }[] = [
 let chart: CandleChart | null = null;
 const emaState: Record<number, boolean> = Object.fromEntries(EMA_CONFIG.map((e) => [e.period, e.on]));
 
+// Re-render the (hand-drawn SVG) fundamentals chart on resize/rotate. The SVG
+// has a fixed pixel width computed at draw time, so unlike the candle chart it
+// won't reflow on its own when the phone is rotated — we re-run the last draw.
+let redrawFundChart: (() => void) | null = null;
+let resizeHandler: (() => void) | null = null;
+
 let onCloseCb: (() => void) | null = null;
 /** Register a callback fired whenever the stock modal closes — used to refresh
  * the active tab so watchlist changes made in the modal show immediately. */
@@ -38,6 +44,12 @@ function closeModal(): void {
     chart.destroy();
     chart = null;
   }
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler);
+    window.removeEventListener('orientationchange', resizeHandler);
+    resizeHandler = null;
+  }
+  redrawFundChart = null;
   onCloseCb?.();
 }
 
@@ -93,21 +105,36 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
 
     let fundMetric: 'revenue' | 'netIncome' | 'eps' = 'revenue';
     let fundFreq: 'annual' | 'quarterly' = 'annual';
-    renderFundChart(fin, fundMetric, fundFreq);
+    // Closure capturing the current metric/freq so we can re-draw on rotate.
+    redrawFundChart = () => renderFundChart(fin, fundMetric, fundFreq);
+    redrawFundChart();
     body.querySelectorAll<HTMLElement>('[data-fund]').forEach((btn) =>
       btn.addEventListener('click', () => {
         fundMetric = btn.dataset.fund as 'revenue' | 'netIncome' | 'eps';
         body.querySelectorAll('[data-fund]').forEach((b) => b.classList.toggle('active', b === btn));
-        renderFundChart(fin, fundMetric, fundFreq);
+        redrawFundChart!();
       }),
     );
     body.querySelectorAll<HTMLElement>('[data-freq]').forEach((btn) =>
       btn.addEventListener('click', () => {
         fundFreq = btn.dataset.freq as 'annual' | 'quarterly';
         body.querySelectorAll('[data-freq]').forEach((b) => b.classList.toggle('active', b === btn));
-        renderFundChart(fin, fundMetric, fundFreq);
+        redrawFundChart!();
       }),
     );
+
+    // On window resize / orientation change, re-flow the fund chart (debounced).
+    // The candle chart reflows itself via its own ResizeObserver.
+    let rafId = 0;
+    resizeHandler = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        // After a rotate the layout settles a frame later; redraw the SVG chart.
+        setTimeout(() => redrawFundChart?.(), 120);
+      });
+    };
+    window.addEventListener('resize', resizeHandler);
+    window.addEventListener('orientationchange', resizeHandler);
 
     void wireWatchlistPicker(ctx, symbol);
 
@@ -423,7 +450,13 @@ function renderFundChart(
   const max = Math.max(...values, 0);
   const min = Math.min(...values, 0);
   const span = max - min || 1;
-  const W = Math.max(el.clientWidth || 600, series.length * 52);
+  // Available width of the chart card (measured live so rotate reflows correctly).
+  // Fall back through parent → 600 when the element is briefly unmeasurable.
+  const avail = el.clientWidth || (el.parentElement?.clientWidth ?? 0) || 600;
+  // Fill the container; only scroll horizontally when there are too many bars to
+  // fit comfortably (≥52px each). This keeps sparse data from looking stretched
+  // and dense data from being cramped.
+  const W = Math.max(avail, series.length * 52);
   const H = 160;
   const zeroY = 18 + (max / span) * (H - 40);
   const slot = W / series.length;

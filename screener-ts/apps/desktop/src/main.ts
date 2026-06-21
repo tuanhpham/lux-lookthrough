@@ -103,9 +103,35 @@ function goToLanding(): void {
   renderLanding($('#landing')!, enterApp);
 }
 
-// Nav wiring.
+// ── Mobile drawer (off-canvas sidebar) ──────────────────────────────────────
+// On phones the sidebar slides in as a drawer. We toggle a class on #app and
+// keep aria-expanded in sync; tapping a nav item or the backdrop closes it.
+function setNav(open: boolean): void {
+  $('#app')!.classList.toggle('nav-open', open);
+  const tgl = $('#menu-toggle');
+  if (tgl) tgl.setAttribute('aria-expanded', String(open));
+}
+const closeNav = (): void => setNav(false);
+
+$('#menu-toggle')?.addEventListener('click', () =>
+  setNav(!$('#app')!.classList.contains('nav-open')),
+);
+$('#sidebar-backdrop')?.addEventListener('click', closeNav);
+$('#topbar-home')?.addEventListener('click', () => {
+  closeNav();
+  goToLanding();
+});
+// Close the drawer with Escape for keyboard/desktop users.
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeNav();
+});
+
+// Nav wiring. On mobile, selecting a tab also closes the drawer.
 $$('[data-tab]').forEach((b) =>
-  b.addEventListener('click', () => show((b as HTMLElement).dataset.tab as Tab)),
+  b.addEventListener('click', () => {
+    show((b as HTMLElement).dataset.tab as Tab);
+    closeNav();
+  }),
 );
 $('#logo-home')?.addEventListener('click', goToLanding);
 
