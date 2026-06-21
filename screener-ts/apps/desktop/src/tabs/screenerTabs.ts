@@ -115,7 +115,7 @@ export function renderScreener(ctx: AppContext): void {
         <div id="sector-chips" class="row"></div>
       </div>
       <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:12px">
-        <div><label class="field-label">${t('screener.minscore')}</label><input id="min-score" class="field" type="number" value="0" /></div>
+        <div><label class="field-label">${t('screener.minscore')}</label><input id="min-score" class="field" type="number" placeholder="${t('screener.nolimit')}" title="${t('screener.minscore.hint')}" /></div>
         <div><label class="field-label">${t('screener.signal')}</label><select id="signal-filter" class="field">
           <option value="">${t('opt.any')}</option><option value="BREAKOUT_IMMINENT">Breakout</option><option value="CONSOLIDATING">Consolidating</option></select></div>
         <div><label class="field-label">${t('screener.stage')}</label><select id="stage-filter" class="field">
@@ -171,14 +171,29 @@ async function runScreen(ctx: AppContext): Promise<void> {
   const data = await fetchMany(ctx.data, universe, PERIOD, 8);
   const signal = ($('#signal-filter') as HTMLSelectElement).value;
   const stage = ($('#stage-filter') as HTMLSelectElement).value;
+  // Blank Min score → NO lower limit (−Infinity), so legitimately negative-
+  // scoring stocks (e.g. STX, INTC — whose ATR expanded) are NOT silently
+  // dropped. Only a number the user actually types becomes a floor.
+  const minScoreRaw = ($('#min-score') as HTMLInputElement).value.trim();
+  const minScore = minScoreRaw === '' ? -Infinity : Number(minScoreRaw);
   const res = screen([...data.values()], {
-    minScore: Number(($('#min-score') as HTMLInputElement).value) || 0,
+    minScore,
     signals: signal ? [signal as 'BREAKOUT_IMMINENT' | 'CONSOLIDATING'] : undefined,
     stages: stage ? [Number(stage)] : undefined,
     sortBy: ($('#sort-by') as HTMLSelectElement).value as 'score',
     limit: 200,
   });
-  status.textContent = `${res.matched} match(es) of ${res.scanned} scanned.`;
+
+  // Transparency: explain any gap between what you asked for and what showed up.
+  const fetched = data.size;
+  const fetchDropped = universe.length - fetched; // failed network / 0 bars
+  const tooFew = fetched - res.scanned; // fetched but < 60 bars
+  const filtered = res.scanned - res.matched; // scanned but filtered out
+  const parts: string[] = [`${res.matched} match(es) of ${universe.length} requested`];
+  if (fetchDropped > 0) parts.push(`${fetchDropped} couldn't be fetched (network/rate-limit — click Run to retry)`);
+  if (tooFew > 0) parts.push(`${tooFew} had too little history (<60 bars)`);
+  if (filtered > 0) parts.push(`${filtered} scanned but filtered out (score/signal/stage)`);
+  status.textContent = parts.join(' · ') + '.';
   out.appendChild(
     sortableTable(res.results, {
       sortKey: screenSort.key,

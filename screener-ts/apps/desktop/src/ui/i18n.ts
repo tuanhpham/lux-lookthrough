@@ -52,6 +52,11 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'screener.symbols': { en: 'Symbols (comma separated)', vi: 'Mã cổ phiếu (cách nhau bằng dấu phẩy)' },
   'screener.orsectors': { en: 'Or pick sectors', vi: 'Hoặc chọn ngành' },
   'screener.minscore': { en: 'Min score', vi: 'Điểm tối thiểu' },
+  'screener.nolimit': { en: 'no limit', vi: 'không giới hạn' },
+  'screener.minscore.hint': {
+    en: 'Leave blank for no limit. Scores can be negative (e.g. when volatility expands), so a min of 0 hides those stocks.',
+    vi: 'Để trống = không giới hạn. Điểm có thể âm (vd khi biến động tăng), nên đặt mức tối thiểu 0 sẽ ẩn các cổ phiếu đó.',
+  },
   'screener.signal': { en: 'Signal', vi: 'Tín hiệu' },
   'screener.stage': { en: 'Stage', vi: 'Giai đoạn' },
   'screener.sortby': { en: 'Sort by', vi: 'Sắp xếp theo' },
