@@ -2,8 +2,22 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Screener — TS</title>
+
+    <!-- PWA: installable ("Add to Home Screen"), opens full-screen like an app.
+         The web build registers /sw.js (see main.ts); Tauri ignores it. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0b0e14" />
+    <meta name="description" content="Pattern-based US equity screener: VCP setups, Stage-2 momentum, 0–100 conviction score, charts and paper trading." />
+    <!-- iOS standalone (Safari → Share → Add to Home Screen) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Screener" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
     <!-- Boot-phase error trap: surfaces module import/init failures (which would
          otherwise be a silent black screen). It disarms once the app mounts
          (window.__APP_READY__), so benign runtime errors after load — e.g. a

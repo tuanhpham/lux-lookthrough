@@ -233,3 +233,13 @@ tbody tr:hover { background: var(--cardhover); }
 .playbook-table th, .playbook-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-soft); }
 .playbook-table th { color: var(--faint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
 .playbook-table tr:last-child td { border-bottom: none; }
+
+/* ── PWA / iOS standalone safe areas ───────────────────────────────────────
+   When installed to the Home Screen on iOS the app runs full-screen; pad the
+   shell so content never sits under the notch / home indicator. No effect in
+   a normal browser tab (insets are 0). */
+@media (display-mode: standalone) {
+  #sidebar { padding-top: calc(18px + env(safe-area-inset-top)); }
+  #main { padding-bottom: env(safe-area-inset-bottom); }
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}
