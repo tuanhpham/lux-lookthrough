@@ -56,6 +56,29 @@ export function parseMarkdown(raw: string, fallbackSlug = 'post'): Post | null {
   };
 }
 
+/**
+ * Serialize a Post back into a `.md` string (YAML front matter + body). The
+ * output is byte-compatible with the bundled posts in `posts/`, so a post
+ * authored in the app can be downloaded and dropped into `posts/` to become a
+ * permanent, deployed report (visible in every browser after a redeploy) —
+ * unlike localStorage user posts, which live only in the browser that made them.
+ */
+export function serializeMarkdown(p: Post): string {
+  const fm: Record<string, unknown> = {
+    title: p.title,
+    type: p.type,
+    date: p.date,
+  };
+  if (p.period_start) fm.period_start = p.period_start;
+  if (p.period_end) fm.period_end = p.period_end;
+  if (p.tags?.length) fm.tags = p.tags;
+  if (p.author) fm.author = p.author;
+  if (p.summary) fm.summary = p.summary;
+  fm.status = p.status;
+  const front = yaml.dump(fm, { lineWidth: -1 }).trimEnd();
+  return `---\n${front}\n---\n\n${p.body.trim()}\n`;
+}
+
 function bundledPosts(): Post[] {
   return Object.entries(RAW)
     .map(([path, raw]) => {

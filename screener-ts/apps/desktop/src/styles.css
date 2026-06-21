@@ -213,3 +213,23 @@ tbody tr:hover { background: var(--cardhover); }
 .sector-head:hover { background: var(--cardhover); }
 .sector-rank { width: 28px; height: 28px; border-radius: 999px; background: var(--surface); display: grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--subtext); }
 .sector-detail { border-top: 1px solid var(--border); padding: 10px 14px; }
+
+/* ── Playbook tab ──────────────────────────────────────────────────────── */
+.playbook-section { margin-bottom: 22px; }
+.playbook-pre {
+  margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border-soft);
+  border-radius: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; line-height: 1.55; white-space: pre-wrap; color: var(--subtext);
+}
+.playbook-check {
+  display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; cursor: pointer;
+  font-size: 13px; line-height: 1.45; color: var(--text);
+}
+.playbook-check input { margin-top: 2px; accent-color: var(--accent); }
+.playbook-check input:checked + span { color: var(--faint); text-decoration: line-through; }
+.playbook-list { margin: 0; padding-left: 18px; line-height: 1.7; }
+.playbook-list li { margin-bottom: 4px; }
+.playbook-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.playbook-table th, .playbook-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-soft); }
+.playbook-table th { color: var(--faint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.playbook-table tr:last-child td { border-bottom: none; }
