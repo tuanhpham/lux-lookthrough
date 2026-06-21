@@ -172,11 +172,100 @@ async function refreshRows(ctx: AppContext, force = false): Promise<void> {
 }
 
 // ── Learn (full bilingual glossary, grouped) ────────────────────────────────────
+/**
+ * "How the Conviction Score works" explainer for the Learn page. Mirrors the
+ * exact rubric in packages/core/src/scoring/score.ts so users can understand
+ * (and trust) why a stock scores what it does — and why some names (e.g. a
+ * large-cap not currently in a tight base, or one whose volatility expanded)
+ * legitimately score low or even negative and thus don't pass the filters.
+ */
+function scoreExplainerHtml(lang: 'en' | 'vi'): string {
+  const vi = lang === 'vi';
+  const hl = (s: string) => `<span class="hl">${s}</span>`;
+
+  const intro = vi
+    ? `Mỗi cổ phiếu được chấm một <b>điểm tin cậy (Conviction Score) từ 0–100</b>. Điểm này <b>không</b> đo "tốt/xấu" của công ty — nó đo mức độ cổ phiếu đang ở trong một <b>nền giá chặt, ít biến động, gần điểm bứt phá</b> theo phương pháp VCP / Stage Analysis (Minervini / Weinstein). Điểm cao = thiết lập kỹ thuật đẹp <i>ngay lúc này</i>.`
+    : `Every stock gets a <b>Conviction Score from 0–100</b>. It does <b>not</b> measure whether the company is "good" — it measures how tightly the stock is coiled in a low-volatility base near a breakout, in the VCP / Stage-Analysis style (Minervini / Weinstein). A high score = a clean technical setup <i>right now</i>.`;
+
+  const rows: [string, string, string][] = vi
+    ? [
+        ['Giai đoạn (Stage)', '+25 / +10 / 0', 'Stage 2 (đang tăng giá) +25 · Stage 1 (tạo nền) +10 · còn lại 0'],
+        ['Co thắt biến động (ATR)', '0 → +20', 'Biến động càng co lại càng tốt (đạt tối đa khi co ~30%). Nếu biến động <b>giãn ra</b>, mục này <b>âm</b> và có thể kéo tổng điểm xuống dưới 0.'],
+        ['Độ chặt biên độ giá', '0 → +15', 'Biên độ nền càng hẹp càng cao (5% → +15, 30% → 0).'],
+        ['Cạn thanh khoản', '0 → +15', 'Volume cạn dần trong nền (đạt tối đa khi cạn ~40%).'],
+        ['Số lần co thắt VCP', '0 → +15', 'Mỗi lần co thắt +5 (tối đa 3 lần).'],
+        ['Gần điểm pivot', '0 → +10', 'Càng sát điểm bứt phá càng cao (trong vòng 5%).'],
+      ]
+    : [
+        ['Stage', '+25 / +10 / 0', 'Stage 2 (advancing) +25 · Stage 1 (basing) +10 · otherwise 0'],
+        ['ATR volatility contraction', '0 → +20', 'The more volatility tightens, the better (maxes out around a 30% contraction). If volatility <b>expanded</b>, this term goes <b>negative</b> and can drag the total below 0.'],
+        ['Price-range tightness', '0 → +15', 'Tighter base = higher (5% range → +15, 30% → 0).'],
+        ['Volume dry-up', '0 → +15', 'Volume drying up through the base (maxes around 40%).'],
+        ['VCP contractions', '0 → +15', '+5 per successive contraction (capped at 3).'],
+        ['Proximity to pivot', '0 → +10', 'Closer to the breakout pivot = higher (within 5%).'],
+      ];
+
+  const tableRows = rows
+    .map(
+      ([k, pts, desc]) =>
+        `<tr><td style="white-space:nowrap"><b>${k}</b></td><td style="white-space:nowrap" class="accent">${pts}</td><td class="muted">${desc}</td></tr>`,
+    )
+    .join('');
+
+  const formula = vi
+    ? `Điểm = Stage + ATR + Biên độ + Thanh khoản + VCP + Pivot, sau đó <b>giới hạn trên ≤ 100</b>. Lưu ý: <b>không có giới hạn dưới</b> — nên điểm có thể <b>âm</b> (ví dụ ${hl('STX')}, ${hl('INTC')} khi biến động đang giãn ra).`
+    : `Score = Stage + ATR + Range + Volume + VCP + Pivot, then <b>capped at ≤ 100</b>. Note: there is <b>no lower clamp</b> — so the score can go <b>negative</b> (e.g. ${hl('STX')}, ${hl('INTC')} when volatility is expanding).`;
+
+  const whyEmpty = vi
+    ? [
+        `<b>Top Picks</b> dùng ngưỡng có sẵn: Breakout cần điểm ${hl('≥ 70')}, Momentum ${hl('≥ 55')}, VCP ${hl('≥ 60')}. Cổ phiếu vốn hoá lớn không ở trong nền chặt (vd ${hl('MSFT')}) thường <b>dưới ngưỡng</b> nên không hiện — đây là <b>đúng thiết kế</b>, không phải lỗi.`,
+        `<b>Screener</b>: để trống ô "Min score" = <b>không giới hạn</b> điểm, nên kể cả cổ phiếu điểm âm vẫn hiện. Nếu gõ một mã mà <b>không ra gì</b>, dòng trạng thái sẽ nói rõ lý do: không tải được (rate-limit Yahoo → bấm Run lại), quá ít dữ liệu (&lt;60 phiên), hay bị lọc bởi điểm/tín hiệu/giai đoạn.`,
+        `Một số mã bị <b>bỏ qua âm thầm</b> khi nhà cung cấp dữ liệu trả lỗi/0 dữ liệu trong lần quét đó. Bấm <b>Run</b> lại thường là hiện.`,
+      ]
+    : [
+        `<b>Top Picks</b> uses preset thresholds: Breakout needs score ${hl('≥ 70')}, Momentum ${hl('≥ 55')}, VCP ${hl('≥ 60')}. A large-cap that isn't in a tight base (e.g. ${hl('MSFT')}) is usually <b>below the threshold</b> and won't show — that's <b>by design</b>, not a bug.`,
+        `<b>Screener</b>: leaving "Min score" blank means <b>no score limit</b>, so even negative-scoring names appear. If you type a ticker and get <b>nothing</b>, the status line tells you exactly why: couldn't be fetched (Yahoo rate-limit → click Run again), too little history (&lt;60 bars), or filtered out by score/signal/stage.`,
+        `Some tickers are <b>silently dropped</b> when the data provider errors / returns no data that run. Clicking <b>Run</b> again usually fixes it.`,
+      ];
+
+  const coverage = vi
+    ? `Ứng dụng quét <b>không phải toàn bộ</b> ~6000+ mã niêm yết ở Mỹ. Mặc định quét <b>~543 mã chọn lọc</b> (nhanh); bật ô <b>"Broad"</b> ở Top Picks để quét <b>S&P 500 + 400 + 600 (~1500 mã)</b> lấy từ Wikipedia (chậm hơn). Mã ngoài các danh sách này vẫn xem được chi tiết bằng cách <b>gõ trực tiếp vào Screener</b>.`
+    : `The app does <b>not</b> scan all ~6000+ US-listed tickers. By default it scans a <b>curated ~543 names</b> (fast); turn on the <b>"Broad"</b> toggle in Top Picks to scan the <b>S&P 500 + 400 + 600 (~1500 names)</b> pulled from Wikipedia (slower). Any ticker outside these lists can still be opened by <b>typing it directly into the Screener</b>.`;
+
+  return `
+  <div class="card analysis-card" style="margin-bottom:22px">
+    <h2 style="font-size:15px;margin:0 0 8px">${vi ? '🎯 Điểm được tính như thế nào?' : '🎯 How the Conviction Score works'}</h2>
+    <p class="muted" style="line-height:1.65;margin:0 0 14px">${intro}</p>
+
+    <div class="section-title" style="margin-top:0">${vi ? 'Thang điểm' : 'The rubric'}</div>
+    <div style="overflow-x:auto">
+      <table class="playbook-table">
+        <thead><tr><th>${vi ? 'Thành phần' : 'Component'}</th><th>${vi ? 'Điểm' : 'Points'}</th><th>${vi ? 'Ý nghĩa' : 'Meaning'}</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <p class="muted" style="line-height:1.6;margin:12px 0 0">${formula}</p>
+
+    <div class="section-title">${vi ? 'Vì sao một số mã không hiện?' : 'Why do some stocks not show up?'}</div>
+    <ul class="analysis-list">${whyEmpty.map((i) => `<li>${i}</li>`).join('')}</ul>
+
+    <div class="section-title">${vi ? 'Phạm vi quét (universe)' : 'Scan coverage (universe)'}</div>
+    <p class="muted" style="line-height:1.65;margin:0">${coverage}</p>
+
+    <div class="muted" style="font-size:11px;margin-top:14px">${
+      vi
+        ? 'Mang tính giáo dục — không phải lời khuyên đầu tư.'
+        : 'Educational use only — not financial advice.'
+    }</div>
+  </div>`;
+}
+
 export function renderLearn(): void {
   const root = $('#tab-learn')!;
   const lang = getLang();
-  root.innerHTML = `<h1>${lang === 'vi' ? 'Tìm hiểu thuật ngữ' : 'Learn the Terminology'}</h1>
-    <p class="subtitle">${lang === 'vi' ? 'Mọi chỉ số trong ứng dụng, giải thích dễ hiểu.' : 'Every metric in this app, explained in plain English.'}</p>`;
+  root.innerHTML = `<h1>${lang === 'vi' ? 'Tìm hiểu' : 'Learn'}</h1>
+    <p class="subtitle">${lang === 'vi' ? 'Cách tính điểm, cách lọc, và mọi chỉ số — giải thích dễ hiểu.' : 'How the score is computed, how filtering works, and every metric — in plain English.'}</p>`;
+  root.appendChild(el(scoreExplainerHtml(lang)));
   for (const group of GLOSSARY_GROUPS) {
     const section = el(`<div style="margin-bottom:18px"></div>`);
     section.appendChild(
