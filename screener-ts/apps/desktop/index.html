@@ -52,6 +52,20 @@
     <div id="landing"></div>
 
     <div id="app" class="hidden">
+      <!-- Mobile top bar: only shown on narrow screens. Houses the menu toggle
+           and brand so the sidebar can slide away off-canvas, freeing the full
+           width for content on a vertical phone. -->
+      <header id="topbar">
+        <button id="menu-toggle" class="menu-toggle" aria-label="Menu" aria-expanded="false" aria-controls="sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <button class="topbar-brand" id="topbar-home">
+          <div class="logo logo-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg></div>
+          <span class="brand-name" data-i18n="brand.name">Screener</span>
+        </button>
+      </header>
+      <!-- Dim backdrop behind the open drawer (mobile only). -->
+      <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
       <aside id="sidebar">
         <button class="brand" id="logo-home" title="Back to landing">
           <div class="logo logo-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg></div>

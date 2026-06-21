@@ -164,6 +164,7 @@ tbody tr:hover { background: var(--cardhover); }
   animation: modalIn .26s cubic-bezier(.22,1,.36,1);
 }
 @keyframes modalIn { from { opacity: 0; transform: translateX(50%) translateY(14px) scale(.98); } to { opacity: 1; transform: translateX(50%) translateY(0) scale(1); } }
+@keyframes sheetIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 .modal-head { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--card) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
 #modal-title { font-weight: 700; font-size: 17px; }
 #modal-close { background: 0; border: 0; color: var(--subtext); font-size: 24px; cursor: pointer; }
@@ -242,4 +243,83 @@ tbody tr:hover { background: var(--cardhover); }
   #sidebar { padding-top: calc(18px + env(safe-area-inset-top)); }
   #main { padding-bottom: env(safe-area-inset-bottom); }
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}
+
+/* ── Mobile top bar (hidden on desktop) ─────────────────────────────────────
+   On phones the fixed sidebar wasted ~half the viewport. We hide a top bar with
+   a hamburger here and only reveal it under the responsive breakpoint below. */
+#topbar { display: none; }
+.menu-toggle, .topbar-brand { background: transparent; border: 0; color: var(--text); cursor: pointer; }
+.menu-toggle { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; }
+.menu-toggle:hover { background: var(--cardhover); }
+.menu-toggle svg { width: 22px; height: 22px; }
+.topbar-brand { display: inline-flex; align-items: center; gap: 9px; padding: 4px 6px; font-weight: 700; }
+.topbar-brand .logo { width: 28px; height: 28px; border-radius: 9px; }
+.topbar-brand .logo svg { width: 16px; height: 16px; }
+.sidebar-backdrop { display: none; }
+
+/* ── Responsive: phones & small tablets ─────────────────────────────────────
+   Below 760px the sidebar becomes an off-canvas slide-in drawer so the content
+   gets the full screen width — the optimal pattern for a vertical phone. */
+@media (max-width: 760px) {
+  #app { display: block; }
+
+  /* Top bar: fixed, full width, sits above content (respects iOS notch). */
+  #topbar {
+    display: flex; align-items: center; gap: 6px;
+    position: sticky; top: 0; z-index: 40;
+    height: 54px; padding: 0 8px;
+    padding-top: env(safe-area-inset-top);
+    height: calc(54px + env(safe-area-inset-top));
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Sidebar → off-canvas drawer. */
+  #sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 60;
+    width: min(82vw, 290px); height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform .26s cubic-bezier(.22,1,.36,1);
+    box-shadow: 0 0 40px rgba(0,0,0,.45);
+    padding-top: calc(18px + env(safe-area-inset-top));
+    padding-left: calc(14px + env(safe-area-inset-left));
+    overflow-y: auto;
+  }
+  #app.nav-open #sidebar { transform: translateX(0); }
+
+  /* Backdrop appears with the drawer. */
+  .sidebar-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 55;
+    background: rgba(5,8,14,.5);
+    opacity: 0; pointer-events: none; transition: opacity .26s ease;
+  }
+  #app.nav-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
+
+  /* Bigger tap targets inside the drawer. */
+  .nav-btn { padding: 12px 14px; font-size: 15px; }
+
+  /* Content takes the full width; comfortable phone padding. */
+  #main {
+    max-width: none; margin: 0; width: 100%;
+    padding: 16px 14px calc(40px + env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 21px; }
+  .subtitle { font-size: 13px; margin-bottom: 14px; }
+  .card { padding: 13px; border-radius: 13px; }
+
+  /* Tables scroll horizontally instead of squeezing/overflowing. */
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+
+  /* One column for card grids on a narrow screen. */
+  .grid-cards { grid-template-columns: 1fr; }
+
+  /* Modal/dialog become a full-screen sheet and respect safe areas. */
+  .modal-panel { inset: 0 0 auto 0; transform: none; width: 100%; min-height: 100dvh; max-height: 100dvh; border-radius: 0;
+    animation: sheetIn .26s cubic-bezier(.22,1,.36,1);
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+  /* Toolbars/rows wrap nicely and buttons stay tappable. */
+  .toolbar .btn, .toolbar .btn-outline, .row .btn, .row .btn-outline { padding: 10px 14px; }
 }
