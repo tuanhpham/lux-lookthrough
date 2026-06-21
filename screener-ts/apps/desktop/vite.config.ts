@@ -105,6 +105,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/wiki/, ''),
       },
+      // NASDAQ Trader symbol-directory files (full NASDAQ + NYSE/AMEX universe).
+      '/api/nasdaqtrader': {
+        target: 'https://www.nasdaqtrader.com/dynamic/SymDir',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/nasdaqtrader/, ''),
+      },
     },
   },
   build: {

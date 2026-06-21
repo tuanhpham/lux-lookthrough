@@ -28,7 +28,9 @@
       "scope": [
         "https://query1.finance.yahoo.com/*",
         "https://query2.finance.yahoo.com/*",
-        "https://finnhub.io/*"
+        "https://finnhub.io/*",
+        "https://en.wikipedia.org/*",
+        "https://www.nasdaqtrader.com/*"
       ]
     }
   },

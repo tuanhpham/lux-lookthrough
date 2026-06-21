@@ -5,8 +5,13 @@ import {
   computeSectorVolumeRank,
   SECTOR_STOCKS,
   ALL_SECTORS,
+  scanStock,
+  patternToRow,
+  STRATEGIES,
   type StrategyKey,
   type Period,
+  type ScreenRow,
+  type OHLCV,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num, pct, fmtBig, scoreColor, signalBadge, stageBadge } from '../ui/dom.js';
@@ -14,19 +19,28 @@ import { sortableTable, type SortKey } from '../ui/sortableTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
-import { getBroadUniverse } from '../adapters/universe.js';
+import { getBroadUniverse, getAllUsUniverse } from '../adapters/universe.js';
 
 const PERIOD: Period = '1y';
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
 
 // ── Top Picks ─────────────────────────────────────────────────────────────────
+type UniverseMode = 'curated' | 'broad' | 'all';
 let picksStrategy: StrategyKey = 'breakout';
-let picksBroad = false;
+let picksUniverse: UniverseMode = 'curated';
 let picksSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 let screenSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 
+// Cancellation token for an in-flight scan; bumping it aborts the running scan.
+let scanToken = 0;
+
 export function renderPicks(ctx: AppContext): void {
   const root = $('#tab-picks')!;
+  const uni: [UniverseMode, string][] = [
+    ['curated', t('picks.uni.curated')],
+    ['broad', t('picks.uni.broad')],
+    ['all', t('picks.uni.all')],
+  ];
   root.innerHTML = `
     <h1>${t('picks.title')}</h1>
     <p class="subtitle">${t('picks.sub')}</p>
@@ -39,12 +53,23 @@ export function renderPicks(ctx: AppContext): void {
             )}</button>`,
         )
         .join('')}
-      <label class="row" style="gap:6px;margin-left:auto;cursor:pointer"><input id="picks-broad" type="checkbox" ${
-        picksBroad ? 'checked' : ''
-      } /> ${t('picks.broad')} <span class="muted">${t('common.slower')}</span></label>
-      <button id="picks-refresh" class="btn-outline">${t('picks.run')}</button>
+      <button id="picks-refresh" class="btn-outline" style="margin-left:auto">${t('picks.run')}</button>
+      <button id="picks-stop" class="btn-outline hidden">${t('picks.stop')}</button>
     </div>
-    <div id="picks-status" class="muted" style="margin-bottom:12px"></div>
+    <div class="toolbar" style="margin-top:-4px">
+      <span class="muted" style="font-size:12px">${t('picks.universe')}:</span>
+      ${uni
+        .map(
+          ([m, label]) =>
+            `<button class="range-btn ${m === picksUniverse ? 'active' : ''}" data-universe="${m}">${label}</button>`,
+        )
+        .join('')}
+      <span id="picks-uni-hint" class="muted" style="font-size:11px">${
+        picksUniverse === 'all' ? t('picks.uni.all.hint') : ''
+      }</span>
+    </div>
+    <div id="picks-progress" class="picks-progress hidden"><div id="picks-bar"></div></div>
+    <div id="picks-status" class="muted" style="margin:8px 0 12px"></div>
     <div id="picks-results"></div>`;
 
   root.querySelectorAll<HTMLElement>('[data-strategy]').forEach((b) =>
@@ -54,49 +79,146 @@ export function renderPicks(ctx: AppContext): void {
       void runPicks(ctx);
     }),
   );
-  ($('#picks-broad') as HTMLInputElement).addEventListener('change', (e) => {
-    picksBroad = (e.target as HTMLInputElement).checked;
-    void runPicks(ctx);
-  });
+  root.querySelectorAll<HTMLElement>('[data-universe]').forEach((b) =>
+    b.addEventListener('click', () => {
+      picksUniverse = b.dataset.universe as UniverseMode;
+      root.querySelectorAll('[data-universe]').forEach((x) => x.classList.toggle('active', x === b));
+      $('#picks-uni-hint')!.textContent = picksUniverse === 'all' ? t('picks.uni.all.hint') : '';
+      void runPicks(ctx);
+    }),
+  );
   $('#picks-refresh')!.addEventListener('click', () => void runPicks(ctx));
+  $('#picks-stop')!.addEventListener('click', () => {
+    scanToken++; // abort the running scan loop
+  });
 
   // Auto-run on render (the app enters straight into this tab).
   void runPicks(ctx);
 }
 
+/** Resolve the symbol list for the active universe mode. */
+async function resolveUniverse(mode: UniverseMode): Promise<string[]> {
+  if (mode === 'curated') return CURATED;
+  if (mode === 'broad') return getBroadUniverse();
+  return getAllUsUniverse();
+}
+
+/**
+ * Incremental, cancellable scan. Fetches symbols in batches, scores each batch
+ * as it lands, accumulates matches for the active strategy, and re-renders the
+ * results table + progress bar after every batch. This keeps the UI responsive
+ * (and the browser tab alive) even for the full ~6000-symbol universe, and lets
+ * the user Stop at any time. Failed/dropped symbols are simply skipped — click
+ * Run to retry them.
+ */
 async function runPicks(ctx: AppContext): Promise<void> {
+  const myToken = ++scanToken; // also aborts any previous scan
   const status = $('#picks-status')!;
   const out = $('#picks-results')!;
-  // Broad ON → fetch the full S&P 500/400/600 constituents (~1500) from
-  // Wikipedia; OFF → the fast curated set. Keep concurrency modest so we don't
-  // trip Yahoo's rate limit (which silently drops symbols → fewer scanned).
+  const progress = $('#picks-progress')!;
+  const bar = $('#picks-bar')!;
+  const stopBtn = $('#picks-stop')!;
+  const runBtn = $('#picks-refresh')!;
+
   out.innerHTML = '';
-  status.innerHTML = `<span class="spinner"></span> ${picksBroad ? 'Loading broad universe…' : t('msg.scanning')}`;
-  const symbols = picksBroad ? await getBroadUniverse() : CURATED;
-  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${symbols.length}…`;
-  const data = await fetchMany(ctx.data, symbols, PERIOD, 6);
-  const series = [...data.values()];
-  const res = recommend(series, picksStrategy, 30);
-  const dropped = symbols.length - res.scanned;
-  status.textContent =
-    `${res.matched} ${res.strategyLabel} setup(s) from ${res.scanned}/${symbols.length} scanned` +
-    (dropped > 0 ? ` (${dropped} unavailable this run — click Run to retry)` : '') +
-    '.';
-  if (!res.results.length) {
-    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No setups matched.</div>`;
+  progress.classList.remove('hidden');
+  stopBtn.classList.remove('hidden');
+  runBtn.classList.add('hidden');
+  bar.style.width = '0%';
+  status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
+
+  const finish = (): void => {
+    progress.classList.add('hidden');
+    stopBtn.classList.add('hidden');
+    runBtn.classList.remove('hidden');
+  };
+
+  let symbols: string[];
+  try {
+    symbols = await resolveUniverse(picksUniverse);
+  } catch {
+    symbols = CURATED;
+  }
+  if (myToken !== scanToken) return; // superseded while loading the list
+
+  const cfg = STRATEGIES[picksStrategy] ?? STRATEGIES.breakout;
+  const strategyLabel = cfg.label;
+  // Larger universes use bigger batches but the same modest per-batch concurrency
+  // so we don't hammer Yahoo (which rate-limits → dropped symbols).
+  const BATCH = picksUniverse === 'all' ? 120 : 60;
+  const CONCURRENCY = 6;
+
+  const matches: ScreenRow[] = [];
+  let scanned = 0;
+  let fetched = 0;
+
+  const renderTable = (): void => {
+    matches.sort((a, b) => b.score - a.score);
+    const top = matches.slice(0, 50);
+    out.replaceChildren(
+      sortableTable(top, {
+        sortKey: picksSort.key,
+        sortDesc: picksSort.desc,
+        onRowClick: (sym) => void openStock(ctx, sym),
+        onSortChange: (key, desc) => {
+          picksSort = { key, desc };
+        },
+      }),
+    );
+  };
+
+  for (let i = 0; i < symbols.length; i += BATCH) {
+    if (myToken !== scanToken) {
+      // Stopped or superseded.
+      status.textContent =
+        `${t('picks.stopped')} — ${matches.length} ${strategyLabel} ${t('picks.matches')}, ` +
+        `${scanned}/${symbols.length} ${t('picks.scanned')}.`;
+      if (matches.length) renderTable();
+      finish();
+      return;
+    }
+    const batch = symbols.slice(i, i + BATCH);
+    const data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
+    if (myToken !== scanToken) continue; // will be caught at loop top
+
+    fetched += data.size;
+    for (const series of data.values() as IterableIterator<OHLCV>) {
+      if (!series.bars || series.bars.length < 60) continue;
+      scanned += 1;
+      const p = scanStock(series.symbol, series.bars);
+      // Same preset filters as core's recommend(): score, signal/stage, VCP.
+      if (p.score < cfg.minScore) continue;
+      if (cfg.signals && !cfg.signals.has(p.signal)) continue;
+      if (cfg.stages && !cfg.stages.has(p.stage.stage)) continue;
+      if (cfg.minVcp != null && (p.consolidation.vcpContractions ?? 0) < cfg.minVcp) continue;
+      matches.push(patternToRow(p));
+    }
+
+    const doneCount = Math.min(i + BATCH, symbols.length);
+    bar.style.width = `${Math.round((doneCount / symbols.length) * 100)}%`;
+    status.innerHTML =
+      `<span class="spinner"></span> ${t('msg.scanning')} ${doneCount}/${symbols.length} — ` +
+      `${matches.length} ${strategyLabel} ${t('picks.matches')}`;
+    renderTable();
+    // Yield to the event loop so the UI paints and stays responsive.
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  if (myToken !== scanToken) {
+    finish();
     return;
   }
-  out.innerHTML = '';
-  out.appendChild(
-    sortableTable(res.results, {
-      sortKey: picksSort.key,
-      sortDesc: picksSort.desc,
-      onRowClick: (sym) => void openStock(ctx, sym),
-      onSortChange: (key, desc) => {
-        picksSort = { key, desc };
-      },
-    }),
-  );
+  const dropped = symbols.length - fetched;
+  status.textContent =
+    `${t('picks.done')}: ${matches.length} ${strategyLabel} setup(s) from ${scanned}/${symbols.length} ${t('picks.scanned')}` +
+    (dropped > 0 ? ` (${dropped} ${t('picks.unavailable')} — ${t('picks.run')})` : '') +
+    '.';
+  if (!matches.length) {
+    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No setups matched.</div>`;
+  } else {
+    renderTable();
+  }
+  finish();
 }
 
 // ── Screener ────────────────────────────────────────────────────────────────────
