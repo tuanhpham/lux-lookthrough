@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-i18n="pageTitle">Trading System Playbook</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-card: #131a2e;
+    --bg-card-hover: #1a2238;
+    --border: #243049;
+    --text: #e6ebf5;
+    --text-dim: #8b97b3;
+    --accent: #4f8cff;
+    --accent-soft: rgba(79,140,255,0.12);
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --radius: 16px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(900px 500px at 80% -10%, rgba(79,140,255,0.10), transparent 60%),
+      radial-gradient(700px 500px at -10% 20%, rgba(52,211,153,0.06), transparent 55%);
+    pointer-events: none; z-index: 0;
+  }
+  .wrap { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 0 20px 80px; }
+
+  /* Header */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    background: rgba(10,14,26,0.82);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner {
+    max-width: 980px; margin: 0 auto; padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .dot {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), #7b5cff);
+    display: grid; place-items: center; font-weight: 800; font-size: 18px;
+    box-shadow: 0 4px 16px rgba(79,140,255,0.4);
+  }
+  .brand h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand p { font-size: 12px; color: var(--text-dim); }
+
+  .lang-toggle {
+    display: flex; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px; gap: 2px;
+  }
+  .lang-toggle button {
+    border: none; background: transparent; color: var(--text-dim);
+    padding: 6px 14px; border-radius: 999px; cursor: pointer;
+    font-size: 13px; font-weight: 600; transition: all .2s;
+  }
+  .lang-toggle button.active { background: var(--accent); color: #fff; }
+
+  /* Hero */
+  .hero { padding: 48px 0 28px; }
+  .hero h2 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+  .hero .sub { color: var(--text-dim); margin-top: 12px; font-size: 15px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+  .badge {
+    font-size: 12px; padding: 6px 12px; border-radius: 999px;
+    background: var(--accent-soft); border: 1px solid rgba(79,140,255,0.25);
+    color: #aecbff; font-weight: 600;
+  }
+
+  /* Section */
+  section { margin-top: 40px; }
+  .sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .sec-head .num {
+    width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+    background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    border: 1px solid rgba(79,140,255,0.25);
+  }
+  .sec-head h3 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px 24px; margin-bottom: 14px;
+    box-shadow: var(--shadow); transition: border-color .2s;
+  }
+  .card:hover { border-color: rgba(79,140,255,0.3); }
+  .card p { color: var(--text-dim); margin: 8px 0; }
+  .card p strong { color: var(--text); }
+
+  .principles { display: grid; gap: 12px; }
+  .principle {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 14px 16px; background: var(--bg); border-radius: 12px;
+    border-left: 3px solid var(--accent);
+  }
+  .principle .ico { font-size: 20px; flex-shrink: 0; }
+  .principle div { font-size: 14px; }
+  .principle b { color: var(--text); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 540px; }
+  th { background: var(--bg); color: var(--text-dim); font-weight: 600; text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td { padding: 12px 16px; border-top: 1px solid var(--border); color: var(--text-dim); }
+  td:first-child { color: var(--text); font-weight: 600; }
+  tr:hover td { background: var(--bg-card-hover); }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ""; position: absolute; left: 7px; top: 6px; bottom: 6px; width: 2px; background: var(--border); }
+  .tl-item { position: relative; margin-bottom: 20px; }
+  .tl-item::before {
+    content: ""; position: absolute; left: -28px; top: 5px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--bg); border: 3px solid var(--accent);
+  }
+  .tl-item .when { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+  .tl-item .what { color: var(--text-dim); font-size: 14px; margin-top: 4px; }
+  .tl-item .what b { color: var(--text); }
+
+  /* Traffic lights */
+  .lights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .light-market { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .light-market .mname { font-weight: 700; font-size: 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .light-bulbs { display: flex; gap: 12px; justify-content: center; }
+  .bulb {
+    width: 46px; height: 46px; border-radius: 50%; cursor: pointer;
+    border: 2px solid var(--border); background: #1c2338; transition: all .2s;
+    display: grid; place-items: center; font-size: 11px; color: var(--text-dim); font-weight: 700;
+  }
+  .bulb:hover { transform: scale(1.08); }
+  .bulb.on.g { background: var(--green); border-color: var(--green); box-shadow: 0 0 18px rgba(52,211,153,0.6); color: #06281c; }
+  .bulb.on.a { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 18px rgba(251,191,36,0.6); color: #3a2a04; }
+  .bulb.on.r { background: var(--red); border-color: var(--red); box-shadow: 0 0 18px rgba(248,113,113,0.6); color: #340e0e; }
+  .light-status { text-align: center; margin-top: 12px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+
+  /* Watchlist editor */
+  .wl-toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .wl-btn {
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+    padding: 8px 16px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all .2s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .wl-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .wl-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .wl-btn.primary:hover { opacity: .9; color: #fff; }
+  .wl-btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .wl-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+  .wl-table th { background: var(--bg); color: var(--text-dim); font-weight: 600; text-align: left; padding: 10px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .wl-table td { padding: 4px 6px; border-top: 1px solid var(--border); }
+  .wl-table input, .wl-table textarea {
+    width: 100%; background: transparent; border: 1px solid transparent; color: var(--text);
+    padding: 8px 8px; border-radius: 7px; font-size: 13px; font-family: inherit; resize: vertical;
+  }
+  .wl-table input:hover, .wl-table textarea:hover { border-color: var(--border); }
+  .wl-table input:focus, .wl-table textarea:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+  .wl-row-del {
+    border: none; background: transparent; color: var(--text-dim); cursor: pointer;
+    font-size: 16px; padding: 6px 8px; border-radius: 6px; line-height: 1;
+  }
+  .wl-row-del:hover { color: var(--red); background: rgba(248,113,113,0.1); }
+  .wl-empty { text-align: center; color: var(--text-dim); padding: 24px; font-size: 13px; }
+  .saved-flash { font-size: 12px; color: var(--green); opacity: 0; transition: opacity .3s; align-self: center; }
+  .saved-flash.show { opacity: 1; }
+
+  /* Prompt blocks */
+  .prompt {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 14px; overflow: hidden;
+  }
+  .prompt-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; background: var(--bg-card); border-bottom: 1px solid var(--border);
+  }
+  .prompt-head .title { display: flex; align-items: center; gap: 10px; }
+  .prompt-head .tag { font-size: 11px; padding: 3px 9px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  .prompt-head .title span { font-weight: 600; font-size: 14px; }
+  .copy-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--text-dim);
+    padding: 6px 13px; border-radius: 8px; cursor: pointer; font-size: 12px;
+    font-weight: 600; transition: all .2s; display: flex; align-items: center; gap: 6px;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { border-color: var(--green); color: var(--green); }
+  .prompt-body { padding: 16px 18px; font-size: 14px; color: var(--text-dim); white-space: pre-wrap; }
+
+  /* Notes / disclaimer */
+  .note {
+    display: flex; gap: 12px; padding: 16px 18px; border-radius: 12px;
+    background: var(--bg); border: 1px solid var(--border); margin-bottom: 12px;
+  }
+  .note .ico { font-size: 18px; flex-shrink: 0; }
+  .note div { font-size: 14px; color: var(--text-dim); }
+  .note b { color: var(--text); }
+  .disclaimer {
+    border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.06);
+  }
+  .disclaimer .ico { color: var(--amber); }
+
+  footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); text-align: center; color: var(--text-dim); font-size: 13px; }
+
+  [data-lang-en] { display: none; }
+  html[data-active="en"] [data-lang-vi] { display: none; }
+  html[data-active="en"] [data-lang-en] { display: inline; }
+  html[data-active="en"] .prompt-body[data-lang-vi],
+  html[data-active="vi"] .prompt-body[data-lang-en] { display: none; }
+  html[data-active="en"] .prompt-body[data-lang-en] { display: block; }
+
+  @media print {
+    header, .lang-toggle, .wl-toolbar, .wl-btn, .copy-btn, .wl-row-del, body::before { display: none !important; }
+    body { background: #fff; color: #000; }
+    .card, .prompt, .note, .light-market { border-color: #ccc; box-shadow: none; background: #fff; }
+    .prompt-body, .card p, .what, .note div { color: #222 !important; }
+    .bulb:not(.on) { display: none; }
+  }
+
+  @media (max-width: 640px) {
+    .hero h2 { font-size: 25px; }
+    .sec-head h3 { font-size: 18px; }
+    .card { padding: 18px; }
+    .brand p { display: none; }
+    .lights-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="dot">↗</div>
+      <div>
+        <h1><span data-lang-vi>Sổ Tay Giao Dịch</span><span data-lang-en>Trading Playbook</span></h1>
+        <p><span data-lang-vi>Hệ thống Swing · Mỹ + Việt Nam</span><span data-lang-en>Swing System · US + Vietnam</span></p>
+      </div>
+    </div>
+    <div class="lang-toggle">
+      <button id="btn-vi" class="active" onclick="setLang('vi')">VI</button>
+      <button id="btn-en" onclick="setLang('en')">EN</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <h2>
+      <span data-lang-vi>Hệ thống giao dịch top-down</span>
+      <span data-lang-en>Top-Down Trading System</span>
+    </h2>
+    <p class="sub">
+      <span data-lang-vi>Vĩ mô → Dòng tiền & Ngành → Setup kỹ thuật (VCP / Pivot). Trên hết là quản trị rủi ro.</span>
+      <span data-lang-en>Macro → Money Flow & Sectors → Technical Setup (VCP / Pivot). Risk management above all.</span>
+    </p>
+    <div class="badges">
+      <span class="badge"><span data-lang-vi>Khung Swing: vài tuần – vài tháng</span><span data-lang-en>Swing: weeks to months</span></span>
+      <span class="badge"><span data-lang-vi>Thị trường Mỹ + Việt Nam</span><span data-lang-en>US + Vietnam markets</span></span>
+      <span class="badge">VCP · Pivot · RS</span>
+    </div>
+  </div>
+
+  <!-- I. Philosophy -->
+  <section>
+    <div class="sec-head">
+      <div class="num">I</div>
+      <h3><span data-lang-vi>Triết lý cốt lõi</span><span data-lang-en>Core Philosophy</span></h3>
+    </div>
+    <div class="card">
+      <p>
+        <span data-lang-vi>Hệ thống đi từ trên xuống, không bao giờ ngược lại: vĩ mô xác định <strong>có nên đánh không</strong> → dòng tiền/ngành xác định <strong>đánh ở đâu</strong> → setup kỹ thuật xác định <strong>đánh điểm nào</strong>. Trên cùng tất cả là quản trị rủi ro.</span>
+        <span data-lang-en>The system works top-down, never the reverse: macro decides <strong>whether to trade</strong> → money flow/sectors decide <strong>where</strong> → technical setup decides <strong>the exact entry</strong>. Above everything sits risk management.</span>
+      </p>
+      <div class="principles" style="margin-top:14px">
+        <div class="principle"><span class="ico">📈</span><div><span data-lang-vi><b>Mua sức mạnh, không bắt đáy.</b> Chỉ vào lệnh khi giá phá vỡ pivot kèm khối lượng bùng nổ.</span><span data-lang-en><b>Buy strength, never bottoms.</b> Only enter on a pivot breakout with surging volume.</span></div></div>
+        <div class="principle"><span class="ico">✂️</span><div><span data-lang-vi><b>Cắt lỗ định trước.</b> Đặt điểm dừng lỗ trước khi vào lệnh và không bao giờ dời xuống.</span><span data-lang-en><b>Pre-defined stop-loss.</b> Set your stop before entering and never move it down.</span></div></div>
+        <div class="principle"><span class="ico">⚖️</span><div><span data-lang-vi><b>Rủi ro cố định nhỏ.</b> Mỗi lệnh chỉ mạo hiểm 0,5–1% tài khoản. R/R tối thiểu 1:2.</span><span data-lang-en><b>Small fixed risk.</b> Risk only 0.5–1% of the account per trade. Minimum 1:2 reward/risk.</span></div></div>
+        <div class="principle"><span class="ico">🧊</span><div><span data-lang-vi><b>Quyết định khi đầu óc lạnh.</b> Lập kế hoạch lúc thị trường đóng cửa; trong phiên chỉ thực thi.</span><span data-lang-en><b>Decide with a cool head.</b> Plan when markets are closed; during sessions only execute.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- II. Data Map -->
+  <section>
+    <div class="sec-head">
+      <div class="num">II</div>
+      <h3><span data-lang-vi>Bản đồ nguồn dữ liệu</span><span data-lang-en>Data Source Map</span></h3>
+    </div>
+
+    <div class="card">
+      <p style="margin-bottom:14px"><strong><span data-lang-vi>Tầng 1 — Vĩ mô & lịch sự kiện</span><span data-lang-en>Layer 1 — Macro & Event Calendar</span></strong></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th><span data-lang-vi>Mục đích</span><span data-lang-en>Purpose</span></th>
+            <th><span data-lang-vi>Thị trường Mỹ</span><span data-lang-en>US Market</span></th>
+            <th><span data-lang-vi>Thị trường Việt Nam</span><span data-lang-en>Vietnam Market</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td><span data-lang-vi>Dữ liệu kinh tế gốc</span><span data-lang-en>Core economic data</span></td><td>FRED (fred.stlouisfed.org)</td><td>Vietstock, FiinTrade</td></tr>
+            <tr><td><span data-lang-vi>Lịch sự kiện</span><span data-lang-en>Event calendar</span></td><td>Investing.com, NY Fed</td><td>Vietstock, <span data-lang-vi>lịch NHNN</span><span data-lang-en>SBV calendar</span></td></tr>
+            <tr><td><span data-lang-vi>Phong vũ biểu rủi ro</span><span data-lang-en>Risk barometers</span></td><td>10Y yield, DXY, oil, gold, VIX (TradingView/MacroMicro)</td><td>USD/VND, <span data-lang-vi>lãi suất liên ngân hàng</span><span data-lang-en>interbank rates</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <p style="margin-bottom:14px"><strong><span data-lang-vi>Tầng 2 — Dòng tiền & ngành</span><span data-lang-en>Layer 2 — Money Flow & Sectors</span></strong></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th><span data-lang-vi>Mục đích</span><span data-lang-en>Purpose</span></th>
+            <th><span data-lang-vi>Thị trường Mỹ</span><span data-lang-en>US Market</span></th>
+            <th><span data-lang-vi>Thị trường Việt Nam</span><span data-lang-en>Vietnam Market</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td><span data-lang-vi>Luân chuyển ngành</span><span data-lang-en>Sector rotation</span></td><td>RRG (TradingView / StockCharts)</td><td>FiinTrade <span data-lang-vi>(dòng tiền theo ngành)</span><span data-lang-en>(flow by sector)</span></td></tr>
+            <tr><td><span data-lang-vi>Dòng tiền chủ đạo</span><span data-lang-en>Dominant flow</span></td><td>Volume, breadth (A/D)</td><td><span data-lang-vi>Khối ngoại mua/bán ròng: Dstock, Vietstock, 24hMoney</span><span data-lang-en>Foreign net flow: Dstock, Vietstock, 24hMoney</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <p style="margin-bottom:14px"><strong><span data-lang-vi>Tầng 3 — Lọc cổ phiếu & setup</span><span data-lang-en>Layer 3 — Stock Screening & Setup</span></strong></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th><span data-lang-vi>Mục đích</span><span data-lang-en>Purpose</span></th>
+            <th><span data-lang-vi>Thị trường Mỹ</span><span data-lang-en>US Market</span></th>
+            <th><span data-lang-vi>Thị trường Việt Nam</span><span data-lang-en>Vietnam Market</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td>Trend Template / VCP</td><td>TradingView Pine screener, TrendSpider, ChartMill</td><td><span data-lang-vi>FiinTrade, SSI iBoard, Vietstock (lọc tay: MA + RS + volume)</span><span data-lang-en>FiinTrade, SSI iBoard, Vietstock (manual: MA + RS + volume)</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- III. Routine -->
+  <section>
+    <div class="sec-head">
+      <div class="num">III</div>
+      <h3><span data-lang-vi>Lịch routine theo nhịp</span><span data-lang-en>Routine Rhythm</span></h3>
+    </div>
+    <div class="card">
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="when"><span data-lang-vi>Mỗi sáng · trước 9h · 20–30 phút</span><span data-lang-en>Each morning · before 9AM · 20–30 min</span></div>
+          <div class="what"><span data-lang-vi>Đọc <b>"bản tin đêm qua của Mỹ"</b> → cập nhật đèn giao thông cho phiên VN → xác định tâm thế chủ động hay phòng thủ. <b>(Prompt 1)</b></span><span data-lang-en>Read the <b>"US overnight brief"</b> → update the traffic light for the VN session → set an offensive or defensive stance. <b>(Prompt 1)</b></span></div>
+        </div>
+        <div class="tl-item">
+          <div class="when"><span data-lang-vi>Trong phiên VN · 9h–15h</span><span data-lang-en>During VN session · 9AM–3PM</span></div>
+          <div class="what"><span data-lang-vi>Không dán mắt cả ngày. Chỉ theo dõi VN-Index quanh mốc kỹ thuật, khối ngoại, và <b>hành động khi mã trong watchlist chạm pivot kèm khối lượng.</b></span><span data-lang-en>Don't watch all day. Only track VN-Index around key levels, foreign flow, and <b>act when a watchlist stock hits its pivot with volume.</b></span></div>
+        </div>
+        <div class="tl-item">
+          <div class="when"><span data-lang-vi>Mỗi tối · 30–45 phút</span><span data-lang-en>Each evening · 30–45 min</span></div>
+          <div class="what"><span data-lang-vi>Tổng kết phiên VN + ghi nhật ký → chuẩn bị phiên Mỹ, rà watchlist Mỹ, đặt lệnh chờ. <b>(Prompt 2)</b></span><span data-lang-en>Recap the VN session + journal → prep the US session, review US watchlist, set pending orders. <b>(Prompt 2)</b></span></div>
+        </div>
+        <div class="tl-item">
+          <div class="when"><span data-lang-vi>Mỗi cuối tuần · 2–3 tiếng · quan trọng nhất</span><span data-lang-en>Each weekend · 2–3 hours · most important</span></div>
+          <div class="what"><span data-lang-vi>Vẽ <b>"bản đồ trận địa"</b> tuần tới: vĩ mô → sức khỏe thị trường → ngành → watchlist với điểm mua/cắt lỗ/khối lượng định sẵn. <b>(Prompt 3)</b></span><span data-lang-en>Draw the <b>"battle map"</b> for the week: macro → market health → sectors → watchlist with pre-set entry/stop/size. <b>(Prompt 3)</b></span></div>
+        </div>
+        <div class="tl-item">
+          <div class="when"><span data-lang-vi>Mỗi tháng · một buổi</span><span data-lang-en>Each month · one session</span></div>
+          <div class="what"><span data-lang-vi>Bức tranh lớn về chu kỳ & chính sách + <b>review hiệu suất bản thân</b> từ nhật ký (tỷ lệ thắng, R/R, lỗi lặp lại). <b>(Prompt 4)</b></span><span data-lang-en>The big picture on cycle & policy + <b>review your own performance</b> from the journal (win rate, R/R, recurring mistakes). <b>(Prompt 4)</b></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Traffic Light Widget -->
+  <section>
+    <div class="sec-head">
+      <div class="num">★</div>
+      <h3><span data-lang-vi>Đèn giao thông thị trường</span><span data-lang-en>Market Traffic Light</span></h3>
+    </div>
+    <div class="card">
+      <p style="margin-bottom:16px"><span data-lang-vi>Bấm chọn trạng thái mỗi thị trường. <b>Xanh</b> = đánh mạnh · <b>Vàng</b> = giảm tỷ trọng · <b>Đỏ</b> = đứng ngoài/giữ tiền mặt. Trạng thái được tự lưu.</span><span data-lang-en>Click to set each market's state. <b>Green</b> = trade actively · <b>Amber</b> = reduce exposure · <b>Red</b> = stand aside/cash. State is saved automatically.</span></p>
+      <div class="lights-grid">
+        <div class="light-market" data-market="us">
+          <div class="mname">🇺🇸 <span data-lang-vi>Thị trường Mỹ</span><span data-lang-en>US Market</span></div>
+          <div class="light-bulbs">
+            <div class="bulb r" data-color="r" onclick="setLight(this)">R</div>
+            <div class="bulb a" data-color="a" onclick="setLight(this)">A</div>
+            <div class="bulb g" data-color="g" onclick="setLight(this)">G</div>
+          </div>
+          <div class="light-status">—</div>
+        </div>
+        <div class="light-market" data-market="vn">
+          <div class="mname">🇻🇳 <span data-lang-vi>Thị trường Việt Nam</span><span data-lang-en>Vietnam Market</span></div>
+          <div class="light-bulbs">
+            <div class="bulb r" data-color="r" onclick="setLight(this)">R</div>
+            <div class="bulb a" data-color="a" onclick="setLight(this)">A</div>
+            <div class="bulb g" data-color="g" onclick="setLight(this)">G</div>
+          </div>
+          <div class="light-status">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Watchlist Editor -->
+  <section>
+    <div class="sec-head">
+      <div class="num">★</div>
+      <h3><span data-lang-vi>Nhật ký Watchlist</span><span data-lang-en>Watchlist Journal</span></h3>
+    </div>
+    <div class="card">
+      <div class="wl-toolbar">
+        <button class="wl-btn primary" onclick="addRow()"><span data-lang-vi>+ Thêm dòng</span><span data-lang-en>+ Add row</span></button>
+        <button class="wl-btn" onclick="exportJSON()"><span data-lang-vi>⤓ Xuất dữ liệu</span><span data-lang-en>⤓ Export data</span></button>
+        <button class="wl-btn" onclick="window.print()"><span data-lang-vi>🖨 In / Lưu PDF</span><span data-lang-en>🖨 Print / Save PDF</span></button>
+        <button class="wl-btn danger" onclick="clearAll()"><span data-lang-vi>Xóa hết</span><span data-lang-en>Clear all</span></button>
+        <span class="saved-flash" id="savedFlash"><span data-lang-vi>✓ Đã lưu</span><span data-lang-en>✓ Saved</span></span>
+      </div>
+      <div class="table-wrap">
+        <table class="wl-table">
+          <thead><tr>
+            <th><span data-lang-vi>Mã</span><span data-lang-en>Ticker</span></th>
+            <th><span data-lang-vi>TT</span><span data-lang-en>Mkt</span></th>
+            <th><span data-lang-vi>Điểm mua (Pivot)</span><span data-lang-en>Entry (Pivot)</span></th>
+            <th><span data-lang-vi>Cắt lỗ</span><span data-lang-en>Stop</span></th>
+            <th><span data-lang-vi>Khối lượng</span><span data-lang-en>Size</span></th>
+            <th><span data-lang-vi>Lý do / Ghi chú</span><span data-lang-en>Reason / Notes</span></th>
+            <th></th>
+          </tr></thead>
+          <tbody id="wlBody"></tbody>
+        </table>
+      </div>
+      <div class="wl-empty" id="wlEmpty"><span data-lang-vi>Chưa có mã nào. Bấm "+ Thêm dòng" để bắt đầu.</span><span data-lang-en>No tickers yet. Click "+ Add row" to start.</span></div>
+    </div>
+  </section>
+
+  <!-- IV. Prompts -->
+  <section>
+    <div class="sec-head">
+      <div class="num">IV</div>
+      <h3><span data-lang-vi>Bộ prompt cho Agent</span><span data-lang-en>Agent Prompt Library</span></h3>
+    </div>
+
+    <div class="prompt">
+      <div class="prompt-head">
+        <div class="title"><span class="tag">P1</span><span data-lang-vi>Sáng · Bản tin đêm qua của Mỹ</span><span data-lang-en>Morning · US Overnight Brief</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this)"><span data-lang-vi>Sao chép</span><span data-lang-en>Copy</span></button>
+      </div>
+      <div class="prompt-body" data-lang-vi>Tổng hợp diễn biến phiên Mỹ đêm qua: (1) S&P 500, Nasdaq, Dow đóng cửa thế nào và khối lượng ra sao; (2) lợi suất 10 năm, DXY, dầu, vàng, VIX ở mức nào và thay đổi ra sao; (3) tin vĩ mô/chính trị lớn nào tác động; (4) ngành nào dẫn dắt, ngành nào bị bán. Kết luận: risk-on hay risk-off, hàm ý gì cho phiên Việt Nam hôm nay. Trình bày ngắn gọn, nêu nguồn cho các số liệu chính.</div>
+      <div class="prompt-body" data-lang-en>Summarize last night's US session: (1) how S&P 500, Nasdaq, Dow closed and their volume; (2) 10-year yield, DXY, oil, gold, VIX levels and changes; (3) any major macro/political news; (4) which sectors led, which were sold. Conclude: risk-on or risk-off, and what it implies for today's Vietnam session. Keep it concise and cite sources for key figures.</div>
+    </div>
+
+    <div class="prompt">
+      <div class="prompt-head">
+        <div class="title"><span class="tag">P2</span><span data-lang-vi>Tối · Tổng kết phiên Việt Nam</span><span data-lang-en>Evening · Vietnam Session Recap</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this)"><span data-lang-vi>Sao chép</span><span data-lang-en>Copy</span></button>
+      </div>
+      <div class="prompt-body" data-lang-vi>Tổng hợp phiên VN-Index hôm nay: điểm số, khối lượng, độ rộng thị trường; giá trị mua/bán ròng khối ngoại và họ tập trung mã/ngành nào; nhóm ngành mạnh/yếu nhất phiên. Đối chiếu trạng thái đèn giao thông tôi đang theo dõi và nêu nếu có tín hiệu cần chú ý cho tuần.</div>
+      <div class="prompt-body" data-lang-en>Summarize today's VN-Index session: index level, volume, market breadth; foreign net buy/sell value and which stocks/sectors they focused on; strongest and weakest sectors. Cross-check against the traffic-light status I track and flag any signals worth noting for the week.</div>
+    </div>
+
+    <div class="prompt">
+      <div class="prompt-head">
+        <div class="title"><span class="tag">P3</span><span data-lang-vi>Cuối tuần · Bản đồ trận địa tuần tới</span><span data-lang-en>Weekend · Battle Map for the Week</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this)"><span data-lang-vi>Sao chép</span><span data-lang-en>Copy</span></button>
+      </div>
+      <div class="prompt-body" data-lang-vi>Làm báo cáo cuối tuần gồm 4 phần theo thứ tự: (1) Vĩ mô — dữ liệu kinh tế quan trọng tuần qua của Mỹ và VN, thị trường phản ứng thế nào, và lịch sự kiện rủi ro tuần tới kèm ngày (CPI, PCE, họp Fed, đáo hạn phái sinh...); (2) Sức khỏe thị trường — vị thế các chỉ số chính Mỹ và VN so với MA50/MA200, độ rộng, xu hướng mạnh lên hay yếu đi; (3) Luân chuyển ngành — ngành nào RS mạnh nhất mỗi thị trường, tiền chảy vào/ra đâu; (4) đề xuất nhóm ngành ưu tiên săn cổ phiếu tuần tới. Cuối báo cáo nêu rõ nguồn.</div>
+      <div class="prompt-body" data-lang-en>Write a weekend report in 4 ordered parts: (1) Macro — key economic data from the US and VN this past week, how markets reacted, and next week's risk events with dates (CPI, PCE, Fed meeting, derivatives expiry...); (2) Market health — where the main US and VN indices sit vs MA50/MA200, breadth, whether the trend is strengthening or weakening; (3) Sector rotation — which sectors have the strongest RS in each market, where money is flowing in/out; (4) propose priority sectors to hunt stocks in next week. Cite sources at the end.</div>
+    </div>
+
+    <div class="prompt">
+      <div class="prompt-head">
+        <div class="title"><span class="tag">P4</span><span data-lang-vi>Tháng · Bức tranh lớn</span><span data-lang-en>Monthly · The Big Picture</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this)"><span data-lang-vi>Sao chép</span><span data-lang-en>Copy</span></button>
+      </div>
+      <div class="prompt-body" data-lang-vi>Đánh giá tổng quan tháng: chu kỳ kinh tế đang ở giai đoạn nào, định hướng chính sách tiền tệ Fed và NHNN có thay đổi gì, chủ đề vĩ mô/địa chính trị lớn đang chi phối dòng tiền toàn cầu, và hàm ý cho việc phân bổ vốn giữa thị trường Mỹ và Việt Nam.</div>
+      <div class="prompt-body" data-lang-en>Give a monthly overview: which stage of the economic cycle we're in, any shifts in Fed and SBV monetary policy direction, the major macro/geopolitical themes driving global money flows, and the implications for allocating capital between the US and Vietnam markets.</div>
+    </div>
+
+    <div class="prompt">
+      <div class="prompt-head">
+        <div class="title"><span class="tag">P5</span><span data-lang-vi>Bổ trợ · Phân tích một cổ phiếu</span><span data-lang-en>Bonus · Single-Stock Analysis</span></div>
+        <button class="copy-btn" onclick="copyPrompt(this)"><span data-lang-vi>Sao chép</span><span data-lang-en>Copy</span></button>
+      </div>
+      <div class="prompt-body" data-lang-vi>Phân tích [MÃ]: (1) có đạt Trend Template không (giá so với MA50/150/200, hướng MA, RS so với chỉ số); (2) đang hình thành VCP hay gần pivot không, mô tả cấu trúc nền giá và khối lượng; (3) bối cảnh ngành và dòng tiền; (4) các mốc kỹ thuật quan trọng. Không đưa khuyến nghị mua/bán — chỉ mô tả dữ kiện để tôi tự quyết định.</div>
+      <div class="prompt-body" data-lang-en>Analyze [TICKER]: (1) does it meet the Trend Template (price vs MA50/150/200, MA direction, RS vs index); (2) is it forming a VCP or near a pivot — describe the base structure and volume; (3) sector context and money flow; (4) key technical levels. Do not give buy/sell recommendations — only describe the facts so I can decide for myself.</div>
+    </div>
+  </section>
+
+  <!-- V. Journal + Notes -->
+  <section>
+    <div class="sec-head">
+      <div class="num">V</div>
+      <h3><span data-lang-vi>Dặn dò vận hành</span><span data-lang-en>Operating Reminders</span></h3>
+    </div>
+    <div class="note">
+      <span class="ico">🤖</span>
+      <div><span data-lang-vi><b>Agent là trợ lý tổng hợp, không phải nguồn chân lý.</b> Mọi con số quan trọng (giá đóng cửa, lợi suất, khối ngoại) phải xác minh lại ở nguồn gốc. Việc quét VCP toàn thị trường nên để screener chuyên dụng làm, agent chỉ giải thích và bối cảnh hóa.</span><span data-lang-en><b>The agent is a synthesis assistant, not a source of truth.</b> Verify every key figure (closing prices, yields, foreign flow) at the original source. Let dedicated screeners scan VCPs market-wide; use the agent to explain and contextualize.</span></div>
+    </div>
+    <div class="note">
+      <span class="ico">🔁</span>
+      <div><span data-lang-vi><b>Sức mạnh nằm ở sự nhất quán, không phải sự phức tạp.</b> Một routine đơn giản chạy đều mỗi ngày sẽ thắng một routine cầu kỳ chạy được vài hôm.</span><span data-lang-en><b>Power lies in consistency, not complexity.</b> A simple routine run daily beats an elaborate one that lasts a few days.</span></div>
+    </div>
+    <div class="note disclaimer">
+      <span class="ico">⚠️</span>
+      <div><span data-lang-vi><b>Miễn trừ trách nhiệm.</b> Đây là khung kiến thức và quy trình để bạn tự nghiên cứu — <b>không phải lời khuyên đầu tư</b>. Mọi ngưỡng số (7–8%, 1%, 1:2...) chỉ là điểm khởi đầu phổ biến; hãy backtest và điều chỉnh theo dữ liệu của chính bạn. Mọi quyết định cuối cùng là của bạn.</span><span data-lang-en><b>Disclaimer.</b> This is a knowledge and process framework for your own research — <b>not investment advice</b>. All numeric thresholds (7–8%, 1%, 1:2...) are common starting points only; backtest and adjust to your own data. Every final decision is yours.</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <span data-lang-vi>Sổ tay vận hành cá nhân · Không phải lời khuyên đầu tư · Hãy giao dịch có kỷ luật.</span>
+    <span data-lang-en>Personal operating playbook · Not investment advice · Trade with discipline.</span>
+  </footer>
+
+</div>
+
+<script>
+  function setLang(lang) {
+    document.documentElement.setAttribute('data-active', lang);
+    document.documentElement.lang = lang;
+    document.getElementById('btn-vi').classList.toggle('active', lang === 'vi');
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    try { localStorage.setItem('playbook-lang', lang); } catch(e) {}
+    document.querySelectorAll('.light-market').forEach(function(market) {
+      var on = market.querySelector('.bulb.on');
+      if (on) updateLightStatus(market, on.dataset.color);
+    });
+  }
+
+  function copyPrompt(btn) {
+    var block = btn.closest('.prompt');
+    var lang = document.documentElement.getAttribute('data-active') || 'vi';
+    var body = block.querySelector('.prompt-body[data-lang-' + lang + ']');
+    var text = body ? body.innerText : '';
+    var done = function() {
+      var original = btn.innerHTML;
+      btn.classList.add('copied');
+      btn.innerHTML = (lang === 'vi' ? '✓ Đã chép' : '✓ Copied');
+      setTimeout(function() { btn.classList.remove('copied'); btn.innerHTML = original; }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function() { fallbackCopy(text, done); });
+    } else { fallbackCopy(text, done); }
+  }
+
+  function fallbackCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+
+  /* ---- Traffic lights ---- */
+  function setLight(bulb) {
+    var market = bulb.closest('.light-market');
+    market.querySelectorAll('.bulb').forEach(function(b) { b.classList.remove('on'); });
+    bulb.classList.add('on');
+    updateLightStatus(market, bulb.dataset.color);
+    try { localStorage.setItem('light-' + market.dataset.market, bulb.dataset.color); } catch(e) {}
+  }
+  function updateLightStatus(market, color) {
+    var lang = document.documentElement.getAttribute('data-active') || 'vi';
+    var map = {
+      vi: { g: '🟢 Đánh mạnh', a: '🟡 Giảm tỷ trọng', r: '🔴 Đứng ngoài / Tiền mặt' },
+      en: { g: '🟢 Trade actively', a: '🟡 Reduce exposure', r: '🔴 Stand aside / Cash' }
+    };
+    market.querySelector('.light-status').textContent = map[lang][color] || '—';
+  }
+  function restoreLights() {
+    document.querySelectorAll('.light-market').forEach(function(market) {
+      var saved = null;
+      try { saved = localStorage.getItem('light-' + market.dataset.market); } catch(e) {}
+      if (saved) {
+        var bulb = market.querySelector('.bulb[data-color="' + saved + '"]');
+        if (bulb) { bulb.classList.add('on'); updateLightStatus(market, saved); }
+      }
+    });
+  }
+
+  /* ---- Watchlist ---- */
+  var WL_KEY = 'watchlist-data';
+  var wlData = [];
+
+  function loadWL() {
+    try { wlData = JSON.parse(localStorage.getItem(WL_KEY)) || []; } catch(e) { wlData = []; }
+    renderWL();
+  }
+  function saveWL() {
+    try { localStorage.setItem(WL_KEY, JSON.stringify(wlData)); } catch(e) {}
+    flashSaved();
+  }
+  function flashSaved() {
+    var f = document.getElementById('savedFlash');
+    if (!f) return;
+    f.classList.add('show');
+    clearTimeout(f._t);
+    f._t = setTimeout(function() { f.classList.remove('show'); }, 1200);
+  }
+  function addRow() {
+    wlData.push({ ticker: '', mkt: 'VN', entry: '', stop: '', size: '', note: '' });
+    saveWL(); renderWL();
+  }
+  function delRow(i) { wlData.splice(i, 1); saveWL(); renderWL(); }
+  function updCell(i, field, val) { wlData[i][field] = val; saveWL(); }
+  function clearAll() {
+    var lang = document.documentElement.getAttribute('data-active') || 'vi';
+    var msg = lang === 'vi' ? 'Xóa toàn bộ watchlist?' : 'Clear the entire watchlist?';
+    if (confirm(msg)) { wlData = []; saveWL(); renderWL(); }
+  }
+  function renderWL() {
+    var body = document.getElementById('wlBody');
+    var empty = document.getElementById('wlEmpty');
+    if (!body) return;
+    body.innerHTML = '';
+    empty.style.display = wlData.length ? 'none' : 'block';
+    wlData.forEach(function(row, i) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><input value="' + esc(row.ticker) + '" oninput="updCell(' + i + ',\'ticker\',this.value)" style="font-weight:600;text-transform:uppercase"></td>' +
+        '<td><input value="' + esc(row.mkt) + '" oninput="updCell(' + i + ',\'mkt\',this.value)" style="width:54px;text-align:center"></td>' +
+        '<td><input value="' + esc(row.entry) + '" oninput="updCell(' + i + ',\'entry\',this.value)"></td>' +
+        '<td><input value="' + esc(row.stop) + '" oninput="updCell(' + i + ',\'stop\',this.value)"></td>' +
+        '<td><input value="' + esc(row.size) + '" oninput="updCell(' + i + ',\'size\',this.value)"></td>' +
+        '<td><textarea rows="1" oninput="updCell(' + i + ',\'note\',this.value)">' + esc(row.note) + '</textarea></td>' +
+        '<td><button class="wl-row-del" onclick="delRow(' + i + ')" title="Delete">✕</button></td>';
+      body.appendChild(tr);
+    });
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function exportJSON() {
+    var payload = {
+      exportedAt: new Date().toISOString(),
+      lights: {
+        us: (function(){ try { return localStorage.getItem('light-us'); } catch(e){ return null; } })(),
+        vn: (function(){ try { return localStorage.getItem('light-vn'); } catch(e){ return null; } })()
+      },
+      watchlist: wlData
+    };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'trading-playbook-' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  /* ---- Init ---- */
+  (function() {
+    var saved = 'vi';
+    try { saved = localStorage.getItem('playbook-lang') || 'vi'; } catch(e) {}
+    setLang(saved);
+    restoreLights();
+    loadWL();
+  })();
+</script>
+</body>
+</html>
