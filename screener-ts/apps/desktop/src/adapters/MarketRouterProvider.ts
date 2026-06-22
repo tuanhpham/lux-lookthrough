@@ -6,6 +6,7 @@ import type {
   SectorVolumeSeries,
   Period,
 } from '@screener/core';
+import { isHnxOrUpcomTicker } from './universe.js';
 
 /** A symbol belongs to the Vietnam market if it carries a VN exchange suffix. */
 export function isVnTicker(symbol: string): boolean {
@@ -13,11 +14,18 @@ export function isVnTicker(symbol: string): boolean {
 }
 
 /**
- * Dispatches each call to the right underlying provider by symbol: Vietnam
- * tickers (suffixed `.VN` etc.) go to the VN provider, everything else to the
- * default (US) provider. This keeps a single `ctx.data` for the whole app while
- * supporting two markets with completely different data sources — business
- * logic (screener, portfolio) stays unaware there are two providers.
+ * Routes each call to the right provider by symbol. The subtlety: Yahoo carries
+ * **HOSE** stocks fully — OHLCV AND fundamentals (market cap, EPS, revenue,
+ * sector) — but NOT HNX/UPCoM. So:
+ *
+ *   - HOSE `.VN` tickers  → the default (Yahoo) provider, keeping rich
+ *     fundamentals + the revenue/EPS trend charts working.
+ *   - HNX / UPCoM tickers → the VN (VNDirect) provider, which is the only free
+ *     source for those boards (OHLCV only; fundamentals come back minimal).
+ *   - everything else (US) → the default provider.
+ *
+ * This keeps a single `ctx.data` for the whole app; business logic stays unaware
+ * there are two providers.
  */
 export class MarketRouterProvider implements DataProvider {
   constructor(
@@ -25,8 +33,9 @@ export class MarketRouterProvider implements DataProvider {
     private vn: DataProvider,
   ) {}
 
+  /** Only HNX/UPCoM go to VNDirect; HOSE stays on Yahoo for fundamentals. */
   private pick(symbol: string): DataProvider {
-    return isVnTicker(symbol) ? this.vn : this.us;
+    return isHnxOrUpcomTicker(symbol) ? this.vn : this.us;
   }
 
   getOHLCV(symbol: string, period: Period): Promise<OHLCV> {

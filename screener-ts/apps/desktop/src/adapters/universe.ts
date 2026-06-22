@@ -375,6 +375,16 @@ const HNX_SET = new Set(HNX_ALL);
 const UPCOM_SET = new Set(UPCOM_ALL);
 
 /**
+ * Is this VN ticker on HNX or UPCoM (the boards Yahoo does NOT carry)? Used to
+ * route data: HOSE names stay on Yahoo (full OHLCV + fundamentals), while
+ * HNX/UPCoM go to VNDirect (OHLCV only). Accepts bare or `.VN`-suffixed tickers.
+ */
+export function isHnxOrUpcomTicker(symbol: string): boolean {
+  const t = symbol.toUpperCase().replace(/\.(VN|HN|HNX|UP|UPCOM|HM)$/i, '');
+  return HNX_SET.has(t) || UPCOM_SET.has(t);
+}
+
+/**
  * Map a VN ticker to its TradingView symbol `EXCHANGE:TICKER` (e.g. `HOSE:FPT`,
  * `HNX:SHS`, `UPCOM:VGI`). TradingView can't resolve the Yahoo-style `FPT.VN`,
  * so deep links must use the board prefix. Accepts a bare or `.VN`-suffixed
