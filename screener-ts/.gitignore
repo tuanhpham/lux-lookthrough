@@ -4,6 +4,8 @@ packages/*/dist/
 apps/*/dist/
 apps/*/src-tauri/target/
 apps/*/src-tauri/gen/
+.wrangler/
+apps/*/.wrangler/
 .env
 .DS_Store
 *.log
