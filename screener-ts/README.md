@@ -227,7 +227,7 @@ silent empty result.
 ```bash
 cd screener-ts/apps/desktop
 npm run build --workspace @screener/core   # core dist for the production build
-npm run build                              # tsc + vite build → dist/
+npm run build                              # tsc + vite build → dist/ npm run build --workspace @screener/desktop 
 npx wrangler pages deploy dist --project-name screener
 npx wrangler pages secret put FINNHUB_API_KEY   # optional fallback provider
 ```
