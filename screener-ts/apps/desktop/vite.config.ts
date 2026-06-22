@@ -111,6 +111,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/nasdaqtrader/, ''),
       },
+      // VNDirect dchart — Vietnam OHLCV (HOSE + HNX + UPCoM).
+      '/api/vndirect': {
+        target: 'https://dchart-api.vndirect.com.vn/dchart',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/vndirect/, ''),
+      },
     },
   },
   build: {

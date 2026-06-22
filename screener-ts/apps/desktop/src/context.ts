@@ -1,6 +1,8 @@
 import type { DataProvider, Storage } from '@screener/core';
 import { YahooProvider } from './adapters/YahooProvider.js';
 import { FinnhubProvider } from './adapters/FinnhubProvider.js';
+import { VnDirectProvider } from './adapters/VnDirectProvider.js';
+import { MarketRouterProvider } from './adapters/MarketRouterProvider.js';
 import { makeStorage } from './adapters/storage.js';
 
 export interface AppConfig {
@@ -19,10 +21,13 @@ export class AppContext {
 
   constructor(config: AppConfig) {
     this.storage = makeStorage();
-    this.data =
+    const us =
       config.provider === 'finnhub'
         ? new FinnhubProvider({ apiKey: config.finnhubApiKey })
         : new YahooProvider();
+    // Route VN-suffixed tickers (.VN/.HN/...) to VNDirect (covers HOSE+HNX+UPCoM);
+    // everything else stays on the US provider. One ctx.data, two markets.
+    this.data = new MarketRouterProvider(us, new VnDirectProvider());
   }
 }
 

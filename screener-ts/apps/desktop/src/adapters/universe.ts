@@ -207,37 +207,136 @@ const VN100_EXTRA = [
 const HOSE_ALL = [
   'AAA', 'AAM', 'AAN', 'AAT', 'ABR', 'ABS', 'ABT', 'ACB', 'ACC', 'ACG', 'ACL', 'ADG',
   'ADP', 'ADS', 'AFX', 'AGG', 'AGR', 'ANT', 'ANV', 'APG', 'APH', 'ASG', 'ASM', 'ASP',
-  'AST', 'BAF', 'BCE', 'BCM', 'BFC', 'BHN', 'BIC', 'BID', 'BKG', 'BMC', 'BMI', 'BMP',
-  'BRC', 'BSI', 'BSR', 'BTP', 'BTT', 'BVH', 'BWE', 'C32', 'C47', 'CCC', 'CCI', 'CCL',
-  'CDC', 'CHP', 'CIG', 'CII', 'CKG', 'CLC', 'CLL', 'CLW', 'CMG', 'CMX', 'CNG', 'COM',
-  'CRC', 'CRE', 'CRV', 'CSM', 'CSV', 'CTD', 'CTF', 'CTG', 'CTI', 'CTR', 'CTS', 'CVT',
-  'D2D', 'DAH', 'DAT', 'DBC', 'DBD', 'DBT', 'DC4', 'DCL', 'DCM', 'DGC', 'DGW', 'DHA',
-  'DHC', 'DHG', 'DHM', 'DIG', 'DLG', 'DMC', 'DPG', 'DPM', 'DPR', 'DQC', 'DRC', 'DRH',
-  'DRL', 'DSC', 'DSE', 'DSN', 'DTA', 'DTL', 'DVP', 'DXG', 'DXS', 'DXV', 'EIB', 'ELC',
-  'EVE', 'EVF', 'EVG', 'FCM', 'FCN', 'FDC', 'FIR', 'FIT', 'FMC', 'FPT', 'FRT', 'FTS',
-  'GAS', 'GDT', 'GEE', 'GEG', 'GEL', 'GEX', 'GHC', 'GIL', 'GMD', 'GMH',
-  'GSP', 'GVR', 'HAG', 'HAH', 'HAP', 'HAR', 'HAS', 'HAX', 'HCD', 'HCM', 'HDB', 'HDC',
-  'HDG', 'HHP', 'HHS', 'HHV', 'HID', 'HII', 'HMC', 'HNA', 'HPA', 'HPG', 'HPX', 'HQC',
-  'HRC', 'HSG', 'HSL', 'HT1', 'HTG', 'HTI', 'HTL', 'HTN', 'HTV', 'HU1', 'HUB', 'HVH',
-  'HVN', 'ICT', 'IDI', 'IJC', 'ILB', 'IMP', 'ITC', 'ITD', 'JVC', 'KBC', 'KDC', 'KDH',
-  'KHG', 'KHP', 'KLB', 'KMR', 'KOS', 'KSB', 'LAF', 'LBM', 'LCG', 'LDG', 'LGL', 'LHG',
-  'LIX', 'LPB', 'LSS', 'MBB', 'MCH', 'MCM', 'MCP', 'MDG', 'MHC', 'MIG', 'MSB', 'MSH',
-  'MSN', 'MWG', 'NAB', 'NAF', 'NAV', 'NBB', 'NCT', 'NHA', 'NHH', 'NHT', 'NKG', 'NLG',
-  'NNC', 'NO1', 'NSC', 'NT2', 'NTC', 'NTL', 'NVL', 'NVT', 'OCB', 'OGC', 'OPC', 'ORS',
-  'PAC', 'PAN', 'PC1', 'PDN', 'PDR', 'PDV', 'PET', 'PGC', 'PGD', 'PGI', 'PGV', 'PHC',
-  'PHR', 'PIT', 'PJT', 'PLP', 'PLX', 'PMG', 'PNJ', 'POW', 'PPC', 'PTB', 'PTC', 'PTL',
+  'AST', 'BAF', 'BCE', 'BCG', 'BCM', 'BFC', 'BHN', 'BIC', 'BID', 'BKG', 'BMC', 'BMI',
+  'BMP', 'BRC', 'BSI', 'BSR', 'BTP', 'BTT', 'BVH', 'BWE', 'CCC', 'CCI', 'CCL', 'CDC',
+  'CIG', 'CII', 'CKG', 'CLC', 'CLL', 'CLW', 'CMG', 'CNG', 'COM', 'CRC', 'CRE', 'CRV',
+  'CSM', 'CSV', 'CTD', 'CTG', 'CTI', 'DAH', 'DAT', 'DBC', 'DBD', 'DBT', 'DCL', 'DCM',
+  'DGC', 'DGW', 'DHA', 'DHC', 'DHG', 'DHM', 'DIG', 'DLG', 'DMC', 'DPG', 'DPM', 'DPR',
+  'DQC', 'DRC', 'DRH', 'DRL', 'DSC', 'DSE', 'DSN', 'DTA', 'DTL', 'DTT', 'DVP', 'DXG',
+  'DXS', 'DXV', 'EIB', 'ELC', 'EVE', 'EVF', 'EVG', 'FCM', 'FCN', 'FDC', 'FIR', 'FIT',
+  'FMC', 'FPT', 'FRT', 'FTS', 'GAS', 'GDT', 'GEE', 'GEG', 'GEL', 'GEX', 'GHC', 'GIL',
+  'GMD', 'GMH', 'GSP', 'GTA', 'GVR', 'HAG', 'HAH', 'HAP', 'HAR', 'HAS', 'HAX', 'HCD',
+  'HCM', 'HDB', 'HDC', 'HDG', 'HHP', 'HHS', 'HHV', 'HID', 'HII', 'HMC', 'HNA', 'HPA',
+  'HPG', 'HPX', 'HQC', 'HRC', 'HSG', 'HSL', 'HTG', 'HTI', 'HTL', 'HTN', 'HTV', 'HUB',
+  'HVH', 'HVN', 'ICT', 'IDI', 'IJC', 'ILB', 'IMP', 'ITC', 'ITD', 'JVC', 'KBC', 'KDC',
+  'KDH', 'KHG', 'KHP', 'KLB', 'KMR', 'KOS', 'KSB', 'LAF', 'LBM', 'LCG', 'LDG', 'LGC',
+  'LGL', 'LHG', 'LIX', 'LPB', 'LSS', 'MBB', 'MCH', 'MCM', 'MCP', 'MDG', 'MHC', 'MIG',
+  'MSB', 'MSH', 'MSN', 'MWG', 'NAB', 'NAF', 'NAV', 'NBB', 'NCT', 'NHA', 'NHH', 'NHT',
+  'NKG', 'NLG', 'NNC', 'NSC', 'NTC', 'NTL', 'NVL', 'NVT', 'OCB', 'OGC', 'OPC', 'ORS',
+  'PAC', 'PAN', 'PDN', 'PDR', 'PDV', 'PET', 'PGC', 'PGD', 'PGI', 'PGV', 'PHC', 'PHR',
+  'PIT', 'PJT', 'PLP', 'PLX', 'PMG', 'PNC', 'PNJ', 'POW', 'PPC', 'PTB', 'PTC', 'PTL',
   'PVD', 'PVP', 'PVT', 'QCG', 'QNP', 'RAL', 'REE', 'RYG', 'SAB', 'SAM', 'SAV', 'SBA',
-  'SBG', 'SBT', 'SBV', 'SC5', 'SCR', 'SCS', 'SFG', 'SFI', 'SGN', 'SGR', 'SGT', 'SHA',
+  'SBG', 'SBT', 'SBV', 'SCR', 'SCS', 'SFC', 'SFG', 'SFI', 'SGN', 'SGR', 'SGT', 'SHA',
   'SHB', 'SHI', 'SHP', 'SIP', 'SJD', 'SJS', 'SKG', 'SMA', 'SMB', 'SMC', 'SPM', 'SRC',
-  'SRF', 'SSB', 'SSC', 'SSI', 'ST8', 'STB', 'STG', 'STK', 'SVC', 'SVD', 'SVT', 'SZC',
-  'SZL', 'TAL', 'TBC', 'TCB', 'TCH', 'TCI', 'TCL', 'TCM', 'TCO', 'TCR', 'TCT', 'TCX',
+  'SRF', 'SSB', 'SSC', 'SSI', 'STB', 'STG', 'STK', 'SVC', 'SVD', 'SVT', 'SZC', 'SZL',
+  'TAL', 'TBC', 'TCB', 'TCD', 'TCH', 'TCI', 'TCL', 'TCM', 'TCO', 'TCR', 'TCT', 'TCX',
   'TDC', 'TDG', 'TDH', 'TDM', 'TDP', 'TDW', 'TEG', 'THG', 'TIP', 'TIX', 'TLD', 'TLG',
-  'TLH', 'TMP', 'TMS', 'TMT', 'TN1', 'TNC', 'TNH', 'TNI', 'TNT', 'TPB', 'TPC', 'TRA',
-  'TRC', 'TSA', 'TSC', 'TTA', 'TTF', 'TV2', 'TVB', 'TVS', 'TVT', 'TYA', 'UIC', 'VAB',
-  'VCA', 'VCB', 'VCF', 'VCG', 'VCI', 'VCK', 'VDP', 'VDS', 'VFG', 'VGC', 'VHC', 'VHM',
-  'VIB', 'VIC', 'VID', 'VIP', 'VIX', 'VJC', 'VMD', 'VND', 'VNE', 'VNG', 'VNL', 'VNM',
-  'VNS', 'VOS', 'VPB', 'VPD', 'VPG', 'VPH', 'VPI', 'VPL', 'VPS', 'VPX', 'VRC', 'VRE',
-  'VSC', 'VSH', 'VSI', 'VTB', 'VTO', 'VTP', 'VVS', 'YBM', 'YEG',
+  'TLH', 'TMP', 'TMS', 'TMT', 'TNC', 'TNH', 'TNI', 'TNT', 'TPB', 'TPC', 'TRA', 'TRC',
+  'TSA', 'TSC', 'TTA', 'TTE', 'TTF', 'TVB', 'TVS', 'TVT', 'TYA', 'UIC', 'VAB', 'VCA',
+  'VCB', 'VCF', 'VCG', 'VCI', 'VCK', 'VDP', 'VDS', 'VFG', 'VGC', 'VHC', 'VHM', 'VIB',
+  'VIC', 'VID', 'VIP', 'VIX', 'VJC', 'VMD', 'VND', 'VNE', 'VNL', 'VNM', 'VOS', 'VPB',
+  'VPD', 'VPG', 'VPH', 'VPI', 'VPL', 'VPS', 'VPX', 'VRC', 'VRE', 'VSC', 'VSH', 'VSI',
+  'VTB', 'VTO', 'VTP', 'VVS', 'YBM', 'YEG',
+];
+
+/**
+ * HNX-listed common stocks (~135). Sourced from VNDirect's dchart symbol search.
+ * Yahoo doesn't carry HNX, so these are screenable only via the VNDirect
+ * provider (the router sends `.VN`-suffixed tickers there).
+ */
+const HNX_ALL = [
+  'ADC', 'ALT', 'AMC', 'AME', 'AMV', 'API', 'APS', 'ARM', 'ATS', 'BAB', 'BAX', 'BBS',
+  'BCC', 'BCF', 'BED', 'BKC', 'BNA', 'BPC', 'BTS', 'BTW', 'BVS', 'BXH', 'CAG', 'CAN',
+  'CAP', 'CAR', 'CCR', 'CDN', 'CEO', 'CET', 'CIA', 'CJC', 'CKV', 'CLH', 'CLM', 'CMC',
+  'CMS', 'CPC', 'CST', 'CTB', 'CTP', 'DAD', 'DAE', 'DDG', 'DHP', 'DHT', 'DIH', 'DNC',
+  'DNP', 'DST', 'DTD', 'DTG', 'DTK', 'DVM', 'DXP', 'EBS', 'ECI', 'EID', 'EVS', 'FID',
+  'GDW', 'GIC', 'GKM', 'GLT', 'GMA', 'GMX', 'HAD', 'HAT', 'HBS', 'HCC', 'HCT', 'HDA',
+  'HEV', 'HGM', 'HHC', 'HJS', 'HKT', 'HLC', 'HLD', 'HMH', 'HMR', 'HOM', 'HTC', 'HUT',
+  'HVT', 'ICG', 'IDC', 'IDJ', 'IDV', 'INC', 'INN', 'IPA', 'ITQ', 'IVS', 'KDM', 'KHS',
+  'KKC', 'KMT', 'KSD', 'KSF', 'KST', 'KSV', 'KTS', 'LAS', 'LBE', 'LCD', 'LDP', 'LHC',
+  'LIG', 'MAC', 'MAS', 'MBG', 'MBS', 'MCC', 'MCF', 'MCO', 'MDC', 'MED', 'MEL', 'MIC',
+  'MKV', 'MST', 'MVB', 'NAG', 'NAP', 'NBC', 'NBP', 'NBW', 'NDN', 'NDX', 'NET', 'NFC',
+  'NHC', 'NRC', 'NSH', 'NST', 'NTH', 'NTP', 'NVB', 'OCH', 'ONE', 'PBP', 'PCE', 'PCH',
+  'PCT', 'PDB', 'PEN', 'PGN', 'PGS', 'PGT', 'PHN', 'PIA', 'PIC', 'PJC', 'PLC', 'PMB',
+  'PMC', 'PMP', 'PMS', 'POT', 'PPE', 'PPP', 'PPS', 'PPT', 'PPY', 'PRC', 'PRE', 'PSC',
+  'PSD', 'PSE', 'PSI', 'PSW', 'PTD', 'PTI', 'PTS', 'PTX', 'PVB', 'PVC', 'PVG', 'PVI',
+  'PVS', 'QHD', 'QST', 'QTC', 'RCL', 'SAF', 'SCG', 'SCI', 'SDC', 'SDG', 'SDN', 'SDU',
+  'SEB', 'SED', 'SFN', 'SGC', 'SGD', 'SGH', 'SHE', 'SHN', 'SHS', 'SJE', 'SLS', 'SMN',
+  'SMT', 'SPC', 'SRA', 'SSM', 'STC', 'STP', 'SVN', 'SZB', 'TDT', 'TET', 'TFC', 'THB',
+  'THD', 'THS', 'THT', 'TIG', 'TJC', 'TKU', 'TMB', 'TMC', 'TMX', 'TNG', 'TOT', 'TPP',
+  'TSB', 'TTC', 'TTH', 'TTL', 'TTT', 'TVC', 'TVD', 'TXM', 'UNI', 'VBC', 'VCC', 'VCM',
+  'VCS', 'VDL', 'VFS', 'VGP', 'VGS', 'VHE', 'VHL', 'VIF', 'VIG', 'VIT', 'VLA', 'VMC',
+  'VMS', 'VNC', 'VNF', 'VNR', 'VNT', 'VSA', 'VSM', 'VTC', 'VTH', 'VTJ', 'VTV', 'VTZ',
+  'WCS', 'WSS',
+];
+
+/**
+ * UPCoM-listed common stocks (~357). Also VNDirect-only (Yahoo has no UPCoM).
+ * UPCoM is the least-liquid board; the scan drops names with too little history.
+ */
+const UPCOM_ALL = [
+  'AAH', 'AAS', 'AAV', 'ABB', 'ABC', 'ABI', 'ABW', 'ACE', 'ACM', 'ACS', 'ACV', 'AGF',
+  'AGM', 'AGP', 'AGX', 'AIC', 'AIG', 'ALC', 'ALV', 'AMP', 'AMS', 'APC', 'APF', 'APL',
+  'APP', 'APT', 'ART', 'ATA', 'ATG', 'AVC', 'AVG', 'BAL', 'BBH', 'BBM', 'BBT', 'BCA',
+  'BCB', 'BCP', 'BCR', 'BCV', 'BDG', 'BDT', 'BDW', 'BEL', 'BGE', 'BGW', 'BHA', 'BHC',
+  'BHG', 'BHH', 'BHI', 'BHK', 'BHP', 'BIG', 'BIO', 'BLF', 'BLI', 'BLN', 'BLT', 'BMD',
+  'BMF', 'BMG', 'BMJ', 'BMK', 'BMS', 'BMV', 'BNW', 'BOT', 'BQB', 'BQP', 'BRR', 'BRS',
+  'BSA', 'BSD', 'BSG', 'BSH', 'BSL', 'BSP', 'BSQ', 'BTB', 'BTD', 'BTG', 'BTH', 'BTN',
+  'BTU', 'BTV', 'BVB', 'BVG', 'BVL', 'BVN', 'BWA', 'BWS', 'CAD', 'CAT', 'CBI', 'CBS',
+  'CCA', 'CCM', 'CCP', 'CCS', 'CCT', 'CCV', 'CDG', 'CDO', 'CDP', 'CDR', 'CEN', 'CFM',
+  'CFV', 'CGV', 'CHC', 'CHS', 'CID', 'CIP', 'CKA', 'CKD', 'CLI', 'CLX', 'CMD', 'CMI',
+  'CMM', 'CNA', 'CNC', 'CNN', 'CNT', 'CPA', 'CPH', 'CPI', 'CQN', 'CQT', 'CSI', 'CTW',
+  'CTX', 'CYC', 'DAC', 'DAG', 'DAN', 'DAS', 'DBM', 'DCF', 'DCG', 'DCH', 'DCR', 'DCS',
+  'DCT', 'DCV', 'DDB', 'DDH', 'DDM', 'DDN', 'DDV', 'DFC', 'DFF', 'DGT', 'DHB', 'DHD',
+  'DHN', 'DIC', 'DID', 'DKC', 'DKG', 'DLD', 'DLR', 'DLT', 'DMN', 'DNA', 'DND', 'DNE',
+  'DNH', 'DNL', 'DNM', 'DNN', 'DNT', 'DNW', 'DOC', 'DOP', 'DPC', 'DPH', 'DPP', 'DRG',
+  'DRI', 'DSD', 'DSG', 'DSH', 'DSP', 'DTC', 'DTH', 'DTI', 'DTP', 'DUS', 'DVC', 'DVG',
+  'DVN', 'DVT', 'DVW', 'DWC', 'DWS', 'DXL', 'DZM', 'ECO', 'EFI', 'EGL', 'EIC', 'EIN',
+  'EME', 'EMG', 'EMS', 'FBC', 'FCC', 'FCS', 'FGL', 'FHN', 'FHS', 'FIC', 'FOC', 'FOX',
+  'FRC', 'FRM', 'FSO', 'FTI', 'FTM', 'GCB', 'GCF', 'GDA', 'GDH', 'GER', 'GGG', 'GLC',
+  'GLW', 'GMC', 'GND', 'GPC', 'GSM', 'GTD', 'GTS', 'GTT', 'GVT', 'HAC', 'HAF', 'HAM',
+  'HAN', 'HAV', 'HBC', 'HBD', 'HBH', 'HCI', 'HDM', 'HDP', 'HDW', 'HEC', 'HEJ', 'HEP',
+  'HES', 'HFB', 'HFC', 'HFX', 'HGT', 'HHB', 'HHG', 'HHN', 'HIO', 'HJC', 'HKB', 'HLA',
+  'HLB', 'HLO', 'HLS', 'HLT', 'HLY', 'HMD', 'HMG', 'HMS', 'HNB', 'HND', 'HNF', 'HNG',
+  'HNI', 'HNM', 'HNP', 'HNR', 'HOT', 'HPB', 'HPD', 'HPH', 'HPI', 'HPM', 'HPO', 'HPP',
+  'HPT', 'HPW', 'HRB', 'HSA', 'HSM', 'HSP', 'HSV', 'HTE', 'HTM', 'HTP', 'HTT', 'HUG',
+  'HVA', 'HVX', 'HWS', 'IBD', 'ICC', 'ICF', 'ICI', 'ICN', 'IDP', 'IFS', 'ILA', 'ILC',
+  'ILS', 'IME', 'IRC', 'ISG', 'ISH', 'IST', 'ITA', 'ITS', 'JOS', 'KCB', 'KGM', 'KHD',
+  'KHW', 'KHX', 'KIP', 'KPF', 'KSQ', 'KTC', 'KTL', 'KTT', 'KVC', 'LAI', 'LAW', 'LCM',
+  'LDW', 'LEC', 'LIC', 'LKW', 'LLM', 'LMC', 'LMH', 'LMI', 'LNC', 'LPT', 'LQN', 'LSG',
+  'LTC', 'LTG', 'LUT', 'MBN', 'MBT', 'MCG', 'MDA', 'MDF', 'MEC', 'MEF', 'MES', 'MFS',
+  'MGC', 'MGG', 'MGR', 'MHL', 'MIE', 'MKP', 'MLC', 'MLS', 'MML', 'MNB', 'MND', 'MPC',
+  'MPT', 'MPY', 'MQB', 'MQN', 'MRF', 'MSR', 'MTA', 'MTB', 'MTG', 'MTH', 'MTL', 'MTP',
+  'MTS', 'MTV', 'MVC', 'MVN', 'NAC', 'NAS', 'NAU', 'NAW', 'NBE', 'NBT', 'NCG', 'NCS',
+  'NDC', 'NDF', 'NDP', 'NDT', 'NDW', 'NED', 'NGC', 'NHD', 'NHV', 'NJC', 'NLS', 'NNT',
+  'NOS', 'NQB', 'NQN', 'NSG', 'NSL', 'NSS', 'NTF', 'NTT', 'NTW', 'NUE', 'NVP', 'NWT',
+  'NXT', 'ODE', 'OIL', 'ONW', 'PAI', 'PAP', 'PAS', 'PAT', 'PBC', 'PBT', 'PCC', 'PCF',
+  'PCG', 'PCM', 'PDC', 'PEG', 'PEQ', 'PFL', 'PGB', 'PHH', 'PHP', 'PHS', 'PID', 'PIS',
+  'PIV', 'PJS', 'PLA', 'PLE', 'PLO', 'PMJ', 'PMT', 'PMW', 'PND', 'PNG', 'PNP', 'PNT',
+  'POB', 'POM', 'POS', 'POV', 'PPH', 'PPI', 'PQN', 'PRO', 'PRT', 'PSB', 'PSH', 'PSL',
+  'PSN', 'PSP', 'PTE', 'PTG', 'PTH', 'PTM', 'PTO', 'PTP', 'PTT', 'PTV', 'PVE', 'PVH',
+  'PVL', 'PVM', 'PVO', 'PVR', 'PVV', 'PVX', 'PVY', 'PWA', 'PWS', 'PXA', 'PXI', 'PXL',
+  'PXM', 'PXS', 'PXT', 'QBS', 'QCC', 'QHW', 'QNC', 'QNS', 'QNT', 'QNU', 'QNW', 'QPH',
+  'QSP', 'QTP', 'RAT', 'RBC', 'RCC', 'RCD', 'RDP', 'RGG', 'RIC', 'RTB', 'SAC', 'SAL',
+  'SAS', 'SBB', 'SBD', 'SBH', 'SBL', 'SBM', 'SBR', 'SBS', 'SCC', 'SCD', 'SCJ', 'SCL',
+  'SCO', 'SDA', 'SDD', 'SDK', 'SDP', 'SDT', 'SDV', 'SDY', 'SEA', 'SEP', 'SGB', 'SGI',
+  'SGP', 'SGS', 'SHC', 'SID', 'SIG', 'SII', 'SIV', 'SJF', 'SJG', 'SJM', 'SKH', 'SKN',
+  'SKV', 'SLD', 'SNC', 'SNZ', 'SPB', 'SPD', 'SPH', 'SPI', 'SPV', 'SRB', 'SSF', 'SSG',
+  'SSH', 'SSN', 'STD', 'STH', 'STL', 'STS', 'STT', 'STW', 'SVG', 'SVH', 'SWC', 'SZE',
+  'SZG', 'TAB', 'TAN', 'TAR', 'TAW', 'TBD', 'TBR', 'TBW', 'TCJ', 'TCK', 'TCW', 'TDB',
+  'TDF', 'TDS', 'TED', 'TGG', 'TGP', 'THM', 'THN', 'THP', 'THU', 'THW', 'TID', 'TIE',
+  'TIN', 'TIS', 'TKA', 'TLP', 'TMG', 'TMW', 'TNA', 'TNB', 'TNP', 'TNS', 'TNW', 'TOP',
+  'TOS', 'TOW', 'TPS', 'TQW', 'TRS', 'TRT', 'TRV', 'TSD', 'TSG', 'TSJ', 'TST', 'TTB',
+  'TTD', 'TTG', 'TTN', 'TTS', 'TTZ', 'TUG', 'TVA', 'TVG', 'TVH', 'TVM', 'TVN', 'UCT',
+  'UDC', 'UDJ', 'UDL', 'UEM', 'UMC', 'UPH', 'UPS', 'USC', 'USD', 'UTT', 'UXC', 'VAF',
+  'VAV', 'VBB', 'VBG', 'VBH', 'VBT', 'VCE', 'VCP', 'VCR', 'VCT', 'VCX', 'VDB', 'VDG',
+  'VDN', 'VDT', 'VEA', 'VEC', 'VEF', 'VES', 'VET', 'VFC', 'VFR', 'VGG', 'VGI', 'VGL',
+  'VGR', 'VGT', 'VGV', 'VHD', 'VHF', 'VHG', 'VHH', 'VIE', 'VIM', 'VIN', 'VIR', 'VIW',
+  'VKC', 'VKP', 'VLB', 'VLC', 'VLG', 'VLP', 'VLS', 'VLW', 'VMA', 'VMG', 'VMK', 'VMT',
+  'VNA', 'VNB', 'VNH', 'VNP', 'VNX', 'VNY', 'VNZ', 'VPA', 'VPC', 'VPR', 'VPW', 'VQC',
+  'VRG', 'VSE', 'VSF', 'VSG', 'VSN', 'VST', 'VTA', 'VTD', 'VTE', 'VTG', 'VTI', 'VTK',
+  'VTM', 'VTQ', 'VTR', 'VTS', 'VTX', 'VUA', 'VVN', 'VWS', 'VXB', 'VXP', 'VXT', 'WSB',
+  'WTC', 'XDH', 'XHC', 'XLV', 'XMC', 'XMD', 'XMP', 'XPH', 'YBC', 'YTC',
 ];
 
 const withVnSuffix = (tickers: string[]): string[] => tickers.map((t) => `${t}.VN`);
@@ -250,6 +349,41 @@ export function getVn100Universe(): string[] {
   return withVnSuffix([...new Set([...VN30, ...VN100_EXTRA])]).sort();
 }
 
+/** All HOSE stocks (~390) — works on both Yahoo and VNDirect. */
 export function getAllVnUniverse(): string[] {
   return withVnSuffix(HOSE_ALL).sort();
+}
+
+/** All HNX stocks (~135) — VNDirect only. */
+export function getHnxUniverse(): string[] {
+  return withVnSuffix(HNX_ALL).sort();
+}
+
+/** All UPCoM stocks (~357) — VNDirect only. */
+export function getUpcomUniverse(): string[] {
+  return withVnSuffix(UPCOM_ALL).sort();
+}
+
+/** Every VN-listed common stock across HOSE + HNX + UPCoM (~880) — VNDirect. */
+export function getAllVnMarketUniverse(): string[] {
+  return withVnSuffix([...new Set([...HOSE_ALL, ...HNX_ALL, ...UPCOM_ALL])]).sort();
+}
+
+// Exchange lookup for TradingView symbol resolution (HNX/UPCoM checked first;
+// anything else — incl. VN30/VN100 blue chips — is HOSE).
+const HNX_SET = new Set(HNX_ALL);
+const UPCOM_SET = new Set(UPCOM_ALL);
+
+/**
+ * Map a VN ticker to its TradingView symbol `EXCHANGE:TICKER` (e.g. `HOSE:FPT`,
+ * `HNX:SHS`, `UPCOM:VGI`). TradingView can't resolve the Yahoo-style `FPT.VN`,
+ * so deep links must use the board prefix. Accepts a bare or `.VN`-suffixed
+ * ticker. Returns null if the symbol isn't a known VN ticker.
+ */
+export function vnTradingViewSymbol(symbol: string): string | null {
+  const t = symbol.toUpperCase().replace(/\.(VN|HN|HNX|UP|UPCOM|HM)$/i, '');
+  if (HNX_SET.has(t)) return `HNX:${t}`;
+  if (UPCOM_SET.has(t)) return `UPCOM:${t}`;
+  // Default VN board is HOSE (covers HOSE_ALL + VN30/VN100 blue chips).
+  return `HOSE:${t}`;
 }

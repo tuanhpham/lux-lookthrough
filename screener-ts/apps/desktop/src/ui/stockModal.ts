@@ -5,6 +5,7 @@ import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
 import { t, getLang } from './i18n.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
 import { infoIcon as info, attachTooltips } from './tooltip.js';
+import { vnTradingViewSymbol } from '../adapters/universe.js';
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -183,7 +184,10 @@ function renderDetail(
         ${analysisHtml(p)}
       </div>`;
   }
-  const tvUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`;
+  // TradingView needs EXCHANGE:TICKER for VN names (HOSE:FPT) — `FPT.VN` won't
+  // resolve. US tickers pass through unchanged.
+  const tvSymbol = isVnSymbol(symbol) ? (vnTradingViewSymbol(symbol) ?? symbol) : symbol;
+  const tvUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`;
   return `
     <div class="row" style="margin-bottom:12px">
       <div>

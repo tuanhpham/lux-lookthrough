@@ -21,14 +21,25 @@ import { sortableTable, type SortKey } from '../ui/sortableTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
-import { getBroadUniverse, getAllUsUniverse, getVn30Universe, getVn100Universe, getAllVnUniverse } from '../adapters/universe.js';
+import {
+  getBroadUniverse,
+  getAllUsUniverse,
+  getVn30Universe,
+  getVn100Universe,
+  getAllVnUniverse,
+  getHnxUniverse,
+  getUpcomUniverse,
+  getAllVnMarketUniverse,
+} from '../adapters/universe.js';
 
 const PERIOD: Period = '1y';
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
 
 // ── Top Picks ─────────────────────────────────────────────────────────────────
 type Market = 'us' | 'vn';
-type UniverseMode = 'curated' | 'broad' | 'all' | 'vn30' | 'vn100' | 'vnall';
+type UniverseMode =
+  | 'curated' | 'broad' | 'all'
+  | 'vn30' | 'vn100' | 'vnall' | 'hnx' | 'upcom' | 'vnmarket';
 
 /** Universe options per market — the toggle row rebuilds from this. */
 const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string }[]> = {
@@ -41,8 +52,14 @@ const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string
     { mode: 'vn30', labelKey: 'picks.uni.vn30' },
     { mode: 'vn100', labelKey: 'picks.uni.vn100' },
     { mode: 'vnall', labelKey: 'picks.uni.vnall' },
+    { mode: 'hnx', labelKey: 'picks.uni.hnx' },
+    { mode: 'upcom', labelKey: 'picks.uni.upcom' },
+    { mode: 'vnmarket', labelKey: 'picks.uni.vnmarket' },
   ],
 };
+
+/** Universe modes large enough to warrant the long-scan hint + bigger batches. */
+const BIG_UNIVERSES = new Set<UniverseMode>(['all', 'vnall', 'hnx', 'upcom', 'vnmarket']);
 
 let picksStrategy: StrategyKey = 'breakout';
 let picksMarket: Market = 'us';
@@ -142,10 +159,10 @@ function renderUniverseRow(ctx: AppContext): void {
   );
 }
 
-/** Long-scan warning shown for the big universes ("All US" / "All HOSE"). */
+/** Long-scan warning shown for the big universes. */
 function universeHint(): string {
   if (picksUniverse === 'all') return t('picks.uni.all.hint');
-  if (picksUniverse === 'vnall') return t('picks.uni.vnall.hint');
+  if (BIG_UNIVERSES.has(picksUniverse)) return t('picks.uni.vnall.hint');
   return '';
 }
 
@@ -156,6 +173,9 @@ async function resolveUniverse(mode: UniverseMode): Promise<string[]> {
   if (mode === 'vn30') return getVn30Universe();
   if (mode === 'vn100') return getVn100Universe();
   if (mode === 'vnall') return getAllVnUniverse();
+  if (mode === 'hnx') return getHnxUniverse();
+  if (mode === 'upcom') return getUpcomUniverse();
+  if (mode === 'vnmarket') return getAllVnMarketUniverse();
   return getAllUsUniverse();
 }
 
@@ -201,7 +221,7 @@ async function runPicks(ctx: AppContext): Promise<void> {
   const strategyLabel = cfg.label;
   // Larger universes use bigger batches but the same modest per-batch concurrency
   // so we don't hammer Yahoo (which rate-limits → dropped symbols).
-  const BATCH = picksUniverse === 'all' || picksUniverse === 'vnall' ? 120 : 60;
+  const BATCH = BIG_UNIVERSES.has(picksUniverse) ? 120 : 60;
   const CONCURRENCY = 6;
 
   const matches: ScreenRow[] = [];
