@@ -21,11 +21,19 @@ export function renderWatchlist(ctx: AppContext): void {
         <input id="wl-symbol" class="field" style="flex:1" placeholder="Add symbol e.g. AMD" autocomplete="off" />
         <button id="wl-add" class="btn">${t('wl.add')}</button>
         <button id="wl-refresh" class="btn-outline">↻ Refresh quotes</button>
+        <button id="wl-export" class="btn-outline" title="Download all watchlists as a JSON backup">⬇ Export</button>
+        <button id="wl-import" class="btn-outline" title="Restore watchlists from a JSON backup">⬆ Import</button>
+        <input id="wl-import-file" type="file" accept="application/json,.json" style="display:none" />
       </div>
     </div>
     <div id="wl-results"></div>`;
 
   void refreshAll(ctx);
+
+  $('#wl-export')!.addEventListener('click', () => void exportWatchlists(ctx));
+  const importFile = $('#wl-import-file') as HTMLInputElement;
+  $('#wl-import')!.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', () => void importWatchlists(ctx, importFile));
 
   $('#wl-add')!.addEventListener('click', async () => {
     const input = $('#wl-symbol') as HTMLInputElement;
@@ -47,6 +55,80 @@ async function refreshAll(ctx: AppContext): Promise<void> {
   if (!activeId || !idx.some((w) => w.id === activeId)) activeId = idx[0]!.id;
   await refreshTabs(ctx);
   await refreshRows(ctx);
+}
+
+// ── Export / Import ─────────────────────────────────────────────────────────
+// Watchlists live in per-origin storage (localStorage on web), so they don't
+// survive switching to a different URL/origin. These let you back them up to a
+// JSON file and restore them on any origin or device.
+
+interface WatchlistBackup {
+  type: 'screener-watchlists';
+  version: 1;
+  exportedAt: string;
+  lists: { id: string; name: string; symbols: string[] }[];
+}
+
+async function exportWatchlists(ctx: AppContext): Promise<void> {
+  const idx = await loadIndex(ctx);
+  const lists = [];
+  for (const w of idx) lists.push({ id: w.id, name: w.name, symbols: await loadItems(ctx, w.id) });
+  const backup: WatchlistBackup = {
+    type: 'screener-watchlists',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    lists,
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `watchlists-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importWatchlists(ctx: AppContext, input: HTMLInputElement): Promise<void> {
+  const file = input.files?.[0];
+  input.value = ''; // allow re-importing the same file later
+  if (!file) return;
+  let backup: WatchlistBackup;
+  try {
+    backup = JSON.parse(await file.text()) as WatchlistBackup;
+  } catch {
+    alert('Could not read that file — it is not valid JSON.');
+    return;
+  }
+  if (backup?.type !== 'screener-watchlists' || !Array.isArray(backup.lists)) {
+    alert('That file is not a watchlist backup.');
+    return;
+  }
+
+  const existing = await loadIndex(ctx);
+  const merge = existing.length
+    ? confirm(
+        `Import ${backup.lists.length} watchlist(s)?\n\nOK = merge into your current lists (symbols combined).\nCancel = keep current lists unchanged.`,
+      )
+    : true;
+  if (!merge) return;
+
+  const byName = new Map(existing.map((w) => [w.name.toLowerCase(), w]));
+  for (const imported of backup.lists) {
+    const symbols = (imported.symbols ?? []).map((s) => String(s).toUpperCase());
+    const match = byName.get(String(imported.name).toLowerCase());
+    if (match) {
+      // Merge symbols into the existing same-named list (saveItems de-dups).
+      await saveItems(ctx, match.id, [...(await loadItems(ctx, match.id)), ...symbols]);
+    } else {
+      const id = newId();
+      await saveIndex(ctx, [...(await loadIndex(ctx)), { id, name: imported.name || 'Imported' }]);
+      await saveItems(ctx, id, symbols);
+    }
+  }
+  rowCache.clear();
+  await refreshAll(ctx);
 }
 
 async function refreshTabs(ctx: AppContext): Promise<void> {

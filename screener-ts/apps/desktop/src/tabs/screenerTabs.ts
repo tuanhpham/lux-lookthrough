@@ -19,14 +19,30 @@ import { sortableTable, type SortKey } from '../ui/sortableTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
-import { getBroadUniverse, getAllUsUniverse } from '../adapters/universe.js';
+import { getBroadUniverse, getAllUsUniverse, getVn30Universe, getVn100Universe } from '../adapters/universe.js';
 
 const PERIOD: Period = '1y';
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
 
 // ── Top Picks ─────────────────────────────────────────────────────────────────
-type UniverseMode = 'curated' | 'broad' | 'all';
+type Market = 'us' | 'vn';
+type UniverseMode = 'curated' | 'broad' | 'all' | 'vn30' | 'vn100';
+
+/** Universe options per market — the toggle row rebuilds from this. */
+const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string }[]> = {
+  us: [
+    { mode: 'curated', labelKey: 'picks.uni.curated' },
+    { mode: 'broad', labelKey: 'picks.uni.broad' },
+    { mode: 'all', labelKey: 'picks.uni.all' },
+  ],
+  vn: [
+    { mode: 'vn30', labelKey: 'picks.uni.vn30' },
+    { mode: 'vn100', labelKey: 'picks.uni.vn100' },
+  ],
+};
+
 let picksStrategy: StrategyKey = 'breakout';
+let picksMarket: Market = 'us';
 let picksUniverse: UniverseMode = 'curated';
 let picksSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 let screenSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
@@ -36,10 +52,9 @@ let scanToken = 0;
 
 export function renderPicks(ctx: AppContext): void {
   const root = $('#tab-picks')!;
-  const uni: [UniverseMode, string][] = [
-    ['curated', t('picks.uni.curated')],
-    ['broad', t('picks.uni.broad')],
-    ['all', t('picks.uni.all')],
+  const markets: [Market, string][] = [
+    ['us', t('picks.market.us')],
+    ['vn', t('picks.market.vn')],
   ];
   root.innerHTML = `
     <h1>${t('picks.title')}</h1>
@@ -57,17 +72,15 @@ export function renderPicks(ctx: AppContext): void {
       <button id="picks-stop" class="btn-outline hidden">${t('picks.stop')}</button>
     </div>
     <div class="toolbar" style="margin-top:-4px">
-      <span class="muted" style="font-size:12px">${t('picks.universe')}:</span>
-      ${uni
+      <span class="muted" style="font-size:12px">${t('picks.market')}:</span>
+      ${markets
         .map(
           ([m, label]) =>
-            `<button class="range-btn ${m === picksUniverse ? 'active' : ''}" data-universe="${m}">${label}</button>`,
+            `<button class="range-btn ${m === picksMarket ? 'active' : ''}" data-market="${m}">${label}</button>`,
         )
         .join('')}
-      <span id="picks-uni-hint" class="muted" style="font-size:11px">${
-        picksUniverse === 'all' ? t('picks.uni.all.hint') : ''
-      }</span>
     </div>
+    <div class="toolbar" style="margin-top:-4px" id="picks-uni-row"></div>
     <div id="picks-progress" class="picks-progress hidden"><div id="picks-bar"></div></div>
     <div id="picks-status" class="muted" style="margin:8px 0 12px"></div>
     <div id="picks-results"></div>`;
@@ -79,14 +92,19 @@ export function renderPicks(ctx: AppContext): void {
       void runPicks(ctx);
     }),
   );
-  root.querySelectorAll<HTMLElement>('[data-universe]').forEach((b) =>
+  root.querySelectorAll<HTMLElement>('[data-market]').forEach((b) =>
     b.addEventListener('click', () => {
-      picksUniverse = b.dataset.universe as UniverseMode;
-      root.querySelectorAll('[data-universe]').forEach((x) => x.classList.toggle('active', x === b));
-      $('#picks-uni-hint')!.textContent = picksUniverse === 'all' ? t('picks.uni.all.hint') : '';
+      const m = b.dataset.market as Market;
+      if (m === picksMarket) return;
+      picksMarket = m;
+      // Default to the first universe of the newly selected market.
+      picksUniverse = UNIVERSES_BY_MARKET[m][0]!.mode;
+      root.querySelectorAll('[data-market]').forEach((x) => x.classList.toggle('active', x === b));
+      renderUniverseRow(ctx);
       void runPicks(ctx);
     }),
   );
+  renderUniverseRow(ctx);
   $('#picks-refresh')!.addEventListener('click', () => void runPicks(ctx));
   $('#picks-stop')!.addEventListener('click', () => {
     scanToken++; // abort the running scan loop
@@ -96,10 +114,39 @@ export function renderPicks(ctx: AppContext): void {
   void runPicks(ctx);
 }
 
+/** (Re)build the universe toggle row for the active market and wire its clicks. */
+function renderUniverseRow(ctx: AppContext): void {
+  const row = $('#picks-uni-row')!;
+  const opts = UNIVERSES_BY_MARKET[picksMarket];
+  row.innerHTML =
+    `<span class="muted" style="font-size:12px">${t('picks.universe')}:</span>` +
+    opts
+      .map(
+        (o) =>
+          `<button class="range-btn ${o.mode === picksUniverse ? 'active' : ''}" data-universe="${o.mode}">${t(
+            o.labelKey,
+          )}</button>`,
+      )
+      .join('') +
+    `<span id="picks-uni-hint" class="muted" style="font-size:11px">${
+      picksUniverse === 'all' ? t('picks.uni.all.hint') : ''
+    }</span>`;
+  row.querySelectorAll<HTMLElement>('[data-universe]').forEach((b) =>
+    b.addEventListener('click', () => {
+      picksUniverse = b.dataset.universe as UniverseMode;
+      row.querySelectorAll('[data-universe]').forEach((x) => x.classList.toggle('active', x === b));
+      $('#picks-uni-hint')!.textContent = picksUniverse === 'all' ? t('picks.uni.all.hint') : '';
+      void runPicks(ctx);
+    }),
+  );
+}
+
 /** Resolve the symbol list for the active universe mode. */
 async function resolveUniverse(mode: UniverseMode): Promise<string[]> {
   if (mode === 'curated') return CURATED;
   if (mode === 'broad') return getBroadUniverse();
+  if (mode === 'vn30') return getVn30Universe();
+  if (mode === 'vn100') return getVn100Universe();
   return getAllUsUniverse();
 }
 

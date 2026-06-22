@@ -166,3 +166,40 @@ export async function getAllUsUniverse(): Promise<string[]> {
 export function curatedUniverse(): string[] {
   return [...CURATED].sort();
 }
+
+// ── Vietnam (HOSE) ───────────────────────────────────────────────────────────
+//
+// Yahoo Finance serves Vietnamese equities under a `.VN` suffix (e.g. FPT.VN),
+// priced in VND, via the SAME chart endpoint used for US names — so the screener
+// math works unchanged. There is no free, CORS-friendly listing directory for
+// HOSE (the US path scrapes Wikipedia / NASDAQ Trader), so we bundle curated
+// constituent lists instead. Any ticker Yahoo can't resolve is simply dropped by
+// the scan, so an occasional stale name is harmless.
+
+/** VN30 — the 30 largest, most liquid HOSE blue chips. */
+const VN30 = [
+  'ACB', 'BCM', 'BID', 'BVH', 'CTG', 'FPT', 'GAS', 'GVR', 'HDB', 'HPG',
+  'MBB', 'MSN', 'MWG', 'PLX', 'POW', 'SAB', 'SHB', 'SSB', 'SSI', 'STB',
+  'TCB', 'TPB', 'VCB', 'VHM', 'VIB', 'VIC', 'VJC', 'VNM', 'VPB', 'VRE',
+];
+
+/** VN30 + ~65 additional liquid HOSE large/mid caps (~VN100 coverage). */
+const VN100_EXTRA = [
+  'AAA', 'ANV', 'BMP', 'BSI', 'BWE', 'CII', 'CMG', 'CTD', 'CTR', 'DBC',
+  'DCM', 'DGC', 'DGW', 'DHC', 'DIG', 'DPM', 'DXG', 'EIB', 'EVF', 'FRT',
+  'FTS', 'GEX', 'GMD', 'HAG', 'HCM', 'HDC', 'HDG', 'HHV', 'HSG', 'HT1',
+  'IDC', 'IJC', 'IMP', 'KBC', 'KDH', 'LPB', 'NKG', 'NLG', 'NT2', 'OCB',
+  'PAN', 'PC1', 'PDR', 'PHR', 'PNJ', 'PPC', 'PTB', 'PVD', 'PVT', 'REE',
+  'SBT', 'SCS', 'SIP', 'SJS', 'SZC', 'TCH', 'VCG', 'VCI', 'VGC', 'VHC',
+  'VND', 'VPI', 'VSC',
+];
+
+const withVnSuffix = (tickers: string[]): string[] => tickers.map((t) => `${t}.VN`);
+
+export function getVn30Universe(): string[] {
+  return withVnSuffix(VN30);
+}
+
+export function getVn100Universe(): string[] {
+  return withVnSuffix([...new Set([...VN30, ...VN100_EXTRA])]).sort();
+}

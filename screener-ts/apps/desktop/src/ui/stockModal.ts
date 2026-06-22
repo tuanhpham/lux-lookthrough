@@ -1,6 +1,6 @@
 import { scanStock, type Period } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, num, fmtBig, money, scoreColor, signalBadge, stageBadge } from './dom.js';
+import { $, num, fmtBig, money, fmtPrice, scoreColor, signalBadge, stageBadge } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
 import { t, getLang } from './i18n.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
@@ -187,7 +187,7 @@ function renderDetail(
   return `
     <div class="row" style="margin-bottom:12px">
       <div>
-        <div style="font-size:22px;font-weight:700">${price != null ? '$' + num(price) : '—'}</div>
+        <div style="font-size:22px;font-weight:700">${fmtPrice(price, symbol)}</div>
         <div id="detail-subtitle" class="muted" style="font-size:12px">${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}</div>
       </div>
       <div class="row" style="margin-left:auto;gap:8px">

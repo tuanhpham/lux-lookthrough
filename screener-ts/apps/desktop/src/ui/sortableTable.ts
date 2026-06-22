@@ -1,5 +1,5 @@
 import type { ScreenRow } from '@screener/core';
-import { num, scoreColor, signalBadge, stageBadge } from './dom.js';
+import { num, fmtPrice, scoreColor, signalBadge, stageBadge } from './dom.js';
 
 /** Column keys a result table can sort by. */
 export type SortKey =
@@ -99,10 +99,10 @@ export function sortableTable(rows: ScreenRow[], options: SortableTableOptions):
         <td><span class="scorebar"><span style="width:${Math.max(0, r.score)}%;background:${scoreColor(r.score)}"></span></span> <span style="color:${scoreColor(r.score)};font-weight:700">${num(r.score, 0)}</span></td>
         <td>${signalBadge(r.signal)}</td>
         <td>${stageBadge(r.stage, r.stageLabel)}</td>
-        <td>${r.price ? '$' + num(r.price) : '—'}</td>
-        <td>${r.entryPrice != null ? '$' + num(r.entryPrice) : '—'}</td>
-        <td class="danger">${r.stopLoss != null ? '$' + num(r.stopLoss) : '—'}</td>
-        <td class="accent">${r.targetPrice != null ? '$' + num(r.targetPrice) : '—'}</td>
+        <td>${r.price ? fmtPrice(r.price, r.symbol) : '—'}</td>
+        <td>${fmtPrice(r.entryPrice, r.symbol)}</td>
+        <td class="danger">${fmtPrice(r.stopLoss, r.symbol)}</td>
+        <td class="accent">${fmtPrice(r.targetPrice, r.symbol)}</td>
         <td>${r.riskReward != null ? num(r.riskReward, 1) + 'R' : '—'}</td>
         <td>${r.distanceToPivotPct != null ? num(r.distanceToPivotPct, 1) + '%' : '—'}</td>
         <td>${r.vcpContractions ?? '—'}</td>
