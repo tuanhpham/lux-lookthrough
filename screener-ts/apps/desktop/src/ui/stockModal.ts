@@ -1,6 +1,6 @@
 import { scanStock, type Period } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, num, fmtBig, money, fmtPrice, scoreColor, signalBadge, stageBadge } from './dom.js';
+import { $, num, fmtBig, money, fmtPrice, isVnSymbol, scoreColor, signalBadge, stageBadge } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
 import { t, getLang } from './i18n.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
@@ -169,11 +169,11 @@ function renderDetail(
         </div>
       </div>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
-        ${stat('Entry', p.entryPrice != null ? '$' + num(p.entryPrice) : '—', 'entry')}
-        ${stat('Stop', p.stopLoss != null ? '$' + num(p.stopLoss) : '—', 'stop')}
-        ${stat('Target', p.targetPrice != null ? '$' + num(p.targetPrice) : '—', 'target')}
+        ${stat('Entry', fmtPrice(p.entryPrice, symbol), 'entry')}
+        ${stat('Stop', fmtPrice(p.stopLoss, symbol), 'stop')}
+        ${stat('Target', fmtPrice(p.targetPrice, symbol), 'target')}
         ${stat('R:R', p.riskReward != null ? num(p.riskReward, 1) + 'R' : '—', 'rr')}
-        ${stat('Pivot', p.pivot.pivotHigh != null ? '$' + num(p.pivot.pivotHigh) : '—', 'pivot')}
+        ${stat('Pivot', fmtPrice(p.pivot.pivotHigh, symbol), 'pivot')}
         ${stat('Range', num(p.consolidation.priceRangePct, 1) + '%', 'price_range')}
         ${stat('Vol dry-up', num(p.consolidation.volumeDryUpPct, 1) + '%', 'volume_dryup')}
         ${stat('VCP', String(p.consolidation.vcpContractions), 'vcp')}
@@ -231,7 +231,7 @@ function renderDetail(
       <div id="fund-chart" class="chart" style="height:160px"></div>
     </div>
     <div class="section-title">${t('detail.fundamentals')}</div>
-    <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f)}</div>
+    <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f, symbol)}</div>
     <div class="section-title">${t('detail.about')}</div>
     <div id="about-block">${aboutHtml(symbol, f)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
@@ -264,17 +264,27 @@ function fundGridHtml(f: {
   marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null;
   profitMargin?: number | null; revenueGrowth?: number | null; beta?: number | null;
   dividendYield?: number | null; week52Low?: number | null; week52High?: number | null;
-}): string {
+}, symbol?: string): string {
+  const vn = isVnSymbol(symbol);
+  const ccy = vn ? ' ₫' : '';
+  // VN market cap is in VND (huge) — fmtBig's T/B suffixes apply; tag the unit.
+  const mcap = f.marketCap != null ? fmtBig(f.marketCap) + (vn ? ' ₫' : '') : '—';
+  // EPS in VND is whole-đồng (e.g. 5,216 ₫); in USD it's a few dollars.
+  const eps = f.eps != null ? (vn ? num(f.eps, 0) + ' ₫' : '$' + num(f.eps)) : '—';
+  const range =
+    f.week52Low != null && f.week52High != null
+      ? (vn ? num(f.week52Low, 0) + '–' + num(f.week52High, 0) + ccy : '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0))
+      : '—';
   return [
-    stat('Market Cap', fmtBig(f.marketCap), 'market_cap'),
+    stat('Market Cap', mcap, 'market_cap'),
     stat('P/E', num(f.peRatio, 1), 'pe_ratio'),
-    stat('EPS', f.eps != null ? '$' + num(f.eps) : '—', 'eps'),
+    stat('EPS', eps, 'eps'),
     stat('ROE', f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe'),
     stat('Profit Margin', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin'),
     stat('Rev Growth', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—', 'revenue_growth'),
     stat('Beta', num(f.beta, 2), 'beta'),
     stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—', 'dividend_yield'),
-    stat('52w Range', f.week52Low != null && f.week52High != null ? '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0) : '—', 'week52'),
+    stat('52w Range', range, 'week52'),
   ].join('');
 }
 
@@ -282,6 +292,8 @@ function fundGridHtml(f: {
 function analysisHtml(p: ReturnType<typeof scanStock>): string {
   const vi = getLang() === 'vi';
   const hl = (s: string) => `<span class="hl">${s}</span>`;
+  // Price unit follows the ticker (VND for .VN, USD otherwise).
+  const px = (v: number | null | undefined) => fmtPrice(v, p.symbol);
   const sig = p.signal === 'BREAKOUT_IMMINENT'
     ? (vi ? 'Bứt phá sắp xảy ra' : 'Breakout imminent')
     : p.signal === 'CONSOLIDATING'
@@ -317,16 +329,16 @@ function analysisHtml(p: ReturnType<typeof scanStock>): string {
   if (p.pivot.pivotHigh) {
     items.push(
       vi
-        ? `Cách pivot ${hl('$' + num(p.pivot.pivotHigh))} khoảng ${hl(num(p.pivot.distanceToPivotPct, 1) + '%')}`
-        : `${hl(num(p.pivot.distanceToPivotPct, 1) + '%')} below the pivot at ${hl('$' + num(p.pivot.pivotHigh))}`,
+        ? `Cách pivot ${hl(px(p.pivot.pivotHigh))} khoảng ${hl(num(p.pivot.distanceToPivotPct, 1) + '%')}`
+        : `${hl(num(p.pivot.distanceToPivotPct, 1) + '%')} below the pivot at ${hl(px(p.pivot.pivotHigh))}`,
     );
   }
   if (p.entryPrice && p.stopLoss && p.targetPrice) {
     const rr = p.riskReward ? num(p.riskReward, 1) + 'R' : '—';
     items.push(
       vi
-        ? `Kế hoạch: mua ${hl('$' + num(p.entryPrice))}, cắt lỗ ${hl('$' + num(p.stopLoss))}, mục tiêu ${hl('$' + num(p.targetPrice))} (${hl(rr)})`
-        : `Plan: buy ${hl('$' + num(p.entryPrice))}, stop ${hl('$' + num(p.stopLoss))}, target ${hl('$' + num(p.targetPrice))} (${hl(rr)})`,
+        ? `Kế hoạch: mua ${hl(px(p.entryPrice))}, cắt lỗ ${hl(px(p.stopLoss))}, mục tiêu ${hl(px(p.targetPrice))} (${hl(rr)})`
+        : `Plan: buy ${hl(px(p.entryPrice))}, stop ${hl(px(p.stopLoss))}, target ${hl(px(p.targetPrice))} (${hl(rr)})`,
     );
   }
   const note = vi
@@ -417,7 +429,7 @@ async function patchWhenEnriched(ctx: AppContext, symbol: string, body: HTMLElem
       if (about) about.innerHTML = aboutHtml(symbol, f);
       const grid = body.querySelector('#fund-grid');
       if (grid) {
-        grid.innerHTML = fundGridHtml(f);
+        grid.innerHTML = fundGridHtml(f, symbol);
         attachTooltips(grid);
       }
       const sub = body.querySelector('#detail-subtitle');

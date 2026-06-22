@@ -194,6 +194,52 @@ const VN100_EXTRA = [
   'VND', 'VPI', 'VSC',
 ];
 
+/**
+ * Every common stock listed on HOSE (Yahoo exchange code "VSE"), ~390 names.
+ * Snapshotted from Yahoo's equity screener (exchange = VSE). This is the
+ * Vietnam analogue of the US "all stocks" mode — but bundled rather than fetched
+ * live, because the screener endpoint needs a POST + crumb that the simple GET
+ * proxy/Tauri layer don't do. ETFs (FUE* prefix) are excluded; the pattern
+ * engine is for individual equities. Yahoo only indexes HOSE — HNX and UPCoM
+ * tickers don't resolve — so this is the full investable VN universe available
+ * through the current (Yahoo) data layer.
+ */
+const HOSE_ALL = [
+  'AAA', 'AAM', 'AAN', 'AAT', 'ABR', 'ABS', 'ABT', 'ACB', 'ACC', 'ACG', 'ACL', 'ADG',
+  'ADP', 'ADS', 'AFX', 'AGG', 'AGR', 'ANT', 'ANV', 'APG', 'APH', 'ASG', 'ASM', 'ASP',
+  'AST', 'BAF', 'BCE', 'BCM', 'BFC', 'BHN', 'BIC', 'BID', 'BKG', 'BMC', 'BMI', 'BMP',
+  'BRC', 'BSI', 'BSR', 'BTP', 'BTT', 'BVH', 'BWE', 'C32', 'C47', 'CCC', 'CCI', 'CCL',
+  'CDC', 'CHP', 'CIG', 'CII', 'CKG', 'CLC', 'CLL', 'CLW', 'CMG', 'CMX', 'CNG', 'COM',
+  'CRC', 'CRE', 'CRV', 'CSM', 'CSV', 'CTD', 'CTF', 'CTG', 'CTI', 'CTR', 'CTS', 'CVT',
+  'D2D', 'DAH', 'DAT', 'DBC', 'DBD', 'DBT', 'DC4', 'DCL', 'DCM', 'DGC', 'DGW', 'DHA',
+  'DHC', 'DHG', 'DHM', 'DIG', 'DLG', 'DMC', 'DPG', 'DPM', 'DPR', 'DQC', 'DRC', 'DRH',
+  'DRL', 'DSC', 'DSE', 'DSN', 'DTA', 'DTL', 'DVP', 'DXG', 'DXS', 'DXV', 'EIB', 'ELC',
+  'EVE', 'EVF', 'EVG', 'FCM', 'FCN', 'FDC', 'FIR', 'FIT', 'FMC', 'FPT', 'FRT', 'FTS',
+  'GAS', 'GDT', 'GEE', 'GEG', 'GEL', 'GEX', 'GHC', 'GIL', 'GMD', 'GMH',
+  'GSP', 'GVR', 'HAG', 'HAH', 'HAP', 'HAR', 'HAS', 'HAX', 'HCD', 'HCM', 'HDB', 'HDC',
+  'HDG', 'HHP', 'HHS', 'HHV', 'HID', 'HII', 'HMC', 'HNA', 'HPA', 'HPG', 'HPX', 'HQC',
+  'HRC', 'HSG', 'HSL', 'HT1', 'HTG', 'HTI', 'HTL', 'HTN', 'HTV', 'HU1', 'HUB', 'HVH',
+  'HVN', 'ICT', 'IDI', 'IJC', 'ILB', 'IMP', 'ITC', 'ITD', 'JVC', 'KBC', 'KDC', 'KDH',
+  'KHG', 'KHP', 'KLB', 'KMR', 'KOS', 'KSB', 'LAF', 'LBM', 'LCG', 'LDG', 'LGL', 'LHG',
+  'LIX', 'LPB', 'LSS', 'MBB', 'MCH', 'MCM', 'MCP', 'MDG', 'MHC', 'MIG', 'MSB', 'MSH',
+  'MSN', 'MWG', 'NAB', 'NAF', 'NAV', 'NBB', 'NCT', 'NHA', 'NHH', 'NHT', 'NKG', 'NLG',
+  'NNC', 'NO1', 'NSC', 'NT2', 'NTC', 'NTL', 'NVL', 'NVT', 'OCB', 'OGC', 'OPC', 'ORS',
+  'PAC', 'PAN', 'PC1', 'PDN', 'PDR', 'PDV', 'PET', 'PGC', 'PGD', 'PGI', 'PGV', 'PHC',
+  'PHR', 'PIT', 'PJT', 'PLP', 'PLX', 'PMG', 'PNJ', 'POW', 'PPC', 'PTB', 'PTC', 'PTL',
+  'PVD', 'PVP', 'PVT', 'QCG', 'QNP', 'RAL', 'REE', 'RYG', 'SAB', 'SAM', 'SAV', 'SBA',
+  'SBG', 'SBT', 'SBV', 'SC5', 'SCR', 'SCS', 'SFG', 'SFI', 'SGN', 'SGR', 'SGT', 'SHA',
+  'SHB', 'SHI', 'SHP', 'SIP', 'SJD', 'SJS', 'SKG', 'SMA', 'SMB', 'SMC', 'SPM', 'SRC',
+  'SRF', 'SSB', 'SSC', 'SSI', 'ST8', 'STB', 'STG', 'STK', 'SVC', 'SVD', 'SVT', 'SZC',
+  'SZL', 'TAL', 'TBC', 'TCB', 'TCH', 'TCI', 'TCL', 'TCM', 'TCO', 'TCR', 'TCT', 'TCX',
+  'TDC', 'TDG', 'TDH', 'TDM', 'TDP', 'TDW', 'TEG', 'THG', 'TIP', 'TIX', 'TLD', 'TLG',
+  'TLH', 'TMP', 'TMS', 'TMT', 'TN1', 'TNC', 'TNH', 'TNI', 'TNT', 'TPB', 'TPC', 'TRA',
+  'TRC', 'TSA', 'TSC', 'TTA', 'TTF', 'TV2', 'TVB', 'TVS', 'TVT', 'TYA', 'UIC', 'VAB',
+  'VCA', 'VCB', 'VCF', 'VCG', 'VCI', 'VCK', 'VDP', 'VDS', 'VFG', 'VGC', 'VHC', 'VHM',
+  'VIB', 'VIC', 'VID', 'VIP', 'VIX', 'VJC', 'VMD', 'VND', 'VNE', 'VNG', 'VNL', 'VNM',
+  'VNS', 'VOS', 'VPB', 'VPD', 'VPG', 'VPH', 'VPI', 'VPL', 'VPS', 'VPX', 'VRC', 'VRE',
+  'VSC', 'VSH', 'VSI', 'VTB', 'VTO', 'VTP', 'VVS', 'YBM', 'YEG',
+];
+
 const withVnSuffix = (tickers: string[]): string[] => tickers.map((t) => `${t}.VN`);
 
 export function getVn30Universe(): string[] {
@@ -202,4 +248,8 @@ export function getVn30Universe(): string[] {
 
 export function getVn100Universe(): string[] {
   return withVnSuffix([...new Set([...VN30, ...VN100_EXTRA])]).sort();
+}
+
+export function getAllVnUniverse(): string[] {
+  return withVnSuffix(HOSE_ALL).sort();
 }

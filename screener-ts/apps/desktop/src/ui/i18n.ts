@@ -54,6 +54,11 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.uni.all': { en: 'All US stocks', vi: 'Toàn bộ CK Mỹ' },
   'picks.uni.vn30': { en: 'VN30', vi: 'VN30' },
   'picks.uni.vn100': { en: 'VN100', vi: 'VN100' },
+  'picks.uni.vnall': { en: 'All HOSE (~390)', vi: 'Toàn sàn HOSE (~390)' },
+  'picks.uni.vnall.hint': {
+    en: 'Scans every HOSE-listed stock (~390) via Yahoo. Takes a few minutes; some may be rate-limited — use Stop anytime. HNX/UPCoM are not available on Yahoo.',
+    vi: 'Quét toàn bộ cổ phiếu niêm yết HOSE (~390) qua Yahoo. Mất vài phút; một số mã có thể bị giới hạn — bấm Dừng bất cứ lúc nào. HNX/UPCoM không có trên Yahoo.',
+  },
   'picks.uni.all.hint': {
     en: 'Scans every NASDAQ + NYSE/AMEX common stock (~6000+). Takes several minutes and some symbols may be rate-limited — use the Stop button anytime.',
     vi: 'Quét toàn bộ cổ phiếu NASDAQ + NYSE/AMEX (~6000+). Mất vài phút và một số mã có thể bị giới hạn — bấm Dừng bất cứ lúc nào.',

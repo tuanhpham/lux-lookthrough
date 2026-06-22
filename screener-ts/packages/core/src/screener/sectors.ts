@@ -573,3 +573,104 @@ export const SECTOR_STOCKS: Record<string, string[]> = {
 };
 
 export const ALL_SECTORS: string[] = Object.keys(SECTOR_STOCKS);
+
+/** Curated HOSE (Vietnam) sector universes, classified via Yahoo's GICS-style
+ * sector tags (~390 stocks, ETFs excluded). Mirrors SECTOR_STOCKS so the same
+ * sector-rank / sector-screen features work for the VN market. */
+export const VN_SECTOR_STOCKS: Record<string, string[]> = {
+  "Technology": [
+    'CMG.VN', 'DGW.VN', 'ELC.VN', 'FPT.VN', 'ITD.VN', 'SGT.VN',
+    'VTB.VN',
+  ],
+  "Financial Services": [
+    'ACB.VN', 'AGR.VN', 'APG.VN', 'BIC.VN', 'BID.VN', 'BMI.VN',
+    'BSI.VN', 'BVH.VN', 'CTG.VN', 'CTS.VN', 'DSC.VN', 'DSE.VN',
+    'EIB.VN', 'EVF.VN', 'FIT.VN', 'FTS.VN', 'HCM.VN', 'HDB.VN',
+    'KLB.VN', 'LPB.VN', 'MBB.VN', 'MIG.VN', 'MSB.VN', 'NAB.VN',
+    'OCB.VN', 'ORS.VN', 'PGI.VN', 'PTC.VN', 'SHB.VN', 'SSB.VN',
+    'SSI.VN', 'STB.VN', 'TCB.VN', 'TCI.VN', 'TCX.VN', 'TPB.VN',
+    'TVB.VN', 'TVS.VN', 'VAB.VN', 'VCB.VN', 'VCI.VN', 'VCK.VN',
+    'VDS.VN', 'VIB.VN', 'VIX.VN', 'VND.VN', 'VPB.VN', 'VPX.VN',
+  ],
+  "Real Estate": [
+    'AGG.VN', 'ASM.VN', 'BCM.VN', 'CCL.VN', 'CKG.VN', 'CRE.VN',
+    'CRV.VN', 'DIG.VN', 'DRH.VN', 'DTA.VN', 'DXG.VN', 'DXS.VN',
+    'FIR.VN', 'HAG.VN', 'HAR.VN', 'HDC.VN', 'HDG.VN', 'HPX.VN',
+    'HQC.VN', 'ITC.VN', 'KBC.VN', 'KDH.VN', 'KHG.VN', 'KOS.VN',
+    'LDG.VN', 'LHG.VN', 'NBB.VN', 'NLG.VN', 'NVL.VN', 'NVT.VN',
+    'PDR.VN', 'SCR.VN', 'SGR.VN', 'SIP.VN', 'SJS.VN', 'SZC.VN',
+    'SZL.VN', 'TAL.VN', 'TDH.VN', 'TEG.VN', 'TN1.VN', 'UIC.VN',
+    'VHM.VN', 'VIC.VN', 'VPH.VN', 'VPI.VN', 'VRE.VN',
+  ],
+  "Industrials": [
+    'AAT.VN', 'ASG.VN', 'AST.VN', 'BCE.VN', 'BMP.VN', 'BRC.VN',
+    'BTT.VN', 'BWE.VN', 'C47.VN', 'CCC.VN', 'CCI.VN', 'CDC.VN',
+    'CIG.VN', 'CII.VN', 'CLL.VN', 'CRC.VN', 'CTD.VN', 'CTR.VN',
+    'CVT.VN', 'D2D.VN', 'DC4.VN', 'DHM.VN', 'DLG.VN', 'DPG.VN',
+    'DQC.VN', 'DVP.VN', 'EVG.VN', 'FCN.VN', 'FDC.VN', 'GEE.VN',
+    'GEL.VN', 'GEX.VN', 'GMD.VN', 'HAH.VN', 'HAS.VN', 'HCD.VN',
+    'HHS.VN', 'HHV.VN', 'HID.VN', 'HMC.VN', 'HTI.VN', 'HTV.VN',
+    'HU1.VN', 'HUB.VN', 'HVN.VN', 'IJC.VN', 'ILB.VN', 'LCG.VN',
+    'LGL.VN', 'MDG.VN', 'MHC.VN', 'MSN.VN', 'NCT.VN', 'NHA.VN',
+    'NO1.VN', 'NTC.VN', 'NTL.VN', 'OGC.VN', 'PAC.VN', 'PC1.VN',
+    'PDN.VN', 'PDV.VN', 'PHC.VN', 'PIT.VN', 'PJT.VN', 'PTB.VN',
+    'PTL.VN', 'PVP.VN', 'PVT.VN', 'QNP.VN', 'RAL.VN', 'REE.VN',
+    'SAM.VN', 'SBA.VN', 'SBG.VN', 'SC5.VN', 'SCS.VN', 'SFI.VN',
+    'SGN.VN', 'SKG.VN', 'SMA.VN', 'SRF.VN', 'STG.VN', 'TCH.VN',
+    'TCL.VN', 'TCO.VN', 'TCR.VN', 'TIP.VN', 'TIX.VN', 'TLD.VN',
+    'TLG.VN', 'TMS.VN', 'TSA.VN', 'TV2.VN', 'TYA.VN', 'VCG.VN',
+    'VGC.VN', 'VIP.VN', 'VJC.VN', 'VNE.VN', 'VNL.VN', 'VNS.VN',
+    'VOS.VN', 'VPG.VN', 'VRC.VN', 'VSC.VN', 'VSI.VN', 'VTO.VN',
+    'VTP.VN', 'VVS.VN',
+  ],
+  "Basic Materials": [
+    'ABS.VN', 'ACC.VN', 'ACG.VN', 'ADP.VN', 'APH.VN', 'BFC.VN',
+    'BKG.VN', 'BMC.VN', 'C32.VN', 'CSV.VN', 'CTI.VN', 'DCM.VN',
+    'DGC.VN', 'DHA.VN', 'DHC.VN', 'DPM.VN', 'DTL.VN', 'DXV.VN',
+    'FCM.VN', 'GMH.VN', 'GVR.VN', 'HAP.VN', 'HHP.VN', 'HII.VN',
+    'HPG.VN', 'HSG.VN', 'HT1.VN', 'KSB.VN', 'LBM.VN', 'NAV.VN',
+    'NHH.VN', 'NKG.VN', 'NNC.VN', 'PLP.VN', 'QCG.VN', 'RYG.VN',
+    'SFG.VN', 'SHA.VN', 'SHI.VN', 'SMC.VN', 'TDC.VN', 'THG.VN',
+    'TLH.VN', 'TNI.VN', 'TNT.VN', 'TRC.VN', 'VCA.VN', 'VFG.VN',
+    'VID.VN', 'VPS.VN', 'YBM.VN',
+  ],
+  "Consumer Cyclical": [
+    'AAA.VN', 'ADS.VN', 'CSM.VN', 'CTF.VN', 'DAH.VN', 'DPR.VN',
+    'DRC.VN', 'DSN.VN', 'EVE.VN', 'FRT.VN', 'GDT.VN', 'GIL.VN',
+    'HAX.VN', 'HTG.VN', 'HTL.VN', 'HTN.VN', 'HVH.VN', 'KMR.VN',
+    'MCP.VN', 'MSH.VN', 'MWG.VN', 'NHT.VN', 'PNJ.VN', 'SAV.VN',
+    'SBV.VN', 'SRC.VN', 'ST8.VN', 'STK.VN', 'SVC.VN', 'SVD.VN',
+    'TCM.VN', 'TCT.VN', 'TDP.VN', 'TMT.VN', 'TNC.VN', 'TPC.VN',
+    'TTF.VN', 'TVT.VN', 'VNG.VN', 'VPL.VN',
+  ],
+  "Consumer Defensive": [
+    'AAM.VN', 'AAN.VN', 'ABT.VN', 'ACL.VN', 'AFX.VN', 'ANT.VN',
+    'ANV.VN', 'BAF.VN', 'BHN.VN', 'CLC.VN', 'CMX.VN', 'DAT.VN',
+    'DBC.VN', 'FMC.VN', 'HPA.VN', 'HRC.VN', 'HSL.VN', 'IDI.VN',
+    'KDC.VN', 'LAF.VN', 'LIX.VN', 'LSS.VN', 'MCH.VN', 'MCM.VN',
+    'NAF.VN', 'NSC.VN', 'PAN.VN', 'PHR.VN', 'SAB.VN', 'SBT.VN',
+    'SMB.VN', 'SSC.VN', 'SVT.VN', 'TSC.VN', 'VCF.VN', 'VHC.VN',
+    'VNM.VN',
+  ],
+  "Energy": [
+    'BSR.VN', 'COM.VN', 'GAS.VN', 'PET.VN', 'PGC.VN', 'PGD.VN',
+    'PLX.VN', 'PVD.VN',
+  ],
+  "Utilities": [
+    'ASP.VN', 'BTP.VN', 'CHP.VN', 'CLW.VN', 'CNG.VN', 'DRL.VN',
+    'GEG.VN', 'GHC.VN', 'GSP.VN', 'HNA.VN', 'KHP.VN', 'NT2.VN',
+    'PGV.VN', 'PMG.VN', 'POW.VN', 'PPC.VN', 'SHP.VN', 'SJD.VN',
+    'TBC.VN', 'TDG.VN', 'TDM.VN', 'TDW.VN', 'TMP.VN', 'TTA.VN',
+    'VPD.VN', 'VSH.VN',
+  ],
+  "Healthcare": [
+    'DBD.VN', 'DBT.VN', 'DCL.VN', 'DHG.VN', 'DMC.VN', 'IMP.VN',
+    'JVC.VN', 'OPC.VN', 'SPM.VN', 'TNH.VN', 'TRA.VN', 'VDP.VN',
+    'VMD.VN',
+  ],
+  "Communication Services": [
+    'ABR.VN', 'ADG.VN', 'ICT.VN', 'YEG.VN',
+  ],
+};
+
+export const VN_ALL_SECTORS: string[] = Object.keys(VN_SECTOR_STOCKS);
