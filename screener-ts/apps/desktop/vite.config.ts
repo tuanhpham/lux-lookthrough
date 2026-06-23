@@ -128,15 +128,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Charting library — largest single dep (~150 kB min).
-          'vendor-charts': ['lightweight-charts'],
-          // Markdown renderer — used only in the Blog tab.
-          'vendor-marked': ['marked'],
-          // Technical-indicators lib — used only in core scanners.
-          'vendor-indicators': ['technicalindicators'],
-          // YAML parser — used only for the blog post front-matter.
-          'vendor-yaml': ['js-yaml'],
+        manualChunks(id) {
+          if (id.includes('lightweight-charts')) return 'vendor-charts';
+          if (id.includes('marked')) return 'vendor-marked';
+          if (id.includes('technicalindicators')) return 'vendor-indicators';
+          if (id.includes('js-yaml')) return 'vendor-yaml';
         },
       },
     },
