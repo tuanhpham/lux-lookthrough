@@ -1,3 +1,24 @@
 yes, please add the momentum rebalancing strategy next, and  wire the trade planner / watchlist generator into the UI 2. Improve the I for the phone version e.g. balance the content for each   
   page, menu bar should have some icons when clicking on the menu icon, the frame for menu is a bit big compared with the page name .. .... 3. Rewrite learn to add the new content how the pages  
   work, especially, how backtest works, when I enter one stock, it does not result anything everything is 0, sometimes using 5Y it results 1 trade, but using Max, it results then nothing         
+About
+This website marks a small but meaningful turning point in my life — the day I decided to seriously pursue my dream of becoming a professional trader, and to take a more active role in shaping my own future.
+
+I'm Dr. Tu Anh Pham. Over the years, I've been fortunate to work with data and finance — most recently as a data analytics and automation specialist at Allianz Investment Management, after completing a PhD in Economics. I've spent a lot of my career analyzing markets and building tools to help others make better decisions. Along the way, I've learned how much I still have to learn.
+
+This site isn't a résumé, and I don't claim to have it all figured out. It's simply an honest record of a new journey — one I'm starting with humility and a lot of curiosity.
+
+After years of looking at markets from the outside, I want to try walking the path myself. To me, trading isn't really about quick wins; it's a long, patient process of building discipline, learning from mistakes, and growing as a person. This is where I'll document that journey — the lessons, the setbacks, the small victories — as I slowly work toward becoming a better trader and, hopefully, a better version of myself.
+
+If you've found your way here, thank you for being part of the story. I hope my journey might offer a little encouragement for yours, too.
+
+Giới thiệu (bản tiếng Việt)
+Website này đánh dấu một bước ngoặt nhỏ nhưng ý nghĩa trong cuộc đời tôi — ngày tôi quyết định nghiêm túc theo đuổi ước mơ trở thành một trader chuyên nghiệp, và chủ động hơn trong việc định hình tương lai của chính mình.
+
+Tôi là Dr. Tu Anh Pham. Trong những năm qua, tôi may mắn được làm việc với dữ liệu và tài chính — gần đây nhất là vị trí chuyên gia phân tích dữ liệu và tự động hóa tại Allianz Investment Management, sau khi hoàn thành chương trình Tiến sĩ Kinh tế. Phần lớn sự nghiệp của tôi là phân tích thị trường và xây dựng công cụ giúp người khác ra quyết định tốt hơn. Và trên hành trình ấy, tôi nhận ra mình vẫn còn rất nhiều điều phải học.
+
+Đây không phải là một bản CV, và tôi cũng không dám nói rằng mình đã hiểu hết mọi thứ. Nó đơn giản là một cuốn nhật ký chân thật cho một hành trình mới — hành trình tôi bắt đầu với sự khiêm tốn và rất nhiều tò mò.
+
+Sau nhiều năm nhìn thị trường từ bên ngoài, tôi muốn thử tự mình bước đi trên con đường đó. Với tôi, trading không phải là chuyện thắng nhanh; đó là một quá trình dài và kiên nhẫn để rèn luyện kỷ luật, học từ những sai lầm, và trưởng thành hơn như một con người. Đây là nơi tôi ghi lại hành trình ấy — những bài học, những vấp ngã, và cả những niềm vui nhỏ — khi tôi từng bước cố gắng trở thành một trader tốt hơn, và hy vọng cũng là một phiên bản tốt hơn của chính mình.
+
+Nếu bạn tình cờ ghé qua đây, cảm ơn bạn đã là một phần của câu chuyện. Mong rằng hành trình của tôi có thể mang lại một chút động lực cho hành trình của bạn.
