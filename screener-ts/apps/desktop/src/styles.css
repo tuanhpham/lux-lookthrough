@@ -473,6 +473,16 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .playbook-table th { color: var(--faint); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; position: static; background: transparent; }
 .playbook-table tr:last-child td { border-bottom: none; }
 
+/* ── Date input: tint the calendar icon to match the accent colour. ──────── */
+input[type="date"].field { color-scheme: dark; }
+html.light input[type="date"].field { color-scheme: light; }
+input[type="date"].field::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(1) saturate(3) hue-rotate(105deg);
+  cursor: pointer;
+  opacity: .7;
+}
+input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
 /* ── PWA / iOS standalone safe areas ─────────────────────────────────────── */
 @media (display-mode: standalone) {
   #topnav { padding-top: env(safe-area-inset-top); height: calc(56px + env(safe-area-inset-top)); }

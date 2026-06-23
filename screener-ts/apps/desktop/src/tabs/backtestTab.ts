@@ -12,6 +12,7 @@ import {
   type ReportColumn,
   type Period,
   type OHLCV,
+  type Bar,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num } from '../ui/dom.js';
@@ -22,6 +23,32 @@ import { t } from '../ui/i18n.js';
 
 type BtStrategy = 'vcp' | 'momentum';
 let btStrategy: BtStrategy = 'vcp';
+
+/** Preset periods shown as pill buttons. 'custom' triggers the date pickers. */
+type PeriodMode = '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max' | 'custom';
+let periodMode: PeriodMode = '5y';
+
+/** Today's date string (YYYY-MM-DD) for capping the date picker max. */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** A date N years before today. */
+function yearsAgo(n: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+const PERIOD_PRESETS: { mode: PeriodMode; label: string }[] = [
+  { mode: '3mo', label: '3M' },
+  { mode: '6mo', label: '6M' },
+  { mode: '1y', label: '1Y' },
+  { mode: '2y', label: '2Y' },
+  { mode: '5y', label: '5Y' },
+  { mode: 'max', label: 'Max' },
+  { mode: 'custom', label: '📅 Custom' },
+];
 
 export function renderBacktest(ctx: AppContext): void {
   const root = $('#tab-backtest')!;
@@ -38,17 +65,34 @@ export function renderBacktest(ctx: AppContext): void {
         </div>
         <p id="bt-strat-desc" class="muted" style="font-size:12px;margin:6px 0 0;line-height:1.5">${stratDesc(btStrategy)}</p>
       </div>
-      <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">
         <div><label class="field-label">${t('backtest.symbols')}</label>
           <input id="bt-symbols" class="field" placeholder="AAPL, NVDA, MSFT" /></div>
-        <div><label class="field-label">${t('backtest.period')}</label>
-          <select id="bt-period" class="field">
-            <option value="2y">2Y</option><option value="5y" selected>5Y</option><option value="max">Max</option>
-          </select></div>
         <div><label class="field-label">${t('backtest.risk')}</label>
           <input id="bt-risk" class="field" type="number" value="1" step="0.25" /></div>
         <div><label class="field-label">${t('backtest.capital')}</label>
           <input id="bt-capital" class="field" type="number" value="100000" step="10000" /></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label class="field-label">${t('backtest.period')}</label>
+        <div class="toolbar" style="margin:0;gap:5px" id="bt-period-row">
+          ${PERIOD_PRESETS.map(
+            (p) =>
+              `<button class="range-btn ${p.mode === periodMode ? 'active' : ''}" data-btperiod="${p.mode}">${p.label}</button>`,
+          ).join('')}
+        </div>
+        <div id="bt-custom-dates" class="${periodMode === 'custom' ? '' : 'hidden'}" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label class="field-label">${t('backtest.from')}</label>
+            <input id="bt-from" class="field" type="date" style="width:160px"
+              value="${yearsAgo(3)}" max="${today()}" />
+          </div>
+          <div>
+            <label class="field-label">${t('backtest.to')}</label>
+            <input id="bt-to" class="field" type="date" style="width:160px"
+              value="${today()}" max="${today()}" />
+          </div>
+        </div>
       </div>
       <div class="row" style="margin-top:14px">
         <button id="bt-run" class="btn">${t('backtest.run')}</button>
@@ -57,6 +101,7 @@ export function renderBacktest(ctx: AppContext): void {
     </div>
     <div id="bt-results"></div>`;
 
+  // Strategy toggle.
   root.querySelectorAll<HTMLElement>('[data-btstrat]').forEach((b) =>
     b.addEventListener('click', () => {
       btStrategy = b.dataset.btstrat as BtStrategy;
@@ -64,12 +109,26 @@ export function renderBacktest(ctx: AppContext): void {
       $('#bt-strat-desc')!.textContent = stratDesc(btStrategy);
     }),
   );
+
+  // Period preset pills.
+  root.querySelectorAll<HTMLElement>('[data-btperiod]').forEach((b) =>
+    b.addEventListener('click', () => {
+      periodMode = b.dataset.btperiod as PeriodMode;
+      root.querySelectorAll('[data-btperiod]').forEach((x) => x.classList.toggle('active', x === b));
+      $('#bt-custom-dates')!.classList.toggle('hidden', periodMode !== 'custom');
+    }),
+  );
+
   $('#bt-run')!.addEventListener('click', () => void runBt(ctx));
 }
 
 function stratDesc(s: BtStrategy): string {
-  if (s === 'vcp') return t('backtest.strat.vcp.desc');
-  return t('backtest.strat.momentum.desc');
+  return s === 'vcp' ? t('backtest.strat.vcp.desc') : t('backtest.strat.momentum.desc');
+}
+
+/** Slice bars to [fromDate, toDate] inclusive. Both are YYYY-MM-DD strings. */
+function sliceBars(bars: readonly Bar[], fromDate: string, toDate: string): Bar[] {
+  return bars.filter((b) => b.date >= fromDate && b.date <= toDate);
 }
 
 async function runBt(ctx: AppContext): Promise<void> {
@@ -83,25 +142,43 @@ async function runBt(ctx: AppContext): Promise<void> {
     status.textContent = t('backtest.needsymbols');
     return;
   }
-  const period = ($('#bt-period') as HTMLSelectElement).value as Period;
+
   const riskPctPerTrade = Number(($('#bt-risk') as HTMLInputElement).value) || 1;
   const initialCapital = Number(($('#bt-capital') as HTMLInputElement).value) || 100_000;
+
+  // Resolve which API period to fetch and the optional date-clipping window.
+  let fetchPeriod: Period;
+  let clipFrom: string | null = null;
+  let clipTo: string | null = null;
+
+  if (periodMode === 'custom') {
+    clipFrom = ($('#bt-from') as HTMLInputElement).value;
+    clipTo = ($('#bt-to') as HTMLInputElement).value;
+    if (!clipFrom || !clipTo || clipFrom >= clipTo) {
+      status.textContent = t('backtest.baddates');
+      return;
+    }
+    // Always fetch max so we have the full adj-close history for clipping.
+    fetchPeriod = 'max';
+  } else {
+    fetchPeriod = periodMode as Period;
+  }
 
   status.innerHTML = `<span class="spinner"></span> ${t('msg.loading')} ${symbols.length}…`;
   out.innerHTML = '';
 
   const series: OHLCV[] = [];
   const skipped: string[] = [];
+  const minBars = btStrategy === 'momentum' ? 60 : 100;
+
   for (const sym of symbols) {
     try {
-      const ohlcv = await ctx.data.getOHLCV(sym, period);
-      // Lower minimum to 100 bars (covers 5Y for most symbols).
-      // VCP needs ~150+ for swing detection; momentum needs ~60.
-      const minBars = btStrategy === 'momentum' ? 60 : 100;
-      if (ohlcv.bars.length >= minBars) {
-        series.push(ohlcv);
+      const ohlcv = await ctx.data.getOHLCV(sym, fetchPeriod);
+      const bars = clipFrom && clipTo ? sliceBars(ohlcv.bars, clipFrom, clipTo) : ohlcv.bars;
+      if (bars.length >= minBars) {
+        series.push({ symbol: sym, bars });
       } else {
-        skipped.push(`${sym} (${ohlcv.bars.length} bars)`);
+        skipped.push(`${sym} (${bars.length} bars)`);
       }
     } catch {
       skipped.push(`${sym} (fetch failed)`);
@@ -121,8 +198,9 @@ async function runBt(ctx: AppContext): Promise<void> {
   const res = runBacktest(series, strategy, cfg);
   const stats = computeStats(res.trades, res.equityCurve, cfg);
 
+  const periodLabel = clipFrom && clipTo ? `${clipFrom} → ${clipTo}` : periodMode.toUpperCase();
   const skipNote = skipped.length ? ` · ${skipped.length} skipped (${skipped.join(', ')})` : '';
-  status.textContent = `${res.trades.length} ${t('backtest.trades')} · ${series.length}/${symbols.length} ${t('picks.scanned')}${skipNote}.`;
+  status.textContent = `${res.trades.length} ${t('backtest.trades')} · ${series.length}/${symbols.length} ${t('picks.scanned')} · ${periodLabel}${skipNote}.`;
   renderResults(ctx, res, stats, skipped);
 }
 
@@ -133,8 +211,6 @@ function statCard(label: string, value: string, good?: boolean): string {
 
 function renderResults(ctx: AppContext, res: BacktestResult, s: BacktestStats, skipped: string[]): void {
   const out = $('#bt-results')!;
-
-  // When 0 trades, show a helpful diagnostic instead of blank stats.
   const zeroBlock = res.trades.length === 0 ? renderZeroTradesHelp(res, skipped) : '';
 
   out.innerHTML = `
@@ -214,13 +290,13 @@ function renderZeroTradesHelp(res: BacktestResult, skipped: string[]): string {
 
   if (btStrategy === 'vcp') {
     hints.push('The VCP strategy only enters when a full Volatility Contraction Pattern forms: a prior 30%+ advance, then 2+ contracting pullbacks with drying volume and ATR. This setup is rare — a single stock may form 0–2 VCPs per year.');
-    hints.push('Try a longer period (Max) or add several more symbols. A universe of 5–10 strong trending stocks over 5 years gives the best results.');
-    hints.push('If the period is "Max" and still 0 trades: the stock may have had insufficient data (need 100+ bars), stayed in a downtrend the whole time, or never met the VCP criteria.');
-    if (bars < 252) hints.push(`Only ~${bars} bars loaded (~${days}y). The VCP detector needs at least 150 bars just to start checking. Try "5Y" or "Max".`);
+    hints.push('Try a longer period (5Y or Max) or add several more symbols. A universe of 5–10 strong trending stocks over 5 years gives the best results.');
+    if (bars < 252) hints.push(`Only ~${bars} bars in the selected window (~${days}y). The VCP detector needs at least 150 bars just to start checking. Use 5Y or a wider custom date range.`);
+    if (periodMode === 'custom') hints.push('With a custom date range, make sure the "From" date is early enough to include at least a year of history for the pattern to form.');
   } else {
     hints.push('The Momentum strategy enters when the momentum score ≥ 65 AND price is above EMA50. For some periods the stock may have been in a long downtrend (score always low).');
-    hints.push('Try adding 3–5 symbols, or switch to a period when the stock was trending strongly.');
-    if (bars < 120) hints.push(`Only ~${bars} bars loaded. Momentum scoring needs at least 60 bars; more gives better score stability.`);
+    hints.push('Try adding 3–5 symbols, or choose a period when the stock was trending strongly.');
+    if (bars < 120) hints.push(`Only ~${bars} bars in the window. Momentum scoring needs at least 60 bars; more gives better score stability.`);
   }
 
   if (skipped.length) {
