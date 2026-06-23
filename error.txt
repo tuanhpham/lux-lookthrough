@@ -1,3 +1,617 @@
-1. CP đóng cửa không quá 2 phiên dưới EMA5 trong 1 tuần
-2. giá tăng trong 2 tuần >= 20%
-Xây bộ lọc đấy hộ t nhé
+# ROLE
+
+You are acting as a Senior Quant Developer and Software Architect.
+
+Your task is NOT to rewrite my project.
+
+Your task is to evolve my existing Python stock screener into a professional momentum trading platform inspired by:
+
+* Qullamaggie
+* Mark Minervini
+* William O'Neil
+* TraderLion workflow
+
+Maintain backward compatibility at all times.
+
+---
+
+# IMPORTANT RULES
+
+Before writing any code:
+
+1. Analyze the existing project.
+2. Understand current architecture.
+3. Identify extension points.
+4. Reuse existing modules.
+5. Never duplicate logic.
+6. Never rewrite working code.
+7. Never rename public APIs.
+8. Keep commits small.
+9. Explain the implementation plan before coding.
+10. Ask for approval before major architectural changes.
+
+---
+
+# PROJECT VISION
+
+The project should become a complete trading workflow instead of just a scanner.
+
+Workflow:
+
+Market Analysis
+
+↓
+
+Sector Rotation
+
+↓
+
+Momentum Ranking
+
+↓
+
+Pattern Detection
+
+↓
+
+Watchlist Generation
+
+↓
+
+Trade Planning
+
+↓
+
+Backtesting
+
+↓
+
+Performance Review
+
+---
+
+# PHASE 1 — Market Regime
+
+Create a MarketRegimeEngine.
+
+Determine:
+
+* Bull Market
+* Choppy Market
+* Bear Market
+
+Using:
+
+EMA50
+
+EMA150
+
+EMA200
+
+Index trend
+
+Breadth (optional)
+
+Output:
+
+* regime_type
+* regime_score
+* risk_on flag
+
+---
+
+# PHASE 2 — Sector Rotation
+
+Create SectorMomentumEngine.
+
+For every sector:
+
+Calculate
+
+* 1M return
+
+* 3M return
+
+* RS vs SPY
+
+* Percentage of stocks outperforming
+
+Rank sectors.
+
+Return:
+
+* Hot sectors
+
+* Neutral sectors
+
+* Weak sectors
+
+---
+
+# PHASE 3 — Momentum Engine
+
+Create MomentumEngine.
+
+Calculate:
+
+1M return
+
+3M return
+
+6M return
+
+12M return
+
+RS vs SPY
+
+Liquidity Score
+
+Dollar Volume
+
+Momentum Score
+
+Classify:
+
+Weak
+
+Building
+
+Strong
+
+Explosive
+
+Rank all stocks.
+
+---
+
+# PHASE 4 — Momentum Explorer
+
+Create an independent scan mode.
+
+Purpose:
+
+Show stocks currently showing strong momentum.
+
+NOT VCP.
+
+NOT EP.
+
+Just leaders.
+
+CLI:
+
+--scan-momentum
+
+Filters:
+
+Top Momentum Score
+
+Top 3M return
+
+Top 6M return
+
+High RS
+
+Good liquidity
+
+Near highs
+
+Output:
+
+Top 100 leaders.
+
+Include:
+
+Ticker
+
+Sector
+
+Momentum Score
+
+RS
+
+1M
+
+3M
+
+6M
+
+Distance from High
+
+ATR
+
+Average Volume
+
+Dollar Volume
+
+---
+
+# PHASE 5 — VCP Integration
+
+Keep current VCP detector.
+
+DO NOT rewrite it.
+
+Only change the pipeline.
+
+Instead of scanning every stock:
+
+Universe
+
+↓
+
+Momentum Ranking
+
+↓
+
+Top 10~20%
+
+↓
+
+Sector Filter
+
+↓
+
+Existing VCP
+
+---
+
+# PHASE 6 — Episodic Pivot
+
+Keep existing implementation.
+
+Improve by adding:
+
+Confidence Score
+
+Catalyst Type
+
+Price Action Only
+
+Confirmed Earnings
+
+News Driven
+
+Output confidence.
+
+---
+
+# PHASE 7 — Watchlist Generator
+
+Create daily watchlists.
+
+Categories:
+
+Top Momentum
+
+Top VCP
+
+Top EP
+
+Top Breakouts
+
+Top Tight Bases
+
+Top Relative Strength
+
+Hot Sectors
+
+Watchlist should be exportable.
+
+CSV
+
+Excel
+
+HTML
+
+---
+
+# PHASE 8 — AI Trade Planner
+
+For every candidate:
+
+Generate:
+
+Entry
+
+Stop
+
+Position Size
+
+ATR Stop
+
+Risk %
+
+Expected R Multiple
+
+Trade Quality Score
+
+Confidence
+
+Explain:
+
+Why this stock is interesting.
+
+Why it passed filters.
+
+Why it failed filters.
+
+Use existing AI layer if available.
+
+---
+
+# PHASE 9 — Dashboard
+
+Improve dashboard.
+
+Include:
+
+Market Regime
+
+Sector Rotation
+
+Momentum Leaders
+
+VCP Candidates
+
+EP Candidates
+
+Breakouts
+
+Watchlists
+
+Charts
+
+Interactive filtering.
+
+---
+
+# PHASE 10 — Backtesting Framework
+
+Create a modular backtesting engine.
+
+Architecture:
+
+backtesting/
+
+engine.py
+
+strategies/
+
+vcp_strategy.py
+
+ep_strategy.py
+
+momentum_strategy.py
+
+portfolio.py
+
+statistics.py
+
+The engine should support:
+
+Historical simulation
+
+Walk-forward testing
+
+Portfolio simulation
+
+Multiple strategies
+
+Transaction costs
+
+Slippage
+
+Position sizing
+
+Maximum portfolio exposure
+
+Risk management
+
+---
+
+# VCP Strategy Backtest
+
+Entry:
+
+Breakout above pivot
+
+Stop:
+
+Below pivot or ATR
+
+Exit:
+
+EMA20 break
+
+EMA50 break
+
+ATR stop
+
+Time stop
+
+Measure:
+
+Win Rate
+
+Average Win
+
+Average Loss
+
+Profit Factor
+
+Expectancy
+
+Maximum Drawdown
+
+CAGR
+
+Sharpe Ratio
+
+MAR Ratio
+
+Average Hold Days
+
+Distribution of R Multiples
+
+---
+
+# Momentum Strategy Backtest
+
+Test:
+
+Buy strongest momentum stocks.
+
+Rebalance:
+
+Weekly
+
+Monthly
+
+Quarterly
+
+Compare:
+
+SPY
+
+QQQ
+
+Benchmark.
+
+---
+
+# Portfolio Analytics
+
+Track:
+
+Equity Curve
+
+Rolling Drawdown
+
+Monthly Returns
+
+Yearly Returns
+
+Trade Log
+
+Sector Exposure
+
+Capital Allocation
+
+Risk Exposure
+
+Generate charts.
+
+---
+
+# PHASE 11 — Screener Quality Score
+
+Create one overall score.
+
+Example:
+
+Momentum
+
+20
+
+Trend
+
+15
+
+Liquidity
+
+10
+
+VCP
+
+20
+
+Breakout
+
+10
+
+Volume
+
+10
+
+RS
+
+10
+
+Sector
+
+5
+
+Market Regime
+
+5
+
+Total:
+
+100
+
+---
+
+# PHASE 12 — Reports
+
+Generate:
+
+CSV
+
+Excel
+
+HTML
+
+Charts
+
+Daily Report
+
+Weekly Report
+
+Monthly Report
+
+---
+
+# DESIGN PRINCIPLES
+
+Everything should be modular.
+
+Everything configurable.
+
+No magic numbers.
+
+No duplicated code.
+
+Dependency Injection where appropriate.
+
+SOLID principles.
+
+Type hints.
+
+Unit tests.
+
+Documentation.
+
+---
+
+# FINAL GOAL
+
+The finished project should resemble an institutional-grade momentum research platform rather than a simple stock screener.
+
+It should support:
+
+Research
+
+Scanning
+
+Watchlist building
+
+Trade planning
+
+Execution preparation
+
+Performance analysis
+
+Continuous strategy improvement
+
+without breaking the existing project.
