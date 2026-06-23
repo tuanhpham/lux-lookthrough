@@ -6,8 +6,8 @@ type Lang = 'en' | 'vi';
 
 const STRINGS: Record<string, { en: string; vi: string }> = {
   // Brand / nav
-  'brand.name': { en: 'Screener', vi: 'Bộ lọc' },
-  'brand.sub': { en: 'TypeScript edition', vi: 'Phiên bản TypeScript' },
+  'brand.name': { en: 'The Professional', vi: 'The Professional' },
+  'brand.sub': { en: 'Qullamaggie + Momentum', vi: 'Qullamaggie + Động lượng' },
   'nav.picks': { en: 'Top Picks', vi: 'Lựa chọn hàng đầu' },
   'nav.screener': { en: 'Screener', vi: 'Bộ lọc' },
   'nav.watchlist': { en: 'Watchlists', vi: 'Danh sách theo dõi' },
@@ -42,6 +42,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.sub': { en: 'Qullamaggie setups and momentum leaders, auto-ranked across the universe.', vi: 'Thiết lập Qullamaggie và mã dẫn dắt động lượng, tự động xếp hạng trên toàn vũ trụ cổ phiếu.' },
   'picks.qm': { en: 'Qullamaggie', vi: 'Qullamaggie' },
   'picks.momentumscan': { en: 'Momentum', vi: 'Động lượng' },
+  'picks.surge': { en: 'Surge', vi: 'Bứt tốc' },
   'picks.prefilter': { en: 'Momentum pre-filter', vi: 'Lọc động lượng trước' },
   'picks.broad': { en: 'Broad universe', vi: 'Toàn thị trường' },
   'picks.run': { en: '↻ Run', vi: '↻ Chạy' },

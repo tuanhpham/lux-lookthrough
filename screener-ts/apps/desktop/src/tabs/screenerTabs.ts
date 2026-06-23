@@ -13,6 +13,7 @@ import {
   computeMomentumScore,
   momentumToRow,
   detectRegime,
+  detectSurge,
   filterByMomentum,
   type Period,
   type QmRow,
@@ -72,10 +73,10 @@ const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string
 /** Universe modes large enough to warrant the long-scan hint + bigger batches. */
 const BIG_UNIVERSES = new Set<UniverseMode>(['all', 'vnall', 'hnx', 'upcom', 'vnmarket']);
 
-/** Top Picks strategies: Qullamaggie (QM pattern setups) and Momentum (the
- * exploration scan of strongest movers). The legacy conviction-score presets
- * (breakout / stage-2 momentum / tight VCP) were removed. */
-type PicksStrategy = 'qm' | 'momentumscan';
+/** Top Picks strategies: Qullamaggie (QM pattern setups), Momentum (the
+ * exploration scan of strongest movers), and Surge (held above EMA5 all week +
+ * a >20% two-week move). The legacy conviction-score presets were removed. */
+type PicksStrategy = 'qm' | 'momentumscan' | 'surge';
 
 /** US index benchmarks for market regime + relative strength (F2). */
 const BENCHMARKS = ['SPY', 'QQQ'];
@@ -113,7 +114,7 @@ export function renderPicks(ctx: AppContext): void {
     <h1>${t('picks.title')}</h1>
     <p class="subtitle">${t('picks.sub')}</p>
     <div class="toolbar">
-      ${(['qm', 'momentumscan'] as PicksStrategy[])
+      ${(['qm', 'momentumscan', 'surge'] as PicksStrategy[])
         .map(
           (s) =>
             `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t(
@@ -295,13 +296,13 @@ function renderRegimeBanner(regime: MarketRegime | null, sectors: SectorMomentum
 }
 
 /**
- * Top Picks dispatcher: routes to the Qullamaggie scan or the Momentum
- * exploration scan. Both are incremental, cancellable, and render their own
- * table; the legacy conviction-score path was removed.
+ * Top Picks dispatcher: routes to the Qullamaggie scan, the Momentum
+ * exploration scan, or the Surge scan. All are incremental, cancellable, and
+ * render their own table; the legacy conviction-score path was removed.
  */
 async function runPicks(ctx: AppContext): Promise<void> {
-  if (picksStrategy === 'momentumscan') {
-    await runMomentumPicks(ctx);
+  if (picksStrategy === 'momentumscan' || picksStrategy === 'surge') {
+    await runMomentumPicks(ctx, picksStrategy === 'surge');
     return;
   }
   await runQmPicks(ctx);
@@ -448,12 +449,16 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
 }
 
 /**
- * F5 — Momentum exploration scan ("show me what's running right now"). NOT a VCP
+ * Momentum exploration scan ("show me what's running right now"). NOT a VCP
  * scan: it fetches the whole universe, ranks every name by momentum, and shows
  * the top 50 movers (strong 1M/3M/6M, high RS), annotated with the market regime
- * and sector rotation (F6). Stocks need not be in any pattern.
+ * and sector rotation. Stocks need not be in any pattern.
+ *
+ * When `surgeOnly` is set (the "Surge" strategy), the ranked list is first
+ * narrowed to names passing `detectSurge` — close held ≥ EMA5 all week AND a
+ * >20% two-week move — surfacing fresh fast movers specifically.
  */
-async function runMomentumPicks(ctx: AppContext): Promise<void> {
+async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<void> {
   const myToken = ++scanToken;
   const status = $('#picks-status')!;
   const out = $('#picks-results')!;
@@ -499,7 +504,14 @@ async function runMomentumPicks(ctx: AppContext): Promise<void> {
   const hotSet = new Set(sectorReport.hotSectors);
   const sectorRankByName = new Map(sectorReport.rankings.map((r) => [r.sector, r]));
 
-  const ranked = rankMomentum(fullMap, spy?.bars);
+  let ranked = rankMomentum(fullMap, spy?.bars);
+  if (surgeOnly) {
+    // Keep only fresh fast movers: held ≥ EMA5 all week + >20% in two weeks.
+    ranked = ranked.filter((r) => {
+      const bars = fullMap.get(r.symbol)?.bars;
+      return bars ? detectSurge(bars).isSurge : false;
+    });
+  }
   const rows: MomentumRow[] = ranked.map((r) => {
     const sector = SECTOR_BY_SYMBOL[r.symbol] ?? null;
     const sec = sector ? sectorRankByName.get(sector) ?? null : null;
@@ -528,10 +540,11 @@ async function runMomentumPicks(ctx: AppContext): Promise<void> {
     finish();
     return;
   }
+  const label = surgeOnly ? t('picks.surge') : t('picks.momentumscan');
   status.textContent =
-    `${t('picks.done')}: top ${Math.min(50, rows.length)} momentum movers from ${ranked.length} ${t('picks.scanned')}.`;
+    `${t('picks.done')}: ${rows.length} ${label} ${t('picks.matches')} (${t('picks.scanned')} ${fullMap.size}).`;
   if (!rows.length) {
-    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No momentum movers found.</div>`;
+    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No ${label} matches found.</div>`;
   } else {
     renderTable();
   }

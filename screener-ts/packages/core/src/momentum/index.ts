@@ -31,3 +31,5 @@ export { computeSectorMomentum } from './sectorMomentum.js';
 export { filterByMomentum } from './momentumFilter.js';
 export type { MomentumFilterOptions, MomentumFilterResult } from './momentumFilter.js';
 export { momentumToRow } from './momentumRow.js';
+export { detectSurge, DEFAULT_SURGE_CONFIG } from './surge.js';
+export type { SurgeConfig, SurgeResult } from './surge.js';

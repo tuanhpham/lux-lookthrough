@@ -90,7 +90,7 @@ App Store, no Apple Developer fee, no Rust/Xcode.
    npm run build --workspace @screener/desktop
    # deploy from apps/desktop, so wrangler finds dist/ AND functions/
    cd apps/desktop
-   npx wrangler pages deploy dist --project-name screener
+   npx wrangler pages deploy dist --project-name the-professional
    ```
 2. **Install on the phone**, opening the deployed URL:
    - **iPhone (Safari):** Share → **Add to Home Screen**.
@@ -227,32 +227,63 @@ silent empty result.
 
 ## Deploy as a $0 static site (Cloudflare Pages)
 
+The live site is **the-professional.pages.dev**. There are two ways to ship to it.
+
+### ⚠️ The one rule that matters either way
+
+The data proxies (`api/yahoo`, `api/finnhub`, `api/vndirect`, `api/wiki`,
+`api/nasdaqtrader`) live in **`apps/desktop/functions/`**. Cloudflare only picks
+up a `functions/` folder that sits at the **root directory of the build**. If
+that root is wrong, the site loads but **no stocks scan** (every fetch 404s).
+After any deploy, verify by opening:
+
+```
+https://the-professional.pages.dev/api/yahoo/v8/finance/chart/AAPL?range=1y&interval=1d
+```
+
+It must return **JSON**. If you get the HTML page or a 404, the functions didn't
+deploy — fix the root directory and redeploy.
+
+### Method A — Git auto-deploy (build on every push)
+
+Connect the repo to the Pages project once, then every push to `main` builds and
+deploys automatically. In the Cloudflare dashboard → **the-professional →
+Settings → Builds & deployments**, set:
+
+| Setting | Value |
+|---|---|
+| **Root directory** | `screener-ts/apps/desktop` |
+| **Build command** | `cd ../.. && npm install && npm run build --workspace @screener/core && npm run build --workspace @screener/desktop` |
+| **Build output directory** | `dist` |
+| **Environment variable** | `NODE_VERSION` = `20` |
+
+Why: the root must be `apps/desktop` so Cloudflare finds `functions/` and
+`wrangler.toml`; the build command `cd`s up to the monorepo root because the
+`--workspace` flags + `tsc`/`vite` only resolve there; output `dist` is relative
+to the root → `apps/desktop/dist`. Add the optional `FINNHUB_API_KEY` under
+**Settings → Environment variables**. Then just `git push`.
+
+### Method B — Direct upload via wrangler (deploy on demand)
+
+Build from the monorepo root, then deploy from `apps/desktop`:
+
 ```bash
-# 1. Install + build from the monorepo ROOT (the --workspace flags only
-#    resolve here, and tsc/vite live in the root node_modules/.bin).
+# 1. Install + build from the ROOT (--workspace flags + tsc/vite resolve here).
 cd screener-ts
 npm install
 npm run build --workspace @screener/core      # core dist for the production build
 npm run build --workspace @screener/desktop   # tsc --noEmit + vite build → apps/desktop/dist
 
-# 2. Deploy from apps/desktop. IMPORTANT: wrangler discovers the `functions/`
-#    directory (the api/yahoo, api/finnhub, … data proxies) relative to the
-#    current directory, and `wrangler.toml` lives here too. Deploy from anywhere
-#    else and the site ships WITHOUT the proxies → no stock data loads.
+# 2. Deploy from apps/desktop so wrangler finds dist/ AND functions/.
 cd apps/desktop
-npx wrangler pages deploy dist --project-name the-professional #screener
-npx wrangler pages secret put FINNHUB_API_KEY --project-name screener   # optional fallback provider
+npx wrangler pages deploy dist --project-name the-professional
+npx wrangler pages secret put FINNHUB_API_KEY --project-name the-professional   # optional fallback provider
 ```
 
-> Use the **same `--project-name screener`** each time to **update** the existing
-> site (your URL stays the same) rather than creating a new project. The first
-> `wrangler` run opens a browser to log into Cloudflare (once).
->
-> **Verify the proxies deployed:** open
-> `https://<your-site>.pages.dev/api/yahoo/v8/finance/chart/AAPL?range=1y&interval=1d`
-> — it should return **JSON**. If you get the HTML page or a 404, the
-> `functions/` directory wasn't deployed (you ran wrangler from the wrong
-> directory) and no stocks will scan.
+> Use the **same `--project-name the-professional`** each time to **update** the
+> existing site (your URL stays the same). The first `wrangler` run opens a
+> browser to log into Cloudflare (once). Don't mix Method A and B on the same
+> project at the same time — pick one workflow.
 
 The functions in `functions/` make data fetching work the same as local dev:
 - `api/yahoo/*` proxies Yahoo, performing the **cookie + crumb handshake**
