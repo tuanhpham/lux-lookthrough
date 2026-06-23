@@ -5,6 +5,7 @@ import { initModal, onModalClose } from './ui/stockModal.js';
 import { renderPicks, renderScreener, renderSectors } from './tabs/screenerTabs.js';
 import { renderWatchlist, renderLearn } from './tabs/miscTabs.js';
 import { renderPortfolio } from './tabs/portfolioTab.js';
+import { renderBacktest } from './tabs/backtestTab.js';
 import { renderBlog } from './tabs/blogTab.js';
 import { renderPlaybook } from './tabs/playbookTab.js';
 import { renderLanding } from './ui/landing.js';
@@ -32,7 +33,7 @@ onModalClose(() => {
   if (entered && currentTab === 'watchlist') renderTab('watchlist');
 });
 
-const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'blog', 'playbook', 'learn'] as const;
+const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'backtest', 'blog', 'playbook', 'learn'] as const;
 type Tab = (typeof TABS)[number];
 
 let entered = false;
@@ -65,6 +66,9 @@ function renderTab(tab: Tab): void {
       break;
     case 'portfolio':
       void renderPortfolio(ctx);
+      break;
+    case 'backtest':
+      renderBacktest(ctx);
       break;
     case 'blog':
       renderBlog(ctx);
