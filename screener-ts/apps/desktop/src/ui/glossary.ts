@@ -211,6 +211,48 @@ export const GLOSSARY: Record<string, Entry> = {
       vi: 'Các mức giá cực trị trong 12 tháng gần nhất. Cổ phiếu bứt phá gần đỉnh 52 tuần theo thống kê thường tiếp tục tăng — sức mạnh sinh ra sức mạnh.',
     },
   },
+  risk_pct: {
+    term: { en: 'Risk % (entry → stop)', vi: '% Rủi ro (vào lệnh → cắt lỗ)' },
+    long: {
+      en: 'The percentage distance from the entry price to the stop-loss. A smaller risk % means a tighter stop — less capital at stake if the trade fails. Qullamaggie targets under ~8%.',
+      vi: 'Khoảng cách phần trăm từ giá vào lệnh đến mức cắt lỗ. % rủi ro nhỏ hơn nghĩa là cắt lỗ chặt hơn — ít vốn bị đe dọa hơn nếu lệnh thất bại. Qullamaggie nhắm dưới ~8%.',
+    },
+  },
+  return_1m: {
+    term: { en: '1-Month Return %', vi: '% Lợi nhuận 1 tháng' },
+    long: {
+      en: 'Price change over the last ~21 trading days. A short-term pulse check — recent strength matters but can be noisy.',
+      vi: 'Thay đổi giá trong ~21 phiên giao dịch gần nhất. Kiểm tra xung nhịp ngắn hạn — sức mạnh gần đây quan trọng nhưng có thể nhiễu.',
+    },
+  },
+  return_3m: {
+    term: { en: '3-Month Return %', vi: '% Lợi nhuận 3 tháng' },
+    long: {
+      en: 'Price change over the last ~63 trading days. The most heavily weighted return window in the momentum score — captures a meaningful intermediate trend.',
+      vi: 'Thay đổi giá trong ~63 phiên gần nhất. Khung thời gian lợi nhuận có trọng số cao nhất trong điểm động lượng — nắm bắt xu hướng trung hạn có ý nghĩa.',
+    },
+  },
+  return_6m: {
+    term: { en: '6-Month Return %', vi: '% Lợi nhuận 6 tháng' },
+    long: {
+      en: 'Price change over the last ~126 trading days. Alongside 3M return, this is one of the two strongest predictors in the classic momentum literature.',
+      vi: 'Thay đổi giá trong ~126 phiên gần nhất. Cùng với lợi nhuận 3 tháng, đây là một trong hai yếu tố dự báo mạnh nhất trong nghiên cứu động lượng kinh điển.',
+    },
+  },
+  atr_pct: {
+    term: { en: 'ATR % (of price)', vi: 'ATR % (theo giá)' },
+    long: {
+      en: 'Average True Range expressed as a percentage of the current price. Measures day-to-day volatility — how much the stock typically moves in a session. High ATR% = wide swings; useful for sizing stops.',
+      vi: 'ATR (Khoảng dao động thực trung bình) tính theo phần trăm giá hiện tại. Đo độ biến động từng ngày — cổ phiếu thường di chuyển bao nhiêu mỗi phiên. ATR% cao = biên độ rộng; hữu ích để tính khoảng dừng lỗ.',
+    },
+  },
+  dist_52w: {
+    term: { en: '% Off 52-Week High', vi: '% Dưới đỉnh 52 tuần' },
+    long: {
+      en: 'How far the current price sits below its 52-week high. Qullamaggie setups typically occur within ~25% of the high — the stock is consolidating, not in a deep downtrend.',
+      vi: 'Giá hiện tại đang thấp hơn đỉnh 52 tuần bao nhiêu phần trăm. Thiết lập Qullamaggie thường xuất hiện trong ~25% dưới đỉnh — cổ phiếu đang tích lũy, không phải trong xu hướng giảm sâu.',
+    },
+  },
 };
 
 export const GLOSSARY_GROUPS: { title: { en: string; vi: string }; keys: string[] }[] = [

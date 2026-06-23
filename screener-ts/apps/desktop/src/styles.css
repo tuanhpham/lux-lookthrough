@@ -93,7 +93,7 @@ body::before {
     linear-gradient(to bottom, color-mix(in srgb, var(--accent2) 4%, transparent), transparent 30%);
 }
 html.light body::before { opacity: .5; }
-#app, #landing, .modal, .dialog-host, #tooltip { position: relative; z-index: 1; }
+#app, #landing, .modal, .dialog-host { position: relative; z-index: 1; }
 
 /* Tabular, monospaced numerals everywhere data appears — the terminal signature. */
 .mono,
