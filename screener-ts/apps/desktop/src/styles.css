@@ -119,62 +119,62 @@ table td,
 ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 .hidden { display: none !important; }
-#app { display: flex; min-height: 100vh; }
+#app { min-height: 100vh; }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
-#sidebar {
-  width: 232px;
-  background:
-    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 4%, var(--surface)), var(--surface) 220px);
-  border-right: 1px solid var(--border);
-  padding: 20px 14px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+/* ── Top navigation (TradingView-style) ──────────────────────────────────── */
+#topnav {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 18px;
+  height: 56px; padding: 0 22px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
 }
-.brand {
-  display: flex; align-items: center; gap: 11px; margin-bottom: 28px;
-  background: transparent; border: 0; padding: 4px; cursor: pointer; text-align: left;
-  color: inherit; width: 100%; border-radius: var(--radius-sm);
-  transition: background .15s ease;
+.topnav-brand {
+  display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
+  background: transparent; border: 0; padding: 4px 6px; cursor: pointer;
+  color: inherit; border-radius: var(--radius-sm); transition: background .15s ease;
 }
-.brand:hover { background: var(--cardhover); }
+.topnav-brand:hover { background: var(--cardhover); }
 .logo {
-  width: 34px; height: 34px; border-radius: 10px;
+  width: 30px; height: 30px; border-radius: 9px;
   background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #0a6e52));
   color: var(--accent-ink); display: grid; place-items: center; font-weight: 800;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
               0 6px 18px -6px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.brand-name { font-weight: 700; letter-spacing: -0.02em; }
+.logo svg { width: 17px; height: 17px; }
+.brand-name { font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
 .brand-sub {
   color: var(--faint); font-size: 10px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .12em; margin-top: 1px;
 }
-#nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+/* Inline tab row. */
+.topnav-tabs { display: flex; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0; }
 .nav-btn {
   position: relative;
-  display: flex; align-items: center; gap: 11px;
-  text-align: left; background: transparent; border: 0; color: var(--subtext);
-  padding: 9px 12px; border-radius: var(--radius-sm); font-size: 13.5px; cursor: pointer;
-  font-weight: 600; letter-spacing: -0.01em;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; border: 0; color: var(--subtext);
+  padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13.5px; cursor: pointer;
+  font-weight: 600; letter-spacing: -0.01em; white-space: nowrap;
   transition: background .16s ease, color .16s ease;
 }
-.nav-btn svg { width: 17px; height: 17px; flex: 0 0 auto; opacity: .85; }
+.nav-btn svg { width: 16px; height: 16px; flex: 0 0 auto; opacity: .85; }
 .nav-btn:hover { background: var(--cardhover); color: var(--text); }
-.nav-btn.active { background: var(--accent-wash); color: var(--accent); }
-/* Active indicator rail — a Linear-style accent tick. */
-.nav-btn.active::before {
-  content: ''; position: absolute; left: -14px; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--accent);
+.nav-btn.active { color: var(--text); }
+/* Active indicator: an underline tick flush with the nav's bottom border. */
+.nav-btn.active::after {
+  content: ''; position: absolute; left: 10px; right: 10px; bottom: -9px; height: 2px;
+  border-radius: 2px 2px 0 0; background: var(--accent);
   box-shadow: 0 0 12px var(--accent);
 }
-.sidebar-foot { color: var(--faint); font-size: 11px; line-height: 1.5; }
+
+/* Right-side controls. */
+.topnav-controls { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; margin-left: auto; }
 
 /* ── Main column ─────────────────────────────────────────────────────────── */
-#main { flex: 1; max-width: 1160px; margin: 0 auto; width: 100%; padding: 30px 34px 96px; }
+#main { max-width: 1240px; margin: 0 auto; width: 100%; padding: 30px 34px 96px; }
 h1 { font-size: 26px; margin: 0 0 5px; font-weight: 800; letter-spacing: -0.035em; }
 .subtitle { color: var(--subtext); margin: 0 0 22px; font-size: 14px; letter-spacing: -0.01em; }
 
@@ -420,7 +420,6 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .logo-svg svg { width: 20px; height: 20px; }
 
 /* ── Language toggle + theme ─────────────────────────────────────────────── */
-.sidebar-foot { display: flex; flex-direction: column; gap: 12px; }
 .lang-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-xs); overflow: hidden; width: fit-content; }
 .lang-toggle button { background: transparent; border: 0; color: var(--subtext); font-weight: 700; font-size: 11px; padding: 5px 11px; cursor: pointer; font-family: var(--font-mono); }
 .lang-toggle button + button { border-left: 1px solid var(--border); }
@@ -471,53 +470,46 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 
 /* ── PWA / iOS standalone safe areas ─────────────────────────────────────── */
 @media (display-mode: standalone) {
-  #sidebar { padding-top: calc(20px + env(safe-area-inset-top)); }
+  #topnav { padding-top: env(safe-area-inset-top); height: calc(56px + env(safe-area-inset-top)); }
   #main { padding-bottom: env(safe-area-inset-bottom); }
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 
-/* ── Mobile top bar ──────────────────────────────────────────────────────── */
-#topbar { display: none; }
-.menu-toggle, .topbar-brand { background: transparent; border: 0; color: var(--text); cursor: pointer; }
-.menu-toggle { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-sm); }
+/* ── Hamburger (mobile only) + dropdown backdrop ─────────────────────────── */
+.menu-toggle { display: none; background: transparent; border: 0; color: var(--text); cursor: pointer; place-items: center; width: 38px; height: 38px; border-radius: var(--radius-sm); }
 .menu-toggle:hover { background: var(--cardhover); }
 .menu-toggle svg { width: 22px; height: 22px; }
-.topbar-brand { display: inline-flex; align-items: center; gap: 9px; padding: 4px 6px; font-weight: 700; }
-.topbar-brand .logo { width: 28px; height: 28px; border-radius: 9px; }
-.topbar-brand .logo svg { width: 16px; height: 16px; }
 .sidebar-backdrop { display: none; }
 
 /* ── Responsive: phones & small tablets ──────────────────────────────────── */
-@media (max-width: 760px) {
-  #app { display: block; }
-  #topbar {
-    display: flex; align-items: center; gap: 6px;
-    position: sticky; top: 0; z-index: 40;
-    height: calc(54px + env(safe-area-inset-top));
-    padding: 0 8px; padding-top: env(safe-area-inset-top);
-    background: color-mix(in srgb, var(--surface) 86%, transparent);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid var(--border);
+@media (max-width: 860px) {
+  #topnav { gap: 8px; padding: 0 12px; }
+  /* Show the hamburger and collapse the inline tabs into a dropdown; the
+     language + theme controls stay in the bar (they're compact). */
+  .menu-toggle { display: inline-grid; }
+
+  /* Inline tabs → a dropdown panel anchored under the bar. */
+  .topnav-tabs {
+    position: fixed; top: calc(56px + env(safe-area-inset-top)); right: 8px; left: 8px; z-index: 60;
+    flex-direction: column; align-items: stretch; gap: 2px;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-lg); padding: 8px;
+    opacity: 0; transform: translateY(-8px); pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
   }
-  #sidebar {
-    position: fixed; top: 0; left: 0; bottom: 0; z-index: 60;
-    width: min(82vw, 290px); height: 100dvh;
-    transform: translateX(-100%);
-    transition: transform .26s cubic-bezier(.22, 1, .36, 1);
-    box-shadow: 0 0 60px rgba(0, 0, 0, .6);
-    padding-top: calc(20px + env(safe-area-inset-top));
-    padding-left: calc(14px + env(safe-area-inset-left));
-    overflow-y: auto;
-  }
-  #app.nav-open #sidebar { transform: translateX(0); }
+  #app.nav-open .topnav-tabs { opacity: 1; transform: none; pointer-events: auto; }
+  .nav-btn { padding: 12px 14px; font-size: 15px; border-radius: var(--radius-sm); }
+  /* Active marker becomes a left bar inside the dropdown (no bottom underline). */
+  .nav-btn.active { background: var(--accent-wash); color: var(--accent); }
+  .nav-btn.active::after { left: 0; right: auto; top: 8px; bottom: 8px; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
+
   .sidebar-backdrop {
     display: block; position: fixed; inset: 0; z-index: 55;
-    background: rgba(3, 5, 9, .55);
+    background: rgba(3, 5, 9, .5);
     opacity: 0; pointer-events: none; transition: opacity .26s ease;
   }
   #app.nav-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
-  .nav-btn { padding: 12px 14px; font-size: 15px; }
-  .nav-btn.active::before { left: -14px; }
+
   #main { max-width: none; margin: 0; width: 100%; padding: 18px 15px calc(40px + env(safe-area-inset-bottom)); }
   h1 { font-size: 22px; }
   .subtitle { font-size: 13px; margin-bottom: 16px; }

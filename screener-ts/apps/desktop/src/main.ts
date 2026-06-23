@@ -103,9 +103,10 @@ function goToLanding(): void {
   renderLanding($('#landing')!, enterApp);
 }
 
-// ── Mobile drawer (off-canvas sidebar) ──────────────────────────────────────
-// On phones the sidebar slides in as a drawer. We toggle a class on #app and
-// keep aria-expanded in sync; tapping a nav item or the backdrop closes it.
+// ── Mobile nav dropdown ──────────────────────────────────────────────────────
+// On phones the inline top-nav tabs collapse behind the hamburger into a
+// dropdown. We toggle a class on #app and keep aria-expanded in sync; tapping a
+// nav item or the backdrop closes it.
 function setNav(open: boolean): void {
   $('#app')!.classList.toggle('nav-open', open);
   const tgl = $('#menu-toggle');
@@ -117,11 +118,7 @@ $('#menu-toggle')?.addEventListener('click', () =>
   setNav(!$('#app')!.classList.contains('nav-open')),
 );
 $('#sidebar-backdrop')?.addEventListener('click', closeNav);
-$('#topbar-home')?.addEventListener('click', () => {
-  closeNav();
-  goToLanding();
-});
-// Close the drawer with Escape for keyboard/desktop users.
+// Close the dropdown with Escape for keyboard/desktop users.
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeNav();
 });
