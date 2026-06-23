@@ -503,9 +503,12 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
   .nav-btn.active { background: var(--accent-wash); color: var(--accent); }
   .nav-btn.active::after { left: 0; right: auto; top: 8px; bottom: 8px; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
 
+  /* Backdrop sits BELOW the bar (top: 56px) so the nav bar stays bright, and is
+     only a light scrim — just enough to signal "tap to close" without darkening
+     the whole screen. */
   .sidebar-backdrop {
-    display: block; position: fixed; inset: 0; z-index: 55;
-    background: rgba(3, 5, 9, .5);
+    display: block; position: fixed; top: calc(56px + env(safe-area-inset-top)); right: 0; bottom: 0; left: 0; z-index: 55;
+    background: rgba(3, 5, 9, .2);
     opacity: 0; pointer-events: none; transition: opacity .26s ease;
   }
   #app.nav-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
