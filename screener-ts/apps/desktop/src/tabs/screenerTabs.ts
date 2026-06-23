@@ -90,9 +90,9 @@ const SECTOR_BY_SYMBOL: Record<string, string> = (() => {
   return out;
 })();
 
-/** Momentum pre-filter toggle (F4). Default ON — narrows the QM/VCP universe to
- * top-momentum names; switch OFF to restore the exact prior scan behavior. */
-let momentumPrefilter = true;
+/** Momentum pre-filter toggle (F4). Default OFF — the QM/VCP scan runs on the
+ * full universe; tick it to narrow to top-momentum names first. */
+let momentumPrefilter = false;
 
 let picksStrategy: PicksStrategy = 'qm';
 let picksMarket: Market = 'us';

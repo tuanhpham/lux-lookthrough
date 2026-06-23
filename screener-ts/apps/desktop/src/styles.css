@@ -150,8 +150,8 @@ table td,
   text-transform: uppercase; letter-spacing: .12em; margin-top: 1px;
 }
 
-/* Inline tab row. */
-.topnav-tabs { display: flex; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0; }
+/* Inline tab row — centered in the bar (brand left, controls right). */
+.topnav-tabs { display: flex; align-items: center; justify-content: center; gap: 2px; flex: 1 1 auto; min-width: 0; }
 .nav-btn {
   position: relative;
   display: inline-flex; align-items: center; gap: 8px;

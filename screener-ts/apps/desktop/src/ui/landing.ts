@@ -10,12 +10,9 @@ export function renderLanding(host: HTMLElement, onEnter: () => void): void {
       <div class="landing-glow"></div>
       <div class="landing-inner">
         <div class="row" style="margin-bottom:36px">
-          <div class="brand" style="cursor:default;width:auto;margin:0">
+          <div style="display:flex;align-items:center;gap:11px">
             <div class="logo logo-svg">${logoSvg}</div>
-            <div>
-              <div class="brand-name">${t('brand.name')}</div>
-              <div class="brand-sub">${t('brand.sub')}</div>
-            </div>
+            <div class="brand-name" style="font-size:18px">${t('brand.name')}</div>
           </div>
           <div class="row" style="margin-left:auto;gap:8px">
             <div class="lang-toggle" role="group" aria-label="Language">
