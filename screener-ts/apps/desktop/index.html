@@ -3,13 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Screener — TS</title>
+    <title>Screener — Qullamaggie + Momentum</title>
 
     <!-- PWA: installable ("Add to Home Screen"), opens full-screen like an app.
          The web build registers /sw.js (see main.ts); Tauri ignores it. -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0b0e14" />
-    <meta name="description" content="Pattern-based US equity screener: VCP setups, Stage-2 momentum, 0–100 conviction score, charts and paper trading." />
+    <meta name="theme-color" content="#07080b" />
+    <meta name="description" content="Qullamaggie + momentum equity screener: VCP & episodic-pivot setups, a 0–100 quality score, market regime, sector rotation, charts and paper trading." />
+
+    <!-- Typefaces: Hanken Grotesk (refined grotesk UI) + JetBrains Mono
+         (tabular numerals for every price/return/score — the terminal signature). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..800;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <!-- iOS standalone (Safari → Share → Add to Home Screen) -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />

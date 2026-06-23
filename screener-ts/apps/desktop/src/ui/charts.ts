@@ -17,6 +17,12 @@ export interface TradeOverlay {
   target?: number | null;
 }
 
+// Chart series colors. lightweight-charts is canvas-based and needs literal hex
+// (CSS vars don't resolve inside it), so we mirror the Refined Terminal palette
+// tokens here: --up (#18d89a) / --down (#ff5266).
+const UP = '#18d89a';
+const DOWN = '#ff5266';
+
 function themeOptions() {
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   return {
@@ -33,8 +39,8 @@ const EMA_CONFIG: { period: number; color: string; on: boolean }[] = [
   { period: 10, color: '#c084fc', on: false },
   { period: 21, color: '#3b82f6', on: false },
   { period: 50, color: '#f5a623', on: true },
-  { period: 150, color: '#00d49b', on: true },
-  { period: 200, color: '#ff5260', on: true },
+  { period: 150, color: '#18d89a', on: true },
+  { period: 200, color: '#ff5266', on: true },
 ];
 
 export interface CandleChart {
@@ -53,15 +59,15 @@ export function drawCandles(
   container.innerHTML = '';
   const chart = createChart(container, { ...themeOptions(), width: container.clientWidth, height: 280 });
   const candle = chart.addCandlestickSeries({
-    upColor: '#00d49b', downColor: '#ff5260', borderVisible: false,
-    wickUpColor: '#00d49b', wickDownColor: '#ff5260',
+    upColor: UP, downColor: DOWN, borderVisible: false,
+    wickUpColor: UP, wickDownColor: DOWN,
   });
   candle.setData(bars.map((b) => ({ time: b.date, open: b.open, high: b.high, low: b.low, close: b.close })));
 
   const vol = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
   chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
   vol.setData(
-    bars.map((b) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? '#00d49b44' : '#ff526044' })),
+    bars.map((b) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? UP + '44' : DOWN + '44' })),
   );
 
   const emaSeries = new Map<number, ISeriesApi<'Line'>>();
@@ -79,10 +85,10 @@ export function drawCandles(
 
   if (overlay) {
     const lines: [number | null | undefined, string, string][] = [
-      [overlay.pivot, '#f5a623', 'Pivot'],
-      [overlay.entry, '#3b82f6', 'Entry'],
-      [overlay.stop, '#ff5260', 'Stop'],
-      [overlay.target, '#00d49b', 'Target'],
+      [overlay.pivot, '#ffb648', 'Pivot'],
+      [overlay.entry, '#5b8cff', 'Entry'],
+      [overlay.stop, DOWN, 'Stop'],
+      [overlay.target, UP, 'Target'],
     ];
     for (const [price, color, title] of lines) {
       if (price != null)
@@ -171,9 +177,9 @@ export function drawLine(
     timeScale: { ...base.timeScale, timeVisible: false, secondsVisible: false },
   });
   const line = chart.addAreaSeries({
-    lineColor: '#00d49b',
-    topColor: '#00d49b44',
-    bottomColor: '#00d49b08',
+    lineColor: UP,
+    topColor: UP + '44',
+    bottomColor: UP + '08',
     lineWidth: 2,
     priceLineVisible: false,
     ...(volume ? { priceFormat: { type: 'volume' as const } } : {}),

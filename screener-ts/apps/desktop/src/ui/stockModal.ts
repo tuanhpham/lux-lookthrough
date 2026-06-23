@@ -526,7 +526,7 @@ function renderFundChart(
       const y = v >= 0 ? zeroY - h : zeroY;
       const cx = i * slot + slot / 2;
       const bw = Math.min(slot * 0.6, 40);
-      const color = v >= 0 ? '#00d49b' : '#ff5260';
+      const color = v >= 0 ? '#18d89a' : '#ff5266';
       return `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${Math.max(h, 1)}" rx="3" fill="${color}" opacity=".85"><title>${label(p)}: ${fmtVal(v)}</title></rect>
         <text x="${cx}" y="${(v >= 0 ? y - 4 : y + h + 11)}" text-anchor="middle" font-size="9" fill="#aab3c4">${fmtVal(v)}</text>
         <text x="${cx}" y="${H - 5}" text-anchor="middle" font-size="9" fill="#5b6577">${label(p)}</text>`;

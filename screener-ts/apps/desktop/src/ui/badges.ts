@@ -26,7 +26,7 @@ export const SETUP_RANK: Record<QmSetupType, number> = {
 
 export function setupBadge(s: QmSetupType): string {
   const c = SETUP_COLOR[s];
-  return `<span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${SETUP_LABEL[s]}</span>`;
+  return `<span class="badge" style="background:color-mix(in srgb,${c} 14%,transparent);color:${c};border-color:color-mix(in srgb,${c} 35%,transparent)">${SETUP_LABEL[s]}</span>`;
 }
 
 const CLASS_COLOR: Record<MomentumClassification, string> = {
@@ -45,5 +45,5 @@ export const CLASS_RANK: Record<MomentumClassification, number> = {
 
 export function classBadge(c: MomentumClassification): string {
   const color = CLASS_COLOR[c];
-  return `<span class="badge" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color}">${c}</span>`;
+  return `<span class="badge" style="background:color-mix(in srgb,${color} 14%,transparent);color:${color};border-color:color-mix(in srgb,${color} 35%,transparent)">${c}</span>`;
 }

@@ -55,7 +55,7 @@ const SIGNAL_COLORS: Record<string, string> = {
 export function signalBadge(signal: string): string {
   const c = SIGNAL_COLORS[signal] ?? 'var(--faint)';
   const label = signal === 'BREAKOUT_IMMINENT' ? 'BREAKOUT' : signal.replace('_', ' ');
-  return `<span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${label}</span>`;
+  return `<span class="badge" style="background:color-mix(in srgb,${c} 14%,transparent);color:${c};border-color:color-mix(in srgb,${c} 35%,transparent)">${label}</span>`;
 }
 
 const STAGE_COLORS: Record<number, string> = {
@@ -63,5 +63,5 @@ const STAGE_COLORS: Record<number, string> = {
 };
 export function stageBadge(stage: number, label: string): string {
   const c = STAGE_COLORS[stage] ?? 'var(--faint)';
-  return `<span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${label}</span>`;
+  return `<span class="badge" style="background:color-mix(in srgb,${c} 14%,transparent);color:${c};border-color:color-mix(in srgb,${c} 35%,transparent)">${label}</span>`;
 }
