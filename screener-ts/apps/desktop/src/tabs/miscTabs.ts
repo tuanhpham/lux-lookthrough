@@ -407,6 +407,25 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
     ? `Bộ lọc <b>Động lượng (Momentum)</b> trả lời "mã nào đang chạy?". Điểm động lượng 0–100 kết hợp lợi nhuận <b>1 tháng (15)</b>, <b>3 tháng (25)</b>, <b>6 tháng (25)</b>, <b>RS so với SPY (25)</b> và <b>thanh khoản (10)</b>. Theo phân vị, mỗi mã được xếp loại: <b>Weak → Building → Strong → Explosive</b>.`
     : `The <b>Momentum</b> screen answers "what's running right now?". A 0–100 momentum score blends <b>1-month (15)</b>, <b>3-month (25)</b>, <b>6-month (25)</b> returns, <b>RS vs SPY (25)</b> and <b>liquidity (10)</b>. By percentile each name is classed <b>Weak → Building → Strong → Explosive</b>.`;
 
+  // ── Surge screen. ──
+  const surgeIntro = vi
+    ? `Bộ lọc <b>Surge</b> tìm các mã đang <i>bứt tốc ngay bây giờ</i> — không cần hình thành mẫu hình VCP hay điểm xoay. Nó thu hẹp kết quả của Momentum xuống những mã thoả cả hai điều kiện:`
+    : `The <b>Surge</b> screen finds stocks that are <i>surging right now</i> — no VCP or pivot pattern required. It narrows the Momentum result down to names passing both conditions:`;
+
+  const surgeConditions = vi
+    ? [
+        `<b>Giữ trên EMA5 cả tuần:</b> mỗi phiên trong 5 ngày giao dịch gần nhất đều đóng cửa ≥ EMA5 — không ngày nào bị gãy xu hướng ngắn hạn.`,
+        `<b>Tăng &gt;20% trong 2 tuần:</b> giá hiện tại cao hơn giá 10 nến trước ít nhất 20% — chứng tỏ đà bứt phá mạnh.`,
+      ]
+    : [
+        `<b>Held above EMA5 all week:</b> every close of the last 5 trading days is ≥ EMA5 — no single day broke the short-term trend.`,
+        `<b>&gt;20% gain in two weeks:</b> the current price is at least 20% above the close 10 bars ago — demonstrating real breakout momentum.`,
+      ];
+
+  const surgeWhen = vi
+    ? `<b>Khi nào dùng Surge?</b> Khi bạn muốn bắt các mã đang vào đà sớm nhất — chúng thường nằm trên EMA5 và EMA10, chưa kịp hình thành nền VCP hoàn chỉnh. Đây là "cánh cửa hẹp" — ít mã pass hơn Momentum nhưng tín hiệu trực tiếp hơn.`
+    : `<b>When to use Surge?</b> When you want to catch names early in a move — they're typically riding their EMA5/EMA10, not yet forming a full VCP base. It's a tighter filter — fewer names pass than Momentum but the signal is more immediate.`;
+
   // ── Market regime + sector rotation. ──
   const layers = vi
     ? [
@@ -433,6 +452,11 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
 
     <div class="section-title">${vi ? '🚀 Động lượng (Momentum)' : '🚀 Momentum'}</div>
     <p class="muted" style="line-height:1.65;margin:0">${momIntro}</p>
+
+    <div class="section-title">${vi ? '⚡ Surge (bứt tốc)' : '⚡ Surge'}</div>
+    <p class="muted" style="line-height:1.65;margin:0 0 8px">${surgeIntro}</p>
+    <ul class="analysis-list" style="margin:0 0 8px">${surgeConditions.map((c) => `<li>${c}</li>`).join('')}</ul>
+    <p class="muted" style="line-height:1.65;margin:0;font-size:12px">${surgeWhen}</p>
 
     <div class="section-title">${vi ? '🧭 Bối cảnh & luân chuyển' : '🧭 Regime & rotation'}</div>
     <ul class="analysis-list">${layers.map((i) => `<li>${i}</li>`).join('')}</ul>

@@ -17,6 +17,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.blog': { en: 'Analysis', vi: 'Phân tích' },
   'nav.playbook': { en: 'Playbook', vi: 'Sổ tay' },
   'nav.learn': { en: 'Learn', vi: 'Tìm hiểu' },
+  'nav.about': { en: 'About', vi: 'Giới thiệu' },
   'foot.disclaimer': { en: 'Educational use only. Not financial advice.', vi: 'Chỉ dùng cho mục đích học tập. Không phải lời khuyên đầu tư.' },
 
   // Landing
