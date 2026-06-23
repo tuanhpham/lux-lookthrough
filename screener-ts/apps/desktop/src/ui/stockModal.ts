@@ -167,6 +167,7 @@ function renderDetail(
   q: QmScanResult | null,
   mom: MomentumResult | null,
 ): string {
+  const vi = getLang() === 'vi';
   const price = f.currentPrice ?? q?.price ?? null;
   let patternBlock = '';
   if (q) {
@@ -254,6 +255,7 @@ function renderDetail(
         </div>
       </div>
       <div id="fund-chart" class="chart" style="height:160px"></div>
+      <p class="muted" style="font-size:10px;margin:4px 6px 0">${vi ? 'Biểu đồ: giá trị từng kỳ báo cáo (năm tài chính hoặc quý). Lưới chỉ số bên dưới dùng số liệu TTM (12 tháng gần nhất) nên có thể khác.' : 'Chart: per-period reported values (fiscal year or quarter). The stat grid below uses trailing twelve-month (TTM) figures and will typically differ.'}</p>
     </div>
     <div class="section-title">${t('detail.fundamentals')}</div>
     <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f, symbol)}</div>
@@ -302,12 +304,12 @@ function fundGridHtml(f: {
       : '—';
   return [
     stat('Market Cap', mcap, 'market_cap'),
-    stat('P/E', num(f.peRatio, 1), 'pe_ratio'),
-    stat('EPS', eps, 'eps'),
-    stat('ROE', f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe'),
-    stat('Profit Margin', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin'),
-    stat('Rev Growth', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—', 'revenue_growth'),
-    stat('Beta', num(f.beta, 2), 'beta'),
+    stat('P/E (TTM)', num(f.peRatio, 1), 'pe_ratio'),
+    stat('EPS (TTM)', eps, 'eps'),
+    stat('ROE (TTM)', f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe'),
+    stat('Margin (TTM)', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin'),
+    stat('Rev Growth (YoY)', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—', 'revenue_growth'),
+    stat('Beta (5Y)', num(f.beta, 2), 'beta'),
     stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—', 'dividend_yield'),
     stat('52w Range', range, 'week52'),
   ].join('');

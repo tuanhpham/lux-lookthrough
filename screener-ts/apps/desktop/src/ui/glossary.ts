@@ -149,52 +149,52 @@ export const GLOSSARY: Record<string, Entry> = {
     },
   },
   pe_ratio: {
-    term: { en: 'P/E Ratio', vi: 'Tỷ số P/E' },
+    term: { en: 'P/E Ratio (TTM)', vi: 'Tỷ số P/E (TTM)' },
     long: {
-      en: 'Price-to-Earnings: share price divided by trailing earnings per share. A rough gauge of valuation. High P/E = growth expectations priced in; low P/E = cheaper or out-of-favor.',
-      vi: 'Giá trên Lợi nhuận: giá cổ phiếu chia cho EPS 12 tháng gần nhất. Thước đo sơ bộ mức định giá. P/E cao = kỳ vọng tăng trưởng; P/E thấp = rẻ hơn hoặc kém ưa chuộng.',
+      en: 'Trailing twelve-month P/E: current share price divided by the sum of the last four reported quarterly EPS. A rough gauge of valuation — refreshed live as the price moves. High P/E = growth expectations priced in; low P/E = cheaper or out-of-favor. Note: the Fundamentals Trend chart shows P/E at each annual fiscal year-end, which will differ.',
+      vi: 'P/E 12 tháng gần nhất (TTM): giá cổ phiếu hiện tại chia cho tổng EPS của 4 quý báo cáo gần nhất. Thước đo sơ bộ định giá — cập nhật theo giá trực tiếp. P/E cao = kỳ vọng tăng trưởng; P/E thấp = rẻ hơn hoặc kém ưa chuộng. Lưu ý: biểu đồ Xu hướng cơ bản hiển thị P/E tại cuối mỗi năm tài chính, có thể khác nhau.',
     },
   },
   eps: {
-    term: { en: 'EPS — Earnings Per Share', vi: 'EPS — Lợi nhuận trên mỗi cổ phiếu' },
+    term: { en: 'EPS — Trailing Twelve Months', vi: 'EPS — 12 tháng gần nhất' },
     long: {
-      en: "A company's net profit divided by its outstanding shares. Growing EPS is one of the strongest drivers of sustained stock advances.",
-      vi: 'Lợi nhuận ròng của công ty chia cho số cổ phiếu lưu hành. EPS tăng trưởng là một trong những động lực mạnh nhất cho đà tăng bền vững.',
+      en: "Earnings Per Share for the trailing twelve months (TTM): sum of diluted EPS from the last four reported quarters. This is the most current profitability read. Growing EPS is one of the strongest drivers of sustained stock advances. Note: each bar in the Fundamentals Trend chart shows EPS for a single fiscal year or quarter — those figures represent a fixed period, not a rolling sum, so they will typically differ from this TTM number.",
+      vi: 'Lợi nhuận trên mỗi cổ phiếu (EPS) trong 12 tháng gần nhất (TTM): tổng EPS pha loãng của 4 quý báo cáo gần nhất. Đây là thước đo lợi nhuận hiện tại nhất. EPS tăng trưởng là một trong những động lực mạnh nhất cho đà tăng bền vững. Lưu ý: mỗi cột trong biểu đồ Xu hướng cơ bản hiển thị EPS của một năm tài chính hoặc quý cố định — khác với tổng TTM này.',
     },
   },
   market_cap: {
-    term: { en: 'Market Cap', vi: 'Vốn hóa thị trường' },
+    term: { en: 'Market Cap (Live)', vi: 'Vốn hóa thị trường (trực tiếp)' },
     long: {
-      en: 'The total market value of the company: share price times shares outstanding. Determines small-, mid-, or large-cap.',
-      vi: 'Tổng giá trị thị trường: giá cổ phiếu nhân số cổ phiếu lưu hành. Xác định vốn hóa nhỏ, vừa hay lớn.',
+      en: 'The total market value of the company: current share price times shares outstanding — updated in real time as the price changes. Determines small- (<$2B), mid- ($2–10B), or large-cap (>$10B).',
+      vi: 'Tổng giá trị thị trường: giá cổ phiếu hiện tại nhân số cổ phiếu lưu hành — cập nhật theo thời gian thực theo giá. Xác định vốn hóa nhỏ (<2 tỷ $), vừa (2–10 tỷ $) hay lớn (>10 tỷ $).',
     },
   },
   profit_margin: {
-    term: { en: 'Profit Margin', vi: 'Biên lợi nhuận' },
+    term: { en: 'Profit Margin (TTM)', vi: 'Biên lợi nhuận (TTM)' },
     long: {
-      en: 'Net profit divided by revenue — how many cents of each sales dollar end up as profit.',
-      vi: 'Lợi nhuận ròng chia cho doanh thu — mỗi đồng doanh thu còn lại bao nhiêu xu là lợi nhuận.',
+      en: 'Net profit margin for the trailing twelve months: net income ÷ revenue over the last four reported quarters. How many cents of each sales dollar end up as profit — on a rolling basis. A rising margin trend is a positive quality signal.',
+      vi: 'Biên lợi nhuận ròng 12 tháng gần nhất: lợi nhuận ròng ÷ doanh thu trong 4 quý báo cáo gần nhất. Mỗi đồng doanh thu còn lại bao nhiêu xu là lợi nhuận — theo giai đoạn liên tục. Biên lợi nhuận tăng dần là tín hiệu chất lượng tích cực.',
     },
   },
   roe: {
-    term: { en: 'ROE — Return on Equity', vi: 'ROE — Lợi nhuận trên vốn chủ' },
+    term: { en: 'ROE — Return on Equity (TTM)', vi: 'ROE — Lợi nhuận trên vốn chủ (TTM)' },
     long: {
-      en: 'Return on Equity = net income ÷ shareholder equity. How efficiently a company turns capital into profit. Consistently high ROE (15%+) is a hallmark of quality businesses.',
-      vi: 'ROE = lợi nhuận ròng ÷ vốn chủ sở hữu. Mức độ hiệu quả công ty biến vốn thành lợi nhuận. ROE cao ổn định (15%+) là dấu hiệu doanh nghiệp chất lượng.',
+      en: 'Return on Equity for the trailing twelve months: net income ÷ shareholder equity. How efficiently a company turns capital into profit on a rolling basis. Consistently high ROE (15%+) is a hallmark of quality businesses.',
+      vi: 'ROE 12 tháng gần nhất: lợi nhuận ròng ÷ vốn chủ sở hữu. Mức độ hiệu quả công ty biến vốn thành lợi nhuận theo giai đoạn liên tục. ROE cao ổn định (15%+) là dấu hiệu doanh nghiệp chất lượng.',
     },
   },
   revenue_growth: {
-    term: { en: 'Revenue Growth', vi: 'Tăng trưởng doanh thu' },
+    term: { en: 'Revenue Growth (YoY)', vi: 'Tăng trưởng doanh thu (YoY)' },
     long: {
-      en: 'Year-over-year percentage change in revenue. Strong, accelerating sales growth often precedes big winners.',
-      vi: 'Phần trăm thay đổi doanh thu so với cùng kỳ năm trước. Tăng trưởng mạnh và tăng tốc thường đi trước những cổ phiếu thắng lớn.',
+      en: 'Year-over-year revenue growth for the most recent reported quarter vs the same quarter one year ago. A positive number means the latest quarter was larger. Strong, accelerating quarterly growth often precedes big winners. Note: the Fundamentals Trend chart shows annual revenue for each fiscal year.',
+      vi: 'Tăng trưởng doanh thu so cùng kỳ (YoY) của quý báo cáo gần nhất so với quý tương ứng năm trước. Số dương có nghĩa quý gần nhất lớn hơn. Tăng trưởng quý mạnh và tăng tốc thường đi trước những cổ phiếu thắng lớn. Lưu ý: biểu đồ Xu hướng cơ bản hiển thị doanh thu theo từng năm tài chính.',
     },
   },
   beta: {
-    term: { en: 'Beta', vi: 'Beta' },
+    term: { en: 'Beta (5-Year)', vi: 'Beta (5 năm)' },
     long: {
-      en: 'How much a stock moves relative to the market. Beta 1.0 moves with the market; 1.5 swings ~50% more; 0.7 is calmer.',
-      vi: 'Mức độ biến động của cổ phiếu so với thị trường. Beta 1,0 dao động cùng thị trường; 1,5 mạnh hơn ~50%; 0,7 êm hơn.',
+      en: '5-year monthly beta versus the S&P 500: how much a stock moves relative to the market. Beta 1.0 tracks the market; 1.5 swings ~50% more; 0.7 is calmer. High-beta momentum names can amplify both gains and losses.',
+      vi: 'Beta tháng 5 năm so với S&P 500: mức độ biến động của cổ phiếu so với thị trường. Beta 1,0 dao động cùng thị trường; 1,5 mạnh hơn ~50%; 0,7 êm hơn. Mã momentum beta cao có thể khuếch đại cả lãi lẫn lỗ.',
     },
   },
   dividend_yield: {
