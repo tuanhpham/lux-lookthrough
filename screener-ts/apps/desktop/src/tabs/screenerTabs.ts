@@ -10,14 +10,19 @@ import {
   scanStock,
   patternToRow,
   STRATEGIES,
+  scanQm,
+  qmToRow,
+  DEFAULT_QM_CONFIG,
   type StrategyKey,
   type Period,
   type ScreenRow,
+  type QmRow,
   type OHLCV,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num, pct, fmtBig, scoreColor, signalBadge, stageBadge } from '../ui/dom.js';
 import { sortableTable, type SortKey } from '../ui/sortableTable.js';
+import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
@@ -61,10 +66,14 @@ const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string
 /** Universe modes large enough to warrant the long-scan hint + bigger batches. */
 const BIG_UNIVERSES = new Set<UniverseMode>(['all', 'vnall', 'hnx', 'upcom', 'vnmarket']);
 
-let picksStrategy: StrategyKey = 'breakout';
+/** Top Picks strategies: the core ScreenRow presets plus the QM (Qullamaggie) scan. */
+type PicksStrategy = StrategyKey | 'qm';
+
+let picksStrategy: PicksStrategy = 'breakout';
 let picksMarket: Market = 'us';
 let picksUniverse: UniverseMode = 'curated';
 let picksSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
+let qmSort: { key: QmSortKey; desc: boolean } = { key: 'qualityScore', desc: true };
 let screenSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 
 // Cancellation token for an in-flight scan; bumping it aborts the running scan.
@@ -80,7 +89,7 @@ export function renderPicks(ctx: AppContext): void {
     <h1>${t('picks.title')}</h1>
     <p class="subtitle">${t('picks.sub')}</p>
     <div class="toolbar">
-      ${(['breakout', 'momentum', 'vcp'] as StrategyKey[])
+      ${(['breakout', 'momentum', 'vcp', 'qm'] as PicksStrategy[])
         .map(
           (s) =>
             `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t(
@@ -107,7 +116,7 @@ export function renderPicks(ctx: AppContext): void {
 
   root.querySelectorAll<HTMLElement>('[data-strategy]').forEach((b) =>
     b.addEventListener('click', () => {
-      picksStrategy = b.dataset.strategy as StrategyKey;
+      picksStrategy = b.dataset.strategy as PicksStrategy;
       root.querySelectorAll('[data-strategy]').forEach((x) => x.classList.toggle('active', x === b));
       void runPicks(ctx);
     }),
@@ -188,6 +197,12 @@ async function resolveUniverse(mode: UniverseMode): Promise<string[]> {
  * Run to retry them.
  */
 async function runPicks(ctx: AppContext): Promise<void> {
+  // QM (Qullamaggie) is a distinct scanner returning QmRow (not ScreenRow), so
+  // it runs on its own code path with its own table renderer.
+  if (picksStrategy === 'qm') {
+    await runQmPicks(ctx);
+    return;
+  }
   const myToken = ++scanToken; // also aborts any previous scan
   const status = $('#picks-status')!;
   const out = $('#picks-results')!;
@@ -217,7 +232,8 @@ async function runPicks(ctx: AppContext): Promise<void> {
   }
   if (myToken !== scanToken) return; // superseded while loading the list
 
-  const cfg = STRATEGIES[picksStrategy] ?? STRATEGIES.breakout;
+  // 'qm' already returned above, so picksStrategy here is a core StrategyKey.
+  const cfg = STRATEGIES[picksStrategy as StrategyKey] ?? STRATEGIES.breakout;
   const strategyLabel = cfg.label;
   // Larger universes use bigger batches but the same modest per-batch concurrency
   // so we don't hammer Yahoo (which rate-limits → dropped symbols).
@@ -291,6 +307,114 @@ async function runPicks(ctx: AppContext): Promise<void> {
     '.';
   if (!matches.length) {
     out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No setups matched.</div>`;
+  } else {
+    renderTable();
+  }
+  finish();
+}
+
+/**
+ * QM (Qullamaggie) variant of {@link runPicks}: same incremental/cancellable
+ * fetch-and-scan scaffolding, but it runs `scanQm` per symbol, keeps only stocks
+ * that pass the trend filter AND form a VCP or episodic-pivot setup, and renders
+ * the richer `qmTable` (Quality, Setup, contractions, pivot, risk).
+ */
+async function runQmPicks(ctx: AppContext): Promise<void> {
+  const myToken = ++scanToken; // also aborts any previous scan
+  const status = $('#picks-status')!;
+  const out = $('#picks-results')!;
+  const progress = $('#picks-progress')!;
+  const bar = $('#picks-bar')!;
+  const stopBtn = $('#picks-stop')!;
+  const runBtn = $('#picks-refresh')!;
+
+  out.innerHTML = '';
+  progress.classList.remove('hidden');
+  stopBtn.classList.remove('hidden');
+  runBtn.classList.add('hidden');
+  bar.style.width = '0%';
+  status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
+
+  const finish = (): void => {
+    progress.classList.add('hidden');
+    stopBtn.classList.add('hidden');
+    runBtn.classList.remove('hidden');
+  };
+
+  let symbols: string[];
+  try {
+    symbols = await resolveUniverse(picksUniverse);
+  } catch {
+    symbols = CURATED;
+  }
+  if (myToken !== scanToken) return;
+
+  const strategyLabel = t('picks.qm');
+  const BATCH = BIG_UNIVERSES.has(picksUniverse) ? 120 : 60;
+  const CONCURRENCY = 6;
+
+  const matches: QmRow[] = [];
+  let scanned = 0;
+  let fetched = 0;
+
+  const renderTable = (): void => {
+    matches.sort((a, b) => b.qualityScore - a.qualityScore);
+    const top = matches.slice(0, 50);
+    out.replaceChildren(
+      qmTable(top, {
+        sortKey: qmSort.key,
+        sortDesc: qmSort.desc,
+        onRowClick: (sym) => void openStock(ctx, sym),
+        onSortChange: (key, desc) => {
+          qmSort = { key, desc };
+        },
+      }),
+    );
+  };
+
+  for (let i = 0; i < symbols.length; i += BATCH) {
+    if (myToken !== scanToken) {
+      status.textContent =
+        `${t('picks.stopped')} — ${matches.length} ${strategyLabel} ${t('picks.matches')}, ` +
+        `${scanned}/${symbols.length} ${t('picks.scanned')}.`;
+      if (matches.length) renderTable();
+      finish();
+      return;
+    }
+    const batch = symbols.slice(i, i + BATCH);
+    const data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
+    if (myToken !== scanToken) continue;
+
+    fetched += data.size;
+    for (const series of data.values() as IterableIterator<OHLCV>) {
+      if (!series.bars || series.bars.length < 60) continue;
+      scanned += 1;
+      const r = scanQm(series.symbol, series.bars, DEFAULT_QM_CONFIG);
+      // Keep only real QM setups (a passing trend + VCP or episodic pivot).
+      if (r.setupType === 'NONE') continue;
+      matches.push(qmToRow(r));
+    }
+
+    const doneCount = Math.min(i + BATCH, symbols.length);
+    bar.style.width = `${Math.round((doneCount / symbols.length) * 100)}%`;
+    status.innerHTML =
+      `<span class="spinner"></span> ${t('msg.scanning')} ${doneCount}/${symbols.length} — ` +
+      `${matches.length} ${strategyLabel} ${t('picks.matches')}`;
+    renderTable();
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  if (myToken !== scanToken) {
+    finish();
+    return;
+  }
+  const dropped = symbols.length - fetched;
+  status.textContent =
+    `${t('picks.done')}: ${matches.length} ${strategyLabel} setup(s) from ${scanned}/${symbols.length} ${t('picks.scanned')}` +
+    (dropped > 0 ? ` (${dropped} ${t('picks.unavailable')} — ${t('picks.run')})` : '') +
+    '.';
+  if (!matches.length) {
+    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No QM setups matched.</div>`;
   } else {
     renderTable();
   }

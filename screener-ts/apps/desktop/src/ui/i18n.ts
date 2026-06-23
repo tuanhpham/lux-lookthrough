@@ -43,6 +43,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.breakout': { en: 'Breakout-ready', vi: 'Sẵn sàng bứt phá' },
   'picks.momentum': { en: 'Stage-2 momentum', vi: 'Đà tăng Giai đoạn 2' },
   'picks.vcp': { en: 'Tight VCP', vi: 'VCP chặt' },
+  'picks.qm': { en: 'Qullamaggie', vi: 'Qullamaggie' },
   'picks.broad': { en: 'Broad universe', vi: 'Toàn thị trường' },
   'picks.run': { en: '↻ Run', vi: '↻ Chạy' },
   'picks.market': { en: 'Market', vi: 'Thị trường' },
