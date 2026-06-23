@@ -1,0 +1,13 @@
+huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 desktop % npm run build --workspace @screener/core
+
+> @screener/core@0.1.0 build
+> tsc -p tsconfig.json
+
+sh: tsc: command not found
+npm error Lifecycle script `build` failed with error:
+npm error code 127
+npm error path /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/packages/core
+npm error workspace @screener/core@0.1.0
+npm error location /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/packages/core
+npm error command failed
+npm error command sh -c tsc -p tsconfig.json
