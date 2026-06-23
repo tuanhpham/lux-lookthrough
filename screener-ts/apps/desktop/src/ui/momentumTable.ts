@@ -1,5 +1,6 @@
-import type { MomentumRow, MomentumClassification } from '@screener/core';
+import type { MomentumRow } from '@screener/core';
 import { num, pct, fmtPrice, scoreColor } from './dom.js';
+import { classBadge, CLASS_RANK } from './badges.js';
 
 /** Column keys the momentum table can sort by. */
 export type MomentumSortKey =
@@ -28,25 +29,6 @@ const COLUMNS: Column[] = [
   { key: 'atrPct', label: 'ATR%', defaultDesc: true },
   { key: 'sectorRank', label: 'Sector', defaultDesc: false },
 ];
-
-const CLASS_RANK: Record<MomentumClassification, number> = {
-  Explosive: 4,
-  Strong: 3,
-  Building: 2,
-  Weak: 1,
-};
-
-const CLASS_COLOR: Record<MomentumClassification, string> = {
-  Explosive: 'var(--accent)',
-  Strong: 'var(--accent)',
-  Building: 'var(--warn)',
-  Weak: 'var(--faint)',
-};
-
-function classBadge(c: MomentumClassification): string {
-  const color = CLASS_COLOR[c];
-  return `<span class="badge" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color}">${c}</span>`;
-}
 
 /** Sector cell: rank + a flame when it's a hot sector. */
 function sectorCell(r: MomentumRow): string {
@@ -83,7 +65,7 @@ export interface MomentumTableOptions {
 
 /**
  * Sortable results table for the Momentum exploration scan (F5/F6). A sibling of
- * `qmTable`/`sortableTable` — kept separate so existing tables are untouched and
+ * `qmTable` — kept separate so each table's columns stay focused, and
  * the momentum-specific columns (returns, RS, percentile, sector rank) render
  * cleanly. A signed-return cell is colored green/red via `pct`.
  */

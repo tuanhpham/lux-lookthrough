@@ -1,7 +1,14 @@
-import { scanStock, type Period } from '@screener/core';
+import {
+  scanQm,
+  computeMomentumScore,
+  type Period,
+  type QmScanResult,
+  type MomentumResult,
+} from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, num, fmtBig, money, fmtPrice, isVnSymbol, scoreColor, signalBadge, stageBadge } from './dom.js';
+import { $, num, fmtBig, money, fmtPrice, isVnSymbol, scoreColor } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
+import { setupBadge, classBadge } from './badges.js';
 import { t, getLang } from './i18n.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
 import { infoIcon as info, attachTooltips } from './tooltip.js';
@@ -70,16 +77,17 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
       ctx.data.getOHLCV(symbol, period).catch(() => ({ symbol, bars: [] })),
       ctx.data.getFinancials(symbol).catch(() => ({ symbol, annual: [], quarterly: [] })),
     ]);
-    const pattern = ohlcv.bars.length >= 60 ? scanStock(symbol, ohlcv.bars) : null;
+    const qm = ohlcv.bars.length >= 60 ? scanQm(symbol, ohlcv.bars) : null;
+    const mom = ohlcv.bars.length >= 60 ? computeMomentumScore(symbol, ohlcv.bars) : null;
     const f = fund as Awaited<ReturnType<AppContext['data']['getFundamentals']>>;
 
     $('#modal-title')!.innerHTML = `${symbol} <span class="muted" style="font-weight:400;font-size:13px">${f.name ?? ''}</span>`;
 
-    body.innerHTML = renderDetail(symbol, f, pattern);
+    body.innerHTML = renderDetail(symbol, f, qm, mom);
     attachTooltips(body);
 
     const chartEl = $('#detail-chart')!;
-    chart = drawCandles(chartEl, ohlcv.bars, pattern, emaState);
+    chart = drawCandles(chartEl, ohlcv.bars, qmOverlay(qm), emaState);
 
     // EMA legend toggles
     body.querySelectorAll<HTMLElement>('[data-ema]').forEach((btn) =>
@@ -98,9 +106,9 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
         body.querySelectorAll('[data-period]').forEach((b) => b.classList.toggle('active', b === btn));
         chartEl.innerHTML = `<div class="muted" style="text-align:center;padding:40px"><span class="spinner"></span></div>`;
         const data = await ctx.data.getOHLCV(symbol, period).catch(() => ({ symbol, bars: [] }));
-        const p2 = data.bars.length >= 60 ? scanStock(symbol, data.bars) : null;
+        const q2 = data.bars.length >= 60 ? scanQm(symbol, data.bars) : null;
         chart?.destroy();
-        chart = drawCandles(chartEl, data.bars, p2, emaState);
+        chart = drawCandles(chartEl, data.bars, qmOverlay(q2), emaState);
       }),
     );
 
@@ -156,32 +164,45 @@ function stat(k: string, v: string, tipKey?: string): string {
 function renderDetail(
   symbol: string,
   f: { name?: string | null; currency?: string | null; sector?: string | null; industry?: string | null; currentPrice?: number | null; marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null; profitMargin?: number | null; revenueGrowth?: number | null; beta?: number | null; dividendYield?: number | null; week52Low?: number | null; week52High?: number | null; summary?: string | null },
-  p: ReturnType<typeof scanStock> | null,
+  q: QmScanResult | null,
+  mom: MomentumResult | null,
 ): string {
-  const price = f.currentPrice ?? (p ? p.stage.price : null);
+  const price = f.currentPrice ?? q?.price ?? null;
   let patternBlock = '';
-  if (p) {
+  if (q) {
+    const rr = q.vcp.pivot != null && q.levels.riskReward != null ? num(q.levels.riskReward, 1) + 'R' : '—';
     patternBlock = `
       <div class="row" style="margin-bottom:10px">
-        ${signalBadge(p.signal)} ${stageBadge(p.stage.stage, p.stage.label)}
+        ${setupBadge(q.setupType)} ${mom ? classBadge(mom.classification) : ''}
         <div style="margin-left:auto" class="row">
-          <span class="scorebar" style="width:90px"><span style="width:${Math.max(0, p.score)}%;background:${scoreColor(p.score)}"></span></span>
-          <strong style="color:${scoreColor(p.score)};font-size:18px">${num(p.score, 0)}</strong>
+          <span class="muted" style="font-size:11px">${t('detail.quality')}</span>
+          <span class="scorebar" style="width:90px"><span style="width:${Math.max(0, q.qualityScore)}%;background:${scoreColor(q.qualityScore)}"></span></span>
+          <strong style="color:${scoreColor(q.qualityScore)};font-size:18px">${num(q.qualityScore, 0)}</strong>
         </div>
       </div>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
-        ${stat('Entry', fmtPrice(p.entryPrice, symbol), 'entry')}
-        ${stat('Stop', fmtPrice(p.stopLoss, symbol), 'stop')}
-        ${stat('Target', fmtPrice(p.targetPrice, symbol), 'target')}
-        ${stat('R:R', p.riskReward != null ? num(p.riskReward, 1) + 'R' : '—', 'rr')}
-        ${stat('Pivot', fmtPrice(p.pivot.pivotHigh, symbol), 'pivot')}
-        ${stat('Range', num(p.consolidation.priceRangePct, 1) + '%', 'price_range')}
-        ${stat('Vol dry-up', num(p.consolidation.volumeDryUpPct, 1) + '%', 'volume_dryup')}
-        ${stat('VCP', String(p.consolidation.vcpContractions), 'vcp')}
+        ${stat('Entry', fmtPrice(q.levels.entryPrice, symbol), 'entry')}
+        ${stat('Stop', fmtPrice(q.levels.stopLoss, symbol), 'stop')}
+        ${stat('Target', fmtPrice(q.levels.targetPrice, symbol), 'target')}
+        ${stat('R:R', rr, 'rr')}
+        ${stat('Pivot', fmtPrice(q.vcp.pivot, symbol), 'pivot')}
+        ${stat('Prev advance', num(q.vcp.previousAdvancePct, 1) + '%', 'prev_advance')}
+        ${stat('VCP contr.', String(q.vcp.contractions), 'vcp')}
+        ${stat('Risk %', q.riskPct != null ? num(q.riskPct, 1) + '%' : '—', 'risk_pct')}
       </div>
+      ${mom ? `<div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:8px">
+        ${stat('Momentum', num(mom.momentumScore, 0), 'momentum_score')}
+        ${stat('1M', num(mom.returns.oneMonth, 1) + '%', 'return_1m')}
+        ${stat('3M', num(mom.returns.threeMonth, 1) + '%', 'return_3m')}
+        ${stat('6M', num(mom.returns.sixMonth, 1) + '%', 'return_6m')}
+        ${stat('RS', num(mom.relativeStrength, 1), 'rs')}
+        ${stat('ATR%', num(mom.atrPct, 1) + '%', 'atr_pct')}
+        ${stat('% off 52wH', num(mom.distanceFrom52wHighPct, 1) + '%', 'dist_52w')}
+        ${stat('Trend', q.trend.passed ? '✓ pass' : '✗ fail', 'trend_gate')}
+      </div>` : ''}
       <div class="card analysis-card" style="margin-top:12px">
         <div class="section-title" style="margin-top:0">${t('detail.analysis')}</div>
-        ${analysisHtml(p)}
+        ${analysisHtml(q, mom)}
       </div>`;
   }
   // TradingView needs EXCHANGE:TICKER for VN names (HOSE:FPT) — `FPT.VN` won't
@@ -292,59 +313,73 @@ function fundGridHtml(f: {
   ].join('');
 }
 
-/** Professional bullet-point analysis with highlighted key figures. Bilingual. */
-function analysisHtml(p: ReturnType<typeof scanStock>): string {
+/** Trade-level overlay for the candle chart, sourced from a QM scan. */
+function qmOverlay(q: QmScanResult | null): import('./charts.js').TradeOverlay | null {
+  if (!q) return null;
+  return {
+    pivot: q.vcp.pivot,
+    entry: q.levels.entryPrice,
+    stop: q.levels.stopLoss,
+    target: q.levels.targetPrice,
+  };
+}
+
+const SETUP_PHRASE: Record<string, [string, string]> = {
+  VCP: ['a Volatility Contraction Pattern (VCP)', 'mẫu hình co thắt biến động (VCP)'],
+  EPISODIC_PIVOT: ['an episodic pivot (news/earnings gap)', 'điểm xoay đột biến (tin tức/lợi nhuận)'],
+  BOTH: ['a VCP that is also gapping on a catalyst', 'một VCP đồng thời gap theo chất xúc tác'],
+  NONE: ['no actionable QM setup yet', 'chưa có thiết lập QM rõ ràng'],
+};
+
+/** Professional bullet-point analysis for the QM + momentum model. Bilingual. */
+function analysisHtml(q: QmScanResult, mom: MomentumResult | null): string {
   const vi = getLang() === 'vi';
   const hl = (s: string) => `<span class="hl">${s}</span>`;
-  // Price unit follows the ticker (VND for .VN, USD otherwise).
-  const px = (v: number | null | undefined) => fmtPrice(v, p.symbol);
-  const sig = p.signal === 'BREAKOUT_IMMINENT'
-    ? (vi ? 'Bứt phá sắp xảy ra' : 'Breakout imminent')
-    : p.signal === 'CONSOLIDATING'
-      ? (vi ? 'Đang tích lũy' : 'Consolidating')
-      : (vi ? 'Chưa có tín hiệu' : 'No actionable signal');
-  const stageTxt: Record<number, string> = vi
-    ? { 0: 'chưa xác định', 1: 'Giai đoạn 1 — tạo nền', 2: 'Giai đoạn 2 — tăng giá (vùng mua)', 3: 'Giai đoạn 3 — tạo đỉnh', 4: 'Giai đoạn 4 — giảm giá' }
-    : { 0: 'undetermined', 1: 'Stage 1 — basing', 2: 'Stage 2 — advancing (buy zone)', 3: 'Stage 3 — topping', 4: 'Stage 4 — declining' };
+  const px = (v: number | null | undefined) => fmtPrice(v, q.symbol);
 
   const items: string[] = [];
+  const [setupEn, setupVi] = SETUP_PHRASE[q.setupType] ?? SETUP_PHRASE.NONE!;
   items.push(
     vi
-      ? `<b>${sig}</b> · điểm tin cậy ${hl(num(p.score, 0) + '/100')} · ${stageTxt[p.stage.stage]}`
-      : `<b>${sig}</b> · conviction ${hl(num(p.score, 0) + '/100')} · ${stageTxt[p.stage.stage]}`,
+      ? `<b>${setupVi}</b> · điểm chất lượng ${hl(num(q.qualityScore, 0) + '/100')} · bộ lọc xu hướng ${q.trend.passed ? hl('đạt') : 'chưa đạt'}`
+      : `<b>${setupEn}</b> · quality ${hl(num(q.qualityScore, 0) + '/100')} · trend filter ${q.trend.passed ? hl('passed') : 'not passed'}`,
   );
-  const c = p.consolidation;
-  items.push(
-    vi
-      ? `Nền giá ~${hl(String(c.daysInBase) + ' phiên')}, biên độ ${hl(num(c.priceRangePct, 1) + '%')}` +
-        (c.atrContractionPct > 0 ? `, biến động co lại ${hl(num(c.atrContractionPct, 1) + '%')}` : '') +
-        (c.volumeDryUpPct > 0 ? `, thanh khoản cạn ${hl(num(c.volumeDryUpPct, 1) + '%')}` : '')
-      : `Base ~${hl(String(c.daysInBase) + ' days')}, range ${hl(num(c.priceRangePct, 1) + '%')}` +
-        (c.atrContractionPct > 0 ? `, volatility contracted ${hl(num(c.atrContractionPct, 1) + '%')}` : '') +
-        (c.volumeDryUpPct > 0 ? `, volume dry-up ${hl(num(c.volumeDryUpPct, 1) + '%')}` : ''),
-  );
-  if (c.vcpContractions > 0) {
+
+  if (q.vcp.previousAdvancePct > 0) {
     items.push(
       vi
-        ? `${hl(String(c.vcpContractions) + ' lần co thắt VCP')} — các nhịp điều chỉnh thu hẹp dần`
-        : `${hl(String(c.vcpContractions) + ' VCP contraction' + (c.vcpContractions !== 1 ? 's' : ''))} — successively tighter pullbacks`,
+        ? `Nhịp tăng trước nền ${hl(num(q.vcp.previousAdvancePct, 1) + '%')}, ${hl(String(q.vcp.contractions) + ' lần co thắt')}` +
+          (q.vcp.volumeContractionPct > 0 ? `, thanh khoản cạn ${hl(num(q.vcp.volumeContractionPct, 1) + '%')}` : '')
+        : `Prior advance ${hl(num(q.vcp.previousAdvancePct, 1) + '%')} into a base with ${hl(String(q.vcp.contractions) + ' contraction' + (q.vcp.contractions !== 1 ? 's' : ''))}` +
+          (q.vcp.volumeContractionPct > 0 ? `, volume contracted ${hl(num(q.vcp.volumeContractionPct, 1) + '%')}` : ''),
     );
   }
-  if (p.pivot.pivotHigh) {
+
+  if (q.ep.isEp) {
     items.push(
       vi
-        ? `Cách pivot ${hl(px(p.pivot.pivotHigh))} khoảng ${hl(num(p.pivot.distanceToPivotPct, 1) + '%')}`
-        : `${hl(num(p.pivot.distanceToPivotPct, 1) + '%')} below the pivot at ${hl(px(p.pivot.pivotHigh))}`,
+        ? `Gap ${hl(num(q.ep.gapPct, 1) + '%')} với khối lượng tương đối ${hl(num(q.ep.relativeVolume, 1) + '×')}${q.ep.catalyst ? ` — ${q.ep.catalyst}` : ''}`
+        : `Gapped ${hl(num(q.ep.gapPct, 1) + '%')} on ${hl(num(q.ep.relativeVolume, 1) + '×')} relative volume${q.ep.catalyst ? ` — ${q.ep.catalyst}` : ''}`,
     );
   }
-  if (p.entryPrice && p.stopLoss && p.targetPrice) {
-    const rr = p.riskReward ? num(p.riskReward, 1) + 'R' : '—';
+
+  if (mom) {
     items.push(
       vi
-        ? `Kế hoạch: mua ${hl(px(p.entryPrice))}, cắt lỗ ${hl(px(p.stopLoss))}, mục tiêu ${hl(px(p.targetPrice))} (${hl(rr)})`
-        : `Plan: buy ${hl(px(p.entryPrice))}, stop ${hl(px(p.stopLoss))}, target ${hl(px(p.targetPrice))} (${hl(rr)})`,
+        ? `Động lượng ${hl(num(mom.momentumScore, 0) + '/100')} (${mom.classification}) · 1M ${hl(num(mom.returns.oneMonth, 1) + '%')} · 3M ${hl(num(mom.returns.threeMonth, 1) + '%')} · 6M ${hl(num(mom.returns.sixMonth, 1) + '%')} · RS ${hl(num(mom.relativeStrength, 1))}`
+        : `Momentum ${hl(num(mom.momentumScore, 0) + '/100')} (${mom.classification}) · 1M ${hl(num(mom.returns.oneMonth, 1) + '%')} · 3M ${hl(num(mom.returns.threeMonth, 1) + '%')} · 6M ${hl(num(mom.returns.sixMonth, 1) + '%')} · RS ${hl(num(mom.relativeStrength, 1))}`,
     );
   }
+
+  if (q.vcp.pivot && q.levels.entryPrice && q.levels.stopLoss) {
+    const rr = q.levels.riskReward ? num(q.levels.riskReward, 1) + 'R' : '—';
+    items.push(
+      vi
+        ? `Kế hoạch: pivot ${hl(px(q.vcp.pivot))}, mua ${hl(px(q.levels.entryPrice))}, cắt lỗ ${hl(px(q.levels.stopLoss))}${q.levels.targetPrice ? `, mục tiêu ${hl(px(q.levels.targetPrice))}` : ''} (${hl(rr)})`
+        : `Plan: pivot ${hl(px(q.vcp.pivot))}, buy ${hl(px(q.levels.entryPrice))}, stop ${hl(px(q.levels.stopLoss))}${q.levels.targetPrice ? `, target ${hl(px(q.levels.targetPrice))}` : ''} (${hl(rr)})`,
+    );
+  }
+
   const note = vi
     ? 'Phân tích tự động mang tính giáo dục — không phải lời khuyên đầu tư.'
     : 'Automated, educational read — not financial advice.';

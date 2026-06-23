@@ -19,30 +19,27 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'foot.disclaimer': { en: 'Educational use only. Not financial advice.', vi: 'Chỉ dùng cho mục đích học tập. Không phải lời khuyên đầu tư.' },
 
   // Landing
-  'landing.badge': { en: 'Pattern-based US equity screener', vi: 'Bộ lọc cổ phiếu Mỹ theo mẫu hình' },
-  'landing.h1a': { en: "Find tomorrow's breakouts,", vi: 'Tìm cú bứt phá của ngày mai,' },
-  'landing.h1b': { en: 'before they break out.', vi: 'trước khi chúng bứt phá.' },
+  'landing.badge': { en: 'Qullamaggie + momentum equity screener', vi: 'Bộ lọc cổ phiếu Qullamaggie + động lượng' },
+  'landing.h1a': { en: 'Trade the strongest stocks,', vi: 'Giao dịch những cổ phiếu mạnh nhất,' },
+  'landing.h1b': { en: 'in the strongest setups.', vi: 'ở những thiết lập tốt nhất.' },
   'landing.sub': {
-    en: 'Scan any stock or sector for tight consolidations, VCP setups and Stage-2 momentum — ranked by a 0–100 conviction score, with interactive charts, EMAs, and a paper-trading engine.',
-    vi: 'Quét bất kỳ cổ phiếu hay ngành nào để tìm nền giá chặt, mẫu hình VCP và đà tăng Giai đoạn 2 — xếp hạng theo điểm tin cậy 0–100, kèm biểu đồ tương tác, EMA và công cụ giao dịch giấy.',
+    en: 'Scan any stock or sector for Qullamaggie setups (VCP & episodic pivots) and the strongest momentum leaders — ranked by a 0–100 quality score with market-regime and sector-rotation context, interactive charts, and a paper-trading engine.',
+    vi: 'Quét bất kỳ cổ phiếu hay ngành nào để tìm thiết lập Qullamaggie (VCP & điểm xoay đột biến) và các mã động lượng mạnh nhất — xếp hạng theo điểm chất lượng 0–100 kèm bối cảnh thị trường và luân chuyển ngành, biểu đồ tương tác và công cụ giao dịch giấy.',
   },
   'landing.cta': { en: 'Launch the Screener →', vi: 'Mở bộ lọc →' },
   'landing.nosignup': { en: 'No sign-up · runs locally', vi: 'Không cần đăng ký · chạy cục bộ' },
   'landing.f1.t': { en: 'Custom Screener', vi: 'Bộ lọc tùy chỉnh' },
-  'landing.f1.d': { en: 'Type tickers or pick sectors. Filter by score, signal and stage.', vi: 'Nhập mã hoặc chọn ngành. Lọc theo điểm, tín hiệu và giai đoạn.' },
+  'landing.f1.d': { en: 'Type tickers or pick sectors. Filter by setup type, quality score and momentum.', vi: 'Nhập mã hoặc chọn ngành. Lọc theo loại thiết lập, điểm chất lượng và động lượng.' },
   'landing.f2.t': { en: 'Pro Charts', vi: 'Biểu đồ chuyên nghiệp' },
-  'landing.f2.d': { en: 'Candles with EMAs, volume, and trade levels drawn on the chart.', vi: 'Nến với EMA, khối lượng và các mức giao dịch vẽ trên biểu đồ.' },
+  'landing.f2.d': { en: 'Candles with EMAs, volume, and pivot/entry/stop levels drawn on the chart.', vi: 'Nến với EMA, khối lượng và các mức pivot/mua/cắt lỗ vẽ trên biểu đồ.' },
   'landing.f3.t': { en: 'Top Picks', vi: 'Lựa chọn hàng đầu' },
-  'landing.f3.d': { en: 'Auto-ranked best setups across the market by strategy.', vi: 'Tự động xếp hạng các thiết lập tốt nhất theo chiến lược.' },
+  'landing.f3.d': { en: 'Qullamaggie setups and momentum leaders, auto-ranked across the market.', vi: 'Thiết lập Qullamaggie và mã dẫn dắt động lượng, tự động xếp hạng toàn thị trường.' },
   'landing.f4.t': { en: 'Paper Trading', vi: 'Giao dịch giấy' },
   'landing.f4.d': { en: 'Multi-account strategy testing with equity curves and risk metrics.', vi: 'Thử nghiệm chiến lược đa tài khoản với đường vốn và chỉ số rủi ro.' },
 
   // Picks
   'picks.title': { en: 'Top Picks', vi: 'Lựa chọn hàng đầu' },
-  'picks.sub': { en: 'Highest-conviction setups, auto-ranked across the universe.', vi: 'Các thiết lập có độ tin cậy cao nhất, tự động xếp hạng trên toàn vũ trụ cổ phiếu.' },
-  'picks.breakout': { en: 'Breakout-ready', vi: 'Sẵn sàng bứt phá' },
-  'picks.momentum': { en: 'Stage-2 momentum', vi: 'Đà tăng Giai đoạn 2' },
-  'picks.vcp': { en: 'Tight VCP', vi: 'VCP chặt' },
+  'picks.sub': { en: 'Qullamaggie setups and momentum leaders, auto-ranked across the universe.', vi: 'Thiết lập Qullamaggie và mã dẫn dắt động lượng, tự động xếp hạng trên toàn vũ trụ cổ phiếu.' },
   'picks.qm': { en: 'Qullamaggie', vi: 'Qullamaggie' },
   'picks.momentumscan': { en: 'Momentum', vi: 'Động lượng' },
   'picks.prefilter': { en: 'Momentum pre-filter', vi: 'Lọc động lượng trước' },
@@ -77,28 +74,37 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.done': { en: 'Done', vi: 'Hoàn tất' },
   'picks.unavailable': { en: 'unavailable this run', vi: 'không tải được lần này' },
 
-  // Screener
+  // Screener (Qullamaggie + Momentum)
   'screener.title': { en: 'Custom Screener', vi: 'Bộ lọc tùy chỉnh' },
-  'screener.sub': { en: 'Find consolidation & breakout setups across any stocks or sectors.', vi: 'Tìm thiết lập tích lũy & bứt phá trên bất kỳ cổ phiếu hay ngành nào.' },
+  'screener.sub': { en: 'Scan any stocks or sectors for Qullamaggie setups and momentum leaders.', vi: 'Quét bất kỳ cổ phiếu hay ngành nào để tìm thiết lập Qullamaggie và mã dẫn dắt động lượng.' },
   'screener.symbols': { en: 'Symbols (comma separated)', vi: 'Mã cổ phiếu (cách nhau bằng dấu phẩy)' },
   'screener.orsectors': { en: 'Or pick sectors', vi: 'Hoặc chọn ngành' },
-  'screener.minscore': { en: 'Min score', vi: 'Điểm tối thiểu' },
   'screener.nolimit': { en: 'no limit', vi: 'không giới hạn' },
-  'screener.minscore.hint': {
-    en: 'Leave blank for no limit. Scores can be negative (e.g. when volatility expands), so a min of 0 hides those stocks.',
-    vi: 'Để trống = không giới hạn. Điểm có thể âm (vd khi biến động tăng), nên đặt mức tối thiểu 0 sẽ ẩn các cổ phiếu đó.',
-  },
-  'screener.signal': { en: 'Signal', vi: 'Tín hiệu' },
-  'screener.stage': { en: 'Stage', vi: 'Giai đoạn' },
+  'screener.setup': { en: 'Setup type', vi: 'Loại thiết lập' },
+  'screener.setup.vcp': { en: 'VCP', vi: 'VCP' },
+  'screener.setup.ep': { en: 'Episodic pivot', vi: 'Điểm xoay đột biến' },
+  'screener.setup.both': { en: 'VCP + Episodic', vi: 'VCP + Đột biến' },
+  'screener.minquality': { en: 'Min quality', vi: 'Chất lượng tối thiểu' },
+  'screener.minmomentum': { en: 'Min momentum', vi: 'Động lượng tối thiểu' },
   'screener.sortby': { en: 'Sort by', vi: 'Sắp xếp theo' },
+  'screener.col.quality': { en: 'Quality', vi: 'Chất lượng' },
+  'screener.col.momentum': { en: 'Momentum', vi: 'Động lượng' },
   'screener.run': { en: 'Run Screen', vi: 'Chạy lọc' },
   'opt.any': { en: 'Any', vi: 'Tất cả' },
 
+  // Momentum classifications
+  'mom.class.weak': { en: 'Weak', vi: 'Yếu' },
+  'mom.class.building': { en: 'Building', vi: 'Đang xây' },
+  'mom.class.strong': { en: 'Strong', vi: 'Mạnh' },
+  'mom.class.explosive': { en: 'Explosive', vi: 'Bùng nổ' },
+
   // Sectors
-  'sectors.title': { en: 'Industry Volume Scanner', vi: 'Máy quét khối lượng theo ngành' },
-  'sectors.sub': { en: 'Sectors ranked by 3m-vs-6m average-volume change. Click one for its volume trend.', vi: 'Các ngành xếp hạng theo thay đổi khối lượng 3 tháng so với 6 tháng. Nhấp để xem xu hướng khối lượng.' },
+  'sectors.title': { en: 'Sector Rotation', vi: 'Luân chuyển ngành' },
+  'sectors.sub': { en: 'Sectors ranked by momentum (1M/3M return + RS vs SPY), with the volume trend. Click one for details.', vi: 'Các ngành xếp hạng theo động lượng (lợi nhuận 1M/3M + RS so với SPY), kèm xu hướng khối lượng. Nhấp để xem chi tiết.' },
   'sectors.scan': { en: '↻ Scan sectors', vi: '↻ Quét ngành' },
   'sectors.screenstocks': { en: 'Screen stocks →', vi: 'Lọc cổ phiếu →' },
+  'sectors.hot': { en: 'Hot', vi: 'Nóng' },
+  'sectors.cold': { en: 'Cold', vi: 'Lạnh' },
 
   // Watchlist
   'wl.title': { en: 'Watchlist', vi: 'Danh sách theo dõi' },
@@ -111,6 +117,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'pf.sub': { en: 'Independent multi-account strategy testing. Cash, PnL and risk are per account.', vi: 'Thử nghiệm chiến lược đa tài khoản độc lập. Tiền mặt, lãi/lỗ và rủi ro tính riêng cho từng tài khoản.' },
 
   // Detail modal
+  'detail.quality': { en: 'Quality', vi: 'Chất lượng' },
   'detail.analysis': { en: 'Analysis', vi: 'Phân tích' },
   'detail.pricehistory': { en: 'Price History', vi: 'Lịch sử giá' },
   'detail.fundtrend': { en: 'Fundamentals Trend', vi: 'Xu hướng cơ bản' },

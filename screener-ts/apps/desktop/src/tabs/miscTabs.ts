@@ -1,8 +1,8 @@
-import { screen, fetchMany, type ScreenRow } from '@screener/core';
+import { scanQm, qmToRow, fetchMany, type QmRow } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el } from '../ui/dom.js';
 import { openStock } from '../ui/stockModal.js';
-import { sortableTable, type SortKey } from '../ui/sortableTable.js';
+import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
@@ -184,8 +184,8 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
 // Cache scan rows per list so switching tabs is instant. Each entry remembers
 // the symbol set it was built for, so a change (e.g. a stock added from the
 // detail modal) is detected and the rows refetched automatically.
-const rowCache = new Map<string, { syms: string[]; rows: ScreenRow[] }>();
-let wlSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
+const rowCache = new Map<string, { syms: string[]; rows: QmRow[] }>();
+let wlSort: { key: QmSortKey; desc: boolean } = { key: 'qualityScore', desc: true };
 
 /** Render the active list as a sortable one-row-per-stock quick-info table. */
 async function refreshRows(ctx: AppContext, force = false): Promise<void> {
@@ -212,13 +212,15 @@ async function refreshRows(ctx: AppContext, force = false): Promise<void> {
     for (const sym of syms) {
       const ohlcv = data.get(sym);
       if (ohlcv && ohlcv.bars.length >= 60) {
-        rows.push(screen([ohlcv], { minScore: -1000, limit: 1 }).results[0]!);
+        rows.push(qmToRow(scanQm(sym, ohlcv.bars)));
       } else {
         // Keep the symbol visible even if data is missing/short.
-        rows.push({ symbol: sym, stage: 0, stageLabel: 'INSUFFICIENT_DATA', price: 0, score: 0, signal: 'NO_SIGNAL',
-          entryPrice: null, stopLoss: null, targetPrice: null, riskReward: null, pivotHigh: null,
-          distanceToPivotPct: null, priceRangePct: null, atrContractionPct: null, volumeDryUpPct: null,
-          vcpContractions: null, daysInBase: null } as ScreenRow);
+        rows.push({
+          symbol: sym, price: 0, qualityScore: 0, setupType: 'NONE',
+          previousAdvancePct: null, vcpContractions: null, atrContractionPct: null,
+          volumeContractionPct: null, pivot: null, entryPrice: null, stopLoss: null,
+          riskPct: null, relativeStrength: null, gapPct: null, catalyst: null,
+        } as QmRow);
       }
     }
     rowCache.set(activeId, { syms: [...syms], rows });
@@ -226,7 +228,7 @@ async function refreshRows(ctx: AppContext, force = false): Promise<void> {
 
   out.innerHTML = '';
   out.appendChild(
-    sortableTable(rows!, {
+    qmTable(rows!, {
       sortKey: wlSort.key,
       sortDesc: wlSort.desc,
       onRowClick: (sym) => void openStock(ctx, sym),
@@ -255,84 +257,80 @@ async function refreshRows(ctx: AppContext, force = false): Promise<void> {
 
 // ── Learn (full bilingual glossary, grouped) ────────────────────────────────────
 /**
- * "How the Conviction Score works" explainer for the Learn page. Mirrors the
- * exact rubric in packages/core/src/scoring/score.ts so users can understand
- * (and trust) why a stock scores what it does — and why some names (e.g. a
- * large-cap not currently in a tight base, or one whose volatility expanded)
- * legitimately score low or even negative and thus don't pass the filters.
+ * "How the system works" explainer for the Learn page. Mirrors the QM Quality
+ * Score (packages/core/src/qm) and the Momentum engine + regime + sector
+ * rotation (packages/core/src/momentum) so users understand what the scans
+ * measure and why a name does or doesn't surface.
  */
 function scoreExplainerHtml(lang: 'en' | 'vi'): string {
   const vi = lang === 'vi';
-  const hl = (s: string) => `<span class="hl">${s}</span>`;
 
-  const intro = vi
-    ? `Mỗi cổ phiếu được chấm một <b>điểm tin cậy (Conviction Score) từ 0–100</b>. Điểm này <b>không</b> đo "tốt/xấu" của công ty — nó đo mức độ cổ phiếu đang ở trong một <b>nền giá chặt, ít biến động, gần điểm bứt phá</b> theo phương pháp VCP / Stage Analysis (Minervini / Weinstein). Điểm cao = thiết lập kỹ thuật đẹp <i>ngay lúc này</i>.`
-    : `Every stock gets a <b>Conviction Score from 0–100</b>. It does <b>not</b> measure whether the company is "good" — it measures how tightly the stock is coiled in a low-volatility base near a breakout, in the VCP / Stage-Analysis style (Minervini / Weinstein). A high score = a clean technical setup <i>right now</i>.`;
+  // ── QM Quality Score rubric (weights total 100). ──
+  const qmIntro = vi
+    ? `Bộ lọc <b>Qullamaggie (QM)</b> tìm các thiết lập có xác suất cao: mẫu hình <b>co thắt biến động (VCP)</b> sau một nhịp tăng mạnh, và <b>điểm xoay đột biến (Episodic Pivot)</b> — cú gap theo tin tức/lợi nhuận. Mỗi mã được chấm <b>điểm chất lượng 0–100</b> theo trọng số dưới đây.`
+    : `The <b>Qullamaggie (QM)</b> screen finds high-probability setups: <b>Volatility Contraction Patterns (VCP)</b> after a strong advance, and <b>Episodic Pivots</b> — news/earnings gaps. Each stock gets a <b>Quality Score 0–100</b> from the weighted components below.`;
 
-  const rows: [string, string, string][] = vi
+  const qmRows: [string, string, string][] = vi
     ? [
-        ['Giai đoạn (Stage)', '+25 / +10 / 0', 'Stage 2 (đang tăng giá) +25 · Stage 1 (tạo nền) +10 · còn lại 0'],
-        ['Co thắt biến động (ATR)', '0 → +20', 'Biến động càng co lại càng tốt (đạt tối đa khi co ~30%). Nếu biến động <b>giãn ra</b>, mục này <b>âm</b> và có thể kéo tổng điểm xuống dưới 0.'],
-        ['Độ chặt biên độ giá', '0 → +15', 'Biên độ nền càng hẹp càng cao (5% → +15, 30% → 0).'],
-        ['Cạn thanh khoản', '0 → +15', 'Volume cạn dần trong nền (đạt tối đa khi cạn ~40%).'],
-        ['Số lần co thắt VCP', '0 → +15', 'Mỗi lần co thắt +5 (tối đa 3 lần).'],
-        ['Gần điểm pivot', '0 → +10', 'Càng sát điểm bứt phá càng cao (trong vòng 5%).'],
+        ['Xu hướng (Trend)', '20', 'Giá > EMA50 > EMA150 > EMA200 và EMA200 đang lên.'],
+        ['Nhịp tăng trước', '10', 'Nhịp tăng dẫn vào nền càng mạnh càng tốt (≥ 30%).'],
+        ['Chất lượng VCP', '25', 'Số lần co thắt, độ chặt và độ co biến động của nền.'],
+        ['Cạn thanh khoản', '15', 'Volume cạn dần trong nền.'],
+        ['Sức mạnh tương đối (RS)', '15', 'Hiệu suất so với thị trường (SPY).'],
+        ['Thanh khoản', '10', 'Giá trị giao dịch (giá × khối lượng) đủ lớn.'],
+        ['Gần điểm bứt phá', '5', 'Càng sát pivot càng cao.'],
       ]
     : [
-        ['Stage', '+25 / +10 / 0', 'Stage 2 (advancing) +25 · Stage 1 (basing) +10 · otherwise 0'],
-        ['ATR volatility contraction', '0 → +20', 'The more volatility tightens, the better (maxes out around a 30% contraction). If volatility <b>expanded</b>, this term goes <b>negative</b> and can drag the total below 0.'],
-        ['Price-range tightness', '0 → +15', 'Tighter base = higher (5% range → +15, 30% → 0).'],
-        ['Volume dry-up', '0 → +15', 'Volume drying up through the base (maxes around 40%).'],
-        ['VCP contractions', '0 → +15', '+5 per successive contraction (capped at 3).'],
-        ['Proximity to pivot', '0 → +10', 'Closer to the breakout pivot = higher (within 5%).'],
+        ['Trend', '20', 'Price > EMA50 > EMA150 > EMA200 with EMA200 rising.'],
+        ['Previous advance', '10', 'A strong advance into the base (≥ 30%).'],
+        ['VCP quality', '25', 'Contraction count, base tightness and volatility contraction.'],
+        ['Volume dry-up', '15', 'Volume drying up through the base.'],
+        ['Relative strength (RS)', '15', 'Performance vs the market (SPY).'],
+        ['Liquidity', '10', 'Sufficient dollar volume (price × volume).'],
+        ['Breakout proximity', '5', 'Closer to the pivot = higher.'],
       ];
 
-  const tableRows = rows
+  const qmTableRows = qmRows
     .map(
       ([k, pts, desc]) =>
         `<tr><td style="white-space:nowrap"><b>${k}</b></td><td style="white-space:nowrap" class="accent">${pts}</td><td class="muted">${desc}</td></tr>`,
     )
     .join('');
 
-  const formula = vi
-    ? `Điểm = Stage + ATR + Biên độ + Thanh khoản + VCP + Pivot, sau đó <b>giới hạn trên ≤ 100</b>. Lưu ý: <b>không có giới hạn dưới</b> — nên điểm có thể <b>âm</b> (ví dụ ${hl('STX')}, ${hl('INTC')} khi biến động đang giãn ra).`
-    : `Score = Stage + ATR + Range + Volume + VCP + Pivot, then <b>capped at ≤ 100</b>. Note: there is <b>no lower clamp</b> — so the score can go <b>negative</b> (e.g. ${hl('STX')}, ${hl('INTC')} when volatility is expanding).`;
+  // ── Momentum engine. ──
+  const momIntro = vi
+    ? `Bộ lọc <b>Động lượng (Momentum)</b> trả lời "mã nào đang chạy?". Điểm động lượng 0–100 kết hợp lợi nhuận <b>1 tháng (15)</b>, <b>3 tháng (25)</b>, <b>6 tháng (25)</b>, <b>RS so với SPY (25)</b> và <b>thanh khoản (10)</b>. Theo phân vị, mỗi mã được xếp loại: <b>Weak → Building → Strong → Explosive</b>.`
+    : `The <b>Momentum</b> screen answers "what's running right now?". A 0–100 momentum score blends <b>1-month (15)</b>, <b>3-month (25)</b>, <b>6-month (25)</b> returns, <b>RS vs SPY (25)</b> and <b>liquidity (10)</b>. By percentile each name is classed <b>Weak → Building → Strong → Explosive</b>.`;
 
-  const whyEmpty = vi
+  // ── Market regime + sector rotation. ──
+  const layers = vi
     ? [
-        `<b>Top Picks</b> dùng ngưỡng có sẵn: Breakout cần điểm ${hl('≥ 70')}, Momentum ${hl('≥ 55')}, VCP ${hl('≥ 60')}. Cổ phiếu vốn hoá lớn không ở trong nền chặt (vd ${hl('MSFT')}) thường <b>dưới ngưỡng</b> nên không hiện — đây là <b>đúng thiết kế</b>, không phải lỗi.`,
-        `<b>Screener</b>: để trống ô "Min score" = <b>không giới hạn</b> điểm, nên kể cả cổ phiếu điểm âm vẫn hiện. Nếu gõ một mã mà <b>không ra gì</b>, dòng trạng thái sẽ nói rõ lý do: không tải được (rate-limit Yahoo → bấm Run lại), quá ít dữ liệu (&lt;60 phiên), hay bị lọc bởi điểm/tín hiệu/giai đoạn.`,
-        `Một số mã bị <b>bỏ qua âm thầm</b> khi nhà cung cấp dữ liệu trả lỗi/0 dữ liệu trong lần quét đó. Bấm <b>Run</b> lại thường là hiện.`,
+        `<b>Bối cảnh thị trường (Regime)</b>: dùng SPY/QQQ để xác định <b>BULL / TRANSITION / BEAR</b> và cờ risk-on/off — biết <i>khi nào</i> nên mạnh tay.`,
+        `<b>Luân chuyển ngành (Sector rotation)</b>: xếp hạng ngành theo lợi nhuận 1M/3M và RS, nêu bật ngành <b>nóng/lạnh</b> — biết <i>tiền đang chảy về đâu</i>.`,
+        `<b>Pre-filter động lượng</b>: bộ lọc QM/VCP có thể thu hẹp vũ trụ về nhóm động lượng mạnh nhất trước khi quét mẫu hình.`,
       ]
     : [
-        `<b>Top Picks</b> uses preset thresholds: Breakout needs score ${hl('≥ 70')}, Momentum ${hl('≥ 55')}, VCP ${hl('≥ 60')}. A large-cap that isn't in a tight base (e.g. ${hl('MSFT')}) is usually <b>below the threshold</b> and won't show — that's <b>by design</b>, not a bug.`,
-        `<b>Screener</b>: leaving "Min score" blank means <b>no score limit</b>, so even negative-scoring names appear. If you type a ticker and get <b>nothing</b>, the status line tells you exactly why: couldn't be fetched (Yahoo rate-limit → click Run again), too little history (&lt;60 bars), or filtered out by score/signal/stage.`,
-        `Some tickers are <b>silently dropped</b> when the data provider errors / returns no data that run. Clicking <b>Run</b> again usually fixes it.`,
+        `<b>Market regime</b>: SPY/QQQ define <b>BULL / TRANSITION / BEAR</b> and a risk-on/off flag — knowing <i>when</i> to be aggressive.`,
+        `<b>Sector rotation</b>: sectors are ranked by 1M/3M return and RS, highlighting <b>hot/cold</b> groups — knowing <i>where money flows</i>.`,
+        `<b>Momentum pre-filter</b>: the QM/VCP scan can first narrow the universe to the strongest-momentum names before looking for patterns.`,
       ];
-
-  const coverage = vi
-    ? `Ứng dụng quét <b>không phải toàn bộ</b> ~6000+ mã niêm yết ở Mỹ. Mặc định quét <b>~543 mã chọn lọc</b> (nhanh); bật ô <b>"Broad"</b> ở Top Picks để quét <b>S&P 500 + 400 + 600 (~1500 mã)</b> lấy từ Wikipedia (chậm hơn). Mã ngoài các danh sách này vẫn xem được chi tiết bằng cách <b>gõ trực tiếp vào Screener</b>.`
-    : `The app does <b>not</b> scan all ~6000+ US-listed tickers. By default it scans a <b>curated ~543 names</b> (fast); turn on the <b>"Broad"</b> toggle in Top Picks to scan the <b>S&P 500 + 400 + 600 (~1500 names)</b> pulled from Wikipedia (slower). Any ticker outside these lists can still be opened by <b>typing it directly into the Screener</b>.`;
 
   return `
   <div class="card analysis-card" style="margin-bottom:22px">
-    <h2 style="font-size:15px;margin:0 0 8px">${vi ? '🎯 Điểm được tính như thế nào?' : '🎯 How the Conviction Score works'}</h2>
-    <p class="muted" style="line-height:1.65;margin:0 0 14px">${intro}</p>
-
-    <div class="section-title" style="margin-top:0">${vi ? 'Thang điểm' : 'The rubric'}</div>
+    <h2 style="font-size:15px;margin:0 0 8px">${vi ? '🎯 Điểm chất lượng Qullamaggie' : '🎯 The Qullamaggie Quality Score'}</h2>
+    <p class="muted" style="line-height:1.65;margin:0 0 14px">${qmIntro}</p>
     <div style="overflow-x:auto">
       <table class="playbook-table">
-        <thead><tr><th>${vi ? 'Thành phần' : 'Component'}</th><th>${vi ? 'Điểm' : 'Points'}</th><th>${vi ? 'Ý nghĩa' : 'Meaning'}</th></tr></thead>
-        <tbody>${tableRows}</tbody>
+        <thead><tr><th>${vi ? 'Thành phần' : 'Component'}</th><th>${vi ? 'Trọng số' : 'Weight'}</th><th>${vi ? 'Ý nghĩa' : 'Meaning'}</th></tr></thead>
+        <tbody>${qmTableRows}</tbody>
       </table>
     </div>
-    <p class="muted" style="line-height:1.6;margin:12px 0 0">${formula}</p>
 
-    <div class="section-title">${vi ? 'Vì sao một số mã không hiện?' : 'Why do some stocks not show up?'}</div>
-    <ul class="analysis-list">${whyEmpty.map((i) => `<li>${i}</li>`).join('')}</ul>
+    <div class="section-title">${vi ? '🚀 Động lượng (Momentum)' : '🚀 Momentum'}</div>
+    <p class="muted" style="line-height:1.65;margin:0">${momIntro}</p>
 
-    <div class="section-title">${vi ? 'Phạm vi quét (universe)' : 'Scan coverage (universe)'}</div>
-    <p class="muted" style="line-height:1.65;margin:0">${coverage}</p>
+    <div class="section-title">${vi ? '🧭 Bối cảnh & luân chuyển' : '🧭 Regime & rotation'}</div>
+    <ul class="analysis-list">${layers.map((i) => `<li>${i}</li>`).join('')}</ul>
 
     <div class="muted" style="font-size:11px;margin-top:14px">${
       vi

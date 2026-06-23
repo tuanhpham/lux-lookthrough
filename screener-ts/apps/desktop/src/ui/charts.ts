@@ -5,8 +5,17 @@ import {
   ColorType,
   LineStyle,
 } from 'lightweight-charts';
-import type { Bar, PatternResult } from '@screener/core';
+import type { Bar } from '@screener/core';
 import { emaOfCloses } from '@screener/core';
+
+/** Trade-level price lines to overlay on the candle chart. Decoupled from any
+ * particular scan result so it works with QM levels (or anything else). */
+export interface TradeOverlay {
+  pivot?: number | null;
+  entry?: number | null;
+  stop?: number | null;
+  target?: number | null;
+}
 
 function themeOptions() {
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -38,7 +47,7 @@ export interface CandleChart {
 export function drawCandles(
   container: HTMLElement,
   bars: Bar[],
-  pattern: PatternResult | null,
+  overlay: TradeOverlay | null,
   emaState: Record<number, boolean> = Object.fromEntries(EMA_CONFIG.map((e) => [e.period, e.on])),
 ): CandleChart {
   container.innerHTML = '';
@@ -68,12 +77,12 @@ export function drawCandles(
   };
   for (const e of EMA_CONFIG) if (emaState[e.period]) addEma(e.period, e.color);
 
-  if (pattern) {
-    const lines: [number | null, string, string][] = [
-      [pattern.pivot.pivotHigh, '#f5a623', 'Pivot'],
-      [pattern.entryPrice, '#3b82f6', 'Entry'],
-      [pattern.stopLoss, '#ff5260', 'Stop'],
-      [pattern.targetPrice, '#00d49b', 'Target'],
+  if (overlay) {
+    const lines: [number | null | undefined, string, string][] = [
+      [overlay.pivot, '#f5a623', 'Pivot'],
+      [overlay.entry, '#3b82f6', 'Entry'],
+      [overlay.stop, '#ff5260', 'Stop'],
+      [overlay.target, '#00d49b', 'Target'],
     ];
     for (const [price, color, title] of lines) {
       if (price != null)

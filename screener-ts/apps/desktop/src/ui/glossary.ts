@@ -8,25 +8,53 @@ interface Entry {
 }
 
 export const GLOSSARY: Record<string, Entry> = {
-  score: {
-    term: { en: 'Conviction Score (0–100)', vi: 'Điểm tin cậy (0–100)' },
+  quality: {
+    term: { en: 'Quality Score (0–100)', vi: 'Điểm chất lượng (0–100)' },
     long: {
-      en: 'A 0–100 score blending six factors: Weinstein stage, ATR contraction, price-range tightness, volume dry-up, number of VCP contractions, and how close price is to the pivot. Higher means a tighter, more textbook consolidation near a breakout point. It is a relative ranking aid — not a guarantee.',
-      vi: 'Điểm 0–100 kết hợp sáu yếu tố: giai đoạn Weinstein, sự co thắt ATR, độ chặt của biên độ giá, sự cạn kiệt khối lượng, số lần co thắt VCP, và mức độ giá gần điểm pivot. Điểm càng cao nghĩa là nền tích lũy càng chặt và sát điểm bứt phá. Đây là công cụ xếp hạng tương đối — không phải sự bảo đảm.',
+      en: 'The Qullamaggie quality score blends seven weighted factors: trend alignment (20), previous advance (10), VCP quality (25), volume dry-up (15), relative strength (15), liquidity (10) and breakout proximity (5). Higher means a cleaner, higher-probability setup right now. A ranking aid — not a guarantee.',
+      vi: 'Điểm chất lượng Qullamaggie kết hợp bảy yếu tố có trọng số: xu hướng (20), nhịp tăng trước (10), chất lượng VCP (25), cạn khối lượng (15), sức mạnh tương đối (15), thanh khoản (10) và mức độ gần điểm bứt phá (5). Càng cao = thiết lập càng sạch, xác suất cao hơn. Là công cụ xếp hạng — không phải bảo đảm.',
     },
   },
-  signal: {
-    term: { en: 'Signal', vi: 'Tín hiệu' },
+  setup_type: {
+    term: { en: 'Setup Type', vi: 'Loại thiết lập' },
     long: {
-      en: 'A plain-language label. BREAKOUT IMMINENT: coiled tight and sitting right under a breakout level (score ≥ 70, within 3% of pivot). CONSOLIDATING: a valid base is forming (score ≥ 40) but not at the trigger yet. NO SIGNAL: no tradeable setup right now.',
-      vi: 'Nhãn mô tả dễ hiểu. BỨT PHÁ SẮP XẢY RA: nén chặt và nằm ngay dưới mức bứt phá (điểm ≥ 70, trong 3% so với pivot). TÍCH LŨY: nền hợp lệ đang hình thành (điểm ≥ 40) nhưng chưa tới điểm kích hoạt. KHÔNG TÍN HIỆU: hiện chưa có thiết lập.',
+      en: 'VCP — a volatility contraction pattern after a strong advance. EPISODIC PIVOT — a news/earnings gap with heavy volume closing near the high. VCP + EP — a base that is also gapping on a catalyst. NONE — no actionable Qullamaggie setup right now.',
+      vi: 'VCP — mẫu hình co thắt biến động sau một nhịp tăng mạnh. ĐIỂM XOAY ĐỘT BIẾN — cú gap theo tin tức/lợi nhuận với khối lượng lớn, đóng cửa gần đỉnh. VCP + EP — nền đồng thời gap theo chất xúc tác. KHÔNG — hiện chưa có thiết lập.',
     },
   },
-  stage: {
-    term: { en: 'Weinstein Stage (1–4)', vi: 'Giai đoạn Weinstein (1–4)' },
+  trend_gate: {
+    term: { en: 'Trend Filter', vi: 'Bộ lọc xu hướng' },
     long: {
-      en: "Stan Weinstein's Stage Analysis classifies a trend using moving averages. Stage 1 — Basing: sideways after a decline. Stage 2 — Advancing: uptrend, price above rising MAs (the buy zone). Stage 3 — Topping: momentum fading. Stage 4 — Declining: downtrend, price below falling MAs — avoid.",
-      vi: 'Phân tích Giai đoạn của Stan Weinstein phân loại xu hướng bằng đường trung bình động. Giai đoạn 1 — Tạo nền: đi ngang sau khi giảm. Giai đoạn 2 — Tăng giá: xu hướng tăng, giá trên các MA dốc lên (vùng mua). Giai đoạn 3 — Tạo đỉnh: đà tăng yếu dần. Giai đoạn 4 — Giảm giá: giá dưới các MA dốc xuống — nên tránh.',
+      en: 'A pass/fail gate: price above EMA50, EMA50 above EMA150, EMA150 above EMA200, EMA200 rising, within range of the 52-week high, and sufficiently liquid. Qullamaggie only trades stocks in a confirmed uptrend.',
+      vi: 'Cổng đạt/không đạt: giá trên EMA50, EMA50 trên EMA150, EMA150 trên EMA200, EMA200 đang lên, gần đỉnh 52 tuần và đủ thanh khoản. Qullamaggie chỉ giao dịch cổ phiếu trong xu hướng tăng đã xác nhận.',
+    },
+  },
+  prev_advance: {
+    term: { en: 'Previous Advance %', vi: '% Nhịp tăng trước' },
+    long: {
+      en: 'The size of the prior up-leg leading into the base. Qullamaggie setups follow a strong advance (≥ ~30%) — the base is a rest after a sprint, not a random range.',
+      vi: 'Độ lớn của nhịp tăng dẫn vào nền. Thiết lập Qullamaggie đi sau một nhịp tăng mạnh (≥ ~30%) — nền là khoảng nghỉ sau một cú chạy nước rút, không phải dao động ngẫu nhiên.',
+    },
+  },
+  momentum_score: {
+    term: { en: 'Momentum Score (0–100)', vi: 'Điểm động lượng (0–100)' },
+    long: {
+      en: 'Blends 1-month (15), 3-month (25) and 6-month (25) returns, relative strength vs SPY (25) and liquidity (10). Stocks are classed by percentile: Weak → Building → Strong → Explosive. Answers "what is running right now?".',
+      vi: 'Kết hợp lợi nhuận 1 tháng (15), 3 tháng (25), 6 tháng (25), sức mạnh tương đối so với SPY (25) và thanh khoản (10). Phân loại theo phân vị: Yếu → Đang xây → Mạnh → Bùng nổ. Trả lời "mã nào đang chạy?".',
+    },
+  },
+  rs: {
+    term: { en: 'Relative Strength (RS)', vi: 'Sức mạnh tương đối (RS)' },
+    long: {
+      en: 'Performance versus a benchmark (SPY) over several lookbacks. Positive RS means the stock is outperforming the market — leadership that often persists.',
+      vi: 'Hiệu suất so với chỉ số tham chiếu (SPY) qua nhiều khung thời gian. RS dương nghĩa là cổ phiếu vượt trội thị trường — vị thế dẫn dắt thường duy trì.',
+    },
+  },
+  regime: {
+    term: { en: 'Market Regime', vi: 'Bối cảnh thị trường' },
+    long: {
+      en: 'The overall market state from SPY/QQQ: BULL (above stacked, rising EMAs — risk-on), TRANSITION (mixed), or BEAR (below the 200-EMA — risk-off). It frames when to press and when to stand aside.',
+      vi: 'Trạng thái chung của thị trường từ SPY/QQQ: TĂNG (trên các EMA xếp tầng, dốc lên — risk-on), CHUYỂN TIẾP (hỗn hợp), hay GIẢM (dưới EMA200 — risk-off). Cho biết khi nào nên mạnh tay và khi nào nên đứng ngoài.',
     },
   },
   vcp: {
@@ -187,8 +215,12 @@ export const GLOSSARY: Record<string, Entry> = {
 
 export const GLOSSARY_GROUPS: { title: { en: string; vi: string }; keys: string[] }[] = [
   {
-    title: { en: 'Screener Metrics', vi: 'Chỉ số bộ lọc' },
-    keys: ['score', 'signal', 'stage', 'vcp', 'atr_contraction', 'price_range', 'volume_dryup', 'days_in_base'],
+    title: { en: 'Qullamaggie Setup', vi: 'Thiết lập Qullamaggie' },
+    keys: ['quality', 'setup_type', 'trend_gate', 'prev_advance', 'vcp', 'atr_contraction', 'price_range', 'volume_dryup'],
+  },
+  {
+    title: { en: 'Momentum & Regime', vi: 'Động lượng & bối cảnh' },
+    keys: ['momentum_score', 'rs', 'regime', 'volume_change'],
   },
   {
     title: { en: 'Pivots & Trade Levels', vi: 'Pivot & các mức giao dịch' },
@@ -197,10 +229,6 @@ export const GLOSSARY_GROUPS: { title: { en: string; vi: string }; keys: string[
   {
     title: { en: 'Fundamentals', vi: 'Chỉ số cơ bản' },
     keys: ['pe_ratio', 'eps', 'market_cap', 'profit_margin', 'week52'],
-  },
-  {
-    title: { en: 'Sector Scanner', vi: 'Máy quét ngành' },
-    keys: ['volume_change'],
   },
 ];
 

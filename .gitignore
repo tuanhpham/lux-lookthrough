@@ -2,33 +2,12 @@
 .idea/
 .vscode/
 
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-venv/
-.env
-
 # OS
 Thumbs.db
 .DS_Store
 
-# Local SQLite personal-app database (auto-created at runtime)
-*.db
-*.sqlite3
-amr_personal.db
-
-# Outputs
-outputs/*.xlsx
-
-# NativeWind / Metro build cache (mobile)
-mobile/node_modules/.cache/
-.expo/
-mobile/.expo/
-
-# Local per-user email recipient overrides — the shared default lives in
-# emailer.py (_DEFAULT_RECIPIENTS). Tracking this file would let one user's
-# in-app edit overwrite everyone's default on push.
-documents/email_recipients.json
+# Node / build
+node_modules/
+dist/
+build/
+.env

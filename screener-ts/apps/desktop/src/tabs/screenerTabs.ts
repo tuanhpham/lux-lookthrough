@@ -1,37 +1,34 @@
 import {
-  screen,
-  recommend,
   fetchMany,
   computeSectorVolumeRank,
+  computeSectorMomentum,
   SECTOR_STOCKS,
   ALL_SECTORS,
   VN_SECTOR_STOCKS,
   VN_ALL_SECTORS,
-  scanStock,
-  patternToRow,
-  STRATEGIES,
   scanQm,
   qmToRow,
   DEFAULT_QM_CONFIG,
   rankMomentum,
+  computeMomentumScore,
   momentumToRow,
   detectRegime,
-  computeSectorMomentum,
   filterByMomentum,
-  type StrategyKey,
   type Period,
-  type ScreenRow,
   type QmRow,
+  type QmSetupType,
   type MomentumRow,
+  type MomentumClassification,
   type MarketRegime,
   type SectorMomentumReport,
+  type SectorMomentum,
   type OHLCV,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, el, num, pct, fmtBig, scoreColor, signalBadge, stageBadge } from '../ui/dom.js';
-import { sortableTable, type SortKey } from '../ui/sortableTable.js';
+import { $, el, num, pct, fmtBig } from '../ui/dom.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { momentumTable, type MomentumSortKey } from '../ui/momentumTable.js';
+import { screenerTable, type ScreenerRow, type ScreenerSortKey } from '../ui/screenerTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
@@ -75,11 +72,10 @@ const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string
 /** Universe modes large enough to warrant the long-scan hint + bigger batches. */
 const BIG_UNIVERSES = new Set<UniverseMode>(['all', 'vnall', 'hnx', 'upcom', 'vnmarket']);
 
-/** Top Picks strategies: the core ScreenRow presets, the QM (Qullamaggie) scan,
- * and the momentum exploration scan (F5). NOTE: 'momentum' is the EXISTING core
- * Stage-2 preset — the new exploration scan uses the distinct key 'momentumscan'
- * so the existing strategy keeps working unchanged (F7). */
-type PicksStrategy = StrategyKey | 'qm' | 'momentumscan';
+/** Top Picks strategies: Qullamaggie (QM pattern setups) and Momentum (the
+ * exploration scan of strongest movers). The legacy conviction-score presets
+ * (breakout / stage-2 momentum / tight VCP) were removed. */
+type PicksStrategy = 'qm' | 'momentumscan';
 
 /** US index benchmarks for market regime + relative strength (F2). */
 const BENCHMARKS = ['SPY', 'QQQ'];
@@ -97,13 +93,12 @@ const SECTOR_BY_SYMBOL: Record<string, string> = (() => {
  * top-momentum names; switch OFF to restore the exact prior scan behavior. */
 let momentumPrefilter = true;
 
-let picksStrategy: PicksStrategy = 'breakout';
+let picksStrategy: PicksStrategy = 'qm';
 let picksMarket: Market = 'us';
 let picksUniverse: UniverseMode = 'curated';
-let picksSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 let qmSort: { key: QmSortKey; desc: boolean } = { key: 'qualityScore', desc: true };
 let momentumSort: { key: MomentumSortKey; desc: boolean } = { key: 'momentumScore', desc: true };
-let screenSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
+let screenSort: { key: ScreenerSortKey; desc: boolean } = { key: 'qualityScore', desc: true };
 
 // Cancellation token for an in-flight scan; bumping it aborts the running scan.
 let scanToken = 0;
@@ -118,7 +113,7 @@ export function renderPicks(ctx: AppContext): void {
     <h1>${t('picks.title')}</h1>
     <p class="subtitle">${t('picks.sub')}</p>
     <div class="toolbar">
-      ${(['breakout', 'momentum', 'vcp', 'qm', 'momentumscan'] as PicksStrategy[])
+      ${(['qm', 'momentumscan'] as PicksStrategy[])
         .map(
           (s) =>
             `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t(
@@ -300,142 +295,23 @@ function renderRegimeBanner(regime: MarketRegime | null, sectors: SectorMomentum
 }
 
 /**
- * Incremental, cancellable scan. Fetches symbols in batches, scores each batch
- * as it lands, accumulates matches for the active strategy, and re-renders the
- * results table + progress bar after every batch. This keeps the UI responsive
- * (and the browser tab alive) even for the full ~6000-symbol universe, and lets
- * the user Stop at any time. Failed/dropped symbols are simply skipped — click
- * Run to retry them.
+ * Top Picks dispatcher: routes to the Qullamaggie scan or the Momentum
+ * exploration scan. Both are incremental, cancellable, and render their own
+ * table; the legacy conviction-score path was removed.
  */
 async function runPicks(ctx: AppContext): Promise<void> {
-  // QM (Qullamaggie) is a distinct scanner returning QmRow (not ScreenRow), so
-  // it runs on its own code path with its own table renderer.
-  if (picksStrategy === 'qm') {
-    await runQmPicks(ctx);
-    return;
-  }
-  // Momentum exploration scan (F5) — its own QmRow-like path + table.
   if (picksStrategy === 'momentumscan') {
     await runMomentumPicks(ctx);
     return;
   }
-  // Clear any regime banner left by a momentum/QM run.
-  renderRegimeBanner(null, null);
-  const myToken = ++scanToken; // also aborts any previous scan
-  const status = $('#picks-status')!;
-  const out = $('#picks-results')!;
-  const progress = $('#picks-progress')!;
-  const bar = $('#picks-bar')!;
-  const stopBtn = $('#picks-stop')!;
-  const runBtn = $('#picks-refresh')!;
-
-  out.innerHTML = '';
-  progress.classList.remove('hidden');
-  stopBtn.classList.remove('hidden');
-  runBtn.classList.add('hidden');
-  bar.style.width = '0%';
-  status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
-
-  const finish = (): void => {
-    progress.classList.add('hidden');
-    stopBtn.classList.add('hidden');
-    runBtn.classList.remove('hidden');
-  };
-
-  let symbols: string[];
-  try {
-    symbols = await resolveUniverse(picksUniverse);
-  } catch {
-    symbols = CURATED;
-  }
-  if (myToken !== scanToken) return; // superseded while loading the list
-
-  // 'qm' already returned above, so picksStrategy here is a core StrategyKey.
-  const cfg = STRATEGIES[picksStrategy as StrategyKey] ?? STRATEGIES.breakout;
-  const strategyLabel = cfg.label;
-  // Larger universes use bigger batches but the same modest per-batch concurrency
-  // so we don't hammer Yahoo (which rate-limits → dropped symbols).
-  const BATCH = BIG_UNIVERSES.has(picksUniverse) ? 120 : 60;
-  const CONCURRENCY = 6;
-
-  const matches: ScreenRow[] = [];
-  let scanned = 0;
-  let fetched = 0;
-
-  const renderTable = (): void => {
-    matches.sort((a, b) => b.score - a.score);
-    const top = matches.slice(0, 50);
-    out.replaceChildren(
-      sortableTable(top, {
-        sortKey: picksSort.key,
-        sortDesc: picksSort.desc,
-        onRowClick: (sym) => void openStock(ctx, sym),
-        onSortChange: (key, desc) => {
-          picksSort = { key, desc };
-        },
-      }),
-    );
-  };
-
-  for (let i = 0; i < symbols.length; i += BATCH) {
-    if (myToken !== scanToken) {
-      // Stopped or superseded.
-      status.textContent =
-        `${t('picks.stopped')} — ${matches.length} ${strategyLabel} ${t('picks.matches')}, ` +
-        `${scanned}/${symbols.length} ${t('picks.scanned')}.`;
-      if (matches.length) renderTable();
-      finish();
-      return;
-    }
-    const batch = symbols.slice(i, i + BATCH);
-    const data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
-    if (myToken !== scanToken) continue; // will be caught at loop top
-
-    fetched += data.size;
-    for (const series of data.values() as IterableIterator<OHLCV>) {
-      if (!series.bars || series.bars.length < 60) continue;
-      scanned += 1;
-      const p = scanStock(series.symbol, series.bars);
-      // Same preset filters as core's recommend(): score, signal/stage, VCP.
-      if (p.score < cfg.minScore) continue;
-      if (cfg.signals && !cfg.signals.has(p.signal)) continue;
-      if (cfg.stages && !cfg.stages.has(p.stage.stage)) continue;
-      if (cfg.minVcp != null && (p.consolidation.vcpContractions ?? 0) < cfg.minVcp) continue;
-      matches.push(patternToRow(p));
-    }
-
-    const doneCount = Math.min(i + BATCH, symbols.length);
-    bar.style.width = `${Math.round((doneCount / symbols.length) * 100)}%`;
-    status.innerHTML =
-      `<span class="spinner"></span> ${t('msg.scanning')} ${doneCount}/${symbols.length} — ` +
-      `${matches.length} ${strategyLabel} ${t('picks.matches')}`;
-    renderTable();
-    // Yield to the event loop so the UI paints and stays responsive.
-    await new Promise((r) => setTimeout(r, 0));
-  }
-
-  if (myToken !== scanToken) {
-    finish();
-    return;
-  }
-  const dropped = symbols.length - fetched;
-  status.textContent =
-    `${t('picks.done')}: ${matches.length} ${strategyLabel} setup(s) from ${scanned}/${symbols.length} ${t('picks.scanned')}` +
-    (dropped > 0 ? ` (${dropped} ${t('picks.unavailable')} — ${t('picks.run')})` : '') +
-    '.';
-  if (!matches.length) {
-    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No setups matched.</div>`;
-  } else {
-    renderTable();
-  }
-  finish();
+  await runQmPicks(ctx);
 }
 
 /**
- * QM (Qullamaggie) variant of {@link runPicks}: same incremental/cancellable
- * fetch-and-scan scaffolding, but it runs `scanQm` per symbol, keeps only stocks
- * that pass the trend filter AND form a VCP or episodic-pivot setup, and renders
- * the richer `qmTable` (Quality, Setup, contractions, pivot, risk).
+ * QM (Qullamaggie) scan: incremental/cancellable fetch-and-scan that runs
+ * `scanQm` per symbol, keeps only stocks that pass the trend filter AND form a
+ * VCP or episodic-pivot setup, and renders the `qmTable` (Quality, Setup,
+ * contractions, pivot, risk).
  */
 async function runQmPicks(ctx: AppContext): Promise<void> {
   const myToken = ++scanToken; // also aborts any previous scan
@@ -712,13 +588,22 @@ export function renderScreener(ctx: AppContext): void {
         <div id="sector-chips" class="row"></div>
       </div>
       <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:12px">
-        <div><label class="field-label">${t('screener.minscore')}</label><input id="min-score" class="field" type="number" placeholder="${t('screener.nolimit')}" title="${t('screener.minscore.hint')}" /></div>
-        <div><label class="field-label">${t('screener.signal')}</label><select id="signal-filter" class="field">
-          <option value="">${t('opt.any')}</option><option value="BREAKOUT_IMMINENT">Breakout</option><option value="CONSOLIDATING">Consolidating</option></select></div>
-        <div><label class="field-label">${t('screener.stage')}</label><select id="stage-filter" class="field">
-          <option value="">${t('opt.any')}</option><option value="2">Stage 2</option><option value="1">Stage 1</option></select></div>
+        <div><label class="field-label">${t('screener.setup')}</label><select id="setup-filter" class="field">
+          <option value="">${t('opt.any')}</option>
+          <option value="VCP">${t('screener.setup.vcp')}</option>
+          <option value="EPISODIC_PIVOT">${t('screener.setup.ep')}</option>
+          <option value="BOTH">${t('screener.setup.both')}</option></select></div>
+        <div><label class="field-label">${t('screener.minquality')}</label><input id="min-quality" class="field" type="number" placeholder="${t('screener.nolimit')}" /></div>
+        <div><label class="field-label">${t('screener.minmomentum')}</label><select id="momentum-filter" class="field">
+          <option value="">${t('opt.any')}</option>
+          <option value="Building">${t('mom.class.building')}+</option>
+          <option value="Strong">${t('mom.class.strong')}+</option>
+          <option value="Explosive">${t('mom.class.explosive')}</option></select></div>
         <div><label class="field-label">${t('screener.sortby')}</label><select id="sort-by" class="field">
-          <option value="score">Score</option><option value="distance">Distance</option><option value="range">Range</option><option value="volume_dryup">Vol dry-up</option></select></div>
+          <option value="qualityScore">${t('screener.col.quality')}</option>
+          <option value="momentumScore">${t('screener.col.momentum')}</option>
+          <option value="return3m">3M</option>
+          <option value="relativeStrength">RS</option></select></div>
       </div>
       <div class="row" style="margin-top:14px"><button id="run-screen" class="btn">${t('screener.run')}</button><span id="screen-status" class="muted"></span></div>
     </div>
@@ -768,33 +653,46 @@ async function runScreen(ctx: AppContext): Promise<void> {
   status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${universe.length}…`;
   out.innerHTML = '';
   const data = await fetchMany(ctx.data, universe, PERIOD, 8);
-  const signal = ($('#signal-filter') as HTMLSelectElement).value;
-  const stage = ($('#stage-filter') as HTMLSelectElement).value;
-  // Blank Min score → NO lower limit (−Infinity), so legitimately negative-
-  // scoring stocks (e.g. STX, INTC — whose ATR expanded) are NOT silently
-  // dropped. Only a number the user actually types becomes a floor.
-  const minScoreRaw = ($('#min-score') as HTMLInputElement).value.trim();
-  const minScore = minScoreRaw === '' ? -Infinity : Number(minScoreRaw);
-  const res = screen([...data.values()], {
-    minScore,
-    signals: signal ? [signal as 'BREAKOUT_IMMINENT' | 'CONSOLIDATING'] : undefined,
-    stages: stage ? [Number(stage)] : undefined,
-    sortBy: ($('#sort-by') as HTMLSelectElement).value as 'score',
-    limit: 200,
-  });
+
+  // New QM + Momentum filters.
+  const setupFilter = ($('#setup-filter') as HTMLSelectElement).value as QmSetupType | '';
+  const minQualityRaw = ($('#min-quality') as HTMLInputElement).value.trim();
+  const minQuality = minQualityRaw === '' ? -Infinity : Number(minQualityRaw);
+  const momentumFilter = ($('#momentum-filter') as HTMLSelectElement).value as MomentumClassification | '';
+  const sortBy = ($('#sort-by') as HTMLSelectElement).value as ScreenerSortKey;
+  const classRank: Record<MomentumClassification, number> = { Weak: 1, Building: 2, Strong: 3, Explosive: 4 };
+
+  // Benchmark (SPY) for relative strength when screening US names.
+  const { spy } = await fetchBenchmarks(ctx);
+
+  let scanned = 0;
+  const rows: ScreenerRow[] = [];
+  for (const series of data.values() as IterableIterator<OHLCV>) {
+    if (!series.bars || series.bars.length < 60) continue;
+    scanned += 1;
+    const q = scanQm(series.symbol, series.bars, DEFAULT_QM_CONFIG);
+    const m = computeMomentumScore(series.symbol, series.bars, spy?.bars);
+    // Apply filters.
+    if (setupFilter && q.setupType !== setupFilter) continue;
+    if (q.qualityScore < minQuality) continue;
+    if (momentumFilter && classRank[m.classification] < classRank[momentumFilter]) continue;
+    rows.push(toScreenerRow(q, m));
+  }
+
+  rows.sort((a, b) => screenerSortValue(b, sortBy) - screenerSortValue(a, sortBy));
 
   // Transparency: explain any gap between what you asked for and what showed up.
   const fetched = data.size;
   const fetchDropped = universe.length - fetched; // failed network / 0 bars
-  const tooFew = fetched - res.scanned; // fetched but < 60 bars
-  const filtered = res.scanned - res.matched; // scanned but filtered out
-  const parts: string[] = [`${res.matched} match(es) of ${universe.length} requested`];
+  const tooFew = fetched - scanned; // fetched but < 60 bars
+  const filtered = scanned - rows.length; // scanned but filtered out
+  const parts: string[] = [`${rows.length} match(es) of ${universe.length} requested`];
   if (fetchDropped > 0) parts.push(`${fetchDropped} couldn't be fetched (network/rate-limit — click Run to retry)`);
   if (tooFew > 0) parts.push(`${tooFew} had too little history (<60 bars)`);
-  if (filtered > 0) parts.push(`${filtered} scanned but filtered out (score/signal/stage)`);
+  if (filtered > 0) parts.push(`${filtered} scanned but filtered out (setup/quality/momentum)`);
   status.textContent = parts.join(' · ') + '.';
   out.appendChild(
-    sortableTable(res.results, {
+    screenerTable(rows.slice(0, 200), {
       sortKey: screenSort.key,
       sortDesc: screenSort.desc,
       onRowClick: (sym) => void openStock(ctx, sym),
@@ -803,6 +701,38 @@ async function runScreen(ctx: AppContext): Promise<void> {
       },
     }),
   );
+}
+
+/** Numeric value for the initial screener sort (the table handles re-sorts). */
+function screenerSortValue(r: ScreenerRow, key: ScreenerSortKey): number {
+  const v = (r as unknown as Record<string, unknown>)[key];
+  return typeof v === 'number' ? v : 0;
+}
+
+/** Combine a QM scan + momentum result into one Custom-Screener row. */
+function toScreenerRow(
+  q: ReturnType<typeof scanQm>,
+  m: ReturnType<typeof computeMomentumScore>,
+): ScreenerRow {
+  return {
+    symbol: q.symbol,
+    price: q.price,
+    qualityScore: q.qualityScore,
+    setupType: q.setupType,
+    trendPassed: q.trend.passed,
+    pivot: q.vcp.pivot,
+    entryPrice: q.levels.entryPrice,
+    stopLoss: q.levels.stopLoss,
+    riskPct: q.riskPct,
+    momentumScore: m.momentumScore,
+    classification: m.classification,
+    return1m: m.returns.oneMonth,
+    return3m: m.returns.threeMonth,
+    return6m: m.returns.sixMonth,
+    relativeStrength: m.relativeStrength,
+    distanceFrom52wHighPct: m.distanceFrom52wHighPct,
+    atrPct: m.atrPct,
+  };
 }
 
 // ── Sectors (rank + expandable volume charts) ──────────────────────────────────
@@ -854,31 +784,61 @@ async function runSectors(ctx: AppContext): Promise<void> {
   const universe = [...new Set(Object.values(sectorMap).flat())];
   status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${Object.keys(sectorMap).length} sectors…`;
   out.innerHTML = '';
-  const data = await fetchMany(ctx.data, universe, '6mo', 10);
+  // 1y of history so the momentum returns (incl. 6M) are well-defined; the
+  // volume chart simply resamples whatever range is fetched.
+  const data = await fetchMany(ctx.data, universe, PERIOD, 10);
   sectorData = data;
+
+  // Volume ranking (existing) + momentum ranking (new). For US we also fetch SPY
+  // so sector relative strength is measured vs the benchmark.
   const ranked = computeSectorVolumeRank(data, sectorMap);
-  status.textContent = `${ranked.length} sectors ranked.`;
+  const { spy } = sectorMarket === 'us' ? await fetchBenchmarks(ctx) : { spy: null };
+  const momReport = computeSectorMomentum(data, spy?.bars ?? undefined, sectorMap);
+  const momBySector = new Map(momReport.rankings.map((m) => [m.sector, m]));
+  const hotSet = new Set(momReport.hotSectors);
+
+  // Order sectors by momentum rank (the new primary signal), falling back to the
+  // volume ranking for any sector momentum couldn't rank.
+  const volBySector = new Map(ranked.map((r) => [r.sector, r]));
+  const orderedSectors = [
+    ...momReport.rankings.map((m) => m.sector),
+    ...ranked.map((r) => r.sector).filter((s) => !momBySector.has(s)),
+  ];
+
+  status.textContent = `${orderedSectors.length} sectors ranked.`;
   out.innerHTML = '';
-  for (const r of ranked) {
-    const color = r.volumeChangePct >= 0 ? 'var(--accent)' : 'var(--danger)';
+  renderSectorRotationBanner(momReport);
+  for (const sector of orderedSectors) {
+    const r = volBySector.get(sector);
+    const mom = momBySector.get(sector);
+    const color = mom
+      ? mom.avgRelativeStrength >= 0 ? 'var(--accent)' : 'var(--danger)'
+      : 'var(--faint)';
+    const momRank = mom ? `#${mom.rank}` : '—';
+    const hot = hotSet.has(sector) ? ' 🔥' : '';
+    const volLine = r
+      ? `3m ${fmtBig(r.avgVolume3m)} · 6m ${fmtBig(r.avgVolume6m)} avg vol · vol ${pct(r.volumeChangePct)}`
+      : 'no volume data';
     const row = el(`
       <div class="sector-row">
-        <div class="sector-head" data-sector="${r.sector}">
-          <span class="sector-rank">#${r.rank}</span>
-          <div style="flex:1"><strong>${r.sector}</strong>
-            <div class="muted" style="font-size:11px">3m ${fmtBig(r.avgVolume3m)} · 6m ${fmtBig(r.avgVolume6m)} avg vol</div></div>
-          <span class="badge" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color}">${pct(
-            r.volumeChangePct,
-          )}</span>
+        <div class="sector-head" data-sector="${sector}">
+          <span class="sector-rank">${momRank}</span>
+          <div style="flex:1"><strong>${sector}${hot}</strong>
+            <div class="muted" style="font-size:11px">${
+              mom ? `1M ${pct(mom.avgReturn1m)} · 3M ${pct(mom.avgReturn3m)} · RS ${num(mom.avgRelativeStrength, 1)} · ` : ''
+            }${volLine}</div></div>
+          <span class="badge" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color}">${
+            mom ? num(mom.avgRelativeStrength, 1) + ' RS' : (r ? pct(r.volumeChangePct) : '—')
+          }</span>
           <span class="muted caret">▾</span>
         </div>
-        <div class="sector-detail hidden" data-detail="${r.sector}">
+        <div class="sector-detail hidden" data-detail="${sector}">
           <div class="row" style="margin-bottom:8px">
             <div class="row" data-freq-group>
               <button class="range-btn active" data-freq="weekly">Weekly</button>
               <button class="range-btn" data-freq="monthly">Monthly</button>
             </div>
-            <button class="btn-outline" style="margin-left:auto" data-screen="${r.sector}">${t('sectors.screenstocks')}</button>
+            <button class="btn-outline" style="margin-left:auto" data-screen="${sector}">${t('sectors.screenstocks')}</button>
           </div>
           <div class="chart sector-chart" style="height:180px"></div>
         </div>
@@ -895,7 +855,7 @@ async function runSectors(ctx: AppContext): Promise<void> {
       const chartEl = row.querySelector<HTMLElement>('.sector-chart')!;
       // Compute the sector's summed volume series from the already-fetched 6mo
       // data (works for any market; the provider's getSectorVolume is US-only).
-      const points = sectorVolumeSeries(sectorMapFor(sectorMarket)[r.sector] ?? [], freq);
+      const points = sectorVolumeSeries(sectorMapFor(sectorMarket)[sector] ?? [], freq);
       if (!points.length) {
         chartEl.innerHTML = `<div class="muted" style="text-align:center;padding:40px">No volume data.</div>`;
         return;
@@ -926,9 +886,22 @@ async function runSectors(ctx: AppContext): Promise<void> {
     detail.querySelector<HTMLElement>('[data-screen]')!.addEventListener('click', () => {
       // Switch to the Screener tab, then pre-fill + run for this sector.
       document.querySelector<HTMLElement>('[data-tab="screener"]')?.click();
-      screenSector(ctx, r.sector);
+      screenSector(ctx, sector);
     });
   }
+}
+
+/** Banner above the sector list: hot vs cold sectors from the momentum report. */
+function renderSectorRotationBanner(report: SectorMomentumReport): void {
+  const out = $('#sector-results')!;
+  if (!report.hotSectors.length && !report.coldSectors.length) return;
+  const banner = el(
+    `<div class="muted" style="font-size:12px;margin-bottom:10px">` +
+      (report.hotSectors.length ? `🔥 ${t('sectors.hot')}: <strong>${report.hotSectors.join(', ')}</strong>` : '') +
+      (report.coldSectors.length ? ` &nbsp;·&nbsp; 🧊 ${t('sectors.cold')}: ${report.coldSectors.join(', ')}` : '') +
+      `</div>`,
+  );
+  out.appendChild(banner);
 }
 
 /** Sum daily volume across a sector's symbols (from the cached scan data) and

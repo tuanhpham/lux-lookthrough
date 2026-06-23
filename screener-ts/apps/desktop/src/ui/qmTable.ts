@@ -1,5 +1,6 @@
-import type { QmRow, QmSetupType } from '@screener/core';
-import { num, pct, fmtPrice, scoreColor } from './dom.js';
+import type { QmRow } from '@screener/core';
+import { num, fmtPrice, scoreColor } from './dom.js';
+import { setupBadge, SETUP_RANK } from './badges.js';
 
 /** Column keys the QM table can sort by. */
 export type QmSortKey =
@@ -30,33 +31,6 @@ const COLUMNS: Column[] = [
   { key: 'riskPct', label: 'Risk %', defaultDesc: false },
 ];
 
-// Setups ranked so "stronger" sorts higher when descending.
-const SETUP_RANK: Record<QmSetupType, number> = {
-  BOTH: 3,
-  VCP: 2,
-  EPISODIC_PIVOT: 1,
-  NONE: 0,
-};
-
-const SETUP_LABEL: Record<QmSetupType, string> = {
-  BOTH: 'VCP + EP',
-  VCP: 'VCP',
-  EPISODIC_PIVOT: 'Episodic',
-  NONE: '—',
-};
-
-const SETUP_COLOR: Record<QmSetupType, string> = {
-  BOTH: 'var(--accent)',
-  VCP: 'var(--accent)',
-  EPISODIC_PIVOT: 'var(--warn)',
-  NONE: 'var(--faint)',
-};
-
-function setupBadge(s: QmSetupType): string {
-  const c = SETUP_COLOR[s];
-  return `<span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${SETUP_LABEL[s]}</span>`;
-}
-
 function cellValue(r: QmRow, key: QmSortKey): number | string | null {
   if (key === 'symbol') return r.symbol;
   if (key === 'setupType') return SETUP_RANK[r.setupType] ?? 0;
@@ -79,15 +53,16 @@ function compare(a: QmRow, b: QmRow, key: QmSortKey, desc: boolean): number {
 export interface QmTableOptions {
   sortKey?: QmSortKey;
   sortDesc?: boolean;
+  /** Optional extra column with a per-row action button (e.g. remove). */
+  action?: { header: string; html: (r: QmRow) => string };
   onRowClick: (sym: string) => void;
   onSortChange?: (key: QmSortKey, desc: boolean) => void;
 }
 
 /**
- * Sortable results table for QM (Qullamaggie) scans. A sibling of
- * `sortableTable` — kept separate so the parity-locked `ScreenRow` table is
- * untouched and the QM-specific columns (Quality, Setup, contractions, pivot,
- * risk) render cleanly.
+ * Sortable results table for QM (Qullamaggie) scans — Quality, Setup,
+ * contractions, pivot, entry/stop, risk. Also used by the Watchlist (with an
+ * optional per-row action column for the remove button).
  */
 export function qmTable(rows: QmRow[], options: QmTableOptions): HTMLElement {
   let sortKey: QmSortKey = options.sortKey ?? 'qualityScore';
@@ -105,10 +80,11 @@ export function qmTable(rows: QmRow[], options: QmTableOptions): HTMLElement {
   const render = () => {
     const sorted = [...rows].sort((a, b) => compare(a, b, sortKey, sortDesc));
     const arrow = (k: QmSortKey) => (k === sortKey ? (sortDesc ? ' ▾' : ' ▴') : '');
-    const head = COLUMNS.map(
-      (c) =>
-        `<th class="sortable ${c.key === sortKey ? 'sorted' : ''}" data-sort="${c.key}">${c.label}${arrow(c.key)}</th>`,
-    ).join('');
+    const head =
+      COLUMNS.map(
+        (c) =>
+          `<th class="sortable ${c.key === sortKey ? 'sorted' : ''}" data-sort="${c.key}">${c.label}${arrow(c.key)}</th>`,
+      ).join('') + (options.action ? `<th>${options.action.header}</th>` : '');
 
     const body = sorted
       .map(
@@ -124,6 +100,7 @@ export function qmTable(rows: QmRow[], options: QmTableOptions): HTMLElement {
         <td>${fmtPrice(r.entryPrice, r.symbol)}</td>
         <td class="danger">${fmtPrice(r.stopLoss, r.symbol)}</td>
         <td>${r.riskPct != null ? num(r.riskPct, 1) + '%' : '—'}</td>
+        ${options.action ? `<td>${options.action.html(r)}</td>` : ''}
       </tr>`,
       )
       .join('');
@@ -144,7 +121,11 @@ export function qmTable(rows: QmRow[], options: QmTableOptions): HTMLElement {
       }),
     );
     wrap.querySelectorAll<HTMLElement>('tr[data-sym]').forEach((tr) =>
-      tr.addEventListener('click', () => options.onRowClick(tr.dataset.sym!)),
+      tr.addEventListener('click', (e) => {
+        // Let an action button (e.g. remove) handle its own click.
+        if ((e.target as HTMLElement).closest('[data-row-action]')) return;
+        options.onRowClick(tr.dataset.sym!);
+      }),
     );
   };
 
