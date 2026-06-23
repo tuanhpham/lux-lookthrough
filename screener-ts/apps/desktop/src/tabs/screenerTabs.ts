@@ -13,16 +13,25 @@ import {
   scanQm,
   qmToRow,
   DEFAULT_QM_CONFIG,
+  rankMomentum,
+  momentumToRow,
+  detectRegime,
+  computeSectorMomentum,
+  filterByMomentum,
   type StrategyKey,
   type Period,
   type ScreenRow,
   type QmRow,
+  type MomentumRow,
+  type MarketRegime,
+  type SectorMomentumReport,
   type OHLCV,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num, pct, fmtBig, scoreColor, signalBadge, stageBadge } from '../ui/dom.js';
 import { sortableTable, type SortKey } from '../ui/sortableTable.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
+import { momentumTable, type MomentumSortKey } from '../ui/momentumTable.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
@@ -66,14 +75,34 @@ const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string
 /** Universe modes large enough to warrant the long-scan hint + bigger batches. */
 const BIG_UNIVERSES = new Set<UniverseMode>(['all', 'vnall', 'hnx', 'upcom', 'vnmarket']);
 
-/** Top Picks strategies: the core ScreenRow presets plus the QM (Qullamaggie) scan. */
-type PicksStrategy = StrategyKey | 'qm';
+/** Top Picks strategies: the core ScreenRow presets, the QM (Qullamaggie) scan,
+ * and the momentum exploration scan (F5). NOTE: 'momentum' is the EXISTING core
+ * Stage-2 preset — the new exploration scan uses the distinct key 'momentumscan'
+ * so the existing strategy keeps working unchanged (F7). */
+type PicksStrategy = StrategyKey | 'qm' | 'momentumscan';
+
+/** US index benchmarks for market regime + relative strength (F2). */
+const BENCHMARKS = ['SPY', 'QQQ'];
+
+/** Reverse map: symbol → its (first) sector, for annotating momentum rows (F6). */
+const SECTOR_BY_SYMBOL: Record<string, string> = (() => {
+  const out: Record<string, string> = {};
+  for (const [sector, syms] of Object.entries(SECTOR_STOCKS)) {
+    for (const s of syms) if (!(s in out)) out[s] = sector;
+  }
+  return out;
+})();
+
+/** Momentum pre-filter toggle (F4). Default ON — narrows the QM/VCP universe to
+ * top-momentum names; switch OFF to restore the exact prior scan behavior. */
+let momentumPrefilter = true;
 
 let picksStrategy: PicksStrategy = 'breakout';
 let picksMarket: Market = 'us';
 let picksUniverse: UniverseMode = 'curated';
 let picksSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 let qmSort: { key: QmSortKey; desc: boolean } = { key: 'qualityScore', desc: true };
+let momentumSort: { key: MomentumSortKey; desc: boolean } = { key: 'momentumScore', desc: true };
 let screenSort: { key: SortKey; desc: boolean } = { key: 'score', desc: true };
 
 // Cancellation token for an in-flight scan; bumping it aborts the running scan.
@@ -89,7 +118,7 @@ export function renderPicks(ctx: AppContext): void {
     <h1>${t('picks.title')}</h1>
     <p class="subtitle">${t('picks.sub')}</p>
     <div class="toolbar">
-      ${(['breakout', 'momentum', 'vcp', 'qm'] as PicksStrategy[])
+      ${(['breakout', 'momentum', 'vcp', 'qm', 'momentumscan'] as PicksStrategy[])
         .map(
           (s) =>
             `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t(
@@ -110,6 +139,13 @@ export function renderPicks(ctx: AppContext): void {
         .join('')}
     </div>
     <div class="toolbar" style="margin-top:-4px" id="picks-uni-row"></div>
+    <div class="toolbar" style="margin-top:-4px">
+      <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="picks-prefilter" ${momentumPrefilter ? 'checked' : ''} />
+        ${t('picks.prefilter')}
+      </label>
+    </div>
+    <div id="picks-regime" class="muted" style="margin:6px 0 0;font-size:12px"></div>
     <div id="picks-progress" class="picks-progress hidden"><div id="picks-bar"></div></div>
     <div id="picks-status" class="muted" style="margin:8px 0 12px"></div>
     <div id="picks-results"></div>`;
@@ -137,6 +173,10 @@ export function renderPicks(ctx: AppContext): void {
   $('#picks-refresh')!.addEventListener('click', () => void runPicks(ctx));
   $('#picks-stop')!.addEventListener('click', () => {
     scanToken++; // abort the running scan loop
+  });
+  $('#picks-prefilter')!.addEventListener('change', (e) => {
+    momentumPrefilter = (e.target as HTMLInputElement).checked;
+    void runPicks(ctx);
   });
 
   // Auto-run on render (the app enters straight into this tab).
@@ -189,6 +229,77 @@ async function resolveUniverse(mode: UniverseMode): Promise<string[]> {
 }
 
 /**
+ * Fetch a whole universe into a Map in batches, updating the progress bar and
+ * honouring cancellation. Used by the momentum scan and the momentum pre-filter,
+ * both of which need the FULL fetched set to compute relative percentile ranks
+ * (unlike the per-batch incremental scans). Returns null if the scan was
+ * superseded/stopped mid-fetch.
+ */
+async function fetchUniverseToMap(
+  ctx: AppContext,
+  symbols: string[],
+  myToken: number,
+): Promise<Map<string, OHLCV> | null> {
+  const status = $('#picks-status')!;
+  const bar = $('#picks-bar')!;
+  const BATCH = BIG_UNIVERSES.has(picksUniverse) ? 120 : 60;
+  const CONCURRENCY = 6;
+  const map = new Map<string, OHLCV>();
+
+  for (let i = 0; i < symbols.length; i += BATCH) {
+    if (myToken !== scanToken) return null;
+    const batch = symbols.slice(i, i + BATCH);
+    const data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
+    if (myToken !== scanToken) return null;
+    for (const [sym, series] of data) map.set(sym, series);
+    const doneCount = Math.min(i + BATCH, symbols.length);
+    bar.style.width = `${Math.round((doneCount / symbols.length) * 100)}%`;
+    status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${doneCount}/${symbols.length}`;
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  return map;
+}
+
+/** Fetch the index benchmarks (SPY/QQQ) for regime + relative strength. US-only;
+ * returns nulls for VN where these indices don't resolve. */
+async function fetchBenchmarks(
+  ctx: AppContext,
+): Promise<{ spy: OHLCV | null; qqq: OHLCV | null }> {
+  if (picksMarket !== 'us') return { spy: null, qqq: null };
+  try {
+    const data = await fetchMany(ctx.data, BENCHMARKS, PERIOD, BENCHMARKS.length);
+    return { spy: data.get('SPY') ?? null, qqq: data.get('QQQ') ?? null };
+  } catch {
+    return { spy: null, qqq: null };
+  }
+}
+
+/** Render the market-regime + hot/cold-sector banner above the results (F6 annotation). */
+function renderRegimeBanner(regime: MarketRegime | null, sectors: SectorMomentumReport | null): void {
+  const elBanner = $('#picks-regime')!;
+  if (!regime && !sectors) {
+    elBanner.textContent = '';
+    return;
+  }
+  const parts: string[] = [];
+  if (regime) {
+    const color =
+      regime.regimeType === 'BULL' ? 'var(--accent)' : regime.regimeType === 'BEAR' ? 'var(--danger)' : 'var(--warn)';
+    const flag = regime.riskOn ? 'risk-on' : 'risk-off';
+    parts.push(
+      `Market: <strong style="color:${color}">${regime.regimeType}</strong> (${flag}, strength ${num(regime.strengthScore, 0)})`,
+    );
+  }
+  if (sectors && sectors.hotSectors.length) {
+    parts.push(`🔥 Hot: ${sectors.hotSectors.join(', ')}`);
+  }
+  if (sectors && sectors.coldSectors.length) {
+    parts.push(`🧊 Cold: ${sectors.coldSectors.join(', ')}`);
+  }
+  elBanner.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+}
+
+/**
  * Incremental, cancellable scan. Fetches symbols in batches, scores each batch
  * as it lands, accumulates matches for the active strategy, and re-renders the
  * results table + progress bar after every batch. This keeps the UI responsive
@@ -203,6 +314,13 @@ async function runPicks(ctx: AppContext): Promise<void> {
     await runQmPicks(ctx);
     return;
   }
+  // Momentum exploration scan (F5) — its own QmRow-like path + table.
+  if (picksStrategy === 'momentumscan') {
+    await runMomentumPicks(ctx);
+    return;
+  }
+  // Clear any regime banner left by a momentum/QM run.
+  renderRegimeBanner(null, null);
   const myToken = ++scanToken; // also aborts any previous scan
   const status = $('#picks-status')!;
   const out = $('#picks-results')!;
@@ -353,6 +471,28 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
   const BATCH = BIG_UNIVERSES.has(picksUniverse) ? 120 : 60;
   const CONCURRENCY = 6;
 
+  // ── F4: optional momentum pre-filter (US only; needs SPY/QQQ + full ranking). ──
+  // When ON we fetch the whole universe once, rank momentum, narrow to the top
+  // slice (optionally intersected with hot sectors), annotate the regime banner,
+  // and scan ONLY the survivors from the already-fetched data. The VCP/QM
+  // detection itself is unchanged — it just receives a smaller universe.
+  let prefetched: Map<string, OHLCV> | null = null;
+  if (momentumPrefilter && picksMarket === 'us') {
+    status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} (momentum pre-filter)…`;
+    const { spy, qqq } = await fetchBenchmarks(ctx);
+    if (myToken !== scanToken) return;
+    const fullMap = await fetchUniverseToMap(ctx, symbols, myToken);
+    if (fullMap === null) return; // stopped mid-fetch
+    const regime = spy ? detectRegime(spy.bars, qqq?.bars) : null;
+    const sectorReport = computeSectorMomentum(fullMap, spy?.bars);
+    renderRegimeBanner(regime, sectorReport);
+    const filtered = filterByMomentum(fullMap, { benchmark: spy?.bars });
+    symbols = filtered.symbols;
+    prefetched = fullMap;
+  } else {
+    renderRegimeBanner(null, null);
+  }
+
   const matches: QmRow[] = [];
   let scanned = 0;
   let fetched = 0;
@@ -382,7 +522,17 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
       return;
     }
     const batch = symbols.slice(i, i + BATCH);
-    const data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
+    // Reuse pre-filter data when present (already fetched); else fetch the batch.
+    let data: Map<string, OHLCV>;
+    if (prefetched) {
+      data = new Map();
+      for (const sym of batch) {
+        const s = prefetched.get(sym);
+        if (s) data.set(sym, s);
+      }
+    } else {
+      data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
+    }
     if (myToken !== scanToken) continue;
 
     fetched += data.size;
@@ -415,6 +565,97 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
     '.';
   if (!matches.length) {
     out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No QM setups matched.</div>`;
+  } else {
+    renderTable();
+  }
+  finish();
+}
+
+/**
+ * F5 — Momentum exploration scan ("show me what's running right now"). NOT a VCP
+ * scan: it fetches the whole universe, ranks every name by momentum, and shows
+ * the top 50 movers (strong 1M/3M/6M, high RS), annotated with the market regime
+ * and sector rotation (F6). Stocks need not be in any pattern.
+ */
+async function runMomentumPicks(ctx: AppContext): Promise<void> {
+  const myToken = ++scanToken;
+  const status = $('#picks-status')!;
+  const out = $('#picks-results')!;
+  const progress = $('#picks-progress')!;
+  const bar = $('#picks-bar')!;
+  const stopBtn = $('#picks-stop')!;
+  const runBtn = $('#picks-refresh')!;
+
+  out.innerHTML = '';
+  progress.classList.remove('hidden');
+  stopBtn.classList.remove('hidden');
+  runBtn.classList.add('hidden');
+  bar.style.width = '0%';
+  status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
+
+  const finish = (): void => {
+    progress.classList.add('hidden');
+    stopBtn.classList.add('hidden');
+    runBtn.classList.remove('hidden');
+  };
+
+  let symbols: string[];
+  try {
+    symbols = await resolveUniverse(picksUniverse);
+  } catch {
+    symbols = CURATED;
+  }
+  if (myToken !== scanToken) return;
+
+  // Need the full set for relative ranking + regime/sector context.
+  const { spy, qqq } = await fetchBenchmarks(ctx);
+  if (myToken !== scanToken) return;
+  const fullMap = await fetchUniverseToMap(ctx, symbols, myToken);
+  if (fullMap === null) {
+    status.textContent = `${t('picks.stopped')}.`;
+    finish();
+    return;
+  }
+
+  const regime = spy ? detectRegime(spy.bars, qqq?.bars) : null;
+  const sectorReport = computeSectorMomentum(fullMap, spy?.bars);
+  renderRegimeBanner(regime, sectorReport);
+  const hotSet = new Set(sectorReport.hotSectors);
+  const sectorRankByName = new Map(sectorReport.rankings.map((r) => [r.sector, r]));
+
+  const ranked = rankMomentum(fullMap, spy?.bars);
+  const rows: MomentumRow[] = ranked.map((r) => {
+    const sector = SECTOR_BY_SYMBOL[r.symbol] ?? null;
+    const sec = sector ? sectorRankByName.get(sector) ?? null : null;
+    return momentumToRow(r, {
+      sector,
+      regime,
+      sector_: sec,
+      isHotSector: sector ? hotSet.has(sector) : false,
+    });
+  });
+
+  const renderTable = (): void => {
+    out.replaceChildren(
+      momentumTable(rows.slice(0, 50), {
+        sortKey: momentumSort.key,
+        sortDesc: momentumSort.desc,
+        onRowClick: (sym) => void openStock(ctx, sym),
+        onSortChange: (key, desc) => {
+          momentumSort = { key, desc };
+        },
+      }),
+    );
+  };
+
+  if (myToken !== scanToken) {
+    finish();
+    return;
+  }
+  status.textContent =
+    `${t('picks.done')}: top ${Math.min(50, rows.length)} momentum movers from ${ranked.length} ${t('picks.scanned')}.`;
+  if (!rows.length) {
+    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No momentum movers found.</div>`;
   } else {
     renderTable();
   }

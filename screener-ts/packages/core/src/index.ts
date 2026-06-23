@@ -9,3 +9,4 @@ export * from './data/index.js';
 export * from './storage/index.js';
 export * from './analysis/index.js';
 export * from './qm/index.js';
+export * from './momentum/index.js';
