@@ -9,6 +9,7 @@ export function renderAbout(): void {
     badge: 'About this project',
     h1: 'Dr. Tu Anh Pham',
     tagline: 'Data analytics & automation specialist · PhD in Economics · Allianz Investment Management',
+    launched: 'First published: 22 June 2026',
     p1: `This website marks a small but meaningful turning point in my life — the day I decided to seriously pursue my dream of becoming a professional trader, and to take a more active role in shaping my own future.`,
     p2: `I'm Dr. Tu Anh Pham. Over the years, I've been fortunate to work with data and finance — most recently as a data analytics and automation specialist at Allianz Investment Management, after completing a PhD in Economics. I've spent a lot of my career analyzing markets and building tools to help others make better decisions. Along the way, I've learned how much I still have to learn.`,
     p3: `This site isn't a résumé, and I don't claim to have it all figured out. It's simply an honest record of a new journey — one I'm starting with humility and a lot of curiosity.`,
@@ -32,11 +33,12 @@ export function renderAbout(): void {
     badge: 'Giới thiệu dự án',
     h1: 'TS. Phạm Tú Anh',
     tagline: 'Chuyên gia phân tích dữ liệu & tự động hóa · Tiến sĩ Kinh tế · Allianz Investment Management',
-    p1: `Website này đánh dấu một bước ngoặt nhỏ nhưng ý nghĩa trong cuộc đời tôi — ngày tôi quyết định nghiêm túc theo đuổi ước mơ trở thành một trader chuyên nghiệp, và chủ động hơn trong việc định hình tương lai của chính mình.`,
-    p2: `Tôi là TS. Phạm Tú Anh. Trong những năm qua, tôi may mắn được làm việc với dữ liệu và tài chính — gần đây nhất là vị trí chuyên gia phân tích dữ liệu và tự động hóa tại Allianz Investment Management, sau khi hoàn thành chương trình Tiến sĩ Kinh tế. Phần lớn sự nghiệp của tôi là phân tích thị trường và xây dựng công cụ giúp người khác ra quyết định tốt hơn. Và trên hành trình ấy, tôi nhận ra mình vẫn còn rất nhiều điều phải học.`,
-    p3: `Đây không phải là một bản CV, và tôi cũng không dám nói rằng mình đã hiểu hết mọi thứ. Nó đơn giản là một cuốn nhật ký chân thật cho một hành trình mới — hành trình tôi bắt đầu với sự khiêm tốn và rất nhiều tò mò.`,
-    p4: `Sau nhiều năm nhìn thị trường từ bên ngoài, tôi muốn thử tự mình bước đi trên con đường đó. Với tôi, trading không phải là chuyện thắng nhanh; đó là một quá trình dài và kiên nhẫn để rèn luyện kỷ luật, học từ những sai lầm, và trưởng thành hơn như một con người. Đây là nơi tôi ghi lại hành trình ấy — những bài học, những vấp ngã, và cả những niềm vui nhỏ — khi tôi từng bước cố gắng trở thành một trader tốt hơn, và hy vọng cũng là một phiên bản tốt hơn của chính mình.`,
-    p5: `Nếu bạn tình cờ ghé qua đây, cảm ơn bạn đã là một phần của câu chuyện. Mong rằng hành trình của tôi có thể mang lại một chút động lực cho hành trình của bạn.`,
+    launched: 'Ngày ra mắt: 22 tháng 6 năm 2026',
+    p1: `Website này đánh dấu một bước ngoặt nhỏ nhưng ý nghĩa trong cuộc đời mình — ngày mình quyết định nghiêm túc theo đuổi ước mơ trở thành một trader chuyên nghiệp, và chủ động hơn trong việc định hình tương lai của chính mình.`,
+    p2: `Mình là TS. Phạm Tú Anh. Trong những năm qua, mình may mắn được làm việc với dữ liệu và tài chính — gần đây nhất là vị trí chuyên gia phân tích dữ liệu và tự động hóa tại Allianz Investment Management, sau khi hoàn thành chương trình Tiến sĩ Kinh tế. Phần lớn sự nghiệp của mình là phân tích thị trường và xây dựng công cụ giúp người khác ra quyết định tốt hơn. Và trên hành trình ấy, mình nhận ra bản thân vẫn còn rất nhiều điều phải học.`,
+    p3: `Đây không phải là một bản CV, và mình cũng không dám nói rằng mình đã hiểu hết mọi thứ. Nó đơn giản là một cuốn nhật ký chân thật cho một hành trình mới — hành trình mình bắt đầu với sự khiêm tốn và rất nhiều tò mò.`,
+    p4: `Sau nhiều năm nhìn thị trường từ bên ngoài, mình muốn thử tự mình bước đi trên con đường đó. Với mình, trading không phải là chuyện thắng nhanh; đó là một quá trình dài và kiên nhẫn để rèn luyện kỷ luật, học từ những sai lầm, và trưởng thành hơn như một con người. Đây là nơi mình ghi lại hành trình ấy — những bài học, những vấp ngã, và cả những niềm vui nhỏ — khi mình từng bước cố gắng trở thành một trader tốt hơn, và hy vọng cũng là một phiên bản tốt hơn của chính mình.`,
+    p5: `Nếu bạn tình cờ ghé qua đây, cảm ơn bạn đã là một phần của câu chuyện. Mong rằng hành trình của mình có thể mang lại một chút động lực cho hành trình của bạn.`,
     quote: `"Trading không phải là chuyện thắng nhanh; đó là một quá trình dài và kiên nhẫn để rèn luyện kỷ luật, học từ những sai lầm, và trưởng thành hơn như một con người."`,
     pilarTitle: 'Dự án này xây dựng trên ba nền tảng',
     pillar1h: 'Kỷ luật',
@@ -72,6 +74,7 @@ export function renderAbout(): void {
             <div class="about-badge">${c.badge}</div>
             <h1 class="about-h1">${c.h1}</h1>
             <p class="about-tagline">${c.tagline}</p>
+            <p class="muted" style="font-size:11px;margin-top:6px">${c.launched}</p>
           </div>
         </div>
       </div>

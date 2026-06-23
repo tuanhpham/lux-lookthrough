@@ -12,8 +12,8 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.screener': { en: 'Screener', vi: 'Bộ lọc' },
   'nav.watchlist': { en: 'Watchlists', vi: 'Danh sách theo dõi' },
   'nav.sectors': { en: 'Sectors', vi: 'Ngành' },
-  'nav.portfolio': { en: 'Paper Trading', vi: 'Giao dịch giấy' },
-  'nav.backtest': { en: 'Backtest', vi: 'Kiểm thử' },
+  'nav.portfolio': { en: 'Paper Trading', vi: 'Giao Dịch Mô Phỏng' },
+  'nav.backtest': { en: 'Backtest', vi: 'Backtest' },
   'nav.blog': { en: 'Analysis', vi: 'Phân tích' },
   'nav.playbook': { en: 'Playbook', vi: 'Sổ tay' },
   'nav.learn': { en: 'Learn', vi: 'Tìm hiểu' },
@@ -26,7 +26,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'landing.h1b': { en: 'in the strongest setups.', vi: 'ở những thiết lập tốt nhất.' },
   'landing.sub': {
     en: 'A professional-grade equity screener built on Qullamaggie methodology. Scan any stock or sector for VCP & episodic-pivot setups, track momentum leaders with a 0–100 quality score, read market regime and sector rotation — then backtest, plan trades and paper-trade — all in one place.',
-    vi: 'Bộ lọc cổ phiếu chuyên nghiệp xây dựng trên phương pháp Qullamaggie. Quét bất kỳ mã hay ngành nào để tìm thiết lập VCP & điểm xoay đột biến, theo dõi mã dẫn dắt động lượng qua điểm chất lượng 0–100, đọc bối cảnh thị trường và luân chuyển ngành — rồi kiểm thử, lập kế hoạch và giao dịch giấy — tất cả trong một nơi.',
+    vi: 'Bộ lọc cổ phiếu chuyên nghiệp xây dựng trên phương pháp Qullamaggie. Quét bất kỳ mã hay ngành nào để tìm thiết lập VCP & điểm xoay đột biến, theo dõi mã dẫn dắt động lượng qua điểm chất lượng 0–100, đọc bối cảnh thị trường và luân chuyển ngành — rồi backtest, lập kế hoạch và giao dịch mô phỏng — tất cả trong một nơi.',
   },
   'landing.cta': { en: 'Launch the Screener →', vi: 'Mở bộ lọc →' },
   'landing.nosignup': { en: 'No sign-up · runs locally', vi: 'Không cần đăng ký · chạy cục bộ' },
@@ -149,7 +149,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'wl.plan.riskamt': { en: 'Risk $ (pct)', vi: 'Rủi ro $ (%)' },
 
   // Portfolio
-  'pf.title': { en: 'Paper Trading', vi: 'Giao dịch giấy' },
+  'pf.title': { en: 'Paper Trading', vi: 'Giao Dịch Mô Phỏng' },
   'pf.sub': { en: 'Independent multi-account strategy testing. Cash, PnL and risk are per account.', vi: 'Thử nghiệm chiến lược đa tài khoản độc lập. Tiền mặt, lãi/lỗ và rủi ro tính riêng cho từng tài khoản.' },
 
   // Detail modal
@@ -161,11 +161,11 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'detail.about': { en: 'About', vi: 'Giới thiệu' },
 
   // Backtest
-  'backtest.title': { en: 'Backtest', vi: 'Kiểm thử chiến lược' },
+  'backtest.title': { en: 'Backtest', vi: 'Backtest' },
   'backtest.sub': { en: 'Simulate trading strategies on historical daily bars.', vi: 'Mô phỏng chiến lược trên dữ liệu ngày lịch sử.' },
   'backtest.note': {
     en: 'Focused backtest: enter 1–10 symbols. Daily bars; no-lookahead. Large universes re-fetch each run (no persistent cache).',
-    vi: 'Kiểm thử tập trung: nhập 1–10 mã. Dữ liệu ngày; không nhìn trước. Danh sách lớn sẽ tải lại mỗi lần chạy.',
+    vi: 'Backtest tập trung: nhập 1–10 mã. Dữ liệu ngày; không nhìn trước. Danh sách lớn sẽ tải lại mỗi lần chạy.',
   },
   'backtest.strategy': { en: 'Strategy', vi: 'Chiến lược' },
   'backtest.strat.vcp': { en: 'VCP Breakout', vi: 'Bứt phá VCP' },
@@ -182,7 +182,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'backtest.period': { en: 'History', vi: 'Lịch sử' },
   'backtest.risk': { en: 'Risk %/trade', vi: 'Rủi ro %/lệnh' },
   'backtest.capital': { en: 'Capital', vi: 'Vốn' },
-  'backtest.run': { en: 'Run Backtest', vi: 'Chạy kiểm thử' },
+  'backtest.run': { en: 'Run Backtest', vi: 'Chạy Backtest' },
   'backtest.running': { en: 'Running simulation…', vi: 'Đang mô phỏng…' },
   'backtest.needsymbols': { en: 'Enter at least one symbol.', vi: 'Nhập ít nhất một mã.' },
   'backtest.from': { en: 'From', vi: 'Từ ngày' },
