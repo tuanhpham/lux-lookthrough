@@ -347,8 +347,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
           <div class="stat"><div class="k">${t('wl.plan.stop')}</div><div class="v" style="color:var(--danger)">$${num(plan.stop!, 2)}</div></div>
           <div class="stat"><div class="k">${t('wl.plan.target')}</div><div class="v" style="color:var(--accent)">$${plan.target != null ? num(plan.target, 2) : '—'}</div></div>
           <div class="stat"><div class="k">${t('wl.plan.shares')}</div><div class="v">${plan.shares}</div></div>
-          <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v">$${num(plan.positionValue, 0)}</div></div>
-          <div class="stat"><div class="k">${t('wl.plan.riskamt')}</div><div class="v" style="color:var(--warn)">$${num(plan.riskAmount, 0)} (${num(plan.positionPct, 1)}%)</div></div>
+          <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v">$${num(plan.positionValue, 0)} <span class="muted" style="font-size:11px">(${num(plan.positionPct, 1)}%)</span></div></div>
+          <div class="stat"><div class="k">${t('wl.plan.riskamt')}</div><div class="v" style="color:var(--warn)">$${num(plan.riskAmount, 0)} <span class="muted" style="font-size:11px">(${eq > 0 ? num((plan.riskAmount / eq) * 100, 2) : '0.00'}%)</span></div></div>
         </div>` : ''}
         <div style="font-size:12px;line-height:1.6">
           <p style="margin:2px 0;font-weight:700">${explanation.headline[lang]}</p>
