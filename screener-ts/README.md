@@ -84,9 +84,12 @@ App Store, no Apple Developer fee, no Rust/Xcode.
 
 1. **Deploy** (see [Cloudflare Pages](#deploy-as-a-0-static-site-cloudflare-pages)):
    ```bash
-   cd screener-ts/apps/desktop
+   # build from the monorepo root (so the --workspace flags resolve)
+   cd screener-ts
    npm run build --workspace @screener/core
    npm run build --workspace @screener/desktop
+   # deploy from apps/desktop, so wrangler finds dist/ AND functions/
+   cd apps/desktop
    npx wrangler pages deploy dist --project-name screener
    ```
 2. **Install on the phone**, opening the deployed URL:
@@ -225,17 +228,31 @@ silent empty result.
 ## Deploy as a $0 static site (Cloudflare Pages)
 
 ```bash
-cd screener-ts/
+# 1. Install + build from the monorepo ROOT (the --workspace flags only
+#    resolve here, and tsc/vite live in the root node_modules/.bin).
+cd screener-ts
 npm install
-npm run build --workspace @screener/core   # core dist for the production build
-npm run build --workspace @screener/desktop    # tsc + vite build → dist/ npm run build --workspace @screener/desktop 
+npm run build --workspace @screener/core      # core dist for the production build
+npm run build --workspace @screener/desktop   # tsc --noEmit + vite build → apps/desktop/dist
+
+# 2. Deploy from apps/desktop. IMPORTANT: wrangler discovers the `functions/`
+#    directory (the api/yahoo, api/finnhub, … data proxies) relative to the
+#    current directory, and `wrangler.toml` lives here too. Deploy from anywhere
+#    else and the site ships WITHOUT the proxies → no stock data loads.
+cd apps/desktop
 npx wrangler pages deploy dist --project-name screener
-npx wrangler pages secret put FINNHUB_API_KEY   # optional fallback provider
+npx wrangler pages secret put FINNHUB_API_KEY --project-name screener   # optional fallback provider
 ```
 
 > Use the **same `--project-name screener`** each time to **update** the existing
 > site (your URL stays the same) rather than creating a new project. The first
 > `wrangler` run opens a browser to log into Cloudflare (once).
+>
+> **Verify the proxies deployed:** open
+> `https://<your-site>.pages.dev/api/yahoo/v8/finance/chart/AAPL?range=1y&interval=1d`
+> — it should return **JSON**. If you get the HTML page or a 404, the
+> `functions/` directory wasn't deployed (you ran wrangler from the wrong
+> directory) and no stocks will scan.
 
 The functions in `functions/` make data fetching work the same as local dev:
 - `api/yahoo/*` proxies Yahoo, performing the **cookie + crumb handshake**

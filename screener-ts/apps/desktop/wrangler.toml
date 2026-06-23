@@ -1,10 +1,13 @@
 # Cloudflare Pages config for the static web deploy.
-# Functions in ./functions are auto-discovered (api/yahoo, api/finnhub).
+# Functions in ./functions (api/yahoo, api/finnhub, api/vndirect, api/wiki,
+# api/nasdaqtrader) are auto-discovered RELATIVE TO THE DEPLOY DIRECTORY — so you
+# MUST run `wrangler pages deploy` from THIS directory (apps/desktop). Deploying
+# from the monorepo root ships the site WITHOUT the proxies → no stock data loads.
 #
-# Deploy:
-#   npm run build               # produces dist/
+# Deploy (build from the root, then deploy from here):
+#   (cd ../.. && npm run build --workspace @screener/core && npm run build --workspace @screener/desktop)
 #   npx wrangler pages deploy dist --project-name screener
-#   npx wrangler pages secret put FINNHUB_API_KEY   # optional fallback provider
+#   npx wrangler pages secret put FINNHUB_API_KEY --project-name screener   # optional fallback provider
 name = "screener"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-11-01"

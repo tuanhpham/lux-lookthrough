@@ -13,12 +13,16 @@ cần tài khoản Apple, không hết hạn 7 ngày.
 ## Bước 1 — Deploy lên Cloudflare Pages (làm 1 lần trên máy Mac)
 
 ```bash
-cd screener-ts/apps/desktop
+# build từ thư mục gốc của monorepo (cờ --workspace + tsc/vite chỉ chạy ở đây)
+cd screener-ts
+npm install                                    # lần đầu / sau khi clone mới
+npm run build --workspace @screener/core
+npm run build --workspace @screener/desktop    # → thư mục apps/desktop/dist
 
-# build ra thư mục dist/ (đã gồm manifest, service worker, icons)
-npm run build
-
-# deploy. Lần đầu wrangler sẽ mở trình duyệt cho bạn đăng nhập Cloudflare (free).
+# deploy TỪ apps/desktop để wrangler tìm thấy cả dist/ VÀ functions/ (các proxy
+# api/yahoo, api/finnhub, …). Deploy từ chỗ khác → web KHÔNG có proxy → không có dữ liệu.
+cd apps/desktop
+# Lần đầu wrangler sẽ mở trình duyệt cho bạn đăng nhập Cloudflare (free).
 npx wrangler pages deploy dist --project-name screener
 ```
 
@@ -35,7 +39,7 @@ https://screener.pages.dev
 > ```
 
 ### Deploy lại sau khi sửa code
-Chỉ cần chạy lại `npm run build && npx wrangler pages deploy dist --project-name screener`.
+Chạy lại: `cd screener-ts && npm run build --workspace @screener/core && npm run build --workspace @screener/desktop && cd apps/desktop && npx wrangler pages deploy dist --project-name screener`.
 Service worker tự nhận bản mới (đã đặt `CACHE_VERSION` để dọn cache cũ). Nếu trên
 máy thấy bản cũ "dính", kéo để refresh hoặc đóng/mở lại app.
 
