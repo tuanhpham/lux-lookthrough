@@ -15,10 +15,13 @@ import {
   detectRegime,
   detectSurge,
   filterByMomentum,
+  generateWatchlists,
   type Period,
   type QmRow,
+  type QmScanResult,
   type QmSetupType,
   type MomentumRow,
+  type MomentumResult,
   type MomentumClassification,
   type MarketRegime,
   type SectorMomentumReport,
@@ -373,6 +376,7 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
   }
 
   const matches: QmRow[] = [];
+  const allScans: QmScanResult[] = [];
   let scanned = 0;
   let fetched = 0;
 
@@ -419,6 +423,7 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
       if (!series.bars || series.bars.length < 60) continue;
       scanned += 1;
       const r = scanQm(series.symbol, series.bars, DEFAULT_QM_CONFIG);
+      allScans.push(r);
       // Keep only real QM setups (a passing trend + VCP or episodic pivot).
       if (r.setupType === 'NONE') continue;
       matches.push(qmToRow(r));
@@ -446,8 +451,52 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
     out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No QM setups matched.</div>`;
   } else {
     renderTable();
+    // Append generated watchlist summary below the results table.
+    const sectorReport = computeSectorMomentum(prefetched ?? new Map(), undefined);
+    const wl = generateWatchlists(allScans, [], sectorReport);
+    renderGeneratedWatchlists(ctx, out, wl);
   }
   finish();
+}
+
+/**
+ * Render a collapsible "Generated Watchlists" panel below the picks table.
+ * Each category is a pill-row of symbol chips; clicking any chip opens the
+ * stock detail modal. Collapsed by default so it doesn't clutter the scan view.
+ */
+function renderGeneratedWatchlists(ctx: AppContext, container: HTMLElement, wl: import('@screener/core').GeneratedWatchlists): void {
+  const cats: { label: string; syms: string[] }[] = [
+    { label: '🏆 Top VCP', syms: wl.topVcp },
+    { label: '⚡ Episodic Pivots', syms: wl.topEp },
+    { label: '🚀 Breakout Candidates', syms: wl.topBreakouts },
+    { label: '🔷 Tight Bases', syms: wl.topTightBases },
+    { label: '📊 Top RS', syms: wl.topRelativeStrength },
+  ];
+  const filled = cats.filter((c) => c.syms.length > 0);
+  if (!filled.length) return;
+
+  const wrap = el(`
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);padding:8px 0;user-select:none">
+        📋 Generated Watchlists (${filled.length} categories)
+      </summary>
+      <div class="wl-gen-body" style="margin-top:10px"></div>
+    </details>`);
+
+  const body = wrap.querySelector('.wl-gen-body')!;
+  for (const cat of filled) {
+    const section = el(`<div style="margin-bottom:12px"></div>`);
+    section.appendChild(el(`<div class="section-title" style="margin:0 0 6px">${cat.label}</div>`));
+    const chips = el(`<div class="row" style="flex-wrap:wrap;gap:6px"></div>`);
+    for (const sym of cat.syms) {
+      const chip = el(`<button class="range-btn" style="font-size:12px">${sym}</button>`);
+      chip.addEventListener('click', () => void openStock(ctx, sym));
+      chips.appendChild(chip);
+    }
+    section.appendChild(chips);
+    body.appendChild(section);
+  }
+  container.appendChild(wrap);
 }
 
 /**

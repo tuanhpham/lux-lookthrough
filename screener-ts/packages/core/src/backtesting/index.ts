@@ -5,6 +5,8 @@ export { runBacktest } from './engine.js';
 export { computeStats } from './statistics.js';
 export type { BacktestStats } from './statistics.js';
 export { vcpStrategy } from './strategies/vcpStrategy.js';
+export { momentumStrategy } from './strategies/momentumStrategy.js';
+export type { MomentumStrategyOptions } from './strategies/momentumStrategy.js';
 export type {
   Strategy,
   StrategyContext,

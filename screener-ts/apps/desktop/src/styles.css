@@ -156,15 +156,18 @@ table td,
 .topnav-tabs { display: flex; align-items: center; justify-content: center; gap: 2px; flex: 1 1 auto; min-width: 0; }
 .nav-btn {
   position: relative;
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 6px;
   background: transparent; border: 0; color: var(--subtext);
-  padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13.5px; cursor: pointer;
+  padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
   font-weight: 600; letter-spacing: -0.01em; white-space: nowrap;
   transition: background .16s ease, color .16s ease;
 }
-.nav-btn svg { width: 16px; height: 16px; flex: 0 0 auto; opacity: .85; }
+/* On desktop the icon is decorative — visible but subdued. */
+.nav-btn svg { width: 15px; height: 15px; flex: 0 0 auto; opacity: .7; transition: opacity .15s; }
 .nav-btn:hover { background: var(--cardhover); color: var(--text); }
+.nav-btn:hover svg { opacity: 1; }
 .nav-btn.active { color: var(--text); }
+.nav-btn.active svg { opacity: 1; }
 /* Active indicator: an underline tick flush with the nav's bottom border. */
 .nav-btn.active::after {
   content: ''; position: absolute; left: 10px; right: 10px; bottom: -9px; height: 2px;
@@ -493,22 +496,27 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
      language + theme controls stay in the bar (they're compact). */
   .menu-toggle { display: inline-grid; }
 
-  /* Inline tabs → a dropdown panel anchored under the bar. It lives inside
-     #topnav's stacking context (z 60), so it renders above the backdrop. */
+  /* Inline tabs → a compact dropdown panel anchored under the bar. */
   .topnav-tabs {
     position: fixed; top: calc(56px + env(safe-area-inset-top)); right: 8px; left: 8px; z-index: 61;
-    flex-direction: column; align-items: stretch; gap: 2px;
+    flex-direction: column; align-items: stretch; gap: 1px;
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow-lg); padding: 8px;
+    box-shadow: var(--shadow-lg); padding: 6px;
     max-height: calc(100dvh - 72px - env(safe-area-inset-top)); overflow-y: auto;
     opacity: 0; transform: translateY(-8px); pointer-events: none;
     transition: opacity .2s ease, transform .2s ease;
   }
   #app.nav-open .topnav-tabs { opacity: 1; transform: none; pointer-events: auto; }
-  .nav-btn { padding: 12px 14px; font-size: 15px; border-radius: var(--radius-sm); }
-  /* Active marker becomes a left bar inside the dropdown (no bottom underline). */
+  /* Compact row: icon left + label. Icon is the same size as the desktop, label is slightly larger for touch. */
+  .nav-btn {
+    padding: 10px 12px; font-size: 14px; border-radius: var(--radius-sm);
+    gap: 10px; justify-content: flex-start;
+  }
+  .nav-btn svg { width: 18px; height: 18px; opacity: .8; flex: 0 0 18px; }
+  /* Active marker becomes a left accent bar (replaces the bottom underline). */
   .nav-btn.active { background: var(--accent-wash); color: var(--accent); }
-  .nav-btn.active::after { left: 0; right: auto; top: 8px; bottom: 8px; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
+  .nav-btn.active svg { opacity: 1; }
+  .nav-btn.active::after { left: 0; right: auto; top: 6px; bottom: 6px; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
 
   /* Backdrop sits BELOW the bar (top: 56px) so the nav bar stays bright, and is
      only a light scrim — just enough to signal "tap to close" without darkening
