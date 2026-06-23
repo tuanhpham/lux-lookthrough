@@ -54,9 +54,12 @@ export function detectVcp(
   const lows = bars.map((b) => b.low);
   const closes = bars.map((b) => b.close);
 
+  // Swing highs/lows drive impulse + contraction detection. They may be empty
+  // for a near-monotonic series; the downstream loops handle that (→ 0 impulses,
+  // 0 contractions), and the pivot below does NOT depend on them — so we do not
+  // early-return here, ensuring the pivot + trade levels are always populated.
   const swingHighs = argrelextrema(highs, 'greater', v.extremaOrder);
   const swingLows = argrelextrema(lows, 'less', v.extremaOrder);
-  if (swingHighs.length === 0) return EMPTY;
 
   // Base anchors at the highest high within the recent maxBaseLength window —
   // the peak the stock is now consolidating below (NOT merely the last swing
@@ -68,7 +71,11 @@ export function detectVcp(
   }
   const baseEnd = n - 1;
   const baseLength = baseEnd - baseStart;
-  if (baseLength < v.minBaseLength || baseLength > v.maxBaseLength) return EMPTY;
+  // A valid VCP needs a base of the right length. We do NOT early-return when it
+  // is too short: the pivot (highest recent high) and the resulting trade levels
+  // are still meaningful for any stock (it's the level to break out over), and
+  // the detail view shows them for every stock. baseLength only gates `isVcp`.
+  const baseLengthOk = baseLength >= v.minBaseLength && baseLength <= v.maxBaseLength;
 
   const base = bars.slice(baseStart);
   const baseTopHigh = highs[baseStart]!;
@@ -161,6 +168,7 @@ export function detectVcp(
 
   // ── Pass/fail gates. ──
   const isVcp =
+    baseLengthOk &&
     previousAdvancePct >= v.minPreviousAdvancePct &&
     impulseCount >= v.minImpulses &&
     contractions >= v.minContractions &&

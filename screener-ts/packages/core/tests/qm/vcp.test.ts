@@ -82,6 +82,16 @@ describe('detectVcp', () => {
     expect(r.isVcp).toBe(false);
   });
 
+  it('still returns a usable pivot even when there is no valid VCP (short base)', () => {
+    // A stock making continuous new highs has a ~0-bar base, so isVcp is false —
+    // but the pivot (and thus downstream trade levels) must still be populated,
+    // because the detail view shows levels for EVERY stock, not just setups.
+    const r = detectVcp(uptrendSeries(260));
+    expect(r.isVcp).toBe(false);
+    expect(r.pivot).not.toBeNull();
+    expect(r.pivot!).toBeGreaterThan(0);
+  });
+
   it('rejects when the previous advance is below the configured minimum', () => {
     const cfg = {
       ...DEFAULT_QM_CONFIG,

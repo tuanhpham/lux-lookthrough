@@ -102,8 +102,12 @@ export function computeMomentumScore(
     symbol,
     price: pyRound(price, 2),
     momentumScore,
+    // Percentile needs a peer set, so it's 0 here and filled by `rankMomentum`.
+    // The classification falls back to a standalone, score-based bucket (the
+    // score is 0..100, the same scale as the cutoffs) so single-symbol callers
+    // — e.g. the stock detail modal — get a meaningful label, not always "Weak".
     percentileRank: 0,
-    classification: 'Weak',
+    classification: classifyMomentum(momentumScore, cfg),
     returns,
     relativeStrength: rs,
     dollarVolume: pyRound(dollarVolume, 0),

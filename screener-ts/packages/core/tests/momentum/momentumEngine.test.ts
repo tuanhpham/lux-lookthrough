@@ -43,6 +43,14 @@ describe('computeMomentumScore', () => {
     expect(s.dollarVolume).toBeGreaterThan(0);
     expect(s.distanceFrom52wHighPct).toBeGreaterThanOrEqual(0);
   });
+
+  it('gives a standalone classification (not hardcoded "Weak") for a single symbol', () => {
+    // The detail modal scores one stock at a time (no peer set for a percentile),
+    // so the classification must fall back to a score-based bucket. A strong
+    // mover should not come back "Weak".
+    const s = computeMomentumScore('STRONG', strong);
+    expect(s.classification).not.toBe('Weak');
+  });
 });
 
 describe('classifyMomentum', () => {
