@@ -1,216 +1,226 @@
-I already have an existing Python stock screener project.
+I want to extend my existing Python stock screener project.
 
-Do NOT rewrite or refactor the whole project.
+IMPORTANT:
 
-Your task is to integrate a new Qullamaggie screening module into the existing architecture while preserving the current codebase.
-
-Before writing any code:
-
-1. Analyze the entire project structure.
-2. Understand how data is loaded.
-3. Understand how indicators are calculated.
-4. Understand how scans are executed.
-5. Identify the best extension points.
-6. Reuse existing classes and functions whenever possible.
-7. Do not duplicate logic.
-8. Follow the existing coding style.
-
-Only after understanding the project, implement the following features.
+* DO NOT rewrite or refactor existing architecture
+* DO NOT modify working VCP, EP, or breakout logic
+* ONLY add new modules and integrate them minimally
+* Keep full backward compatibility
 
 ---
 
-FEATURE 1 – Qullamaggie VCP Scanner
+# FEATURE 1 — MOMENTUM ENGINE (CORE ADDITION)
 
-Implement a true Volatility Contraction Pattern scanner.
+Create:
 
-Rules:
+indicators/momentum.py
 
-• Previous advance must be at least 30% (configurable).
+class MomentumEngine:
 
-• Detect at least one impulse move before the base.
+```
+def compute_returns(self, price_series):
+    - 1M return
+    - 3M return
+    - 6M return
+    - 12M return
 
-• Base length should be configurable.
+def compute_relative_strength(self, stock, benchmark="SPY"):
+    - RS score normalized 0–100
 
-• Detect contracting pullbacks.
-
-Example:
-
-20%
-12%
-8%
-5%
-
-Each correction should become smaller.
-
-Volume should contract during the base.
-
-ATR should contract.
-
-Price should stay above EMA50.
-
-Pivot = highest price before breakout.
+def compute_momentum_score(self, stock):
+    Weighted score:
+    - 1M: 15
+    - 3M: 25
+    - 6M: 25
+    - RS vs SPY: 25
+    - Liquidity: 10
+```
 
 Return:
 
-* Pivot Price
-* Number of contractions
-* Base depth
-* Previous advance %
-* Volume contraction %
-* ATR contraction %
-* Confidence score
+* momentum_score
+* percentile_rank
+* classification: (Weak / Building / Strong / Explosive)
 
 ---
 
-FEATURE 2 – Episodic Pivot Scanner
+# FEATURE 2 — MARKET REGIME FILTER
 
-Detect earnings gap setups.
+Create:
 
-Rules:
+indicators/market_regime.py
 
-Gap Up >= configurable %
+Detect overall market condition using SPY / QQQ:
 
-Default = 8%
+Define regime:
 
-Relative Volume > configurable
+1. BULL TREND
 
-Positive EPS surprise
+   * SPY > EMA50 > EMA150 > EMA200
+   * EMA200 rising
 
-Positive Revenue surprise
+2. TRANSITION / CHOPPY
 
-Price gaps above resistance
+   * mixed EMA structure
 
-Close near High of Day
+3. BEAR / DEFENSIVE
 
-Reject:
+   * SPY below EMA200
 
-Weak close
+Output:
 
-Gap fill
-
-Low volume
-
-Return:
-
-Gap %
-
-Gap Score
-
-Catalyst
-
-Confidence
+* regime_type
+* regime_strength_score (0–100)
+* risk_on / risk_off flag
 
 ---
 
-FEATURE 3 – Trend Filter
+# FEATURE 3 — SECTOR MOMENTUM ROTATION
 
-Only allow stocks that satisfy:
+Create:
 
-Price > EMA50
+indicators/sector_momentum.py
 
-EMA50 > EMA150
+Compute relative strength per sector:
 
-EMA150 > EMA200
+* Technology
+* Healthcare
+* Energy
+* Financials
+* Consumer
+* Industrial
+* Crypto-related equities (if applicable)
 
-EMA200 rising
+For each sector:
 
-Price within configurable % of 52-week High
+* avg 1M return
+* avg 3M return
+* RS vs SPY
+* number of stocks in top 10% momentum
 
-Minimum Dollar Volume
+Output:
 
-Minimum Average Volume
-
----
-
-FEATURE 4 – Quality Score
-
-Create a scoring system.
-
-Example:
-
-Trend .............20
-
-Previous Advance...10
-
-VCP.................25
-
-Volume..............15
-
-RS..................15
-
-Liquidity...........10
-
-Breakout............5
-
-Total = 100
-
-Make all weights configurable.
+* sector_rankings
+* hot_sectors (top 2–3)
+* cold_sectors
 
 ---
 
-FEATURE 5 – Configuration
+# FEATURE 4 — VCP PRE-FILTER CHANGE (IMPORTANT)
 
-Add all thresholds into the existing config system.
+Modify ONLY entry pipeline of VCP scanner.
 
-No hard-coded numbers.
+Current behavior:
 
----
+* likely uses 52-week high or full universe
 
-FEATURE 6 – CLI
+NEW behavior:
 
-If the project already has CLI commands, extend them.
+Step 1:
+Run MomentumEngine.rank_momentum()
 
-Example:
+Step 2:
+Filter universe to top 10–20% momentum stocks ONLY
 
---scan-vcp
+Step 3:
+Optionally intersect with:
 
---scan-ep
+* hot sectors from SectorMomentumEngine
 
---scan-qm
+Step 4:
+Pass result into existing VCP scanner unchanged
 
-Do not break existing commands.
-
----
-
-FEATURE 7 – Report
-
-Include the following additional columns:
-
-Quality Score
-
-Previous Advance %
-
-VCP Contractions
-
-ATR Contraction
-
-Volume Contraction
-
-Pivot
-
-Entry
-
-Stop
-
-Risk %
-
-Setup Type
+DO NOT modify VCP detection logic itself.
 
 ---
 
-FEATURE 8 – Tests
+# FEATURE 5 — EXPLORATION / MANUAL SCAN MODE
 
-Add unit tests for every new module.
+Add a new CLI command:
+
+--scan-momentum
+
+Purpose:
+
+Return stocks that are:
+
+* Strong 1M / 3M / 6M movers
+* NOT necessarily in VCP yet
+* Near highs OR mid-trend OR breakout candidates
+* High relative strength stocks
+
+This mode is for:
+
+"show me what is running right now so I can manually inspect charts"
+
+Output:
+
+Top 50 stocks sorted by momentum_score
+
+Include:
+
+* ticker
+* momentum_score
+* 1M / 3M / 6M returns
+* RS score
+* sector
+* distance from 52-week high (%)
+* volatility (ATR%)
+
+This is NOT a VCP scan.
 
 ---
 
-IMPORTANT
+# FEATURE 6 — ENHANCED REPORT OUTPUT
 
-* Do NOT rewrite existing modules unless absolutely necessary.
-* Reuse existing indicators.
-* Reuse existing download functions.
-* Reuse existing report generation.
-* Keep backward compatibility.
-* Follow the project's architecture.
-* Explain every architectural decision before making changes.
-* If multiple implementations are possible, propose the options first and wait for approval before modifying the code.
+Add new columns across reports:
+
+* momentum_score
+* momentum_percentile
+* market_regime
+* sector_rank
+* sector_strength
+* is_hot_sector
+
+---
+
+# FEATURE 7 — INTEGRATION RULES
+
+* Do NOT break existing CLI commands
+* Do NOT remove or replace existing filters
+* All new modules must be OPTIONAL add-ons
+* Existing VCP / EP / breakout scanners must still work standalone
+
+---
+
+# DESIGN PRINCIPLE
+
+The system should now behave like:
+
+1. Market Regime Filter (WHEN to be aggressive)
+2. Sector Rotation Filter (WHERE money flows)
+3. Momentum Engine (WHAT stocks are strong)
+4. VCP / EP / Breakout Scanner (WHEN to enter)
+
+---
+
+# ACCEPTANCE CRITERIA
+
+* Existing scans still work unchanged
+* New momentum scan works independently (--scan-momentum)
+* VCP scan now uses momentum-filtered universe
+* Sector rotation influences selection
+* No breaking changes
+* No refactor of old code
+
+---
+
+# GOAL
+
+Transform the screener from:
+
+"pattern-based scanner"
+
+to:
+
+"multi-layer momentum + regime + sector + pattern system similar to institutional workflow"
