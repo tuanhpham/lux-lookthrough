@@ -30,6 +30,8 @@ import { $, el, num, pct, fmtBig } from '../ui/dom.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { momentumTable, type MomentumSortKey } from '../ui/momentumTable.js';
 import { screenerTable, type ScreenerRow, type ScreenerSortKey } from '../ui/screenerTable.js';
+import { toCsv, toHtmlTable, type ReportColumn } from '@screener/core';
+import { downloadCsv, downloadHtml } from '../ui/exportFile.js';
 import { openStock } from '../ui/stockModal.js';
 import { drawLine } from '../ui/charts.js';
 import { t } from '../ui/i18n.js';
@@ -704,8 +706,10 @@ async function runScreen(ctx: AppContext): Promise<void> {
   if (tooFew > 0) parts.push(`${tooFew} had too little history (<60 bars)`);
   if (filtered > 0) parts.push(`${filtered} scanned but filtered out (setup/quality/momentum)`);
   status.textContent = parts.join(' · ') + '.';
+  const top = rows.slice(0, 200);
+  if (top.length) out.appendChild(exportBar(top, 'screener'));
   out.appendChild(
-    screenerTable(rows.slice(0, 200), {
+    screenerTable(top, {
       sortKey: screenSort.key,
       sortDesc: screenSort.desc,
       onRowClick: (sym) => void openStock(ctx, sym),
@@ -714,6 +718,42 @@ async function runScreen(ctx: AppContext): Promise<void> {
       },
     }),
   );
+}
+
+/** Columns for exporting screener rows to CSV/HTML (Phase 12). */
+const SCREENER_EXPORT_COLS: ReportColumn<ScreenerRow>[] = [
+  { key: 'symbol', label: 'Symbol' },
+  { key: 'qualityScore', label: 'Quality', format: (v) => (v as number).toFixed(0) },
+  { key: 'setupType', label: 'Setup' },
+  { key: 'momentumScore', label: 'Momentum', format: (v) => (v as number).toFixed(0) },
+  { key: 'classification', label: 'Class' },
+  { key: 'return1m', label: '1M %', format: (v) => (v == null ? '' : (v as number).toFixed(1)) },
+  { key: 'return3m', label: '3M %', format: (v) => (v == null ? '' : (v as number).toFixed(1)) },
+  { key: 'return6m', label: '6M %', format: (v) => (v == null ? '' : (v as number).toFixed(1)) },
+  { key: 'relativeStrength', label: 'RS', format: (v) => (v as number).toFixed(1) },
+  { key: 'pivot', label: 'Pivot', format: (v) => (v == null ? '' : (v as number).toFixed(2)) },
+  { key: 'entryPrice', label: 'Entry', format: (v) => (v == null ? '' : (v as number).toFixed(2)) },
+  { key: 'stopLoss', label: 'Stop', format: (v) => (v == null ? '' : (v as number).toFixed(2)) },
+  { key: 'riskPct', label: 'Risk %', format: (v) => (v == null ? '' : (v as number).toFixed(1)) },
+];
+
+/** A small "Export ▾" bar that downloads the current rows as CSV or HTML. */
+function exportBar(rows: ScreenerRow[], basename: string): HTMLElement {
+  const bar = el(
+    `<div class="row" style="justify-content:flex-end;margin-bottom:8px;gap:6px">
+       <span class="muted" style="font-size:12px">${rows.length} ${t('export.rows')}</span>
+       <button class="range-btn" data-exp="csv">${t('export.csv')}</button>
+       <button class="range-btn" data-exp="html">${t('export.html')}</button>
+     </div>`,
+  );
+  const title = 'The Professional — Screener';
+  bar.querySelector('[data-exp="csv"]')!.addEventListener('click', () =>
+    downloadCsv(toCsv(rows, SCREENER_EXPORT_COLS), basename),
+  );
+  bar.querySelector('[data-exp="html"]')!.addEventListener('click', () =>
+    downloadHtml(toHtmlTable(rows, SCREENER_EXPORT_COLS, { title, subtitle: new Date().toISOString().slice(0, 10) }), basename),
+  );
+  return bar;
 }
 
 /** Numeric value for the initial screener sort (the table handles re-sorts). */

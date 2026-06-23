@@ -125,6 +125,11 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'detail.fundamentals': { en: 'Fundamentals', vi: 'Chỉ số cơ bản' },
   'detail.about': { en: 'About', vi: 'Giới thiệu' },
 
+  // Export
+  'export.rows': { en: 'rows', vi: 'dòng' },
+  'export.csv': { en: '⬇ CSV', vi: '⬇ CSV' },
+  'export.html': { en: '⬇ HTML', vi: '⬇ HTML' },
+
   // Misc
   'common.slower': { en: '(slower)', vi: '(chậm hơn)' },
   'msg.scanning': { en: 'Scanning', vi: 'Đang quét' },

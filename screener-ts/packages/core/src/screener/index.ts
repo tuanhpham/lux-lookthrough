@@ -4,3 +4,5 @@ export {
 } from './sectorVolume.js';
 export type { TopSectorStock } from './sectorVolume.js';
 export { SECTOR_STOCKS, ALL_SECTORS, VN_SECTOR_STOCKS, VN_ALL_SECTORS } from './sectors.js';
+export { generateWatchlists, DEFAULT_WATCHLIST_GEN_CONFIG } from './watchlistGen.js';
+export type { GeneratedWatchlists, WatchlistGenConfig } from './watchlistGen.js';
