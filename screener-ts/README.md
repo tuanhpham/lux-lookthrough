@@ -225,9 +225,10 @@ silent empty result.
 ## Deploy as a $0 static site (Cloudflare Pages)
 
 ```bash
-cd screener-ts/apps/desktop
+cd screener-ts/
+npm install
 npm run build --workspace @screener/core   # core dist for the production build
-npm run build                              # tsc + vite build → dist/ npm run build --workspace @screener/desktop 
+npm run build --workspace @screener/desktop    # tsc + vite build → dist/ npm run build --workspace @screener/desktop 
 npx wrangler pages deploy dist --project-name screener
 npx wrangler pages secret put FINNHUB_API_KEY   # optional fallback provider
 ```
