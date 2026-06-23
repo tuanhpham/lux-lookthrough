@@ -1,11 +1,3 @@
-huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 screener-ts % npx wrangler pages deploy dist --project-name screener
-
- ⛅️ wrangler 4.103.0
-────────────────────
-▲ [WARNING] Warning: Your working directory is a git repo and has uncommitted changes
-
-  To silence this warning, pass in --commit-dirty=true
-
-
-
-✘ [ERROR] ENOENT: no such file or directory, scandir '/Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/dist'
+1. CP đóng cửa không quá 2 phiên dưới EMA5 trong 1 tuần
+2. giá tăng trong 2 tuần >= 20%
+Xây bộ lọc đấy hộ t nhé

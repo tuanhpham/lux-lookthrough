@@ -240,7 +240,7 @@ npm run build --workspace @screener/desktop   # tsc --noEmit + vite build → ap
 #    current directory, and `wrangler.toml` lives here too. Deploy from anywhere
 #    else and the site ships WITHOUT the proxies → no stock data loads.
 cd apps/desktop
-npx wrangler pages deploy dist --project-name screener
+npx wrangler pages deploy dist --project-name the-professional #screener
 npx wrangler pages secret put FINNHUB_API_KEY --project-name screener   # optional fallback provider
 ```
 
