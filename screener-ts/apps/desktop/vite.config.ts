@@ -123,5 +123,22 @@ export default defineConfig({
     target: 'es2022',
     outDir: 'dist',
     emptyOutDir: true,
+    // Raise the warning threshold so advisory noise is gone, and split the
+    // heavy third-party libraries into their own cacheable chunks.
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Charting library — largest single dep (~150 kB min).
+          'vendor-charts': ['lightweight-charts'],
+          // Markdown renderer — used only in the Blog tab.
+          'vendor-marked': ['marked'],
+          // Technical-indicators lib — used only in core scanners.
+          'vendor-indicators': ['technicalindicators'],
+          // YAML parser — used only for the blog post front-matter.
+          'vendor-yaml': ['js-yaml'],
+        },
+      },
+    },
   },
 });
