@@ -311,30 +311,55 @@ a personal trading journal uses kilobytes and stays free indefinitely.
 
 ### One-time setup
 
+> ⚠️ **Order matters.** You must create the database and paste its id into
+> `wrangler.toml` *before* running the `d1 execute` schema commands. If you run
+> execute while `wrangler.toml` still says `database_id = "REPLACE_WITH_DATABASE_ID"`,
+> it fails with `Invalid uuid [code: 7400]`. See [Troubleshooting](#sync-troubleshooting).
+
 ```bash
 cd apps/desktop
 
-# 1. Create the database (prints a database_id).
+# 1. Create the database. This PRINTS a [[d1_databases]] block with a database_id.
 npx wrangler d1 create screener-sync
+#    (Lost it / already created? Get the id anytime with:)
+npx wrangler d1 info screener-sync
 
-# 2. Paste that id into wrangler.toml → [[d1_databases]] database_id = "...".
+# 2. Open wrangler.toml and replace REPLACE_WITH_DATABASE_ID on the
+#    `database_id = "..."` line with the uuid printed above. Keep the quotes.
 
-# 3. Create the tables (run BOTH local and remote so dev + prod match).
+# 3. Create the tables (run BOTH remote and local so prod + `pages dev` match).
 npx wrangler d1 execute screener-sync --file=./schema.sql --remote
-npx wrangler d1 execute screener-sync --file=./schema.sql --local   # for `wrangler pages dev`
+npx wrangler d1 execute screener-sync --file=./schema.sql --local
 
-# 4. Deploy as usual (Method B above). The D1 binding ships with the Functions.
+# 4. Build (from repo root) then deploy from apps/desktop. The D1 binding ships
+#    with the Functions automatically.
+cd ../..
+npm run build --workspace @screener/core
+npm run build --workspace @screener/desktop
+cd apps/desktop
 npx wrangler pages deploy dist --project-name the-professional
 ```
 
 ### Issuing access codes
 
-Each person needs a row in `users` (a uuid id + their secret code). Insert one:
+Each person needs one row in `users`: an `id`, a secret `code`, and a `name`.
+
+- **`id`** — any **unique** string. It's never typed by users and never leaves
+  the server, so short and memorable is fine (`'me'`, `'tuanh'`, `'alice'`). It
+  does **not** have to be a uuid. Just don't reuse an id across people.
+- **`code`** — the secret you type into the app. Make it **long and hard to
+  guess** — this is the actual security boundary (anyone with the code can
+  read/write that account's data). Must be unique.
+- **`name`** — free text, shown as "Hi {name}" after sign-in.
 
 ```bash
-# Pick any hard-to-guess code. Generate a uuid however you like (or paste one).
+# Just you:
 npx wrangler d1 execute screener-sync --remote --command \
-  "INSERT INTO users (id, code, name) VALUES ('11111111-1111-1111-1111-111111111111', 'my-secret-code-123', 'Tu Anh');"
+  "INSERT INTO users (id, code, name) VALUES ('me', 'pick-a-long-random-secret', 'Tu Anh');"
+
+# An invited person (different id AND different code):
+npx wrangler d1 execute screener-sync --remote --command \
+  "INSERT INTO users (id, code, name) VALUES ('alice', 'alice-long-random-secret', 'Alice');"
 ```
 
 Then in the app: click the **☁️ cloud button** (top-right) → paste the code →
@@ -344,8 +369,31 @@ code, and everything appears. To revoke a person, delete their `users` row:
 
 ```bash
 npx wrangler d1 execute screener-sync --remote --command \
-  "DELETE FROM users WHERE code = 'my-secret-code-123';"
+  "DELETE FROM users WHERE code = 'pick-a-long-random-secret';"
 ```
+
+You can inspect what's stored at any time:
+
+```bash
+npx wrangler d1 execute screener-sync --remote --command "SELECT id, name FROM users;"
+npx wrangler d1 execute screener-sync --remote --command "SELECT key, updated_at FROM kv WHERE user_id = 'me';"
+```
+
+<a name="sync-troubleshooting"></a>
+### Troubleshooting
+
+- **`Invalid uuid [code: 7400]` when running `d1 execute`** — `wrangler.toml`
+  still has the `REPLACE_WITH_DATABASE_ID` placeholder (or a wrong id). Run
+  `npx wrangler d1 info screener-sync`, copy the real id into the
+  `database_id = "..."` line, and re-run the execute command.
+- **`no such table: users`** — you skipped step 3, or ran it only `--local`
+  while deploying `--remote` (or vice-versa). Run both `d1 execute` schema lines.
+- **`401 invalid or missing access code` in the app** — the code typed doesn't
+  match any `users.code` row, or you applied the schema/insert only `--local`.
+  Confirm with the `SELECT id, name FROM users;` query above (with `--remote`).
+- **`503 sync not configured (no D1 binding)`** — the deployed site has no `DB`
+  binding. Make sure `wrangler.toml` has the `[[d1_databases]]` block with a real
+  id and you deployed from `apps/desktop` (so wrangler picks up the config).
 
 ### How it behaves
 
