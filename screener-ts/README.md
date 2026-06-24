@@ -435,16 +435,22 @@ npx wrangler d1 execute screener-sync --remote --command "SELECT key, updated_at
 
 ### How it behaves
 
+- **What syncs:** watchlists, blog posts, paper-trading accounts (all their
+  cash/transactions), and the once-a-day scan results. Anything stored through
+  the app's `Storage` layer rides along automatically.
 - **Local-first:** reads are instant from the device; writes save locally then
   push to D1 best-effort, so the UI never blocks and works offline.
 - **Last-write-wins:** the newest change to a key wins, by timestamp. First
   connect is **non-destructive** — a device with existing local data uploads it
-  rather than being wiped, and an empty device downloads everything.
-- **Once-a-day scans:** a full universe scan saves its result rows under a
-  day-keyed entry (`scan:<id>:<YYYY-MM-DD>`) to local **and** D1. Reopening the
-  Top Picks tab shows today's results instantly with a "Scanned at HH:MM" banner
-  and a manual **↻ Refresh** — it never re-fetches on its own, so you run the big
-  scan once and it sticks (and shows on your other devices too).
+  rather than being wiped, and an empty device downloads everything. Paper-trading
+  accounts are stored as one record, so the most-recently-saved device wins the
+  whole set (right for a single primary user; not a per-account 3-way merge).
+- **Once-a-day scans (Top Picks AND Sectors):** a full scan saves its result rows
+  under a day-keyed entry (`scan:<id>:<YYYY-MM-DD>`) to local **and** D1.
+  Reopening the tab shows today's results instantly with a "Scanned at HH:MM"
+  banner and a manual **↻ Refresh** — it never re-fetches on its own, so you run
+  the big scan once and it sticks (and shows on your other devices too). Switching
+  strategy/market/universe just shows that selection's cached result if it exists.
 
 ### Local testing with D1
 

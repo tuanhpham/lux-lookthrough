@@ -117,15 +117,26 @@ function picksCacheId(): string {
   return `${picksStrategy}:${picksMarket}:${picksUniverse}${momentumPrefilter ? ':pf' : ''}`;
 }
 
-/** Render the "Scanned at HH:MM today · Refresh" banner above cached results.
- * `onRefresh` re-runs the live scan. */
-function renderScanBanner(at: number, scanned: number, onRefresh: () => void): void {
-  const status = $('#picks-status')!;
+/** Render the "Scanned at HH:MM today · Refresh" banner into a status element.
+ * `onRefresh` re-runs the live scan. `runLabel` is the verb on the button. */
+function renderScanBannerInto(
+  selector: string,
+  at: number,
+  scanned: number,
+  onRefresh: () => void,
+  runLabel: string = t('picks.run'),
+): void {
+  const status = $(selector)!;
   const lang = getLang();
   status.innerHTML = `<span class="scan-cached">${scannedAtLabel(at, lang)} · ${scanned} ${t(
     'picks.scanned',
-  )}</span> <button id="picks-rescan" class="link-btn">↻ ${t('picks.run')}</button>`;
-  status.querySelector('#picks-rescan')!.addEventListener('click', onRefresh);
+  )}</span> <button class="link-btn scan-rescan">${runLabel}</button>`;
+  status.querySelector('.scan-rescan')!.addEventListener('click', onRefresh);
+}
+
+/** Top Picks banner (writes to #picks-status). */
+function renderScanBanner(at: number, scanned: number, onRefresh: () => void): void {
+  renderScanBannerInto('#picks-status', at, scanned, onRefresh);
 }
 
 export function renderPicks(ctx: AppContext): void {
@@ -954,11 +965,53 @@ export function renderSectors(ctx: AppContext): void {
       if (m === sectorMarket) return;
       sectorMarket = m;
       root.querySelectorAll('[data-sector-market]').forEach((x) => x.classList.toggle('active', x === b));
-      void runSectors(ctx);
+      void showSectors(ctx);
     }),
   );
   $('#load-sectors')!.addEventListener('click', () => void runSectors(ctx));
-  void runSectors(ctx);
+  // Show today's cached ranking if present (instant, zero requests); else prompt.
+  // Never auto-fetches — Scan runs it once and it sticks all day + syncs.
+  void showSectors(ctx);
+}
+
+/** Self-contained, serializable row of a sector scan — everything the list and
+ * the per-sector volume charts need, so the scan renders fully from cache (and
+ * syncs to D1) WITHOUT keeping the raw OHLCV around. The hot/cold flags let the
+ * rotation banner rebuild from rows alone. */
+interface SectorSnapshotRow {
+  sector: string;
+  rank: number | null;
+  avgReturn1m: number | null;
+  avgReturn3m: number | null;
+  avgRelativeStrength: number | null;
+  avgVolume3m: number | null;
+  avgVolume6m: number | null;
+  volumeChangePct: number | null;
+  hot: boolean;
+  cold: boolean;
+  weekly: { date: string; volume: number }[];
+  monthly: { date: string; volume: number }[];
+}
+
+const sectorsCacheId = (): string => `sectors:${sectorMarket}`;
+
+/** Render today's cached sector scan if present, else a "press Scan" prompt.
+ * Never triggers a live fetch. */
+async function showSectors(ctx: AppContext): Promise<void> {
+  const out = $('#sector-results')!;
+  const cached = await loadScan<SectorSnapshotRow>(ctx, sectorsCacheId());
+  if (cached && cached.rows.length) {
+    renderScanBannerInto('#sector-status', cached.at, cached.scanned, () => void runSectors(ctx), t('sectors.scan'));
+    renderSectorSnapshot(ctx, cached.rows);
+    return;
+  }
+  out.innerHTML = '';
+  const lang = getLang();
+  $('#sector-status')!.innerHTML = `<span class="muted">${
+    lang === 'vi'
+      ? 'Chưa quét hôm nay. Bấm “' + t('sectors.scan') + '” để chạy một lần — kết quả giữ cả ngày.'
+      : 'Not scanned today. Press “' + t('sectors.scan') + '” to run once — results stay all day.'
+  }</span>`;
 }
 
 async function runSectors(ctx: AppContext): Promise<void> {
@@ -989,40 +1042,76 @@ async function runSectors(ctx: AppContext): Promise<void> {
     ...ranked.map((r) => r.sector).filter((s) => !momBySector.has(s)),
   ];
 
-  status.textContent = `${orderedSectors.length} sectors ranked.`;
-  out.innerHTML = '';
-  renderSectorRotationBanner(momReport);
-  for (const sector of orderedSectors) {
+  // Build self-contained rows (rank/returns + precomputed volume series) so the
+  // scan can be persisted, synced across devices, and re-rendered without the
+  // raw OHLCV.
+  const coldSet = new Set(momReport.coldSectors);
+  const rows: SectorSnapshotRow[] = orderedSectors.map((sector) => {
     const r = volBySector.get(sector);
     const mom = momBySector.get(sector);
-    const color = mom
-      ? mom.avgRelativeStrength >= 0 ? 'var(--accent)' : 'var(--danger)'
+    const syms = sectorMap[sector] ?? [];
+    return {
+      sector,
+      rank: mom ? mom.rank : null,
+      avgReturn1m: mom ? mom.avgReturn1m : null,
+      avgReturn3m: mom ? mom.avgReturn3m : null,
+      avgRelativeStrength: mom ? mom.avgRelativeStrength : null,
+      avgVolume3m: r ? r.avgVolume3m : null,
+      avgVolume6m: r ? r.avgVolume6m : null,
+      volumeChangePct: r ? r.volumeChangePct : null,
+      hot: hotSet.has(sector),
+      cold: coldSet.has(sector),
+      weekly: sectorVolumeSeries(syms, 'weekly'),
+      monthly: sectorVolumeSeries(syms, 'monthly'),
+    };
+  });
+
+  status.textContent = `${orderedSectors.length} sectors ranked.`;
+  renderSectorSnapshot(ctx, rows);
+  // Persist today's scan (local + D1) so it sticks all day and syncs.
+  await saveScan<SectorSnapshotRow>(ctx, sectorsCacheId(), rows, universe.length);
+}
+
+/** Render sector rows (used by both the live scan and the cached path). The
+ * per-sector volume charts draw from each row's precomputed series. */
+function renderSectorSnapshot(ctx: AppContext, rows: SectorSnapshotRow[]): void {
+  const out = $('#sector-results')!;
+  out.innerHTML = '';
+  renderSectorRotationBanner({
+    hotSectors: rows.filter((r) => r.hot).map((r) => r.sector),
+    coldSectors: rows.filter((r) => r.cold).map((r) => r.sector),
+  } as SectorMomentumReport);
+
+  for (const s of rows) {
+    const color = s.avgRelativeStrength != null
+      ? s.avgRelativeStrength >= 0 ? 'var(--accent)' : 'var(--danger)'
       : 'var(--faint)';
-    const momRank = mom ? `#${mom.rank}` : '—';
-    const hot = hotSet.has(sector) ? ' 🔥' : '';
-    const volLine = r
-      ? `3m ${fmtBig(r.avgVolume3m)} · 6m ${fmtBig(r.avgVolume6m)} avg vol · vol ${pct(r.volumeChangePct)}`
+    const momRank = s.rank != null ? `#${s.rank}` : '—';
+    const hot = s.hot ? ' 🔥' : '';
+    const hasVol = s.avgVolume3m != null;
+    const volLine = hasVol
+      ? `3m ${fmtBig(s.avgVolume3m!)} · 6m ${fmtBig(s.avgVolume6m!)} avg vol · vol ${pct(s.volumeChangePct)}`
       : 'no volume data';
     const row = el(`
       <div class="sector-row">
-        <div class="sector-head" data-sector="${sector}">
+        <div class="sector-head" data-sector="${s.sector}">
           <span class="sector-rank">${momRank}</span>
-          <div style="flex:1"><strong>${sector}${hot}</strong>
+          <div style="flex:1"><strong>${s.sector}${hot}</strong>
             <div class="muted" style="font-size:11px">${
-              mom ? `1M ${pct(mom.avgReturn1m)} · 3M ${pct(mom.avgReturn3m)} · RS ${num(mom.avgRelativeStrength, 1)} · ` : ''
+              s.rank != null ? `1M ${pct(s.avgReturn1m)} · 3M ${pct(s.avgReturn3m)} · RS ${num(s.avgRelativeStrength, 1)} · ` : ''
             }${volLine}</div></div>
           <span class="badge" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color}">${
-            mom ? num(mom.avgRelativeStrength, 1) + ' RS' : (r ? pct(r.volumeChangePct) : '—')
+            s.rank != null ? num(s.avgRelativeStrength, 1) + ' RS' : (hasVol ? pct(s.volumeChangePct) : '—')
           }</span>
           <span class="muted caret">▾</span>
         </div>
-        <div class="sector-detail hidden" data-detail="${sector}">
+        <div class="sector-detail hidden" data-detail="${s.sector}">
           <div class="row" style="margin-bottom:8px">
             <div class="row" data-freq-group>
               <button class="range-btn active" data-freq="weekly">Weekly</button>
               <button class="range-btn" data-freq="monthly">Monthly</button>
             </div>
-            <button class="btn-outline" style="margin-left:auto" data-screen="${sector}">${t('sectors.screenstocks')}</button>
+            <button class="btn-outline" style="margin-left:auto" data-screen="${s.sector}">${t('sectors.screenstocks')}</button>
           </div>
           <div class="chart sector-chart" style="height:180px"></div>
         </div>
@@ -1037,9 +1126,7 @@ async function runSectors(ctx: AppContext): Promise<void> {
 
     const drawChart = () => {
       const chartEl = row.querySelector<HTMLElement>('.sector-chart')!;
-      // Compute the sector's summed volume series from the already-fetched 6mo
-      // data (works for any market; the provider's getSectorVolume is US-only).
-      const points = sectorVolumeSeries(sectorMapFor(sectorMarket)[sector] ?? [], freq);
+      const points = freq === 'weekly' ? s.weekly : s.monthly;
       if (!points.length) {
         chartEl.innerHTML = `<div class="muted" style="text-align:center;padding:40px">No volume data.</div>`;
         return;
@@ -1070,7 +1157,7 @@ async function runSectors(ctx: AppContext): Promise<void> {
     detail.querySelector<HTMLElement>('[data-screen]')!.addEventListener('click', () => {
       // Switch to the Screener tab, then pre-fill + run for this sector.
       document.querySelector<HTMLElement>('[data-tab="screener"]')?.click();
-      screenSector(ctx, sector);
+      screenSector(ctx, s.sector);
     });
   }
 }
