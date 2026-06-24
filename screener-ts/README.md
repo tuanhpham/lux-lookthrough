@@ -486,13 +486,45 @@ npx wrangler d1 execute screener-sync --remote --command "SELECT key, updated_at
   the big scan once and it sticks (and shows on your other devices too). Switching
   strategy/market/universe just shows that selection's cached result if it exists.
 
-### Local testing with D1
+### Local development & sync — which command syncs to what
+
+There are two ways to run locally, and they hit **different** databases. This
+matters for "do I need to recreate my user / code locally?".
+
+| Command | `/api/sync` reaches | Which D1 | Your access code |
+|---|---|---|---|
+| **`npm run dev:desktop`** (plain Vite) | the **deployed** Functions at `the-professional.pages.dev` (via a dev-only proxy) | **remote / production** | **same code you already issued** — nothing new to create |
+| Deployed site / phone (`*.pages.dev`) | its own Functions | **remote / production** | same code |
+| **`wrangler pages dev dist`** | a **local** Functions runtime | **`--local` D1** (a separate SQLite file in `.wrangler/`) | a **separate** local DB → seed it (below) |
+
+So for everyday local work, just run `npm run dev:desktop`, click the ☁️ button,
+and **enter the same access code** — you'll see and save the exact same
+watchlists, case studies and scans as your phone, because dev proxies sync to the
+same remote database. **No second user, no second code.** Only the tiny sync calls
+hit the deployed Functions; stock fetches still go straight to Yahoo and don't
+count against the 100k/day limit.
+
+> The proxy target defaults to `https://the-professional.pages.dev` (in
+> `vite.config.ts`). If your Pages URL differs, start dev with
+> `SYNC_ORIGIN=https://your-site.pages.dev npm run dev:desktop`.
+
+### Fully-offline testing with a local D1 (`wrangler pages dev`)
+
+Only needed if you want to exercise the Functions without touching production.
+`wrangler pages dev` spins up an **isolated local D1** that starts empty, so you
+must seed the schema and (re-using the same code string is fine) a user:
 
 ```bash
 cd apps/desktop
-npm run build --workspace @screener/desktop   # from root, or build core+desktop first
-npx wrangler pages dev dist                    # serves Functions + the --local D1
+npm run build --workspace @screener/desktop          # from root, or build core+desktop first
+npx wrangler d1 execute screener-sync --file=./schema.sql --local
+npx wrangler d1 execute screener-sync --local --command \
+  "INSERT INTO users (id, code, name) VALUES ('me', 'your-secret-code', 'Tu Anh');"
+npx wrangler pages dev dist                           # serves Functions + the --local D1
 ```
+
+This local DB is wholly separate from production — data added here does **not**
+sync to your phone, and vice-versa.
 
 ---
 
