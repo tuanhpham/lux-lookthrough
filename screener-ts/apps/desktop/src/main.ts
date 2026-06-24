@@ -8,6 +8,7 @@ import { renderPortfolio } from './tabs/portfolioTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
 import { renderBlog } from './tabs/blogTab.js';
 import { renderPlaybook } from './tabs/playbookTab.js';
+import { renderCaseStudies } from './tabs/caseStudiesTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
@@ -37,7 +38,7 @@ onModalClose(() => {
   if (entered && currentTab === 'watchlist') renderTab('watchlist');
 });
 
-const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'backtest', 'blog', 'playbook', 'learn', 'about'] as const;
+const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'backtest', 'blog', 'playbook', 'casestudies', 'learn', 'about'] as const;
 type Tab = (typeof TABS)[number];
 
 let entered = false;
@@ -79,6 +80,9 @@ function renderTab(tab: Tab): void {
       break;
     case 'playbook':
       renderPlaybook(ctx);
+      break;
+    case 'casestudies':
+      renderCaseStudies(ctx);
       break;
     case 'learn':
       renderLearn();

@@ -513,6 +513,11 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
       what: 'Quy trình giao dịch hàng ngày dưới dạng checklist tương tác: mở cửa, đóng cửa, và quản lý vị thế.',
       howTo: 'Dùng như danh sách kiểm tra hàng ngày. Đánh dấu từng mục khi hoàn thành; trạng thái không được lưu lại (làm mới mỗi ngày).',
     },
+    {
+      icon: '📊', name: 'Hồ sơ Setup (Case Studies)',
+      what: 'Nhật ký các thiết lập trong quá khứ: ghim một mã vào ngày then chốt, kèm mức mua/cắt lỗ/mục tiêu, các chất xúc tác có ngày tháng, và ghi chú/bài học. Mỗi hồ sơ vẽ biểu đồ nến ±3 tháng quanh ngày đó với mọi mức và dấu mốc.',
+      howTo: 'Bấm “＋ Hồ sơ mới” → nhập mã, ngày then chốt, các mức và chất xúc tác → Lưu. Mở hồ sơ để xem biểu đồ (đổi cửa sổ ±1/3/6 tháng) và bấm “⬇ Tải HTML” để xuất báo cáo độc lập (mở ra có nút In → Lưu thành PDF). Hồ sơ được đồng bộ giữa các thiết bị.',
+    },
   ] : [
     {
       icon: '🏆', name: 'Top Picks',
@@ -553,6 +558,11 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
       icon: '📓', name: 'Playbook',
       what: 'Daily trading process as an interactive checklist: open, close, and position management.',
       howTo: 'Use it as a daily checklist. Check items off as you complete them; state is not saved (resets each session).',
+    },
+    {
+      icon: '📊', name: 'Case Studies',
+      what: 'A journal of past setups: pin a stock to a key date with entry/stop/target levels, dated catalysts, and notes/lessons. Each case renders a ±3-month candle chart around that date with every level and marker drawn on it.',
+      howTo: 'Click “＋ New case study” → enter the symbol, key date, levels and catalysts → Save. Open a case to view the chart (switch ±1/3/6-month window) and hit “⬇ Download HTML” for a standalone report (it opens with a Print → Save as PDF button). Case studies sync across your devices.',
     },
   ];
 
