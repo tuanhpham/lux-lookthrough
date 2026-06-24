@@ -217,11 +217,45 @@ silent empty result.
   in-app and **download as `.md`** to drop into `posts/` and redeploy.
 - **Playbook** — a trading-system page: market regimes, reusable prompts (with
   copy buttons), a persisted daily routine checklist, risk rules, and data sources.
-- **Learn** — the score explainer above + a full glossary of every metric, with
-  plain-English definitions (bilingual).
+- **Learn** — the score explainer above, a **point-in-time / as-of-date** guide,
+  + a full glossary of every metric, with plain-English definitions (bilingual).
 - **AnalysisProvider** — interface only (scaffold) for optional LLM summaries.
   Numbers always come from the DataProvider; the provider only interprets supplied
   data and returns structured `{ summary, strengths, risks }`.
+
+---
+
+## Point-in-time ("as of date") screening
+
+Every screen runs on **real-time** data by default (the latest bar is "today").
+**As-of-date** mode lets you pick a past date and treat it as "now" — the screen
+uses only data **up to and including** that date, so you can study what a setup
+looked like at a moment in the past.
+
+This works because the scanners already treat the **last bar as the current day**
+with no lookahead, so historical screening is simply *fetch a longer history, then
+slice the bars to end on the chosen date*. The QM quality score, momentum, RS,
+trend filter, VCP/EP detection and entry/stop/target are all recomputed from that
+window — exactly as they would have read on that day.
+
+- **Where:** Top Picks, Screener and Sectors each have their own **As of date**
+  picker + a **History depth** selector (2y / 5y / 10y / Max) and a **Live** reset.
+  History depth controls how much data is fetched *before* the date (so EMA200 etc.
+  are defined); it isn't a limit on which date you can choose.
+- **Clearly flagged:** an amber **"Historical mode"** badge and a tinted results
+  edge appear so you never confuse it with live data. Historical scans are cached
+  under a date-stamped key, separate from your live once-a-day scans (and they
+  sync across devices the same way).
+- **Stock detail page:** opening a name from historical results computes the chart,
+  EMAs, QM/momentum score, analysis and trade levels **as of that date**; the
+  fundamentals-trend chart shows only periods reported by then.
+- **Fundamentals caveat:** Yahoo only exposes *today's* live/TTM figures, so the
+  stat grid in historical mode falls back to the **latest annual statement before
+  the date** for P/E, EPS, margin, etc. (labeled "(annual)"). Market cap, ROE and
+  dividend yield can't be reconstructed for the past and show "—". Everything
+  price-derived is exact for the point in time.
+- **Paper Trading:** the **date** field on the Buy/Sell form records a back-dated
+  transaction, and the price hint auto-fills the **close on that date**.
 
 ---
 

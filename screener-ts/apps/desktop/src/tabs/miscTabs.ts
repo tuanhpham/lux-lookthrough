@@ -476,12 +476,12 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
     {
       icon: '🏆', name: 'Top Picks',
       what: 'Quét toàn bộ vũ trụ cổ phiếu để tìm thiết lập tốt nhất. Ba chiến lược: <b>Qullamaggie</b> (VCP & EP), <b>Momentum</b> (mã đang tăng mạnh nhất), và <b>Surge</b> (bứt phá tuần này).',
-      howTo: 'Chọn chiến lược → chọn thị trường và phạm vi (US curated ~540 mã, S&P 1500...) → nhấn ↻ Chạy. Kết quả cập nhật dần khi quét xong từng đợt. Bật "Lọc động lượng trước" để thu hẹp vũ trụ về nhóm mạnh nhất trước khi tìm mẫu hình.',
+      howTo: 'Chọn chiến lược → chọn thị trường và phạm vi (US curated ~540 mã, S&P 1500...) → nhấn ↻ Chạy. Kết quả cập nhật dần khi quét xong từng đợt. Bật "Lọc động lượng trước" để thu hẹp vũ trụ về nhóm mạnh nhất trước khi tìm mẫu hình. Dùng <b>Tính đến ngày</b> để quét theo một ngày trong quá khứ (xem mục bên dưới).',
     },
     {
       icon: '🔍', name: 'Screener',
       what: 'Bộ lọc tùy chỉnh: nhập mã bất kỳ hoặc chọn ngành. Lọc theo loại thiết lập (VCP / EP), điểm chất lượng tối thiểu, mức động lượng.',
-      howTo: 'Nhập mã (cách nhau bằng dấu phẩy) hoặc nhấp vào chip ngành để chọn toàn bộ ngành đó → chọn bộ lọc → nhấn Chạy lọc. Nhấp vào hàng để xem biểu đồ chi tiết và phân tích.',
+      howTo: 'Nhập mã (cách nhau bằng dấu phẩy) hoặc nhấp vào chip ngành để chọn toàn bộ ngành đó → chọn bộ lọc → nhấn Chạy lọc. Nhấp vào hàng để xem biểu đồ chi tiết và phân tích. Đặt <b>Tính đến ngày</b> để lọc theo một ngày trong quá khứ.',
     },
     {
       icon: '👁', name: 'Watchlists',
@@ -491,12 +491,12 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
     {
       icon: '🗺', name: 'Sectors',
       what: 'Xếp hạng ngành theo động lượng 1M/3M và RS so với SPY. Cho thấy tiền đang chảy về ngành nào.',
-      howTo: 'Nhấn ↻ Quét ngành → nhấp vào hàng ngành để xem cổ phiếu trong ngành → nhấn "Lọc cổ phiếu →" để chuyển các mã sang Screener.',
+      howTo: 'Nhấn ↻ Quét ngành → nhấp vào hàng ngành để xem cổ phiếu trong ngành → nhấn "Lọc cổ phiếu →" để chuyển các mã sang Screener. Có thể đặt <b>Tính đến ngày</b> để xem xếp hạng ngành tại một ngày trong quá khứ.',
     },
     {
       icon: '📈', name: 'Paper Trading',
       what: 'Giao dịch giấy nhiều tài khoản độc lập. Mua/bán, theo dõi P&L và rủi ro theo thời gian thực (dữ liệu quote trực tiếp).',
-      howTo: 'Chọn hoặc tạo tài khoản → nhập mã và số lượng → nhấn Mua/Bán. Đường vốn và các chỉ số rủi ro cập nhật tự động.',
+      howTo: 'Chọn hoặc tạo tài khoản → nhập mã và số lượng → nhấn Mua/Bán. Đường vốn và các chỉ số rủi ro cập nhật tự động. Có thể đặt <b>ngày</b> trong quá khứ để ghi giao dịch lịch sử — gợi ý giá tự lấy giá đóng cửa của ngày đó.',
     },
     {
       icon: '⏱', name: 'Backtest',
@@ -517,12 +517,12 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
     {
       icon: '🏆', name: 'Top Picks',
       what: 'Sweeps the whole stock universe for the best setups. Three strategies: <b>Qullamaggie</b> (VCP & episodic pivot patterns), <b>Momentum</b> (the strongest movers right now), and <b>Surge</b> (names that broke out this week).',
-      howTo: 'Pick a strategy → pick a market and universe (US curated ~540, S&P 1500, …) → hit ↻ Run. Results stream in as each batch is scanned. Enable "Momentum pre-filter" to narrow the universe to the highest-momentum names before looking for patterns.',
+      howTo: 'Pick a strategy → pick a market and universe (US curated ~540, S&P 1500, …) → hit ↻ Run. Results stream in as each batch is scanned. Enable "Momentum pre-filter" to narrow the universe to the highest-momentum names before looking for patterns. Use <b>As of date</b> to screen as of a past day (see the section below).',
     },
     {
       icon: '🔍', name: 'Screener',
       what: 'Custom scan: paste any tickers or click sector chips. Filter by setup type (VCP / EP), min quality score, and momentum tier.',
-      howTo: 'Type symbols (comma-separated) or click sector chips → set your filters → Run Screen. Click any row to open the detail chart with trade levels, analysis, and fundamentals.',
+      howTo: 'Type symbols (comma-separated) or click sector chips → set your filters → Run Screen. Click any row to open the detail chart with trade levels, analysis, and fundamentals. Set <b>As of date</b> to screen as of a past day.',
     },
     {
       icon: '👁', name: 'Watchlists',
@@ -532,12 +532,12 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
     {
       icon: '🗺', name: 'Sectors',
       what: 'Ranks all sectors by 1M/3M momentum and RS vs SPY. Shows where money is flowing — which sectors are hot and which are cold.',
-      howTo: 'Hit ↻ Scan sectors → click a sector row to see its stocks → hit "Screen stocks →" to send them to the Screener.',
+      howTo: 'Hit ↻ Scan sectors → click a sector row to see its stocks → hit "Screen stocks →" to send them to the Screener. You can set <b>As of date</b> to see the sector ranking as of a past day.',
     },
     {
       icon: '📈', name: 'Paper Trading',
       what: 'Multi-account paper trading with live quotes. Buy/sell, track PnL and risk metrics across independent accounts.',
-      howTo: 'Select or create an account → enter a ticker and size → Buy/Sell. The equity curve and risk stats update in real time.',
+      howTo: 'Select or create an account → enter a ticker and size → Buy/Sell. The equity curve and risk stats update in real time. Set a past <b>date</b> to record a historical transaction — the price hint auto-fills that date\'s close.',
     },
     {
       icon: '⏱', name: 'Backtest',
@@ -633,6 +633,41 @@ function backtestGuideHtml(lang: 'en' | 'vi'): string {
   </div>`;
 }
 
+/** Explainer for as-of (point-in-time / historical) screening. */
+function asOfGuideHtml(lang: 'en' | 'vi'): string {
+  const vi = lang === 'vi';
+  const intro = vi
+    ? `Mặc định, mọi bộ lọc dùng dữ liệu <b>thời gian thực</b> (nến mới nhất là "hôm nay"). Chế độ <b>Tính đến ngày</b> cho phép bạn chọn một ngày trong quá khứ và coi ngày đó là "hôm nay" — bộ lọc chỉ dùng dữ liệu <i>tới và bao gồm</i> ngày đó. Tuyệt vời để nghiên cứu xem một mẫu hình trông như thế nào tại thời điểm trong quá khứ.`
+    : `By default every screen uses <b>real-time</b> data (the latest bar is "today"). <b>As-of-date</b> mode lets you pick a past date and treat it as "now" — the screen uses only data <i>up to and including</i> that date. Ideal for studying what a setup looked like at a moment in the past.`;
+
+  const points = vi
+    ? [
+        `<b>Có ở đâu:</b> Top Picks, Screener và Sectors — mỗi tab có bộ chọn ngày riêng. Đặt ngày, hoặc bấm <b>Trực tiếp</b> để quay lại dữ liệu thời gian thực.`,
+        `<b>Độ sâu lịch sử (2/5/10 năm/Max):</b> chọn lượng dữ liệu tải về <i>trước</i> ngày đã chọn, để các chỉ báo như EMA200 đủ dữ liệu. Đây là lượng dữ liệu tải, không phải giới hạn ngày chọn.`,
+        `<b>Cờ "Chế độ lịch sử":</b> khi bật, một nhãn vàng và viền kết quả giúp bạn không nhầm với dữ liệu trực tiếp. Kết quả quét lịch sử được lưu riêng (không lẫn với quét trực tiếp).`,
+        `<b>Trang chi tiết mã:</b> mở một mã từ kết quả lịch sử thì biểu đồ, EMA, điểm QM/động lượng, phân tích và các mức mua/dừng/mục tiêu <i>đều</i> tính đến ngày đó. Lưới chỉ số cơ bản dùng số liệu <b>năm gần nhất trước ngày</b> (được ghi rõ).`,
+        `<b>Giao dịch mô phỏng:</b> ô ngày trên form Mua/Bán cho phép ghi lệnh trong quá khứ — gợi ý giá sẽ tự lấy giá đóng cửa <i>của ngày đó</i>.`,
+      ]
+    : [
+        `<b>Where:</b> Top Picks, Screener and Sectors — each tab has its own date picker. Set a date, or press <b>Live</b> to return to real-time data.`,
+        `<b>History depth (2/5/10y/Max):</b> chooses how much data is fetched <i>before</i> the chosen date so indicators like EMA200 are well-defined. It's the fetch depth, not a limit on which date you can pick.`,
+        `<b>"Historical mode" flag:</b> when active, an amber badge and a tinted results edge make sure you never confuse it with live data. Historical scans are cached separately from your live scans.`,
+        `<b>Stock detail page:</b> open a name from historical results and the chart, EMAs, QM/momentum score, analysis and entry/stop/target levels are <i>all</i> computed as of that date. The fundamentals stat grid uses the <b>latest annual figures before the date</b> (clearly labeled).`,
+        `<b>Paper Trading:</b> the date field on the Buy/Sell form lets you record a past transaction — the price hint auto-fills the close <i>on that date</i>.`,
+      ];
+
+  const caveat = vi
+    ? `<b>Lưu ý về số liệu cơ bản:</b> Yahoo chỉ cung cấp chỉ số TTM/trực tiếp của <i>hôm nay</i>, nên ở chế độ lịch sử ta dùng báo cáo <b>năm gần nhất trước ngày</b> cho P/E, EPS, biên lợi nhuận… Vốn hóa, ROE và tỷ suất cổ tức không tái dựng được cho quá khứ nên hiển thị "—". Mọi thứ tính từ giá (xu hướng, mẫu hình, mức giao dịch) thì hoàn toàn chính xác theo thời điểm.`
+    : `<b>Note on fundamentals:</b> Yahoo only exposes <i>today's</i> live/TTM figures, so historical mode uses the <b>latest annual statement before the date</b> for P/E, EPS, margin, etc. Market cap, ROE and dividend yield can't be reconstructed for the past, so they show "—". Everything price-derived (trend, patterns, trade levels) is exact for the point in time.`;
+
+  return `<div class="card analysis-card" style="margin-bottom:22px">
+    <h2 style="font-size:15px;margin:0 0 8px">${vi ? '📅 Lọc theo ngày trong quá khứ (Tính đến ngày)' : '📅 Point-in-time screening (As of date)'}</h2>
+    <p class="muted" style="line-height:1.65;margin:0 0 12px">${intro}</p>
+    <ul class="analysis-list">${points.map((p) => `<li>${p}</li>`).join('')}</ul>
+    <p class="muted" style="line-height:1.65;margin:8px 0 0;font-size:12px">${caveat}</p>
+  </div>`;
+}
+
 export function renderLearn(): void {
   const root = $('#tab-learn')!;
   const lang = getLang();
@@ -640,6 +675,7 @@ export function renderLearn(): void {
     <p class="subtitle">${lang === 'vi' ? 'Hướng dẫn từng trang, cách tính điểm, cách lọc, và mọi chỉ số — giải thích dễ hiểu.' : 'Page-by-page guide, how the score is computed, how filtering works, and every metric — in plain English.'}</p>`;
   root.appendChild(el(pageGuideHtml(lang)));
   root.appendChild(el(scoreExplainerHtml(lang)));
+  root.appendChild(el(asOfGuideHtml(lang)));
   root.appendChild(el(backtestGuideHtml(lang)));
   for (const group of GLOSSARY_GROUPS) {
     const section = el(`<div style="margin-bottom:18px"></div>`);

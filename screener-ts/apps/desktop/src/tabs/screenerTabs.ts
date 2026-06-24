@@ -50,6 +50,18 @@ import {
 } from '../adapters/universe.js';
 import { loadScan, saveScan, scannedAtLabel } from './scanCache.js';
 import { getLang } from '../ui/i18n.js';
+import {
+  asOfControlsHtml,
+  wireAsOfControls,
+  getAsOf,
+  isHistorical,
+  fetchPeriodFor,
+  sliceMap,
+  sliceSeries,
+  cacheSuffix,
+  asOfLabel,
+  type AsOfScope,
+} from '../ui/asOf.js';
 
 const PERIOD: Period = '1y';
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
@@ -112,9 +124,10 @@ let screenSort: { key: ScreenerSortKey; desc: boolean } = { key: 'qualityScore',
 let scanToken = 0;
 
 /** Cache id for the current picks selection (strategy + market + universe). The
- * day is appended by the scanCache layer. */
+ * day is appended by the scanCache layer; an as-of suffix keeps a historical
+ * scan in its own slot so it never collides with the live one. */
 function picksCacheId(): string {
-  return `${picksStrategy}:${picksMarket}:${picksUniverse}${momentumPrefilter ? ':pf' : ''}`;
+  return `${picksStrategy}:${picksMarket}:${picksUniverse}${momentumPrefilter ? ':pf' : ''}${cacheSuffix('picks')}`;
 }
 
 /** Render the "Scanned at HH:MM today · Refresh" banner into a status element.
@@ -176,6 +189,7 @@ export function renderPicks(ctx: AppContext): void {
         ${t('picks.prefilter')}
       </label>
     </div>
+    ${asOfControlsHtml('picks')}
     <div id="picks-regime" class="muted" style="margin:6px 0 0;font-size:12px"></div>
     <div id="picks-progress" class="picks-progress hidden"><div id="picks-bar"></div></div>
     <div id="picks-status" class="muted" style="margin:8px 0 12px"></div>
@@ -209,6 +223,11 @@ export function renderPicks(ctx: AppContext): void {
     momentumPrefilter = (e.target as HTMLInputElement).checked;
     void showPicks(ctx);
   });
+  wireAsOfControls('picks', root, () => {
+    applyHistoricalFlag('picks', root);
+    void showPicks(ctx);
+  });
+  applyHistoricalFlag('picks', root);
 
   // Show today's cached results if we already scanned this selection; otherwise
   // a prompt. We deliberately do NOT auto-run a live scan (it can be thousands
@@ -224,6 +243,7 @@ async function showPicks(ctx: AppContext): Promise<void> {
   const out = $('#picks-results')!;
   const status = $('#picks-status')!;
   renderRegimeBanner(null, null);
+  const asOf = getAsOf('picks').date;
 
   if (picksStrategy === 'qm') {
     const cached = await loadScan<QmRow>(ctx, picksCacheId());
@@ -233,7 +253,7 @@ async function showPicks(ctx: AppContext): Promise<void> {
         qmTable(cached.rows, {
           sortKey: qmSort.key,
           sortDesc: qmSort.desc,
-          onRowClick: (sym) => void openStock(ctx, sym),
+          onRowClick: (sym) => void openStock(ctx, sym, asOf),
           onSortChange: (key, desc) => {
             qmSort = { key, desc };
           },
@@ -249,7 +269,7 @@ async function showPicks(ctx: AppContext): Promise<void> {
         momentumTable(cached.rows, {
           sortKey: momentumSort.key,
           sortDesc: momentumSort.desc,
-          onRowClick: (sym) => void openStock(ctx, sym),
+          onRowClick: (sym) => void openStock(ctx, sym, asOf),
           onSortChange: (key, desc) => {
             momentumSort = { key, desc };
           },
@@ -325,6 +345,8 @@ async function fetchUniverseToMap(
   ctx: AppContext,
   symbols: string[],
   myToken: number,
+  period: Period = PERIOD,
+  asOf: string | null = null,
 ): Promise<Map<string, OHLCV> | null> {
   const status = $('#picks-status')!;
   const bar = $('#picks-bar')!;
@@ -335,9 +357,9 @@ async function fetchUniverseToMap(
   for (let i = 0; i < symbols.length; i += BATCH) {
     if (myToken !== scanToken) return null;
     const batch = symbols.slice(i, i + BATCH);
-    const data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
+    const data = await fetchMany(ctx.data, batch, period, CONCURRENCY);
     if (myToken !== scanToken) return null;
-    for (const [sym, series] of data) map.set(sym, series);
+    for (const [sym, series] of data) map.set(sym, sliceSeries(series, asOf));
     const doneCount = Math.min(i + BATCH, symbols.length);
     bar.style.width = `${Math.round((doneCount / symbols.length) * 100)}%`;
     status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${doneCount}/${symbols.length}`;
@@ -347,13 +369,17 @@ async function fetchUniverseToMap(
 }
 
 /** Fetch the index benchmarks (SPY/QQQ) for regime + relative strength. US-only;
- * returns nulls for VN where these indices don't resolve. */
+ * returns nulls for VN where these indices don't resolve. `period` lets the
+ * caller request a longer history for as-of slicing; `market` overrides the
+ * US-gate (defaults to the Top Picks market for backward compatibility). */
 async function fetchBenchmarks(
   ctx: AppContext,
+  period: Period = PERIOD,
+  market: Market = picksMarket,
 ): Promise<{ spy: OHLCV | null; qqq: OHLCV | null }> {
-  if (picksMarket !== 'us') return { spy: null, qqq: null };
+  if (market !== 'us') return { spy: null, qqq: null };
   try {
-    const data = await fetchMany(ctx.data, BENCHMARKS, PERIOD, BENCHMARKS.length);
+    const data = await fetchMany(ctx.data, BENCHMARKS, period, BENCHMARKS.length);
     return { spy: data.get('SPY') ?? null, qqq: data.get('QQQ') ?? null };
   } catch {
     return { spy: null, qqq: null };
@@ -437,6 +463,9 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
   const strategyLabel = t('picks.qm');
   const BATCH = BIG_UNIVERSES.has(picksUniverse) ? 120 : 60;
   const CONCURRENCY = 6;
+  // As-of: fetch a longer range and slice each series to the chosen date.
+  const asOf = getAsOf('picks').date;
+  const fetchPeriod = fetchPeriodFor('picks', PERIOD);
 
   // ── F4: optional momentum pre-filter (US only; needs SPY/QQQ + full ranking). ──
   // When ON we fetch the whole universe once, rank momentum, narrow to the top
@@ -446,9 +475,11 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
   let prefetched: Map<string, OHLCV> | null = null;
   if (momentumPrefilter && picksMarket === 'us') {
     status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} (momentum pre-filter)…`;
-    const { spy, qqq } = await fetchBenchmarks(ctx);
+    const { spy: spyRaw, qqq: qqqRaw } = await fetchBenchmarks(ctx, fetchPeriod);
+    const spy = spyRaw ? sliceSeries(spyRaw, asOf) : null;
+    const qqq = qqqRaw ? sliceSeries(qqqRaw, asOf) : null;
     if (myToken !== scanToken) return;
-    const fullMap = await fetchUniverseToMap(ctx, symbols, myToken);
+    const fullMap = await fetchUniverseToMap(ctx, symbols, myToken, fetchPeriod, asOf);
     if (fullMap === null) return; // stopped mid-fetch
     const regime = spy ? detectRegime(spy.bars, qqq?.bars) : null;
     const sectorReport = computeSectorMomentum(fullMap, spy?.bars);
@@ -472,7 +503,7 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
       qmTable(top, {
         sortKey: qmSort.key,
         sortDesc: qmSort.desc,
-        onRowClick: (sym) => void openStock(ctx, sym),
+        onRowClick: (sym) => void openStock(ctx, sym, asOf),
         onSortChange: (key, desc) => {
           qmSort = { key, desc };
         },
@@ -490,7 +521,8 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
       return;
     }
     const batch = symbols.slice(i, i + BATCH);
-    // Reuse pre-filter data when present (already fetched); else fetch the batch.
+    // Reuse pre-filter data when present (already fetched); else fetch the batch
+    // (longer range in as-of mode, sliced to the chosen date).
     let data: Map<string, OHLCV>;
     if (prefetched) {
       data = new Map();
@@ -499,7 +531,7 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
         if (s) data.set(sym, s);
       }
     } else {
-      data = await fetchMany(ctx.data, batch, PERIOD, CONCURRENCY);
+      data = sliceMap(await fetchMany(ctx.data, batch, fetchPeriod, CONCURRENCY), asOf);
     }
     if (myToken !== scanToken) continue;
 
@@ -629,10 +661,16 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
   }
   if (myToken !== scanToken) return;
 
+  // As-of: longer fetch range, sliced to the chosen date (null = live).
+  const asOf = getAsOf('picks').date;
+  const fetchPeriod = fetchPeriodFor('picks', PERIOD);
+
   // Need the full set for relative ranking + regime/sector context.
-  const { spy, qqq } = await fetchBenchmarks(ctx);
+  const { spy: spyRaw, qqq: qqqRaw } = await fetchBenchmarks(ctx, fetchPeriod);
+  const spy = spyRaw ? sliceSeries(spyRaw, asOf) : null;
+  const qqq = qqqRaw ? sliceSeries(qqqRaw, asOf) : null;
   if (myToken !== scanToken) return;
-  const fullMap = await fetchUniverseToMap(ctx, symbols, myToken);
+  const fullMap = await fetchUniverseToMap(ctx, symbols, myToken, fetchPeriod, asOf);
   if (fullMap === null) {
     status.textContent = `${t('picks.stopped')}.`;
     finish();
@@ -669,7 +707,7 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
       momentumTable(rows.slice(0, 50), {
         sortKey: momentumSort.key,
         sortDesc: momentumSort.desc,
-        onRowClick: (sym) => void openStock(ctx, sym),
+        onRowClick: (sym) => void openStock(ctx, sym, asOf),
         onSortChange: (key, desc) => {
           momentumSort = { key, desc };
         },
@@ -738,6 +776,7 @@ export function renderScreener(ctx: AppContext): void {
           )
           .join('')}
       </div>
+      ${asOfControlsHtml('screener')}
       <label class="field-label">${t('screener.symbols')}</label>
       <input id="sym-input" class="field" placeholder="${screenerMarket === 'vn' ? 'FPT.VN, HPG.VN, VCB.VN' : 'AAPL, MSFT, NVDA'}" />
       <div style="margin-top:12px">
@@ -777,7 +816,15 @@ export function renderScreener(ctx: AppContext): void {
       renderScreener(ctx);
     }),
   );
+  wireAsOfControls('screener', root, () => applyHistoricalFlag('screener', root));
+  applyHistoricalFlag('screener', root);
   $('#run-screen')!.addEventListener('click', () => void runScreen(ctx));
+}
+
+/** Toggle the .historical-mode class on a tab root so its results edge tints
+ * (and any other historical-only styling applies). */
+function applyHistoricalFlag(scope: AsOfScope, root: HTMLElement): void {
+  root.classList.toggle('historical-mode', isHistorical(scope));
 }
 
 /** Programmatic entry used by the Sectors tab "Screen stocks" button. */
@@ -807,9 +854,16 @@ async function runScreen(ctx: AppContext): Promise<void> {
     status.textContent = 'Enter symbols or pick a sector.';
     return;
   }
-  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${universe.length}…`;
+  const asOf = getAsOf('screener').date;
+  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${universe.length}…${
+    asOf ? ` (${asOfLabel('screener')})` : ''
+  }`;
   out.innerHTML = '';
-  const data = await fetchMany(ctx.data, universe, PERIOD, 8);
+  // Historical mode fetches a longer range so EMA200 etc. are defined before the
+  // as-of date, then slices each series to that date.
+  const fetchPeriod = fetchPeriodFor('screener', PERIOD);
+  const rawData = await fetchMany(ctx.data, universe, fetchPeriod, 8);
+  const data = sliceMap(rawData, asOf);
 
   // New QM + Momentum filters.
   const setupFilter = ($('#setup-filter') as HTMLSelectElement).value as QmSetupType | '';
@@ -819,8 +873,9 @@ async function runScreen(ctx: AppContext): Promise<void> {
   const sortBy = ($('#sort-by') as HTMLSelectElement).value as ScreenerSortKey;
   const classRank: Record<MomentumClassification, number> = { Weak: 1, Building: 2, Strong: 3, Explosive: 4 };
 
-  // Benchmark (SPY) for relative strength when screening US names.
-  const { spy } = await fetchBenchmarks(ctx);
+  // Benchmark (SPY) for relative strength, sliced to the as-of date too.
+  const { spy: spyRaw } = await fetchBenchmarks(ctx, fetchPeriod, screenerMarket);
+  const spy = spyRaw ? sliceSeries(spyRaw, asOf) : null;
 
   let scanned = 0;
   const rows: ScreenerRow[] = [];
@@ -854,7 +909,7 @@ async function runScreen(ctx: AppContext): Promise<void> {
     screenerTable(top, {
       sortKey: screenSort.key,
       sortDesc: screenSort.desc,
-      onRowClick: (sym) => void openStock(ctx, sym),
+      onRowClick: (sym) => void openStock(ctx, sym, asOf),
       onSortChange: (key, desc) => {
         screenSort = { key, desc };
       },
@@ -957,6 +1012,7 @@ export function renderSectors(ctx: AppContext): void {
         )
         .join('')}
     </div>
+    ${asOfControlsHtml('sectors')}
     <div class="row" style="margin-bottom:12px"><button id="load-sectors" class="btn-outline">${t('sectors.scan')}</button><span id="sector-status" class="muted"></span></div>
     <div id="sector-results"></div>`;
   root.querySelectorAll<HTMLElement>('[data-sector-market]').forEach((b) =>
@@ -968,6 +1024,11 @@ export function renderSectors(ctx: AppContext): void {
       void showSectors(ctx);
     }),
   );
+  wireAsOfControls('sectors', root, () => {
+    applyHistoricalFlag('sectors', root);
+    void showSectors(ctx);
+  });
+  applyHistoricalFlag('sectors', root);
   $('#load-sectors')!.addEventListener('click', () => void runSectors(ctx));
   // Show today's cached ranking if present (instant, zero requests); else prompt.
   // Never auto-fetches — Scan runs it once and it sticks all day + syncs.
@@ -993,7 +1054,7 @@ interface SectorSnapshotRow {
   monthly: { date: string; volume: number }[];
 }
 
-const sectorsCacheId = (): string => `sectors:${sectorMarket}`;
+const sectorsCacheId = (): string => `sectors:${sectorMarket}${cacheSuffix('sectors')}`;
 
 /** Render today's cached sector scan if present, else a "press Scan" prompt.
  * Never triggers a live fetch. */
@@ -1019,17 +1080,23 @@ async function runSectors(ctx: AppContext): Promise<void> {
   const out = $('#sector-results')!;
   const sectorMap = sectorMapFor(sectorMarket);
   const universe = [...new Set(Object.values(sectorMap).flat())];
-  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${Object.keys(sectorMap).length} sectors…`;
+  const asOf = getAsOf('sectors').date;
+  const fetchPeriod = fetchPeriodFor('sectors', PERIOD);
+  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${Object.keys(sectorMap).length} sectors…${
+    asOf ? ` (${asOfLabel('sectors')})` : ''
+  }`;
   out.innerHTML = '';
   // 1y of history so the momentum returns (incl. 6M) are well-defined; the
-  // volume chart simply resamples whatever range is fetched.
-  const data = await fetchMany(ctx.data, universe, PERIOD, 10);
+  // volume chart simply resamples whatever range is fetched. As-of mode fetches
+  // a longer range and slices each series to the chosen date.
+  const data = sliceMap(await fetchMany(ctx.data, universe, fetchPeriod, 10), asOf);
   sectorData = data;
 
   // Volume ranking (existing) + momentum ranking (new). For US we also fetch SPY
   // so sector relative strength is measured vs the benchmark.
   const ranked = computeSectorVolumeRank(data, sectorMap);
-  const { spy } = sectorMarket === 'us' ? await fetchBenchmarks(ctx) : { spy: null };
+  const { spy: spyRaw } = await fetchBenchmarks(ctx, fetchPeriod, sectorMarket);
+  const spy = spyRaw ? sliceSeries(spyRaw, asOf) : null;
   const momReport = computeSectorMomentum(data, spy?.bars ?? undefined, sectorMap);
   const momBySector = new Map(momReport.rankings.map((m) => [m.sector, m]));
   const hotSet = new Set(momReport.hotSectors);

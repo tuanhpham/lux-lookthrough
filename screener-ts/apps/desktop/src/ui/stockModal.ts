@@ -4,6 +4,7 @@ import {
   type Period,
   type QmScanResult,
   type MomentumResult,
+  type Financials,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, num, fmtBig, money, fmtPrice, isVnSymbol, scoreColor } from './dom.js';
@@ -13,6 +14,7 @@ import { t, getLang } from './i18n.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
 import { infoIcon as info, attachTooltips } from './tooltip.js';
 import { vnTradingViewSymbol } from '../adapters/universe.js';
+import { sliceBars, fundamentalsAsOf } from './asOf.js';
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -61,7 +63,7 @@ function closeModal(): void {
   onCloseCb?.();
 }
 
-export async function openStock(ctx: AppContext, symbol: string): Promise<void> {
+export async function openStock(ctx: AppContext, symbol: string, asOf: string | null = null): Promise<void> {
   symbol = symbol.toUpperCase();
   const modal = $('#modal')!;
   modal.classList.remove('hidden');
@@ -69,21 +71,33 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
   const body = $('#modal-body')!;
   body.innerHTML = `<div class="muted" style="text-align:center;padding:40px"><span class="spinner"></span> Loading ${symbol}…</div>`;
 
-  let period: Period = '1y';
+  // In as-of mode, fetch a longer window so EMA200 etc. have history before the
+  // date, then slice to that date so the chart/scan see it as "now".
+  let period: Period = asOf ? '5y' : '1y';
 
   try {
-    const [fund, ohlcv, fin] = await Promise.all([
+    const [fund, ohlcvRaw, fin] = await Promise.all([
       ctx.data.getFundamentals(symbol).catch(() => ({ symbol })),
       ctx.data.getOHLCV(symbol, period).catch(() => ({ symbol, bars: [] })),
       ctx.data.getFinancials(symbol).catch(() => ({ symbol, annual: [], quarterly: [] })),
     ]);
+    // Slice the bars to the as-of date (no-op when live). Everything downstream —
+    // chart, EMAs, QM/momentum, analysis, levels — is computed from this window.
+    const slicedBars = asOf ? sliceBars(ohlcvRaw.bars, asOf) : ohlcvRaw.bars;
+    const ohlcv = { symbol, bars: slicedBars };
     const qm = ohlcv.bars.length >= 60 ? scanQm(symbol, ohlcv.bars) : null;
     const mom = ohlcv.bars.length >= 60 ? computeMomentumScore(symbol, ohlcv.bars) : null;
-    const f = fund as Awaited<ReturnType<AppContext['data']['getFundamentals']>>;
+    let f = fund as Awaited<ReturnType<AppContext['data']['getFundamentals']>>;
+    // Historical stat grid: derive latest-annual-before-date figures (live Yahoo
+    // only returns today's TTM, which would be wrong for a past date).
+    if (asOf) f = fundamentalsAsOf(f, fin as Financials, slicedBars, asOf);
 
-    $('#modal-title')!.innerHTML = `${symbol} <span class="muted" style="font-weight:400;font-size:13px">${f.name ?? ''}</span>`;
+    const asOfTag = asOf
+      ? ` <span class="asof-flag" style="font-size:10px;vertical-align:middle">${getLang() === 'vi' ? 'tính đến ' : 'as of '}${asOf}</span>`
+      : '';
+    $('#modal-title')!.innerHTML = `${symbol} <span class="muted" style="font-weight:400;font-size:13px">${f.name ?? ''}</span>${asOfTag}`;
 
-    body.innerHTML = renderDetail(symbol, f, qm, mom);
+    body.innerHTML = renderDetail(symbol, f, qm, mom, asOf);
     attachTooltips(body);
 
     const chartEl = $('#detail-chart')!;
@@ -99,23 +113,36 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
       }),
     );
 
-    // Range buttons re-fetch + redraw
+    // Range buttons re-fetch + redraw. In as-of mode the longer fetch is sliced
+    // to the date so the historical window is preserved.
     body.querySelectorAll<HTMLElement>('[data-period]').forEach((btn) =>
       btn.addEventListener('click', async () => {
         period = btn.dataset.period as Period;
         body.querySelectorAll('[data-period]').forEach((b) => b.classList.toggle('active', b === btn));
         chartEl.innerHTML = `<div class="muted" style="text-align:center;padding:40px"><span class="spinner"></span></div>`;
-        const data = await ctx.data.getOHLCV(symbol, period).catch(() => ({ symbol, bars: [] }));
-        const q2 = data.bars.length >= 60 ? scanQm(symbol, data.bars) : null;
+        const fetchPeriod = asOf && period !== '5y' ? '5y' : period;
+        const data = await ctx.data.getOHLCV(symbol, fetchPeriod).catch(() => ({ symbol, bars: [] }));
+        const bars = asOf ? sliceBars(data.bars, asOf) : data.bars;
+        const q2 = bars.length >= 60 ? scanQm(symbol, bars) : null;
         chart?.destroy();
-        chart = drawCandles(chartEl, data.bars, qmOverlay(q2), emaState);
+        chart = drawCandles(chartEl, bars, qmOverlay(q2), emaState);
       }),
     );
+
+    // In as-of mode, restrict the fundamentals-trend series to periods reported
+    // on/before the date so the chart matches the historical context.
+    const finForChart: Financials = asOf
+      ? {
+          symbol: (fin as Financials).symbol,
+          annual: (fin as Financials).annual.filter((p) => p.period <= asOf),
+          quarterly: (fin as Financials).quarterly.filter((p) => p.period <= asOf),
+        }
+      : (fin as Financials);
 
     let fundMetric: 'revenue' | 'netIncome' | 'eps' = 'revenue';
     let fundFreq: 'annual' | 'quarterly' = 'annual';
     // Closure capturing the current metric/freq so we can re-draw on rotate.
-    redrawFundChart = () => renderFundChart(fin, fundMetric, fundFreq);
+    redrawFundChart = () => renderFundChart(finForChart, fundMetric, fundFreq);
     redrawFundChart();
     body.querySelectorAll<HTMLElement>('[data-fund]').forEach((btn) =>
       btn.addEventListener('click', () => {
@@ -151,7 +178,9 @@ export async function openStock(ctx: AppContext, symbol: string): Promise<void> 
     // summary + website) arrive from a slow background crumb fetch. Poll the
     // cache briefly and live-patch them into the open modal as they land, so
     // the page renders instantly AND About/website fill in without a reopen.
-    void patchWhenEnriched(ctx, symbol, body);
+    // Skipped in as-of mode: enrichment carries TODAY's live TTM figures, which
+    // would clobber the historical (latest-annual-before-date) stat grid.
+    if (!asOf) void patchWhenEnriched(ctx, symbol, body);
   } catch (e) {
     body.innerHTML = `<div class="danger" style="text-align:center;padding:40px">${(e as Error).message}</div>`;
   }
@@ -166,6 +195,7 @@ function renderDetail(
   f: { name?: string | null; currency?: string | null; sector?: string | null; industry?: string | null; currentPrice?: number | null; marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null; profitMargin?: number | null; revenueGrowth?: number | null; beta?: number | null; dividendYield?: number | null; week52Low?: number | null; week52High?: number | null; summary?: string | null },
   q: QmScanResult | null,
   mom: MomentumResult | null,
+  asOf: string | null = null,
 ): string {
   const vi = getLang() === 'vi';
   const price = f.currentPrice ?? q?.price ?? null;
@@ -257,8 +287,12 @@ function renderDetail(
       <div id="fund-chart" class="chart" style="height:160px"></div>
       <p class="muted" style="font-size:10px;margin:4px 6px 0">${vi ? 'Biểu đồ: giá trị từng kỳ báo cáo (năm tài chính hoặc quý). Lưới chỉ số bên dưới dùng số liệu TTM (12 tháng gần nhất) nên có thể khác.' : 'Chart: per-period reported values (fiscal year or quarter). The stat grid below uses trailing twelve-month (TTM) figures and will typically differ.'}</p>
     </div>
-    <div class="section-title">${t('detail.fundamentals')}</div>
-    <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f, symbol)}</div>
+    <div class="section-title">${t('detail.fundamentals')}${
+      asOf
+        ? ` <span class="muted" style="font-size:11px;font-weight:400">— ${vi ? 'năm gần nhất trước ' : 'latest annual before '}${asOf}</span>`
+        : ''
+    }</div>
+    <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f, symbol, asOf)}</div>
     <div class="section-title">${t('detail.about')}</div>
     <div id="about-block">${aboutHtml(symbol, f)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
@@ -291,7 +325,7 @@ function fundGridHtml(f: {
   marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null;
   profitMargin?: number | null; revenueGrowth?: number | null; beta?: number | null;
   dividendYield?: number | null; week52Low?: number | null; week52High?: number | null;
-}, symbol?: string): string {
+}, symbol?: string, asOf: string | null = null): string {
   const vn = isVnSymbol(symbol);
   const ccy = vn ? ' ₫' : '';
   // VN market cap is in VND (huge) — fmtBig's T/B suffixes apply; tag the unit.
@@ -302,12 +336,15 @@ function fundGridHtml(f: {
     f.week52Low != null && f.week52High != null
       ? (vn ? num(f.week52Low, 0) + '–' + num(f.week52High, 0) + ccy : '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0))
       : '—';
+  // Live mode shows TTM/live figures; as-of mode shows latest-annual-before-date,
+  // so the labels switch to "(annual)" to set the right expectation.
+  const basis = asOf ? '(annual)' : '(TTM)';
   return [
     stat('Market Cap', mcap, 'market_cap'),
-    stat('P/E (TTM)', num(f.peRatio, 1), 'pe_ratio'),
-    stat('EPS (TTM)', eps, 'eps'),
-    stat('ROE (TTM)', f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe'),
-    stat('Margin (TTM)', f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin'),
+    stat('P/E ' + basis, num(f.peRatio, 1), 'pe_ratio'),
+    stat('EPS ' + basis, eps, 'eps'),
+    stat('ROE ' + basis, f.roe != null ? num(f.roe * 100, 1) + '%' : '—', 'roe'),
+    stat('Margin ' + basis, f.profitMargin != null ? num(f.profitMargin * 100, 1) + '%' : '—', 'profit_margin'),
     stat('Rev Growth (YoY)', f.revenueGrowth != null ? num(f.revenueGrowth * 100, 1) + '%' : '—', 'revenue_growth'),
     stat('Beta (5Y)', num(f.beta, 2), 'beta'),
     stat('Div Yield', f.dividendYield != null ? num(f.dividendYield * 100, 2) + '%' : '—', 'dividend_yield'),

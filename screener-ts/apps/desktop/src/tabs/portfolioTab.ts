@@ -39,11 +39,20 @@ function tickerList(): string[] {
  * Show the latest close beside a price input as the user picks a ticker, and
  * offer a one-click "use" to copy it into the price/threshold field.
  */
-function wirePriceHint(ctx: AppContext, tickerSel: string, hintSel: string, priceSel: string): void {
+function wirePriceHint(
+  ctx: AppContext,
+  tickerSel: string,
+  hintSel: string,
+  priceSel: string,
+  dateSel?: string,
+): void {
   const tickerEl = $(tickerSel) as HTMLInputElement | null;
   const hintEl = $(hintSel);
   const priceEl = $(priceSel) as HTMLInputElement | null;
   if (!tickerEl || !hintEl || !priceEl) return;
+  const dateEl = dateSel ? ($(dateSel) as HTMLInputElement | null) : null;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   let token = 0;
   const fetchHint = async () => {
@@ -52,23 +61,37 @@ function wirePriceHint(ctx: AppContext, tickerSel: string, hintSel: string, pric
       hintEl.innerHTML = '';
       return;
     }
+    // If a past date is chosen, fetch enough history to cover it and show the
+    // close ON (or the last trading day before) that date — so a back-dated
+    // buy/sell auto-fills the correct historical price.
+    const wantDate = dateEl?.value && dateEl.value < todayStr ? dateEl.value : null;
     const mine = ++token;
-    hintEl.innerHTML = `<span class="spinner"></span> latest close…`;
-    const ohlcv = await ctx.data.getOHLCV(sym, '1mo').catch(() => null);
+    hintEl.innerHTML = `<span class="spinner"></span> ${wantDate ? `close on ${wantDate}…` : 'latest close…'}`;
+    const ohlcv = await ctx.data.getOHLCV(sym, wantDate ? '5y' : '1mo').catch(() => null);
     if (mine !== token) return; // a newer lookup superseded this one
-    const last = ohlcv?.bars[ohlcv.bars.length - 1];
-    if (!last) {
-      hintEl.textContent = 'no recent price';
+    if (!ohlcv || !ohlcv.bars.length) {
+      hintEl.textContent = 'no price data';
       return;
     }
-    hintEl.innerHTML = `latest close <b>$${num(last.close)}</b> (${last.date}) · <a href="#" data-use>use</a>`;
+    // Pick the bar at-or-before the wanted date (markets close on weekends/holidays).
+    const bar = wantDate
+      ? [...ohlcv.bars].reverse().find((b) => b.date <= wantDate) ?? null
+      : ohlcv.bars[ohlcv.bars.length - 1]!;
+    if (!bar) {
+      hintEl.textContent = `no price on/before ${wantDate}`;
+      return;
+    }
+    const label = wantDate ? 'close' : 'latest close';
+    hintEl.innerHTML = `${label} <b>$${num(bar.close)}</b> (${bar.date}) · <a href="#" data-use>use</a>`;
     hintEl.querySelector('[data-use]')!.addEventListener('click', (e) => {
       e.preventDefault();
-      priceEl.value = String(num(last.close));
+      priceEl.value = String(num(bar.close));
     });
   };
   tickerEl.addEventListener('change', () => void fetchHint());
   tickerEl.addEventListener('blur', () => void fetchHint());
+  // Re-price when the date changes so the hint always matches the chosen day.
+  dateEl?.addEventListener('change', () => void fetchHint());
 }
 
 const ACCT_KEY = 'accounts';
@@ -326,7 +349,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
   const tickers = tickerList();
   attachCombobox({ input: $('#b-ticker') as HTMLInputElement, options: tickers });
   attachCombobox({ input: $('#o-ticker') as HTMLInputElement, options: tickers });
-  wirePriceHint(ctx, '#b-ticker', '#b-pricehint', '#b-price');
+  wirePriceHint(ctx, '#b-ticker', '#b-pricehint', '#b-price', '#b-date');
   wirePriceHint(ctx, '#o-ticker', '#o-pricehint', '#o-thresh');
 
   // buy
