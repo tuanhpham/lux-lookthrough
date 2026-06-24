@@ -12,6 +12,9 @@ import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange } from './ui/theme.js';
+import { openSyncSettings, onSynced } from './ui/syncSettings.js';
+import { isSyncEnabled } from './adapters/syncClient.js';
+import { pullAndMerge } from './adapters/storage.js';
 
 // Surface a FATAL init failure visibly (a blank screen hides the cause). This is
 // only used for the synchronous init below — we deliberately do NOT trap every
@@ -154,6 +157,31 @@ onLangChange(() => {
 onThemeChange(() => {
   if (entered) renderTab(currentTab);
 });
+
+// ── Device sync ──────────────────────────────────────────────────────────────
+// The cloud button opens the access-code dialog. A small dot on the button marks
+// "sync on". After a code is entered the dialog pulls+merges remote data and
+// calls back here to re-render the open tab so synced data shows immediately.
+function reflectSyncState(): void {
+  $('#sync-toggle')?.classList.toggle('sync-on', isSyncEnabled());
+}
+$('#sync-toggle')?.addEventListener('click', () => openSyncSettings(ctx));
+onSynced(() => {
+  reflectSyncState();
+  if (entered) renderTab(currentTab);
+});
+reflectSyncState();
+
+// On boot: if a code is already stored, pull+merge in the background, then
+// refresh the open tab so the latest cross-device data appears without a manual
+// sync. Best-effort — offline just leaves the local copy in place.
+if (isSyncEnabled()) {
+  void pullAndMerge(ctx.synced)
+    .then((n) => {
+      if (n > 0 && entered) renderTab(currentTab);
+    })
+    .catch(() => {});
+}
 
 // Landing first; the CTA reveals the app and auto-runs picks.
 try {

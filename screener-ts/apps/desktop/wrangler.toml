@@ -11,3 +11,13 @@
 name = "screener"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-11-01"
+
+# D1 database for cross-device sync (watchlists, posts, paper-trading accounts,
+# once-a-day scan results). The binding name `DB` is what functions/api/sync
+# reads (env.DB). Create the DB once with `wrangler d1 create screener-sync`,
+# then paste the printed database_id below. See deploy notes for the full
+# command sequence.
+[[d1_databases]]
+binding = "DB"
+database_name = "screener-sync"
+database_id = "REPLACE_WITH_DATABASE_ID"

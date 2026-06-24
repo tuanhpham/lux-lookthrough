@@ -298,6 +298,78 @@ or two (the service worker revalidates in the background).
 
 ---
 
+## Cross-device sync (Cloudflare D1)
+
+Watchlists, blog posts, paper-trading accounts and once-a-day scan results are
+stored locally by default (so the app works with no backend). To make them
+**follow you across devices**, the app can mirror that data to a Cloudflare **D1**
+database via `functions/api/sync`. Identity is a simple **access code** — there's
+no public sign-up; you issue a code per person ("you + a few invited people").
+
+This rides entirely on the **free tier** (5 GB storage, 100k row-writes/day) —
+a personal trading journal uses kilobytes and stays free indefinitely.
+
+### One-time setup
+
+```bash
+cd apps/desktop
+
+# 1. Create the database (prints a database_id).
+npx wrangler d1 create screener-sync
+
+# 2. Paste that id into wrangler.toml → [[d1_databases]] database_id = "...".
+
+# 3. Create the tables (run BOTH local and remote so dev + prod match).
+npx wrangler d1 execute screener-sync --file=./schema.sql --remote
+npx wrangler d1 execute screener-sync --file=./schema.sql --local   # for `wrangler pages dev`
+
+# 4. Deploy as usual (Method B above). The D1 binding ships with the Functions.
+npx wrangler pages deploy dist --project-name the-professional
+```
+
+### Issuing access codes
+
+Each person needs a row in `users` (a uuid id + their secret code). Insert one:
+
+```bash
+# Pick any hard-to-guess code. Generate a uuid however you like (or paste one).
+npx wrangler d1 execute screener-sync --remote --command \
+  "INSERT INTO users (id, code, name) VALUES ('11111111-1111-1111-1111-111111111111', 'my-secret-code-123', 'Tu Anh');"
+```
+
+Then in the app: click the **☁️ cloud button** (top-right) → paste the code →
+**Save & Sync**. The device validates the code, pulls your data, and from then on
+every change syncs automatically. Open the app on another device, enter the same
+code, and everything appears. To revoke a person, delete their `users` row:
+
+```bash
+npx wrangler d1 execute screener-sync --remote --command \
+  "DELETE FROM users WHERE code = 'my-secret-code-123';"
+```
+
+### How it behaves
+
+- **Local-first:** reads are instant from the device; writes save locally then
+  push to D1 best-effort, so the UI never blocks and works offline.
+- **Last-write-wins:** the newest change to a key wins, by timestamp. First
+  connect is **non-destructive** — a device with existing local data uploads it
+  rather than being wiped, and an empty device downloads everything.
+- **Once-a-day scans:** a full universe scan saves its result rows under a
+  day-keyed entry (`scan:<id>:<YYYY-MM-DD>`) to local **and** D1. Reopening the
+  Top Picks tab shows today's results instantly with a "Scanned at HH:MM" banner
+  and a manual **↻ Refresh** — it never re-fetches on its own, so you run the big
+  scan once and it sticks (and shows on your other devices too).
+
+### Local testing with D1
+
+```bash
+cd apps/desktop
+npm run build --workspace @screener/desktop   # from root, or build core+desktop first
+npx wrangler pages dev dist                    # serves Functions + the --local D1
+```
+
+---
+
 ## Build the native macOS app (needs Rust + Tauri prereqs)
 
 ```bash

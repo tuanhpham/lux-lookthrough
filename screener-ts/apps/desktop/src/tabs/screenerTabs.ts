@@ -48,6 +48,8 @@ import {
   getUpcomUniverse,
   getAllVnMarketUniverse,
 } from '../adapters/universe.js';
+import { loadScan, saveScan, scannedAtLabel } from './scanCache.js';
+import { getLang } from '../ui/i18n.js';
 
 const PERIOD: Period = '1y';
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
@@ -109,6 +111,23 @@ let screenSort: { key: ScreenerSortKey; desc: boolean } = { key: 'qualityScore',
 // Cancellation token for an in-flight scan; bumping it aborts the running scan.
 let scanToken = 0;
 
+/** Cache id for the current picks selection (strategy + market + universe). The
+ * day is appended by the scanCache layer. */
+function picksCacheId(): string {
+  return `${picksStrategy}:${picksMarket}:${picksUniverse}${momentumPrefilter ? ':pf' : ''}`;
+}
+
+/** Render the "Scanned at HH:MM today · Refresh" banner above cached results.
+ * `onRefresh` re-runs the live scan. */
+function renderScanBanner(at: number, scanned: number, onRefresh: () => void): void {
+  const status = $('#picks-status')!;
+  const lang = getLang();
+  status.innerHTML = `<span class="scan-cached">${scannedAtLabel(at, lang)} · ${scanned} ${t(
+    'picks.scanned',
+  )}</span> <button id="picks-rescan" class="link-btn">↻ ${t('picks.run')}</button>`;
+  status.querySelector('#picks-rescan')!.addEventListener('click', onRefresh);
+}
+
 export function renderPicks(ctx: AppContext): void {
   const root = $('#tab-picks')!;
   const markets: [Market, string][] = [
@@ -155,7 +174,7 @@ export function renderPicks(ctx: AppContext): void {
     b.addEventListener('click', () => {
       picksStrategy = b.dataset.strategy as PicksStrategy;
       root.querySelectorAll('[data-strategy]').forEach((x) => x.classList.toggle('active', x === b));
-      void runPicks(ctx);
+      void showPicks(ctx);
     }),
   );
   root.querySelectorAll<HTMLElement>('[data-market]').forEach((b) =>
@@ -167,7 +186,7 @@ export function renderPicks(ctx: AppContext): void {
       picksUniverse = UNIVERSES_BY_MARKET[m][0]!.mode;
       root.querySelectorAll('[data-market]').forEach((x) => x.classList.toggle('active', x === b));
       renderUniverseRow(ctx);
-      void runPicks(ctx);
+      void showPicks(ctx);
     }),
   );
   renderUniverseRow(ctx);
@@ -177,11 +196,66 @@ export function renderPicks(ctx: AppContext): void {
   });
   $('#picks-prefilter')!.addEventListener('change', (e) => {
     momentumPrefilter = (e.target as HTMLInputElement).checked;
-    void runPicks(ctx);
+    void showPicks(ctx);
   });
 
-  // Auto-run on render (the app enters straight into this tab).
-  void runPicks(ctx);
+  // Show today's cached results if we already scanned this selection; otherwise
+  // a prompt. We deliberately do NOT auto-run a live scan (it can be thousands
+  // of requests) — the user runs it once via Run, and it sticks all day.
+  void showPicks(ctx);
+}
+
+/**
+ * Render today's cached results for the current selection if present (instant,
+ * zero requests), else a "press Run" prompt. Never triggers a live fetch.
+ */
+async function showPicks(ctx: AppContext): Promise<void> {
+  const out = $('#picks-results')!;
+  const status = $('#picks-status')!;
+  renderRegimeBanner(null, null);
+
+  if (picksStrategy === 'qm') {
+    const cached = await loadScan<QmRow>(ctx, picksCacheId());
+    if (cached) {
+      renderScanBanner(cached.at, cached.scanned, () => void runPicks(ctx));
+      out.replaceChildren(
+        qmTable(cached.rows, {
+          sortKey: qmSort.key,
+          sortDesc: qmSort.desc,
+          onRowClick: (sym) => void openStock(ctx, sym),
+          onSortChange: (key, desc) => {
+            qmSort = { key, desc };
+          },
+        }),
+      );
+      return;
+    }
+  } else {
+    const cached = await loadScan<MomentumRow>(ctx, picksCacheId());
+    if (cached) {
+      renderScanBanner(cached.at, cached.scanned, () => void runPicks(ctx));
+      out.replaceChildren(
+        momentumTable(cached.rows, {
+          sortKey: momentumSort.key,
+          sortDesc: momentumSort.desc,
+          onRowClick: (sym) => void openStock(ctx, sym),
+          onSortChange: (key, desc) => {
+            momentumSort = { key, desc };
+          },
+        }),
+      );
+      return;
+    }
+  }
+
+  // No cache for today → prompt to run.
+  out.innerHTML = '';
+  const lang = getLang();
+  status.innerHTML = `<span class="muted">${
+    lang === 'vi'
+      ? 'Chưa quét hôm nay. Bấm “' + t('picks.run') + '” để chạy một lần — kết quả giữ cả ngày.'
+      : 'Not scanned today. Press “' + t('picks.run') + '” to run once — results stay all day.'
+  }</span>`;
 }
 
 /** (Re)build the universe toggle row for the active market and wire its clicks. */
@@ -204,7 +278,7 @@ function renderUniverseRow(ctx: AppContext): void {
       picksUniverse = b.dataset.universe as UniverseMode;
       row.querySelectorAll('[data-universe]').forEach((x) => x.classList.toggle('active', x === b));
       $('#picks-uni-hint')!.textContent = universeHint();
-      void runPicks(ctx);
+      void showPicks(ctx);
     }),
   );
 }
@@ -456,6 +530,11 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
     const wl = generateWatchlists(allScans, [], sectorReport);
     renderGeneratedWatchlists(ctx, out, wl);
   }
+  // Persist today's results (top 50, as displayed) so the scan sticks all day
+  // and syncs across devices. Stored even when empty, so an empty day isn't
+  // re-run on every open.
+  matches.sort((a, b) => b.qualityScore - a.qualityScore);
+  void saveScan<QmRow>(ctx, picksCacheId(), matches.slice(0, 50), scanned);
   finish();
 }
 
@@ -599,6 +678,9 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
   } else {
     renderTable();
   }
+  // Persist today's ranked movers (top 50, as displayed) so the scan sticks all
+  // day and syncs across devices.
+  void saveScan<MomentumRow>(ctx, picksCacheId(), rows.slice(0, 50), fullMap.size);
   finish();
 }
 

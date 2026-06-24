@@ -3,7 +3,7 @@ import { YahooProvider } from './adapters/YahooProvider.js';
 import { FinnhubProvider } from './adapters/FinnhubProvider.js';
 import { VnDirectProvider } from './adapters/VnDirectProvider.js';
 import { MarketRouterProvider } from './adapters/MarketRouterProvider.js';
-import { makeStorage } from './adapters/storage.js';
+import { makeStorage, SyncedStorage } from './adapters/storage.js';
 
 export interface AppConfig {
   provider: 'yahoo' | 'finnhub';
@@ -18,9 +18,14 @@ export interface AppConfig {
 export class AppContext {
   readonly data: DataProvider;
   readonly storage: Storage;
+  /** Same instance as `storage`, typed as SyncedStorage for the startup merge
+   * and the sync-settings dialog (pull/merge, code changes). */
+  readonly synced: SyncedStorage;
 
   constructor(config: AppConfig) {
-    this.storage = makeStorage();
+    const storage = makeStorage() as SyncedStorage;
+    this.storage = storage;
+    this.synced = storage;
     const us =
       config.provider === 'finnhub'
         ? new FinnhubProvider({ apiKey: config.finnhubApiKey })

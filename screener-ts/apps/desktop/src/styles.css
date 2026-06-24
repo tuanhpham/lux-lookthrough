@@ -590,6 +590,12 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .lang-toggle button.active { background: var(--accent-wash); color: var(--accent); }
 .theme-toggle { background: transparent; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 4px 9px; cursor: pointer; font-size: 13px; line-height: 1; transition: border-color .15s; }
 .theme-toggle:hover { border-color: var(--accent-line); }
+/* Device-sync button: its SVG cloud sits inline; when sync is ON, an accent
+   dot rides the top-right corner. */
+#sync-toggle { position: relative; color: var(--subtext); }
+#sync-toggle svg { width: 16px; height: 16px; display: block; }
+#sync-toggle.sync-on { color: var(--accent); border-color: var(--accent-line); }
+#sync-toggle.sync-on::after { content: ''; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
 
 /* ── Info tooltips ───────────────────────────────────────────────────────── */
 .info-i { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 999px; background: var(--border); color: var(--subtext); font-size: 9px; font-weight: 700; font-style: normal; cursor: help; vertical-align: middle; transition: background .15s, color .15s; }
@@ -597,6 +603,11 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .tooltip { position: fixed; z-index: 100; max-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 13px; box-shadow: var(--shadow-lg); pointer-events: none; }
 .tooltip .tt-term { font-weight: 700; font-size: 12px; margin-bottom: 4px; color: var(--text); }
 .tooltip .tt-body { font-size: 12px; line-height: 1.5; color: var(--subtext); }
+
+/* ── Cached-scan banner (once-a-day persisted results) ───────────────────── */
+.scan-cached { color: var(--accent); font-weight: 600; }
+.link-btn { background: 0; border: 0; color: var(--subtext); cursor: pointer; font: inherit; text-decoration: underline; padding: 0 2px; }
+.link-btn:hover { color: var(--accent); }
 
 /* ── Top Picks scan progress bar ─────────────────────────────────────────── */
 .picks-progress { width: 100%; height: 4px; background: var(--border); border-radius: 999px; overflow: hidden; margin-top: 8px; }
