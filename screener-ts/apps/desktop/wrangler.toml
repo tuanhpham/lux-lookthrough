@@ -23,4 +23,4 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "screener-sync"
-database_id = "REPLACE_WITH_DATABASE_ID"   # ← paste the uuid from `wrangler d1 create`
+database_id = "af468661-bfed-409e-8df8-34ecf8cda199"   # ← paste the uuid from `wrangler d1 create`
