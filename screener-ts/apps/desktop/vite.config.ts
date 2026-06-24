@@ -3,6 +3,16 @@ import { fileURLToPath } from 'node:url';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
 
+// Dev-only: forward /api/sync to the DEPLOYED Cloudflare D1 backend so local
+// `npm run dev` reads/writes your REAL synced data (watchlists, case studies,
+// scans). Plain Vite has no Functions runtime, so without this, sync is a no-op
+// locally and anything you add stays in localhost's localStorage only.
+//
+// Only the tiny sync calls (a few per session) hit the deployed Functions —
+// stock fetches still go straight to Yahoo from your machine and never count.
+// Override with SYNC_ORIGIN if the Pages URL ever changes.
+const SYNC_ORIGIN = process.env.SYNC_ORIGIN ?? 'https://the-professional.pages.dev';
+
 /**
  * Yahoo's quoteSummary endpoint (sector, beta, dividend yield, ROE, company
  * summary) requires a cookie + rotating "crumb". We do that handshake here in
@@ -116,6 +126,15 @@ export default defineConfig({
         target: 'https://dchart-api.vndirect.com.vn/dchart',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/vndirect/, ''),
+      },
+      // Cross-device sync → the deployed Cloudflare D1 Functions. Keeps the
+      // `/api/sync/...` path intact (no rewrite). This is the ONLY proxy that
+      // reaches your deployed site; it carries the X-Sync-Code header through so
+      // the same access code unlocks the same data locally.
+      '/api/sync': {
+        target: SYNC_ORIGIN,
+        changeOrigin: true,
+        secure: true,
       },
     },
   },

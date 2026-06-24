@@ -23,23 +23,23 @@ npm run build --workspace @screener/desktop    # → thư mục apps/desktop/dis
 # api/yahoo, api/finnhub, …). Deploy từ chỗ khác → web KHÔNG có proxy → không có dữ liệu.
 cd apps/desktop
 # Lần đầu wrangler sẽ mở trình duyệt cho bạn đăng nhập Cloudflare (free).
-npx wrangler pages deploy dist --project-name screener
+npx wrangler pages deploy dist --project-name the-professional
 ```
 
 Kết thúc, Cloudflare in ra một link cố định, ví dụ:
 ```
-https://screener.pages.dev
+https://the-professional.pages.dev
 ```
-(hoặc `https://<hash>.screener.pages.dev` cho bản xem trước). Dùng link
+(hoặc `https://<hash>.the-professional.pages.dev` cho bản xem trước). Dùng link
 `*.pages.dev` chính là bản production.
 
 > **Tùy chọn:** thêm Finnhub làm nguồn dữ liệu dự phòng:
 > ```bash
-> npx wrangler pages secret put FINNHUB_API_KEY --project-name screener
+> npx wrangler pages secret put FINNHUB_API_KEY --project-name the-professional
 > ```
 
 ### Deploy lại sau khi sửa code
-Chạy lại: `cd screener-ts && npm run build --workspace @screener/core && npm run build --workspace @screener/desktop && cd apps/desktop && npx wrangler pages deploy dist --project-name screener`.
+Chạy lại: `cd screener-ts && npm run build --workspace @screener/core && npm run build --workspace @screener/desktop && cd apps/desktop && npx wrangler pages deploy dist --project-name the-professional`.
 Service worker tự nhận bản mới (đã đặt `CACHE_VERSION` để dọn cache cũ). Nếu trên
 máy thấy bản cũ "dính", kéo để refresh hoặc đóng/mở lại app.
 
@@ -47,7 +47,7 @@ máy thấy bản cũ "dính", kéo để refresh hoặc đóng/mở lại app.
 
 ## Bước 2 — Cài lên iPhone (Safari)
 
-1. Mở **Safari** (phải là Safari, không phải Chrome) → vào link `https://screener.pages.dev`.
+1. Mở **Safari** (phải là Safari, không phải Chrome) → vào link `https://the-professional.pages.dev`.
 2. Bấm nút **Chia sẻ** (hình vuông có mũi tên ↑) ở thanh dưới.
 3. Cuộn xuống chọn **"Thêm vào MH chính" / "Add to Home Screen"**.
 4. Đặt tên (mặc định *Screener*) → **Thêm**.
