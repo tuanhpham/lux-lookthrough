@@ -291,10 +291,13 @@ The functions in `functions/` make data fetching work the same as local dev:
 - `api/finnhub/*` injects `FINNHUB_API_KEY` server-side so it **never reaches
   the browser**.
 - `api/wiki/*` proxies Wikipedia for the broad S&P 1500 universe.
+- `api/sync/*` is the cross-device sync backend (Cloudflare D1) — see
+  [Cross-device sync](#cross-device-sync-cloudflare-d1) for its one-time setup.
 - `netlify.toml` documents equivalent Netlify routes.
 
 After redeploying, an installed PWA picks up the new version on its next launch
-or two (the service worker revalidates in the background).
+or two (the service worker revalidates in the background). Redeploying does **not**
+affect the D1 sync database or its data — that's set up once and persists.
 
 ---
 
@@ -309,7 +312,7 @@ no public sign-up; you issue a code per person ("you + a few invited people").
 This rides entirely on the **free tier** (5 GB storage, 100k row-writes/day) —
 a personal trading journal uses kilobytes and stays free indefinitely.
 
-### One-time setup
+### One-time setup (do this once, ever)
 
 > ⚠️ **Order matters.** You must create the database and paste its id into
 > `wrangler.toml` *before* running the `d1 execute` schema commands. If you run
@@ -339,6 +342,41 @@ npm run build --workspace @screener/desktop
 cd apps/desktop
 npx wrangler pages deploy dist --project-name the-professional
 ```
+
+### Deploying again later (every normal code change)
+
+**You do NOT touch the database again.** The D1 database, its tables, all your
+synced data, and every issued access code live on the Cloudflare side and
+**persist across deploys** — `wrangler pages deploy` only replaces the static
+site + Functions, never the data. So steps 1–3 above are one-time-only.
+
+From the 2nd deploy onward, the whole release is just **build + deploy**:
+
+```bash
+# From the repo root:
+cd screener-ts
+npm run build --workspace @screener/core
+npm run build --workspace @screener/desktop
+cd apps/desktop
+npx wrangler pages deploy dist --project-name the-professional
+```
+
+That's it. `wrangler.toml` already carries the `database_id`, so the redeployed
+Functions reconnect to the same database automatically.
+
+**The only exceptions** — when you'd run a D1 command again:
+
+| You changed… | Re-run |
+|---|---|
+| Just app code (TS/CSS/HTML) | **Nothing DB-related** — only build + deploy above |
+| `schema.sql` (added a table/column) | `wrangler d1 execute … --file=./schema.sql --remote` (and `--local`) once, then deploy |
+| Want to invite a new person | One `INSERT INTO users …` (see below) — independent of deploys |
+| Created a brand-new database | The full one-time setup again |
+
+> Migrations note: re-running `schema.sql` is safe because every statement uses
+> `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` — it won't drop or
+> overwrite existing data. To *add a column* to an existing table, run a one-off
+> `ALTER TABLE` via `--command` rather than editing the `CREATE TABLE`.
 
 ### Issuing access codes
 

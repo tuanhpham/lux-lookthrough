@@ -178,6 +178,30 @@ table td,
 /* Right-side controls. */
 .topnav-controls { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; margin-left: auto; }
 
+/* ── "More ▾" tab group (desktop) ──────────────────────────────────────────
+   The reference tabs live in a dropdown so the inline row can't overflow into
+   the brand/controls. On phones (≤980px) this whole structure flattens — see
+   the responsive block. */
+.nav-more { position: relative; display: inline-flex; flex: 0 0 auto; }
+/* The trigger highlights when one of its tabs is the active one. */
+.nav-more.has-active > .nav-more-trigger { color: var(--text); }
+.nav-more.has-active > .nav-more-trigger svg { opacity: 1; }
+.nav-more-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 62;
+  display: flex; flex-direction: column; align-items: stretch; gap: 1px; min-width: 184px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); padding: 6px;
+  opacity: 0; transform: translateY(-6px); pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.nav-more.open > .nav-more-panel { opacity: 1; transform: none; pointer-events: auto; }
+/* Inside the dropdown, tabs read as a vertical menu (icon + label, left-aligned). */
+.nav-more-panel .nav-btn { justify-content: flex-start; gap: 10px; padding: 9px 11px; width: 100%; }
+.nav-more-panel .nav-btn.active { background: var(--accent-wash); color: var(--accent); }
+.nav-more-panel .nav-btn.active svg { opacity: 1; }
+/* The underline tick doesn't make sense in the vertical menu. */
+.nav-more-panel .nav-btn.active::after { display: none; }
+
 /* ── Main column ─────────────────────────────────────────────────────────── */
 #main { max-width: 1240px; margin: 0 auto; width: 100%; padding: 30px 34px 96px; }
 h1 { font-size: 26px; margin: 0 0 5px; font-weight: 800; letter-spacing: -0.035em; }
@@ -667,9 +691,10 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
 .sidebar-backdrop { display: none; }
 
 /* ── Responsive: phones & small tablets ──────────────────────────────────────
-   Breakpoint at 980px: the inline 8-tab nav (brand + 8 tabs + controls) needs
-   ~1000px, so phones in LANDSCAPE (~900–932px) must also get the collapsed
-   dropdown — otherwise the row overflows and overlaps the brand/controls. */
+   Breakpoint at 980px: above it the bar shows brand + 6 inline tabs + a "More ▾"
+   dropdown (holding Analysis/Playbook/Learn/About) + the cloud/lang/theme
+   controls — which fits comfortably. Below it the whole nav collapses behind the
+   hamburger and the "More" group flattens into that single dropdown list. */
 @media (max-width: 980px) {
   #topnav { gap: 8px; padding: 0 12px; }
   /* Show the hamburger and collapse the inline tabs into a dropdown; the
@@ -697,6 +722,17 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
   .nav-btn.active { background: var(--accent-wash); color: var(--accent); }
   .nav-btn.active svg { opacity: 1; }
   .nav-btn.active::after { left: 0; right: auto; top: 6px; bottom: 6px; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
+
+  /* "More" group flattens: hide the trigger, and let its 4 tabs sit inline with
+     the others in the dropdown list (no nested popover on phones). */
+  .nav-more { display: contents; }
+  .nav-more-trigger { display: none; }
+  .nav-more-panel {
+    display: contents; position: static; background: 0; border: 0; box-shadow: none; padding: 0;
+    opacity: 1; transform: none; pointer-events: auto; min-width: 0;
+  }
+  .nav-more-panel .nav-btn { padding: 10px 12px; }
+  .nav-more-panel .nav-btn.active::after { display: block; }
 
   /* Backdrop sits BELOW the bar (top: 56px) so the nav bar stays bright, and is
      only a light scrim — just enough to signal "tap to close" without darkening

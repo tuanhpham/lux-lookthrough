@@ -95,8 +95,32 @@ function show(tab: Tab): void {
     b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab),
   );
   TABS.forEach((name) => $(`#tab-${name}`)!.classList.toggle('hidden', name !== tab));
+  // Highlight the "More" trigger when one of its collapsed tabs is the active one.
+  const more = $('#nav-more-btn')?.closest('.nav-more');
+  if (more) {
+    const activeInMore = !!more.querySelector('.nav-more-panel [data-tab].active');
+    more.classList.toggle('has-active', activeInMore);
+  }
   renderTab(tab);
 }
+
+// ── "More ▾" desktop dropdown ─────────────────────────────────────────────────
+function setMoreOpen(open: boolean): void {
+  const more = $('#nav-more-btn')?.closest('.nav-more');
+  if (!more) return;
+  more.classList.toggle('open', open);
+  $('#nav-more-btn')?.setAttribute('aria-expanded', String(open));
+}
+$('#nav-more-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const more = $('#nav-more-btn')?.closest('.nav-more');
+  setMoreOpen(!more?.classList.contains('open'));
+});
+// Close the dropdown on any outside click.
+document.addEventListener('click', (e) => {
+  const more = $('#nav-more-btn')?.closest('.nav-more');
+  if (more?.classList.contains('open') && !more.contains(e.target as Node)) setMoreOpen(false);
+});
 
 function enterApp(): void {
   $('#landing')!.classList.add('hidden');
@@ -129,16 +153,21 @@ $('#menu-toggle')?.addEventListener('click', () =>
   setNav(!$('#app')!.classList.contains('nav-open')),
 );
 $('#sidebar-backdrop')?.addEventListener('click', closeNav);
-// Close the dropdown with Escape for keyboard/desktop users.
+// Close the dropdowns with Escape for keyboard/desktop users.
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeNav();
+  if (e.key === 'Escape') {
+    closeNav();
+    setMoreOpen(false);
+  }
 });
 
-// Nav wiring. On mobile, selecting a tab also closes the drawer.
+// Nav wiring. Selecting a tab closes the mobile drawer AND the desktop "More"
+// dropdown so the chosen tab is revealed cleanly.
 $$('[data-tab]').forEach((b) =>
   b.addEventListener('click', () => {
     show((b as HTMLElement).dataset.tab as Tab);
     closeNav();
+    setMoreOpen(false);
   }),
 );
 $('#logo-home')?.addEventListener('click', goToLanding);
