@@ -450,10 +450,77 @@ html.light .sl-topbar {
   border-bottom-color: rgba(0,0,0,.08);
 }
 .sl-brand { display: flex; align-items: center; gap: 9px; }
-.sl-logo-svg { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
-.sl-brand-name { font-size: 14px; font-weight: 700; letter-spacing: -.02em; color: var(--text); }
+.sl-logo-svg { width: 20px; height: 20px; color: rgba(255,255,255,.75); flex-shrink: 0; }
+html.light .sl-logo-svg { color: rgba(10,10,10,.55); }
+.sl-brand-name { font-size: 14px; font-weight: 700; letter-spacing: -.02em; color: rgba(255,255,255,.88); }
+html.light .sl-brand-name { color: rgba(10,10,10,.8); }
 .sl-topbar-right { display: flex; align-items: center; gap: 10px; }
-.sl-enter-btn { font-size: 13px; padding: 7px 18px; }
+/* Discover button — identical geometry to lang toggle buttons */
+.sl-enter-btn {
+  font-size: 11px !important; padding: 5px 11px !important;
+  font-weight: 700 !important; font-family: var(--font-mono) !important;
+  border-radius: var(--radius-xs) !important;
+  background: rgba(255,255,255,.10) !important;
+  border: 1px solid rgba(255,255,255,.2) !important;
+  color: rgba(255,255,255,.88) !important;
+  box-shadow: none !important;
+}
+.sl-enter-btn:hover {
+  background: rgba(255,255,255,.20) !important;
+  border-color: rgba(255,255,255,.4) !important;
+  filter: none !important;
+}
+html.light .sl-enter-btn {
+  background: rgba(0,0,0,.06) !important;
+  border-color: rgba(0,0,0,.18) !important;
+  color: rgba(10,10,10,.8) !important;
+}
+html.light .sl-enter-btn:hover {
+  background: rgba(0,0,0,.12) !important;
+  border-color: rgba(0,0,0,.35) !important;
+}
+
+/* Lang toggle + theme button inside the landing topbar — monochrome, no green */
+.sl-topbar .lang-toggle {
+  border-color: rgba(255,255,255,.2);
+}
+.sl-topbar .lang-toggle button {
+  color: rgba(255,255,255,.45);
+}
+.sl-topbar .lang-toggle button + button {
+  border-left-color: rgba(255,255,255,.2);
+}
+.sl-topbar .lang-toggle button.active {
+  background: rgba(255,255,255,.12);
+  color: rgba(255,255,255,.9);
+}
+.sl-topbar .theme-toggle {
+  border-color: rgba(255,255,255,.2);
+  color: rgba(255,255,255,.6);
+}
+.sl-topbar .theme-toggle:hover {
+  border-color: rgba(255,255,255,.45);
+}
+html.light .sl-topbar .lang-toggle {
+  border-color: rgba(0,0,0,.18);
+}
+html.light .sl-topbar .lang-toggle button {
+  color: rgba(10,10,10,.4);
+}
+html.light .sl-topbar .lang-toggle button + button {
+  border-left-color: rgba(0,0,0,.18);
+}
+html.light .sl-topbar .lang-toggle button.active {
+  background: rgba(0,0,0,.08);
+  color: rgba(10,10,10,.85);
+}
+html.light .sl-topbar .theme-toggle {
+  border-color: rgba(0,0,0,.18);
+  color: rgba(10,10,10,.55);
+}
+html.light .sl-topbar .theme-toggle:hover {
+  border-color: rgba(0,0,0,.38);
+}
 
 /* ── hero: full-viewport landscape ── */
 .sl-hero {
@@ -720,9 +787,30 @@ html.light .sl-scene-c, html.light .sl-scene-d {
 /* ── Bottom CTA ── */
 .sl-bottom-cta {
   padding: 60px 32px 100px; display: flex; flex-direction: column;
-  align-items: center; gap: 20px; background: var(--bg);
+  align-items: center; gap: 20px; background: #0a0a0a;
 }
-.sl-bottom-btn { font-size: 15px; padding: 13px 30px; }
+html.light .sl-bottom-cta { background: #f0f0f0; }
+.sl-bottom-btn {
+  font-size: 14px; padding: 9px 26px;
+  background: rgba(255,255,255,.08) !important;
+  border: 1px solid rgba(255,255,255,.24) !important;
+  color: rgba(255,255,255,.82) !important;
+  box-shadow: none !important;
+}
+.sl-bottom-btn:hover {
+  background: rgba(255,255,255,.16) !important;
+  border-color: rgba(255,255,255,.44) !important;
+  filter: none !important;
+}
+html.light .sl-bottom-btn {
+  background: rgba(0,0,0,.06) !important;
+  border-color: rgba(0,0,0,.2) !important;
+  color: rgba(10,10,10,.78) !important;
+}
+html.light .sl-bottom-btn:hover {
+  background: rgba(0,0,0,.12) !important;
+  border-color: rgba(0,0,0,.36) !important;
+}
 .sl-disc { font-size: 12px; margin: 0; }
 
 /* ── Gate modal ── */
