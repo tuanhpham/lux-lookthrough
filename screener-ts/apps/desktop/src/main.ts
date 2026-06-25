@@ -11,6 +11,7 @@ import { renderPlaybook } from './tabs/playbookTab.js';
 import { renderCaseStudies } from './tabs/caseStudiesTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
+import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange } from './ui/theme.js';
 import { openSyncSettings, onSynced } from './ui/syncSettings.js';
@@ -130,16 +131,19 @@ function enterApp(): void {
   $('#landing')!.classList.add('hidden');
   $('#app')!.classList.remove('hidden');
   applyStaticI18n();
-  if (entered) return; // already initialised — just reveal
+  if (entered) return;
   entered = true;
-  // Auto-run Top Picks as soon as the app is entered (matches the backend).
   show('picks');
+}
+
+function requestPrivateAccess(): void {
+  showGate(enterApp);
 }
 
 function goToLanding(): void {
   $('#app')!.classList.add('hidden');
   $('#landing')!.classList.remove('hidden');
-  renderLanding($('#landing')!, enterApp);
+  renderLanding($('#landing')!, requestPrivateAccess);
 }
 
 // ── Mobile nav dropdown ──────────────────────────────────────────────────────
@@ -157,6 +161,7 @@ $('#menu-toggle')?.addEventListener('click', () =>
   setNav(!$('#app')!.classList.contains('nav-open')),
 );
 $('#sidebar-backdrop')?.addEventListener('click', closeNav);
+$('#sidebar-backdrop')?.addEventListener('touchend', closeNav);
 // Close the dropdowns with Escape for keyboard/desktop users.
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -218,7 +223,7 @@ if (isSyncEnabled()) {
 
 // Landing first; the CTA reveals the app and auto-runs picks.
 try {
-  renderLanding($('#landing')!, enterApp);
+  renderLanding($('#landing')!, requestPrivateAccess);
   applyStaticI18n();
   // App mounted successfully → disarm the boot-phase error trap so benign
   // runtime errors don't blank the screen.
