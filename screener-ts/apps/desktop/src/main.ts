@@ -188,6 +188,7 @@ $$('[data-tab]').forEach((b) =>
   }),
 );
 $('#logo-home')?.addEventListener('click', goToLanding);
+$('#nav-home')?.addEventListener('click', () => { closeNav(); showToolLanding(); });
 
 // Language toggle: persist, re-translate static chrome, and re-render the open tab
 // so dynamic content (and the analysis summary's EN/VI) follows the switch.

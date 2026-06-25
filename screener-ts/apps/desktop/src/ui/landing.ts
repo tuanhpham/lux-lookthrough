@@ -7,7 +7,7 @@ const EN = {
   heroCta: 'Discover →',
   s1: [
     `Some people are born knowing exactly what they want.`,
-    `He wasn't.`,
+    `TA wasn't.`,
     `And perhaps — that was where everything began.`,
   ],
   s2: [

@@ -9,7 +9,7 @@ export function renderToolLanding(host: HTMLElement, onEnter: () => void, onBack
   host.innerHTML = `
     <div class="tl-wrap">
       <div class="tl-topbar">
-        <button class="tl-brand${onBack ? ' tl-brand-btn' : ''}" id="tl-back" title="Back to home">
+        <button class="tl-brand${onBack ? ' tl-brand-btn' : ''}" id="tl-back" title="Back to story">
           <div class="logo logo-svg">${logoSvg}</div>
           <span class="brand-name">${t('brand.name')}</span>
         </button>
@@ -67,7 +67,7 @@ export function renderToolLanding(host: HTMLElement, onEnter: () => void, onBack
     </div>`;
 
   host.querySelector('#tl-enter')!.addEventListener('click', onEnter);
-  if (onBack) host.querySelector('#tl-back')!.addEventListener('click', onBack);
+  if (onBack) host.querySelector('#tl-back')?.addEventListener('click', onBack);
   host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
     b.addEventListener('click', () => {
       setLang(b.dataset.ll as 'en' | 'vi');

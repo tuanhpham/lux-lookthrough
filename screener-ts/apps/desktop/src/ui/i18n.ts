@@ -8,6 +8,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // Brand / nav
   'brand.name': { en: 'The Professional', vi: 'The Professional' },
   'brand.sub': { en: 'Screener for The Professionals', vi: 'Bộ lọc cho dân chuyên nghiệp' },
+  'nav.home': { en: 'Home', vi: 'Trang chủ' },
   'nav.picks': { en: 'Top Picks', vi: 'Lựa chọn hàng đầu' },
   'nav.screener': { en: 'Screener', vi: 'Bộ lọc' },
   'nav.watchlist': { en: 'Watchlists', vi: 'Danh sách theo dõi' },
