@@ -39,3 +39,27 @@ A custom scroll engine hijacks native scroll (wheel, touch, keys) and advances o
 Library Map (what to install)
 Raw WebGL for the ink mask, Framer Motion for most declarative animations, Lenis for smooth scroll, GSAP core for panel transitions, and Canvas 2D for the image sequence.
 
+
+
+● Scene 1 — between opening and childhood text
+
+  ▎ Black and white cinematic widescreen photograph. An empty dirt road stretches into the far distance through a flat countryside, flanked by low grass and bare trees. Overcast sky, soft 
+  ▎ diffused light, no sun visible. Deep shadows at the edges, the road slightly brighter at the horizon. No people, no text. Film grain, high contrast, aspect ratio 16:9.
+
+  ---
+  Scene 2 — between study text and first quote
+
+  ▎ Black and white cinematic widescreen photograph. Extreme close-up of an open notebook on a dark wooden desk, shot from slightly above. A single pen rests diagonally across the page. One side
+  ▎ of the frame lit by a narrow lamp beam, the other side in deep shadow. Handwritten lines barely visible. No people, no text. Film grain, high contrast, aspect ratio 16:9.
+
+  ---
+  Scene 3 — between family text and second quote
+
+  ▎ Black and white cinematic widescreen photograph. Two worn wooden chairs facing each other across a small table in an otherwise empty, dimly lit room. A single window behind them lets in faint
+  ▎ grey light. Heavy shadows on the walls. Quiet, still, intimate. No people, no text. Film grain, high contrast, aspect ratio 16:9.
+
+  ---
+  Scene 4 — between trading text and third quote
+
+  ▎ Black and white cinematic widescreen photograph. A single computer monitor glowing in complete darkness, displaying a candlestick chart. The screen light spills faintly onto a dark desk
+  ▎ surface below it. No other light source. Deep black background. No people, no text. Film grain, high contrast, aspect ratio 16:9.

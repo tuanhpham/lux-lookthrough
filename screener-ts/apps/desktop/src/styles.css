@@ -431,23 +431,23 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .logo-svg svg { width: 20px; height: 20px; }
 .landing-foot { text-align: center; font-size: 12px; }
 
-/* ── wrapper — warm noir palette matching manunderlight.jpg ── */
-.sl-wrap { position: relative; background: #0c0a08; }
-html.light .sl-wrap { background: #f2ede4; }
+/* ── wrapper — pure neutral to match B&W photos ── */
+.sl-wrap { position: relative; background: #0a0a0a; }
+html.light .sl-wrap { background: #f0f0f0; }
 
 /* ── fixed top bar ── */
 .sl-topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 80;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 36px; height: 56px;
-  background: rgba(12,10,8,.72);
+  background: rgba(10,10,10,.76);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   border-bottom: 1px solid rgba(255,255,255,.06);
   gap: 16px;
 }
 html.light .sl-topbar {
-  background: rgba(242,237,228,.82);
-  border-bottom-color: rgba(0,0,0,.07);
+  background: rgba(240,240,240,.84);
+  border-bottom-color: rgba(0,0,0,.08);
 }
 .sl-brand { display: flex; align-items: center; gap: 9px; }
 .sl-logo-svg { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
@@ -462,36 +462,33 @@ html.light .sl-topbar {
   overflow: hidden;
 }
 
-/* Hero background — noir photo of man under street lamp */
+/* Hero background — B&W photo, full viewport */
 .sl-hero-bg {
   position: absolute; inset: 0; z-index: 0;
-  background-image: url('/images/manunderlight.jpg');
+  background-image: url('/images/manunderlight.png');
   background-size: cover;
   background-position: center 30%;
   background-repeat: no-repeat;
-  /* Slight blur softens compression artifacts and gives a cinematic depth-of-field look */
-  filter: blur(1.5px) brightness(.72) contrast(1.08) saturate(.85);
-  transform: scale(1.03); /* compensate for blur edge bleed */
+  filter: blur(1px) brightness(.65) contrast(1.12) grayscale(1);
+  transform: scale(1.02);
 }
-/* Grain overlay — SVG turbulence via data URI, makes it feel like film */
+/* Film-grain overlay */
 .sl-hero-bg::before {
   content: '';
   position: absolute; inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  opacity: .18; mix-blend-mode: overlay; pointer-events: none;
+  opacity: .22; mix-blend-mode: overlay; pointer-events: none;
 }
 .sl-hero-bg::after { content: none; }
 
 html.light .sl-hero-bg {
-  background-image: url('/images/manunderlight.jpg');
-  background-position: center 30%;
-  filter: blur(1.5px) brightness(.82) contrast(1.05) saturate(.9);
+  filter: blur(1px) brightness(.78) contrast(1.08) grayscale(1);
 }
 html.light .sl-hero-bg::before {
   content: '';
   position: absolute; inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  opacity: .12; mix-blend-mode: overlay; pointer-events: none;
+  opacity: .14; mix-blend-mode: overlay; pointer-events: none;
 }
 html.light .sl-hero-bg::after { content: none; }
 
@@ -545,20 +542,20 @@ html.light .sl-scroll-hint { color: rgba(10,14,22,.3); }
 @keyframes bounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
 
 /* ── Narrative scroll ── */
-/* Dark: deep warm charcoal matching the photo's shadow zones.
-   Light: aged parchment echoing the lamp's amber warmth. */
+/* Dark: near-black — photos sit like prints in a dark room.
+   Light: photo-paper off-white — prints laid on an archival sheet. */
 .sl-story {
-  background: #0c0a08;
+  background: #0a0a0a;
 }
-.sl-story .story-p       { color: #9a938a; }  /* warm grey, not cold blue-grey */
-.sl-story .story-p em    { color: #e0d8ce; }  /* warm off-white for emphasis */
-.sl-story .story-quote span { color: #7a7068; border-left-color: rgba(200,160,80,.35); }
+.sl-story .story-p       { color: #888; }
+.sl-story .story-p em    { color: #ddd; }
+.sl-story .story-quote span { color: #666; border-left-color: rgba(180,180,180,.35); }
 html.light .sl-story {
-  background: #f2ede4;
+  background: #f0f0f0;
 }
-html.light .sl-story .story-p       { color: #6a6056; }
-html.light .sl-story .story-p em    { color: #1c140c; }
-html.light .sl-story .story-quote span { color: #8a7a6a; border-left-color: rgba(160,120,60,.4); }
+html.light .sl-story .story-p       { color: #555; }
+html.light .sl-story .story-p em    { color: #111; }
+html.light .sl-story .story-quote span { color: #777; border-left-color: rgba(80,80,80,.3); }
 
 /* Text blocks are constrained; scene panels are full-bleed */
 .story-block, .story-quote, .story-final {
@@ -588,14 +585,15 @@ html.light .sl-story .story-quote span { color: #8a7a6a; border-left-color: rgba
   object-fit: cover; object-position: center;
   position: sticky; top: 120px;
   align-self: start;
-  filter: brightness(.9) contrast(1.05);
-  box-shadow: 0 8px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+  /* B&W photos: slight contrast boost, no colour tinting */
+  filter: grayscale(1) contrast(1.08) brightness(.92);
+  box-shadow: 0 8px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
 }
 .story-illo-left { margin-right: 32px; }
 .story-illo { margin-left: 32px; }
 html.light .story-illo, html.light .story-illo-left {
-  filter: brightness(1.05) contrast(.95);
-  box-shadow: 0 8px 32px rgba(0,0,0,.15), 0 0 0 1px rgba(0,0,0,.08);
+  filter: grayscale(1) contrast(1.05) brightness(.96);
+  box-shadow: 0 8px 32px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.1);
 }
 
 /* story blocks */
@@ -634,8 +632,10 @@ html.light .story-illo, html.light .story-illo-left {
   text-align: center;
 }
 html.light .story-final {
-  border-top-color: rgba(0,0,0,.1);
+  border-top-color: rgba(0,0,0,.12);
 }
+.sl-story .story-final { color: #666; }
+html.light .sl-story .story-final { color: #444; }
 .story-attr { display: block; margin-top: 16px; font-size: 13px; font-style: normal; color: var(--faint); font-family: var(--font-mono); letter-spacing: .04em; }
 
 /* ── Scene separators — full-bleed atmospheric panels ── */
@@ -646,12 +646,12 @@ html.light .story-final {
 .sl-scene::after {
   content: ''; position: absolute; inset: 0;
   background:
-    linear-gradient(to bottom, #0c0a08 0%, transparent 18%, transparent 82%, #0c0a08 100%);
+    linear-gradient(to bottom, #0a0a0a 0%, transparent 18%, transparent 82%, #0a0a0a 100%);
   z-index: 1; pointer-events: none;
 }
 html.light .sl-scene::after {
   background:
-    linear-gradient(to bottom, #f2ede4 0%, transparent 18%, transparent 82%, #f2ede4 100%);
+    linear-gradient(to bottom, #f0f0f0 0%, transparent 18%, transparent 82%, #f0f0f0 100%);
 
 }
 

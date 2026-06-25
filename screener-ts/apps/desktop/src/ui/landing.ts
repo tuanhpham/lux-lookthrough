@@ -99,14 +99,17 @@ const VI = {
 
 // ── Inline photo illustrations ───────────────────────────────────────────────
 
-// Illus A: childhood.jpg — kids in rice fields, beside the "old house / childhood" section
-const illusHouse = `<img class="story-illo reveal" src="/images/childhood.jpg" alt="" aria-hidden="true" loading="lazy">`;
+// Illus A: childhood.png — beside the "old house / childhood" section
+const illusHouse = `<img class="story-illo reveal" src="/images/childhood.png" alt="" aria-hidden="true" loading="lazy">`;
 
-// Illus B: books.jpg — "My Story Begins" journal, beside the repetition/study section
-const illusNotebook = `<img class="story-illo-left reveal" src="/images/books.jpg" alt="" aria-hidden="true" loading="lazy">`;
+// Illus B: study.png — beside the repetition/study section
+const illusNotebook = `<img class="story-illo-left reveal" src="/images/study.png" alt="" aria-hidden="true" loading="lazy">`;
 
-// Illus C: oldhouse.jpg — watercolour family under a tree, beside the "he looked at his parents" section
-const illusFamily = `<img class="story-illo reveal" src="/images/oldhouse.jpg" alt="" aria-hidden="true" loading="lazy">`;
+// Illus C: start.png — beside the "he looked at his parents" section
+const illusFamily = `<img class="story-illo reveal" src="/images/start.png" alt="" aria-hidden="true" loading="lazy">`;
+
+// Illus D: trading.png — beside "he chose trading"
+const illusTrading = `<img class="story-illo-left reveal" src="/images/trading.png" alt="" aria-hidden="true" loading="lazy">`;
 
 
 // Full-width scene separators
@@ -139,7 +142,7 @@ function buildStoryBlocks(c: typeof EN): string {
     blockWithIllo(c.s4, illusFamily),           // family beside the "he looked at his parents" para
     SCENES[2]!,
     quote(c.q2),
-    block(c.s5),                               // "he chose trading" — plain, no illustration
+    blockWithIllo(c.s5, illusTrading, 'left'), // trading.png beside "he chose trading"
     SCENES[3]!,
     quote(c.q3),
     block(c.s6),
