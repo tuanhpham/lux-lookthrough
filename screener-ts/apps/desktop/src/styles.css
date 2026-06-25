@@ -614,6 +614,11 @@ html.light .story-illo, html.light .story-illo-left {
   padding-left: calc(32px + 22px);
   /* border removed from wrapper — it ran the full height including padding */
 }
+/* Quote gets a slower, more deliberate reveal */
+.story-quote.reveal {
+  transform: translateY(40px);
+  transition: opacity 2.4s cubic-bezier(.16,1,.3,1), transform 2.4s cubic-bezier(.16,1,.3,1);
+}
 .story-quote span {
   display: block; font-size: 18px; font-weight: 300; font-style: italic;
   color: var(--subtext); line-height: 1.7; letter-spacing: .005em;
@@ -655,142 +660,56 @@ html.light .sl-scene::after {
 
 }
 
-/* Scene A — early morning meadow mist */
+/* Scene A — childhood.png */
 .sl-scene-a {
-  background:
-    /* Mist layer */
-    radial-gradient(ellipse 160% 40% at 50% 70%, rgba(200,220,210,.18) 0%, transparent 60%),
-    /* Dawn sky: pale yellow-green to soft blue */
-    linear-gradient(180deg,
-      #0d1a0f 0%, #152218 15%,
-      #1a2e20 30%, #223828 45%,
-      #2a4030 60%, #1e3020 75%,
-      #0f1c10 90%, #0a1209 100%
-    );
+  background-image: url('/images/childhood.png');
+  background-size: cover; background-position: center;
 }
-.sl-scene-a::before {
-  content: ''; position: absolute; inset: 0; z-index: 0;
-  background:
-    /* Warm dawn glow on horizon */
-    radial-gradient(ellipse 100% 25% at 38% 72%, rgba(180,220,150,.14) 0%, transparent 55%),
-    radial-gradient(ellipse 60% 18% at 38% 72%, rgba(210,240,180,.10) 0%, transparent 40%),
-    /* Meadow ground — dark rich green */
-    radial-gradient(ellipse 200% 35% at 50% 100%, #0a1a0a 0%, #122014 40%, transparent 65%),
-    /* Distant tree line silhouette */
-    radial-gradient(ellipse 120% 22% at 25% 65%, #0c1a0c 0%, transparent 50%),
-    radial-gradient(ellipse 80% 18% at 80% 60%, #0a1808 0%, transparent 45%),
-    /* Stars / morning sky glow */
-    radial-gradient(ellipse 80% 50% at 50% 10%, rgba(100,160,120,.06) 0%, transparent 65%);
-}
+.sl-scene-a::before { content: none; }
 
-/* Scene B — open sky, billowing clouds, noon light */
+/* Scene B — study.png */
 .sl-scene-b {
-  background:
-    linear-gradient(180deg,
-      #06080e 0%, #0c1220 18%,
-      #141e36 35%, #1a2848 50%,
-      #1e3050 65%, #162440 80%,
-      #0c1828 90%, #080f1c 100%
-    );
+  background-image: url('/images/study.png');
+  background-size: cover; background-position: center;
 }
-.sl-scene-b::before {
-  content: ''; position: absolute; inset: 0; z-index: 0;
-  background:
-    /* Large billowing cloud mass — bright silver-white */
-    radial-gradient(ellipse 80% 55% at 30% 38%, rgba(200,215,240,.22) 0%, rgba(180,200,230,.08) 45%, transparent 65%),
-    radial-gradient(ellipse 60% 42% at 55% 28%, rgba(210,225,245,.18) 0%, transparent 55%),
-    radial-gradient(ellipse 40% 30% at 72% 42%, rgba(190,210,235,.14) 0%, transparent 50%),
-    /* Smaller clouds */
-    radial-gradient(ellipse 30% 22% at 15% 55%, rgba(170,195,225,.10) 0%, transparent 48%),
-    radial-gradient(ellipse 25% 18% at 85% 35%, rgba(165,190,220,.09) 0%, transparent 45%),
-    /* Blue sky depth behind clouds */
-    radial-gradient(ellipse 100% 60% at 50% 0%, rgba(60,100,180,.12) 0%, transparent 65%),
-    /* Ground — dark silhouette of open field */
-    linear-gradient(to top, #060c08 0%, #0c1610 28%, transparent 52%);
-}
+.sl-scene-b::before { content: none; }
 
-/* Scene C — warm afternoon forest light, golden hour */
+/* Scene C — start.png */
 .sl-scene-c {
-  background:
-    linear-gradient(180deg,
-      #0a0b08 0%, #141208 18%,
-      #1e1a0a 35%, #28200c 50%,
-      #302610 65%, #241c0a 80%,
-      #160e06 90%, #0e0906 100%
-    );
+  background-image: url('/images/start.png');
+  background-size: cover; background-position: center;
 }
-.sl-scene-c::before {
-  content: ''; position: absolute; inset: 0; z-index: 0;
-  background:
-    /* Golden light shaft from upper right */
-    radial-gradient(ellipse 55% 80% at 78% 10%, rgba(255,200,80,.18) 0%, rgba(240,170,60,.06) 45%, transparent 65%),
-    radial-gradient(ellipse 35% 55% at 78% 10%, rgba(255,220,120,.14) 0%, transparent 50%),
-    /* Forest canopy silhouette — dark organic shapes */
-    radial-gradient(ellipse 120% 30% at 20% 0%, #0a0c06 0%, transparent 45%),
-    radial-gradient(ellipse 80% 28% at 60% 0%, #0c0e08 0%, transparent 40%),
-    radial-gradient(ellipse 60% 24% at 90% 5%, #0a0c06 0%, transparent 38%),
-    /* Forest floor — warm earth tones */
-    radial-gradient(ellipse 200% 40% at 50% 100%, #180e06 0%, #201408 40%, transparent 65%),
-    /* Dappled light pools on ground */
-    radial-gradient(ellipse 25% 12% at 35% 78%, rgba(240,190,80,.07) 0%, transparent 45%),
-    radial-gradient(ellipse 18% 10% at 65% 72%, rgba(250,200,90,.06) 0%, transparent 40%);
-}
+.sl-scene-c::before { content: none; }
 
-/* Scene D — dusk/twilight, commitment, deep purple-amber sky */
+/* Scene D — trading.png */
 .sl-scene-d {
-  background:
-    linear-gradient(180deg,
-      #080610 0%, #100c1c 15%,
-      #180f28 30%, #200c30 45%,
-      #281040 58%, #201035 70%,
-      #160c24 82%, #0c0816 92%, #060408 100%
-    );
+  background-image: url('/images/trading.png');
+  background-size: cover; background-position: center;
 }
-.sl-scene-d::before {
-  content: ''; position: absolute; inset: 0; z-index: 0;
-  background:
-    /* Amber horizon glow — the burning sky at dusk */
-    radial-gradient(ellipse 120% 22% at 50% 78%, rgba(255,140,40,.22) 0%, rgba(240,100,20,.10) 45%, transparent 65%),
-    radial-gradient(ellipse 60% 14% at 50% 80%, rgba(255,170,60,.18) 0%, transparent 40%),
-    /* Purple cloud bank above horizon */
-    radial-gradient(ellipse 110% 38% at 40% 52%, rgba(100,60,140,.20) 0%, transparent 55%),
-    radial-gradient(ellipse 80% 30% at 70% 42%, rgba(80,50,120,.16) 0%, transparent 50%),
-    /* Stars just appearing */
-    radial-gradient(ellipse 60% 45% at 30% 8%, rgba(180,170,220,.06) 0%, transparent 55%),
-    radial-gradient(ellipse 40% 30% at 75% 15%, rgba(160,155,210,.05) 0%, transparent 48%),
-    /* Dark earth silhouette */
-    linear-gradient(to top, #040408 0%, #08060e 30%, transparent 55%),
-    radial-gradient(ellipse 200% 25% at 50% 100%, #040308 0%, transparent 50%);
-}
+.sl-scene-d::before { content: none; }
 
-/* Light mode: softer, more watercolour-like versions */
-html.light .sl-scene-a {
-  background: linear-gradient(180deg, #c8e8c8 0%, #b8e0b0 30%, #a8d8a0 60%, #90c888 85%, #78b870 100%);
+/* Dark mode: darken scenes to feel like prints emerging from shadow */
+.sl-scene-a, .sl-scene-b, .sl-scene-c, .sl-scene-d {
+  filter: grayscale(1) brightness(.55) contrast(1.15);
 }
-html.light .sl-scene-b {
-  background: linear-gradient(180deg, #a8c8e8 0%, #b8d4ec 25%, #c8dff0 50%, #d0e4f2 70%, #b8cce0 100%);
+/* Light mode: lighter, higher key — like prints on paper in daylight */
+html.light .sl-scene-a, html.light .sl-scene-b,
+html.light .sl-scene-c, html.light .sl-scene-d {
+  filter: grayscale(1) brightness(.82) contrast(1.08);
 }
-html.light .sl-scene-c {
-  background: linear-gradient(180deg, #e8c870 0%, #d8b848 25%, #c8a830 50%, #b89820 75%, #a08810 100%);
-}
-html.light .sl-scene-d {
-  background: linear-gradient(180deg, #c8a0d8 0%, #d8a8c0 25%, #e8b090 50%, #e8c070 75%, #d8b060 100%);
-}
-html.light .sl-scene-a::before, html.light .sl-scene-b::before,
-html.light .sl-scene-c::before, html.light .sl-scene-d::before { opacity: 0; }
 
 /* ── Scroll-reveal ── */
 .reveal {
-  opacity: 0; transform: translateY(32px);
-  transition: opacity 1.4s cubic-bezier(.16,1,.3,1), transform 1.4s cubic-bezier(.16,1,.3,1);
+  opacity: 0; transform: translateY(56px);
+  transition: opacity 1.8s cubic-bezier(.16,1,.3,1), transform 1.8s cubic-bezier(.16,1,.3,1);
 }
 .revealed { opacity: 1; transform: none; }
 
-/* stagger siblings */
-.story-block .reveal:nth-child(2) { transition-delay: .18s; }
-.story-block .reveal:nth-child(3) { transition-delay: .36s; }
-.story-block .reveal:nth-child(4) { transition-delay: .52s; }
-.story-block .reveal:nth-child(5) { transition-delay: .68s; }
+/* stagger — each paragraph waits noticeably longer than the last */
+.story-block .reveal:nth-child(2) { transition-delay: .28s; }
+.story-block .reveal:nth-child(3) { transition-delay: .56s; }
+.story-block .reveal:nth-child(4) { transition-delay: .84s; }
+.story-block .reveal:nth-child(5) { transition-delay: 1.1s; }
 
 /* illustrations fade in from side */
 .story-illo { opacity: 0; transform: translateX(20px); transition: opacity 1.6s cubic-bezier(.16,1,.3,1), transform 1.6s cubic-bezier(.16,1,.3,1); transition-delay: .3s; }

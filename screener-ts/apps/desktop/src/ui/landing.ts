@@ -99,17 +99,6 @@ const VI = {
 
 // ── Inline photo illustrations ───────────────────────────────────────────────
 
-// Illus A: childhood.png — beside the "old house / childhood" section
-const illusHouse = `<img class="story-illo reveal" src="/images/childhood.png" alt="" aria-hidden="true" loading="lazy">`;
-
-// Illus B: study.png — beside the repetition/study section
-const illusNotebook = `<img class="story-illo-left reveal" src="/images/study.png" alt="" aria-hidden="true" loading="lazy">`;
-
-// Illus C: start.png — beside the "he looked at his parents" section
-const illusFamily = `<img class="story-illo reveal" src="/images/start.png" alt="" aria-hidden="true" loading="lazy">`;
-
-// Illus D: trading.png — beside "he chose trading"
-const illusTrading = `<img class="story-illo-left reveal" src="/images/trading.png" alt="" aria-hidden="true" loading="lazy">`;
 
 
 // Full-width scene separators
@@ -125,24 +114,18 @@ function buildStoryBlocks(c: typeof EN): string {
     `<div class="story-block${cls ? ' ' + cls : ''}">${paras.map((p) => `<p class="story-p reveal">${p}</p>`).join('')}</div>`;
   const quote = (text: string) =>
     `<div class="story-quote reveal"><span>${text}</span></div>`;
-  // block with illustration beside it
-  const blockWithIllo = (paras: string[], illo: string, side: 'right' | 'left' = 'right') =>
-    `<div class="story-with-illo${side === 'left' ? ' story-with-illo--left' : ''}">
-      <div class="story-block">${paras.map((p) => `<p class="story-p reveal">${p}</p>`).join('')}</div>
-      ${illo}
-    </div>`;
 
   return [
     block(c.s1, 'story-open'),
     SCENES[0]!,
-    blockWithIllo(c.s2, illusHouse),           // childhood home beside the "old house" para
-    blockWithIllo(c.s3, illusNotebook, 'left'), // notebook beside the repetition para
+    block(c.s2),
+    block(c.s3),
     SCENES[1]!,
     quote(c.q1),
-    blockWithIllo(c.s4, illusFamily),           // family beside the "he looked at his parents" para
+    block(c.s4),
     SCENES[2]!,
     quote(c.q2),
-    blockWithIllo(c.s5, illusTrading, 'left'), // trading.png beside "he chose trading"
+    block(c.s5),
     SCENES[3]!,
     quote(c.q3),
     block(c.s6),
@@ -221,26 +204,28 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
     renderLanding(host, onEnterPrivate);
   });
 
-  // scroll-reveal — rAF defers past first paint so CSS transitions fire.
-  // rootMargin '0px 0px -40px 0px' ensures element is meaningfully in view.
+  // Scroll-reveal via getBoundingClientRect — more reliable than IntersectionObserver
+  // in Tauri webviews, which can fire the observer callback for all elements at load.
   requestAnimationFrame(() => {
-    const revealEls = Array.from(host.querySelectorAll<HTMLElement>('.reveal'));
+    let pending = Array.from(host.querySelectorAll<HTMLElement>('.reveal'));
 
-    const reveal = (el: HTMLElement) => {
-      el.classList.add('revealed');
+    const check = () => {
+      const trigger = window.innerHeight * 0.82; // fire when top edge is in upper 82% of viewport
+      pending = pending.filter((el) => {
+        if (el.getBoundingClientRect().top > trigger) return true; // not yet visible
+        // Stagger siblings that enter at the same time
+        const idx = Array.from(el.parentElement?.children ?? []).indexOf(el);
+        if (idx > 0) {
+          const base = parseFloat(el.style.transitionDelay) || 0;
+          el.style.transitionDelay = `${base + idx * 0.15}s`;
+        }
+        el.classList.add('revealed');
+        return false;
+      });
+      if (pending.length === 0) window.removeEventListener('scroll', check);
     };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            reveal(e.target as HTMLElement);
-            observer.unobserve(e.target);
-          }
-        });
-      },
-      { threshold: 0, rootMargin: '0px 0px -60px 0px' },
-    );
-    revealEls.forEach((el) => observer.observe(el));
+    window.addEventListener('scroll', check, { passive: true });
+    check(); // reveal anything already above the fold on first paint
   });
 }
