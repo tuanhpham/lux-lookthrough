@@ -423,116 +423,407 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
 .notice { background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); color: var(--warn); border-radius: var(--radius-sm); padding: 9px 13px; font-size: 13px; }
 
-/* ── Landing (editorial, simon-russo aesthetic) ───────────────────────────── */
-.landing {
-  position: relative; min-height: 100vh; display: flex; flex-direction: column;
-  padding: 0 0 80px; overflow: hidden; background: var(--bg);
-}
+/* ══════════════════════════════════════════════════════════════════
+   CINEMATIC LANDING  (simon-russo aesthetic)
+   ══════════════════════════════════════════════════════════════════ */
 
-.landing-glow {
-  position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
-  width: 1100px; height: 720px; pointer-events: none;
-  background:
-    radial-gradient(closest-side, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%),
-    radial-gradient(closest-side at 30% 50%, color-mix(in srgb, var(--accent2) 12%, transparent), transparent 70%);
-  filter: blur(40px);
-  animation: glowDrift 16s ease-in-out infinite alternate;
-}
-@keyframes glowDrift {
-  from { transform: translateX(-54%) translateY(-14px) scale(1);    opacity: .8; }
-  to   { transform: translateX(-46%) translateY( 14px) scale(1.09); opacity: 1;  }
-}
-
-.landing-topbar {
-  position: relative; display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 48px; z-index: 2; gap: 16px;
-}
-.landing-brand { display: flex; align-items: center; gap: 10px; }
-.landing-topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.landing-nav-link {
-  color: var(--subtext); font-size: 13px; font-weight: 600; text-decoration: none;
-  letter-spacing: -.01em; transition: color .15s; padding: 4px 2px;
-}
-.landing-nav-link:hover { color: var(--text); }
-.landing-private-cta { font-size: 13px; padding: 7px 16px; }
-
-.landing-inner {
-  position: relative; max-width: 860px; width: 100%; margin: 0 auto;
-  padding: 0 48px; z-index: 2;
-  animation: fadeUp .7s cubic-bezier(.22, 1, .36, 1);
-}
-
-/* ── Hero ── */
-.pub-hero { padding: 80px 0 96px; border-bottom: 1px solid var(--border-soft); }
-.pub-hero-eyebrow {
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
-  color: var(--accent); margin-bottom: 22px;
-}
-.pub-hero-h1 {
-  font-size: 56px; line-height: 1.05; font-weight: 800; letter-spacing: -.04em;
-  margin: 0 0 22px; max-width: 700px;
-}
-.pub-hero-sub {
-  color: var(--subtext); font-size: 16px; line-height: 1.7; margin: 0 0 36px;
-  max-width: 560px; letter-spacing: -.01em;
-}
-.pub-hero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.pub-hero-cta { font-size: 15px; padding: 12px 26px; }
-.pub-hero-cta-sec { font-size: 14px; padding: 11px 22px; }
-
-/* ── Numbered sections ── */
-.pub-section {
-  padding: 72px 0 64px; border-bottom: 1px solid var(--border-soft);
-  display: grid; grid-template-columns: 80px 1fr; gap: 0 40px;
-}
-.pub-section.pub-gate-section { border-bottom: none; }
-.pub-section-number {
-  font-size: 72px; font-weight: 800; letter-spacing: -.06em;
-  color: color-mix(in srgb, var(--accent) 20%, transparent);
-  font-family: var(--font-mono); line-height: 1; padding-top: 4px; user-select: none;
-}
-.pub-section-head { grid-column: 2; }
-.pub-blog-grid    { grid-column: 2; margin-top: 28px; }
-.pub-about-block  { grid-column: 2; margin-top: 28px; }
-.pub-section-title {
-  font-size: 30px; font-weight: 800; letter-spacing: -.03em; margin: 0 0 10px;
-}
-.pub-section-desc { color: var(--subtext); font-size: 15px; line-height: 1.65; margin: 0; max-width: 520px; }
-
-/* ── Public blog cards ── */
-.pub-card {
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 20px 22px; margin-bottom: 12px; cursor: pointer;
-  transition: border-color .15s, background .15s, transform .12s;
-}
-.pub-card:hover { background: var(--cardhover); border-color: var(--accent-line); transform: translateY(-2px); }
-.pub-card-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.pub-tag {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
-  padding: 2px 9px; border-radius: 999px;
-  background: var(--accent-wash); color: var(--accent); border: 1px solid var(--accent-line);
-}
-.pub-date { font-size: 12px; color: var(--faint); font-family: var(--font-mono); }
-.pub-title { font-size: 18px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 6px; color: var(--text); }
-.pub-summary { font-size: 13px; color: var(--subtext); line-height: 1.6; margin: 0; }
-
-/* ── About block ── */
-.pub-about-p { font-size: 15px; line-height: 1.75; color: var(--subtext); margin: 0 0 16px; max-width: 600px; }
-.pub-about-quote {
-  border-left: 2px solid var(--accent); margin: 24px 0 0; padding: 10px 18px;
-  color: var(--subtext); font-size: 15px; line-height: 1.65; font-style: italic;
-  background: var(--surface); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
-
-/* ── Gate section ── */
-.landing-gate-btn { font-size: 15px; padding: 12px 26px; margin-top: 28px; grid-column: 2; display: block; width: fit-content; }
-
-/* ── Footer disclaimer ── */
-.pub-footer-disc { text-align: center; font-size: 12px; margin-top: 48px; }
-.landing-foot { text-align: center; font-size: 12px; }
+/* shared */
 .logo-svg svg { width: 20px; height: 20px; }
+.landing-foot { text-align: center; font-size: 12px; }
 
-/* ── Gate modal ───────────────────────────────────────────────────────────── */
+/* ── wrapper ── */
+.sl-wrap { position: relative; background: var(--bg); }
+
+/* ── fixed top bar ── */
+.sl-topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 80;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 36px; height: 56px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  gap: 16px;
+}
+.sl-brand { display: flex; align-items: center; gap: 9px; }
+.sl-logo-svg { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+.sl-brand-name { font-size: 14px; font-weight: 700; letter-spacing: -.02em; color: var(--text); }
+.sl-topbar-right { display: flex; align-items: center; gap: 10px; }
+.sl-enter-btn { font-size: 13px; padding: 7px 18px; }
+
+/* ── hero: full-viewport landscape ── */
+.sl-hero {
+  position: relative; height: 100dvh; min-height: 560px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+
+/* Painterly pastoral scene — meadow, clouds, distant horizon, figure silhouette */
+.sl-hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  /* Sky: deep twilight blue fading to warm horizon gold */
+  background:
+    linear-gradient(
+      180deg,
+      #060b1a  0%,
+      #0c1630  18%,
+      #12234a  36%,
+      #1a2e52  52%,
+      #2a3a4e  64%,
+      #3d4a48  76%,
+      #4a5040  88%,
+      #3a3c28  100%
+    );
+}
+/* Clouds + rolling hills — soft radial shapes layered like a painting */
+.sl-hero-bg::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    /* Warm golden horizon glow */
+    radial-gradient(ellipse 140% 28% at 50% 82%, rgba(210,165,80,.28) 0%, transparent 65%),
+    /* Cloud masses — soft, billowing */
+    radial-gradient(ellipse 90% 35% at 28% 38%, rgba(60,75,110,.55) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 28% at 72% 32%, rgba(50,65,95,.50) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 22% at 50% 44%, rgba(45,58,88,.45) 0%, transparent 48%),
+    radial-gradient(ellipse 35% 18% at 15% 50%, rgba(40,55,80,.40) 0%, transparent 52%),
+    radial-gradient(ellipse 30% 16% at 82% 48%, rgba(38,52,76,.38) 0%, transparent 50%),
+    /* Rolling meadow hills */
+    radial-gradient(ellipse 160% 38% at 50% 100%, #141a10 0%, #1c2414 35%, transparent 65%),
+    radial-gradient(ellipse 100% 28% at 20% 100%, #101608 0%, transparent 55%),
+    radial-gradient(ellipse 80% 24% at 80% 100%, #121808 0%, transparent 50%),
+    /* Foreground dark grass */
+    linear-gradient(to top, #0a0f06 0%, #111808 22%, transparent 55%);
+}
+/* Stars + warm atmospheric glow + meadow shimmer */
+.sl-hero-bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    /* Stars / night sky pinpoints (radial clusters) */
+    radial-gradient(ellipse 60% 40% at 50% 8%, rgba(180,200,255,.06), transparent 65%),
+    radial-gradient(ellipse 30% 20% at 25% 15%, rgba(200,210,255,.05), transparent 55%),
+    radial-gradient(ellipse 20% 15% at 78% 12%, rgba(210,215,255,.04), transparent 50%),
+    /* Warm amber light source on horizon — like a late afternoon sun */
+    radial-gradient(ellipse 50% 18% at 52% 80%, rgba(240,190,80,.18), transparent 60%),
+    radial-gradient(ellipse 30% 12% at 52% 80%, rgba(255,220,140,.22), transparent 45%),
+    /* Subtle accent wash — the green shimmer of the meadow */
+    radial-gradient(ellipse 80% 30% at 50% 90%, rgba(18,216,154,.06), transparent 55%);
+}
+/* A small solitary figure silhouette — a person looking into the distance */
+.sl-hero-figure {
+  position: absolute; bottom: 26%; left: 50%; transform: translateX(-50%);
+  z-index: 1; pointer-events: none;
+  width: 40px; height: 60px;
+  filter: drop-shadow(0 0 8px rgba(220,175,80,.12));
+}
+
+html.light .sl-hero-bg {
+  background: linear-gradient(180deg,
+    #b8cce8 0%, #c8d8ec 22%, #d8e4f0 42%,
+    #e0e8d8 62%, #d4e0c0 78%, #c8d8a8 92%, #b8cc90 100%
+  );
+}
+html.light .sl-hero-bg::before {
+  background:
+    radial-gradient(ellipse 140% 28% at 50% 82%, rgba(240,220,140,.35) 0%, transparent 65%),
+    radial-gradient(ellipse 90% 35% at 28% 38%, rgba(180,200,220,.4) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 28% at 72% 32%, rgba(170,195,215,.35) 0%, transparent 50%),
+    radial-gradient(ellipse 160% 38% at 50% 100%, #6a8040 0%, #7c9450 35%, transparent 65%),
+    linear-gradient(to top, #4a6030 0%, #5a7040 22%, transparent 55%);
+}
+html.light .sl-hero-bg::after {
+  background:
+    radial-gradient(ellipse 50% 18% at 52% 80%, rgba(255,220,100,.25), transparent 60%),
+    radial-gradient(ellipse 80% 30% at 50% 90%, rgba(18,216,154,.08), transparent 55%);
+}
+
+.sl-hero-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,.18) 0%,
+    rgba(0,0,0,.05) 40%,
+    rgba(0,0,0,.4)  100%
+  );
+}
+html.light .sl-hero-overlay {
+  background: linear-gradient(to bottom, rgba(255,255,255,.1) 0%, rgba(255,255,255,.02) 40%, rgba(0,0,0,.12) 100%);
+}
+
+.sl-hero-content {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 0 24px; max-width: 680px;
+  animation: fadeUp .9s .2s cubic-bezier(.22, 1, .36, 1) both;
+}
+.sl-hero-quote {
+  font-size: clamp(22px, 4vw, 38px); font-weight: 300; letter-spacing: .02em;
+  color: rgba(255,255,255,.92); line-height: 1.35; margin: 0 0 40px;
+  font-style: italic; text-shadow: 0 2px 24px rgba(0,0,0,.6);
+}
+html.light .sl-hero-quote { color: rgba(10,14,22,.82); text-shadow: 0 1px 12px rgba(255,255,255,.5); }
+.sl-hero-cta {
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28);
+  color: rgba(255,255,255,.9); font-size: 14px; font-weight: 600; letter-spacing: .04em;
+  padding: 12px 28px; border-radius: 999px; cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: background .2s, border-color .2s, color .2s;
+}
+.sl-hero-cta:hover {
+  background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.5); color: #fff;
+}
+html.light .sl-hero-cta {
+  background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.2); color: rgba(10,14,22,.85);
+}
+html.light .sl-hero-cta:hover { background: rgba(0,0,0,.15); }
+
+/* scroll chevron */
+.sl-scroll-hint {
+  position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 2;
+  color: rgba(255,255,255,.35); animation: bounce 2s 1.5s ease-in-out infinite;
+}
+.sl-scroll-hint svg { width: 22px; height: 22px; }
+html.light .sl-scroll-hint { color: rgba(10,14,22,.3); }
+@keyframes bounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
+
+/* ── Narrative scroll ── */
+.sl-story {
+  background: var(--bg);
+}
+
+/* Text blocks are constrained; scene panels are full-bleed */
+.story-block, .story-quote, .story-final {
+  max-width: 640px; margin-left: auto; margin-right: auto;
+  padding-left: 32px; padding-right: 32px;
+}
+
+/* ── Side illustrations ── */
+.story-with-illo {
+  max-width: 900px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr auto;
+  align-items: start; gap: 0;
+  padding: 0 32px;
+}
+.story-with-illo--left {
+  grid-template-columns: auto 1fr;
+}
+.story-with-illo--left .story-block { order: 2; }
+.story-with-illo--left .story-illo-left { order: 1; }
+.story-with-illo .story-block {
+  max-width: none; padding: 0; margin: 0;
+}
+.story-illo, .story-illo-left {
+  width: 180px; flex-shrink: 0;
+  border-radius: 4px; overflow: hidden;
+  position: sticky; top: 120px;
+  align-self: start;
+  filter: brightness(.9) contrast(1.05);
+  box-shadow: 0 8px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+}
+.story-illo-left { margin-right: 32px; }
+.story-illo { margin-left: 32px; }
+html.light .story-illo, html.light .story-illo-left {
+  filter: brightness(1.05) contrast(.95);
+  box-shadow: 0 8px 32px rgba(0,0,0,.15), 0 0 0 1px rgba(0,0,0,.08);
+}
+
+/* story blocks */
+.story-block { padding-top: 80px; padding-bottom: 72px; }
+.story-open { padding-top: 100px; }
+.story-open .story-p:first-child { font-size: 22px; font-weight: 300; color: var(--text); letter-spacing: -.01em; }
+
+.story-p {
+  font-size: 17px; line-height: 1.85; color: var(--subtext); margin: 0 0 18px;
+  font-weight: 300; letter-spacing: -.005em;
+}
+.story-p:last-child { margin-bottom: 0; }
+.story-p em { color: var(--text); font-style: italic; font-weight: 400; }
+
+/* pull quotes */
+.story-quote {
+  padding-top: 72px; padding-bottom: 72px;
+  padding-left: calc(32px + 22px);
+  border-left: 1px solid var(--accent-line);
+}
+.story-quote span {
+  display: block; font-size: 18px; font-weight: 300; font-style: italic;
+  color: var(--subtext); line-height: 1.7; letter-spacing: .005em;
+}
+
+/* final closing line */
+.story-final {
+  padding-top: 80px; padding-bottom: 100px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 18px; font-weight: 300; font-style: italic;
+  color: var(--subtext); line-height: 1.75; letter-spacing: .01em;
+  text-align: center;
+}
+.story-attr { display: block; margin-top: 16px; font-size: 13px; font-style: normal; color: var(--faint); font-family: var(--font-mono); letter-spacing: .04em; }
+
+/* ── Scene separators — full-bleed atmospheric panels ── */
+.sl-scene {
+  width: 100%; height: 60vh; min-height: 320px; max-height: 520px;
+  position: relative; overflow: hidden;
+}
+.sl-scene::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    linear-gradient(to bottom, var(--bg) 0%, transparent 18%, transparent 82%, var(--bg) 100%);
+  z-index: 1; pointer-events: none;
+}
+
+/* Scene A — early morning meadow mist */
+.sl-scene-a {
+  background:
+    /* Mist layer */
+    radial-gradient(ellipse 160% 40% at 50% 70%, rgba(200,220,210,.18) 0%, transparent 60%),
+    /* Dawn sky: pale yellow-green to soft blue */
+    linear-gradient(180deg,
+      #0d1a0f 0%, #152218 15%,
+      #1a2e20 30%, #223828 45%,
+      #2a4030 60%, #1e3020 75%,
+      #0f1c10 90%, #0a1209 100%
+    );
+}
+.sl-scene-a::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    /* Warm dawn glow on horizon */
+    radial-gradient(ellipse 100% 25% at 38% 72%, rgba(180,220,150,.14) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 18% at 38% 72%, rgba(210,240,180,.10) 0%, transparent 40%),
+    /* Meadow ground — dark rich green */
+    radial-gradient(ellipse 200% 35% at 50% 100%, #0a1a0a 0%, #122014 40%, transparent 65%),
+    /* Distant tree line silhouette */
+    radial-gradient(ellipse 120% 22% at 25% 65%, #0c1a0c 0%, transparent 50%),
+    radial-gradient(ellipse 80% 18% at 80% 60%, #0a1808 0%, transparent 45%),
+    /* Stars / morning sky glow */
+    radial-gradient(ellipse 80% 50% at 50% 10%, rgba(100,160,120,.06) 0%, transparent 65%);
+}
+
+/* Scene B — open sky, billowing clouds, noon light */
+.sl-scene-b {
+  background:
+    linear-gradient(180deg,
+      #06080e 0%, #0c1220 18%,
+      #141e36 35%, #1a2848 50%,
+      #1e3050 65%, #162440 80%,
+      #0c1828 90%, #080f1c 100%
+    );
+}
+.sl-scene-b::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    /* Large billowing cloud mass — bright silver-white */
+    radial-gradient(ellipse 80% 55% at 30% 38%, rgba(200,215,240,.22) 0%, rgba(180,200,230,.08) 45%, transparent 65%),
+    radial-gradient(ellipse 60% 42% at 55% 28%, rgba(210,225,245,.18) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 72% 42%, rgba(190,210,235,.14) 0%, transparent 50%),
+    /* Smaller clouds */
+    radial-gradient(ellipse 30% 22% at 15% 55%, rgba(170,195,225,.10) 0%, transparent 48%),
+    radial-gradient(ellipse 25% 18% at 85% 35%, rgba(165,190,220,.09) 0%, transparent 45%),
+    /* Blue sky depth behind clouds */
+    radial-gradient(ellipse 100% 60% at 50% 0%, rgba(60,100,180,.12) 0%, transparent 65%),
+    /* Ground — dark silhouette of open field */
+    linear-gradient(to top, #060c08 0%, #0c1610 28%, transparent 52%);
+}
+
+/* Scene C — warm afternoon forest light, golden hour */
+.sl-scene-c {
+  background:
+    linear-gradient(180deg,
+      #0a0b08 0%, #141208 18%,
+      #1e1a0a 35%, #28200c 50%,
+      #302610 65%, #241c0a 80%,
+      #160e06 90%, #0e0906 100%
+    );
+}
+.sl-scene-c::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    /* Golden light shaft from upper right */
+    radial-gradient(ellipse 55% 80% at 78% 10%, rgba(255,200,80,.18) 0%, rgba(240,170,60,.06) 45%, transparent 65%),
+    radial-gradient(ellipse 35% 55% at 78% 10%, rgba(255,220,120,.14) 0%, transparent 50%),
+    /* Forest canopy silhouette — dark organic shapes */
+    radial-gradient(ellipse 120% 30% at 20% 0%, #0a0c06 0%, transparent 45%),
+    radial-gradient(ellipse 80% 28% at 60% 0%, #0c0e08 0%, transparent 40%),
+    radial-gradient(ellipse 60% 24% at 90% 5%, #0a0c06 0%, transparent 38%),
+    /* Forest floor — warm earth tones */
+    radial-gradient(ellipse 200% 40% at 50% 100%, #180e06 0%, #201408 40%, transparent 65%),
+    /* Dappled light pools on ground */
+    radial-gradient(ellipse 25% 12% at 35% 78%, rgba(240,190,80,.07) 0%, transparent 45%),
+    radial-gradient(ellipse 18% 10% at 65% 72%, rgba(250,200,90,.06) 0%, transparent 40%);
+}
+
+/* Scene D — dusk/twilight, commitment, deep purple-amber sky */
+.sl-scene-d {
+  background:
+    linear-gradient(180deg,
+      #080610 0%, #100c1c 15%,
+      #180f28 30%, #200c30 45%,
+      #281040 58%, #201035 70%,
+      #160c24 82%, #0c0816 92%, #060408 100%
+    );
+}
+.sl-scene-d::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    /* Amber horizon glow — the burning sky at dusk */
+    radial-gradient(ellipse 120% 22% at 50% 78%, rgba(255,140,40,.22) 0%, rgba(240,100,20,.10) 45%, transparent 65%),
+    radial-gradient(ellipse 60% 14% at 50% 80%, rgba(255,170,60,.18) 0%, transparent 40%),
+    /* Purple cloud bank above horizon */
+    radial-gradient(ellipse 110% 38% at 40% 52%, rgba(100,60,140,.20) 0%, transparent 55%),
+    radial-gradient(ellipse 80% 30% at 70% 42%, rgba(80,50,120,.16) 0%, transparent 50%),
+    /* Stars just appearing */
+    radial-gradient(ellipse 60% 45% at 30% 8%, rgba(180,170,220,.06) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 75% 15%, rgba(160,155,210,.05) 0%, transparent 48%),
+    /* Dark earth silhouette */
+    linear-gradient(to top, #040408 0%, #08060e 30%, transparent 55%),
+    radial-gradient(ellipse 200% 25% at 50% 100%, #040308 0%, transparent 50%);
+}
+
+/* Light mode: softer, more watercolour-like versions */
+html.light .sl-scene-a {
+  background: linear-gradient(180deg, #c8e8c8 0%, #b8e0b0 30%, #a8d8a0 60%, #90c888 85%, #78b870 100%);
+}
+html.light .sl-scene-b {
+  background: linear-gradient(180deg, #a8c8e8 0%, #b8d4ec 25%, #c8dff0 50%, #d0e4f2 70%, #b8cce0 100%);
+}
+html.light .sl-scene-c {
+  background: linear-gradient(180deg, #e8c870 0%, #d8b848 25%, #c8a830 50%, #b89820 75%, #a08810 100%);
+}
+html.light .sl-scene-d {
+  background: linear-gradient(180deg, #c8a0d8 0%, #d8a8c0 25%, #e8b090 50%, #e8c070 75%, #d8b060 100%);
+}
+html.light .sl-scene-a::before, html.light .sl-scene-b::before,
+html.light .sl-scene-c::before, html.light .sl-scene-d::before { opacity: 0; }
+
+/* ── Scroll-reveal ── */
+.reveal {
+  opacity: 0; transform: translateY(32px);
+  transition: opacity 1.4s cubic-bezier(.16,1,.3,1), transform 1.4s cubic-bezier(.16,1,.3,1);
+}
+.revealed { opacity: 1; transform: none; }
+
+/* stagger siblings */
+.story-block .reveal:nth-child(2) { transition-delay: .18s; }
+.story-block .reveal:nth-child(3) { transition-delay: .36s; }
+.story-block .reveal:nth-child(4) { transition-delay: .52s; }
+.story-block .reveal:nth-child(5) { transition-delay: .68s; }
+
+/* illustrations fade in from side */
+.story-illo { opacity: 0; transform: translateX(20px); transition: opacity 1.6s cubic-bezier(.16,1,.3,1), transform 1.6s cubic-bezier(.16,1,.3,1); transition-delay: .3s; }
+.story-illo.revealed { opacity: 1; transform: none; }
+.story-illo-left { opacity: 0; transform: translateX(-20px); transition: opacity 1.6s cubic-bezier(.16,1,.3,1), transform 1.6s cubic-bezier(.16,1,.3,1); transition-delay: .3s; }
+.story-illo-left.revealed { opacity: 1; transform: none; }
+
+/* ── Bottom CTA ── */
+.sl-bottom-cta {
+  padding: 60px 32px 100px; display: flex; flex-direction: column;
+  align-items: center; gap: 20px; background: var(--bg);
+}
+.sl-bottom-btn { font-size: 15px; padding: 13px 30px; }
+.sl-disc { font-size: 12px; margin: 0; }
+
+/* ── Gate modal ── */
 .gate-backdrop { cursor: pointer; }
 .gate-panel {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -555,22 +846,179 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .gate-error { font-size: 13px; color: var(--danger); margin: 0 0 10px; }
 .gate-btn { width: 100%; font-size: 15px; padding: 12px; margin-top: 6px; }
 
-/* ── Responsive ───────────────────────────────────────────────────────────── */
-@media (max-width: 860px) {
-  .landing-topbar { padding: 16px 24px; }
-  .landing-inner  { padding: 0 24px; }
-  .pub-hero { padding: 56px 0 64px; }
-  .pub-hero-h1 { font-size: 40px; }
-  .pub-hero-sub { font-size: 15px; }
-  .pub-section { grid-template-columns: 1fr; gap: 0; padding: 48px 0 40px; }
-  .pub-section-number { font-size: 44px; margin-bottom: 4px; }
-  .pub-section-head, .pub-blog-grid, .pub-about-block { grid-column: 1; }
-  .landing-gate-btn { grid-column: 1; }
+/* ── Figure silhouette on hero ── */
+.sl-hero-figure {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  z-index: 1; pointer-events: none;
+  width: clamp(100px, 18vw, 200px); height: auto;
+  opacity: .9;
+  animation: fadeUp 1.4s .6s cubic-bezier(.16,1,.3,1) both;
+}
+html.light .sl-hero-figure { opacity: .78; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TOOL LANDING (intermediate screen after gate pass)
+   ══════════════════════════════════════════════════════════════════════════════ */
+.tl-wrap { min-height: 100dvh; background: var(--bg); display: flex; flex-direction: column; }
+
+/* ── Top bar (mirrors sl-topbar) ── */
+.tl-topbar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 36px; height: 56px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border-soft);
+  gap: 16px; flex-shrink: 0;
+}
+.tl-brand { display: flex; align-items: center; gap: 9px; }
+.tl-brand-btn {
+  background: transparent; border: none; padding: 0; cursor: pointer;
+  color: inherit; font-family: inherit; transition: opacity .15s;
+}
+.tl-brand-btn:hover { opacity: .7; }
+.tl-topbar-right { display: flex; align-items: center; gap: 10px; }
+
+/* ── Inner scroll container ── */
+.tl-inner {
+  flex: 1; padding: 60px 36px 80px; max-width: 1100px; margin: 0 auto; width: 100%;
+}
+
+/* ── Hero split ── */
+.tl-hero {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center;
+  margin-bottom: 80px;
+}
+.tl-badge {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent); background: var(--accent-wash);
+  border: 1px solid var(--accent-line); border-radius: 999px;
+  padding: 4px 12px; margin-bottom: 22px;
+}
+.tl-h1 {
+  font-size: clamp(26px, 3.5vw, 44px); font-weight: 800; line-height: 1.18;
+  letter-spacing: -.035em; color: var(--text); margin: 0 0 18px;
+}
+.tl-sub { font-size: 16px; color: var(--subtext); line-height: 1.65; margin: 0 0 28px; max-width: 480px; }
+.tl-cta-row { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; flex-wrap: wrap; }
+.tl-cta-btn { font-size: 15px; padding: 12px 28px; }
+.tl-nosignup { font-size: 12px; }
+
+/* Stat strip */
+.tl-stats {
+  display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  overflow: hidden; width: fit-content;
+}
+.tl-stat { padding: 12px 16px; display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--surface); }
+.tl-stat-div { width: 1px; height: 32px; background: var(--border-soft); align-self: center; }
+.tl-stat-v { font-size: 16px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -.02em; }
+.tl-stat-l { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+
+/* Chart widget */
+.tl-chart-wrap { position: relative; }
+.lc-widget {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px; box-shadow: var(--shadow);
+  animation: fadeUp .7s .35s cubic-bezier(.22,1,.36,1) both;
+}
+.lc-ticker-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.lc-ticker { font-size: 13px; font-weight: 800; font-family: var(--font-mono); letter-spacing: .05em; }
+.lc-price { font-size: 13px; font-weight: 700; font-family: var(--font-mono); }
+.lc-change { font-size: 12px; font-weight: 600; font-family: var(--font-mono); }
+.lc-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  background: var(--accent-wash); color: var(--accent); border: 1px solid var(--accent-line);
+  font-family: var(--font-mono); letter-spacing: .04em;
+}
+.lc-score {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  background: color-mix(in srgb, var(--accent2) 14%, transparent);
+  color: var(--accent2); border: 1px solid color-mix(in srgb, var(--accent2) 35%, transparent);
+  font-family: var(--font-mono); margin-left: auto;
+}
+.lc-svg { width: 100%; height: auto; display: block; }
+.lc-candle { animation: lcFadeIn .4s cubic-bezier(.22,1,.36,1) both; }
+@keyframes lcFadeIn { from { opacity: 0; transform: scaleY(.4); transform-origin: bottom; } to { opacity: 1; transform: scaleY(1); } }
+.lc-dot { animation: lcPulse 2.5s 1s ease-in-out infinite; }
+@keyframes lcPulse { 0%,100% { r: 4; opacity: 1; } 50% { r: 6; opacity: .7; } }
+.lc-legend {
+  display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap;
+  font-size: 10.5px; color: var(--faint); font-family: var(--font-mono);
+}
+.lc-ema-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+
+/* ── Section label ── */
+.tl-section-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--faint); margin-bottom: 20px;
+}
+
+/* ── Strategy cards ── */
+.tl-strategies {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 48px;
+}
+.tl-strat-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px 20px; display: flex; flex-direction: column; gap: 10px;
+  transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.tl-strat-card:hover { border-color: var(--accent-line); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.tl-strat-icon { width: 36px; height: 36px; color: var(--accent); }
+.tl-strat-icon svg { width: 100%; height: 100%; }
+.tl-strat-card strong { font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+.tl-strat-card p { font-size: 13px; line-height: 1.55; margin: 0; }
+
+/* ── Feature grid ── */
+.tl-feature-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 48px;
+}
+.tl-feat-card { display: flex; flex-direction: column; gap: 8px; padding: 18px 18px; }
+.tl-feat-icon { width: 28px; height: 28px; color: var(--accent2); }
+.tl-feat-icon svg { width: 100%; height: 100%; }
+.tl-feat-card strong { font-size: 13px; font-weight: 700; }
+.tl-feat-card p { font-size: 12px; line-height: 1.5; margin: 0; }
+
+.tl-foot { font-size: 11.5px; text-align: center; margin: 0; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .tl-hero { grid-template-columns: 1fr; }
+  .tl-chart-wrap { max-width: 460px; margin: 0 auto; }
+  .tl-strategies { grid-template-columns: 1fr; }
+  .tl-feature-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
-  .landing-topbar { flex-wrap: wrap; gap: 10px; }
-  .pub-hero-h1 { font-size: 32px; }
-  .landing-nav-link { display: none; }
+  .tl-inner { padding: 40px 18px 60px; }
+  .tl-topbar { padding: 0 18px; }
+  .tl-feature-grid { grid-template-columns: 1fr; }
+  .tl-stats { width: 100%; flex-wrap: wrap; }
+  .tl-stat { flex: 1; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .sl-topbar { padding: 0 18px; }
+  .sl-brand-name { display: none; }
+  .story-block, .story-quote, .story-final { padding-left: 20px; padding-right: 20px; }
+  .story-quote { padding-left: calc(20px + 18px); }
+  .story-with-illo, .story-with-illo--left {
+    grid-template-columns: 1fr; padding: 0 20px;
+  }
+  .story-with-illo--left .story-block { order: 1; }
+  .story-with-illo--left .story-illo-left { order: 2; }
+  .story-illo, .story-illo-left {
+    width: 100%; max-width: 320px; margin: 24px auto 0;
+    position: static;
+  }
+  .sl-hero-quote { font-size: 20px; }
+  .story-p { font-size: 16px; }
+  .story-quote span { font-size: 16px; }
+}
+@media (max-width: 420px) {
+  .sl-hero-quote { font-size: 18px; }
 }
 
 /* ── Language toggle + theme ─────────────────────────────────────────────── */

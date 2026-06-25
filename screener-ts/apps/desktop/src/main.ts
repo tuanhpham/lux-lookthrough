@@ -11,6 +11,7 @@ import { renderPlaybook } from './tabs/playbookTab.js';
 import { renderCaseStudies } from './tabs/caseStudiesTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
+import { renderToolLanding } from './ui/toolLanding.js';
 import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange } from './ui/theme.js';
@@ -128,7 +129,7 @@ document.addEventListener('click', (e) => {
 });
 
 function enterApp(): void {
-  $('#landing')!.classList.add('hidden');
+  $('#tool-landing')!.classList.add('hidden');
   $('#app')!.classList.remove('hidden');
   applyStaticI18n();
   if (entered) return;
@@ -136,12 +137,19 @@ function enterApp(): void {
   show('picks');
 }
 
+function showToolLanding(): void {
+  $('#landing')!.classList.add('hidden');
+  $('#tool-landing')!.classList.remove('hidden');
+  renderToolLanding($('#tool-landing')!, enterApp, goToLanding);
+}
+
 function requestPrivateAccess(): void {
-  showGate(enterApp);
+  showGate(showToolLanding);
 }
 
 function goToLanding(): void {
   $('#app')!.classList.add('hidden');
+  $('#tool-landing')!.classList.add('hidden');
   $('#landing')!.classList.remove('hidden');
   renderLanding($('#landing')!, requestPrivateAccess);
 }

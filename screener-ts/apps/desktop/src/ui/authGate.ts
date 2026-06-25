@@ -7,7 +7,6 @@ const ENV_CODES = (
   .filter(Boolean);
 
 export function isUnlocked(): boolean {
-  if (!ENV_CODES.length) return true; // no code configured → always open
   return localStorage.getItem(STORAGE_KEY) === '1';
 }
 
@@ -39,7 +38,8 @@ export function showGate(onSuccess: () => void): void {
 
   const attempt = () => {
     const val = input.value.trim().toLowerCase();
-    if (ENV_CODES.includes(val)) {
+    const ok = ENV_CODES.length === 0 ? val.length > 0 : ENV_CODES.includes(val);
+    if (ok) {
       localStorage.setItem(STORAGE_KEY, '1');
       host.remove();
       onSuccess();
