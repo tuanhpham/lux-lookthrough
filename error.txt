@@ -1,21 +1,41 @@
-huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 desktop % npx wrangler d1 execute screener-sync --file=./schema.sql --remote
+Tech Stack
+The site is built on Next.js with these animation libraries: Framer Motion (declarative animations), Lenis (smooth scroll), GSAP core (panel-transition timelines only), and raw WebGL + Canvas 2D for the custom effects. A state machine drives the flow: loading → chapter → story → prologue.
 
- ⛅️ wrangler 4.104.0
-────────────────────
-Resource location: remote 
+1. Ink / Sumi-e Reveal (the signature effect)
+A WebGL fragment shader paints an organic ink-blot mask, which is then applied as a CSS mask-image on a real DOM element.
 
-✔ ⚠️ This process may take some time, during which your D1 database will be unavailable to serve queries.
-  Ok to proceed? … yes
-🌀 Executing on remote database screener-sync (REPLACE_WITH_DATABASE_ID):
-🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
-Note: if the execution fails to complete, your DB will return to its original state and you can safely retry.
+Uses Worley noise (cellular noise), inverted and sharpened: splat = pow(1.0 - worley(...), 2.2).
+Three noise layers at different frequencies simulate ink bleeding into paper: large blots, mid "tendrils" (capillary spread), and fine micro-jitter at the edges.
+Reveal driven by smoothstep against a scroll-based threshold: thresh = 1.0 - progress * 1.4.
+The canvas is exported via canvas.toDataURL() and assigned to maskImage / webkitMaskImage. Use mask-composite: exclude to punch holes instead of revealing, and a uReverse flag to bleed the other direction on scroll-up.
+To rebuild: plain WebGL (no three.js needed) + CSS masks.
 
-✘ [ERROR] A request to the Cloudflare API (/accounts/26904c8089c8eafd950322fffd3666c6/d1/database/REPLACE_WITH_DATABASE_ID/import) failed.
+2. Scroll-Scrubbed Image Sequence
+Preloads a 62-frame PNG sequence (separate mobile set), fetched in batches of 10 via fetch → createImageBitmap to avoid blocking, then draws the frame matching scroll progress inside requestAnimationFrame:
 
-  Invalid property: databaseId => Invalid uuid [code: 7400]
-  
-  If you think this is a bug, please open an issue at:
-  https://github.com/cloudflare/workers-sdk/issues/new/choose
+Copyconst t = Math.min(Math.round(61 * progress), loaded - 1);
+ctx.drawImage(frames[t], 0, 0, w, h);
+This is the classic Apple-style scroll scrubbing. Canvas 2D only.
 
+3. Mouse Parallax
+A hook reads mousemove, computes cursor offset from screen center, and shifts each data-depth element by a different factor. Key detail: it lerps toward the target for smoothness, never snapping:
 
-🪵  Logs were written to "/Users/huongnguyen105/Library/Preferences/.wrangler/logs/wrangler-2026-06-24_17-26-57_154.log"
+Copytx += (target - tx) * 0.12;
+el.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+Background frame uses depth ~0.04; video layers use higher depths and are scaled to 1.1 so edges never show during movement.
+
+4. Line-Mask Text Reveal
+Splits a paragraph into lines, wraps each in overflow: hidden, then animates y: 110% → 0% with stagger (delay: 0.15 + 0.12 * index) and easing cubic-bezier(.16, 1, .3, 1). A separate variant fades individual words in (opacity 0.15 → 1) mapped to scrollYProgress via useTransform.
+
+5. Slot-Machine Loader Counter
+The percentage digits roll like a slot machine: on change, the old and new digit stack and slide translateY(-1.15em → 0) with cubic-bezier(0.16, 1, 0.3, 1). The progress ring is an SVG using strokeDashoffset with manual easeInOut.
+
+6. Full-Screen Panel Transitions
+A custom scroll engine hijacks native scroll (wheel, touch, keys) and advances one panel at a time. Each transition picks a preset (cloudReveal, curtainDown, silkReveal, softLift…), each defining enterFrom/enterTo/exit with blur, scale, and y-offset, plus a gradient "flash" layer. Timelines built with GSAP, with a darkening vignette layer at the edges.
+
+7. Moon & Stars
+~250 stars, each a motion.div looping opacity: [.2, 1, .2] infinitely. The moon has four halo layers (outer/mid/inner/bloom) and enters via scale: .4 → 1 on viewport entry. Images open with an "aperture" effect: clipPath: ellipse(18% → 150%) combined with brightness 2.5 → 1.
+
+Library Map (what to install)
+Raw WebGL for the ink mask, Framer Motion for most declarative animations, Lenis for smooth scroll, GSAP core for panel transitions, and Canvas 2D for the image sequence.
+
