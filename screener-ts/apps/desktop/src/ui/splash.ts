@@ -6,7 +6,7 @@
  * 4. Radial wipe expands from center outward (~16s)
  */
 
-const RING_MS  = 20000; // ring fill duration
+const RING_MS  = window.innerWidth <= 700 ? 5000 : 10000; // ring fill duration
 const HOLD_MS  = 700;   // pause at 100% before wipe
 const WIPE_MS  = 16000; // radial wipe duration
 const DIGIT_MS = 360;   // per-digit flip speed (iOS picker feel)
