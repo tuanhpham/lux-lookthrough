@@ -9,7 +9,7 @@
 const RING_MS  = window.innerWidth <= 700 ? 5000 : 10000; // ring fill duration
 const HOLD_MS  = 700;   // pause at 100% before wipe
 const WIPE_MS  = 16000; // radial wipe duration
-const DIGIT_MS = 360;   // per-digit flip speed (iOS picker feel)
+const DIGIT_MS = 180;   // per-digit flip animation duration (ms)
 
 export function runSplash(): Promise<void> {
   return new Promise((resolve) => {
@@ -96,8 +96,14 @@ export function runSplash(): Promise<void> {
     };
 
     let prev = -1;
+    let lastFlipAt = 0; // timestamp of the last accepted flip
     const updateCounter = (n: number) => {
       if (n === prev) return;
+      const now = performance.now();
+      // Skip intermediate values if the previous flip hasn't finished yet
+      if (n !== 100 && now - lastFlipAt < DIGIT_MS) return;
+      lastFlipAt = now;
+
       const ph = Math.floor(n / 100);
       const pt = Math.floor((n % 100) / 10);
       const pu = n % 10;

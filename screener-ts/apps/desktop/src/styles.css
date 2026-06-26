@@ -1321,10 +1321,10 @@ html.light .sl-hero-figure { opacity: .78; }
   html.light .sl-ch-bg--right::before {
     background: linear-gradient(to bottom,
       transparent   0%,
-      transparent  25%,
-      #e8e4df66    50%,
-      #e8e4dfcc    68%,
-      #e8e4df      82%);
+      transparent  20%,
+      #e8e4df55    42%,
+      #e8e4dfee    60%,
+      #e8e4df      72%);
   }
 
   /* text body: anchored to the bottom of the chapter, no side offset */
@@ -1344,6 +1344,10 @@ html.light .sl-hero-figure { opacity: .78; }
   html.light .sl-chapter[data-ch="3"] .sl-ch-body {
     background: none;
   }
+  /* stronger text contrast in light mode where photo gradient meets text */
+  html.light .sl-story .story-p       { color: #2a2620; }
+  html.light .sl-story .story-p em    { color: #0e0c09; }
+  html.light .sl-story .story-quote span { color: #3a3630; }
 
   /* hero is always exactly one viewport — keep it centred */
   .sl-hero { justify-content: center; }
