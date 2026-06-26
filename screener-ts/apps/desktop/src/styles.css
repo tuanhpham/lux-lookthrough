@@ -451,42 +451,92 @@ html.light .sl-wrap { background: #e8e4df; }
   position: relative;
 }
 
-/* Chapter 2 — field background */
-.sl-chapter[data-ch="2"] {
-  background-image: url('/images/field.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-.sl-chapter[data-ch="2"]::before {
-  content: '';
-  position: absolute; inset: 0; z-index: 0;
-  background: rgba(14,14,14,.52);
-}
-html.light .sl-chapter[data-ch="2"]::before {
-  background: rgba(232,228,223,.38);
-}
-.sl-chapter[data-ch="2"] > * { position: relative; z-index: 1; }
-
-/* Chapter 0 ("Some people…") — cloud background, text at 2/3 height */
+/* Ch 0 ("Some people…") — text pushed to lower third */
 .sl-chapter[data-ch="0"] {
-  background-image: url('/images/cloud.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   justify-content: flex-end;
   padding-bottom: calc(100dvh / 3 - 80px);
 }
-.sl-chapter[data-ch="0"]::before {
+
+/* ── Side photo panel: wide but only the outer edge is clear ──
+   The panel spans ~58% of the chapter from the edge.
+   A steep linear gradient makes only the outer ~1/3 of the screen
+   clearly visible; the rest dissolves into the page background
+   before it reaches the centred text block. */
+.sl-ch-bg {
+  position: absolute;
+  top: 4%; bottom: 4%;
+  width: 58%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+.sl-ch-bg--left  { left: 0; right: auto; }
+.sl-ch-bg--right { right: 0; left: auto; }
+
+/* Left photo: outer-left edge is clear, fades to transparent before center */
+.sl-ch-bg--left::before {
   content: '';
-  position: absolute; inset: 0; z-index: 0;
-  background: rgba(14,14,14,.52);
+  position: absolute; inset: 0;
+  background: linear-gradient(to right,
+    transparent  0%,
+    transparent 38%,
+    #24242488   58%,
+    #242424cc   72%,
+    #242424    100%);
 }
-html.light .sl-chapter[data-ch="0"]::before {
-  background: rgba(232,228,223,.38);
+html.light .sl-ch-bg--left::before {
+  background: linear-gradient(to right,
+    transparent  0%,
+    transparent 38%,
+    #e8e4df88   58%,
+    #e8e4dfcc   72%,
+    #e8e4df    100%);
 }
-.sl-chapter[data-ch="0"] > * {
-  position: relative; z-index: 1;
+
+/* Right photo: outer-right edge is clear, fades toward center */
+.sl-ch-bg--right::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(to left,
+    transparent  0%,
+    transparent 38%,
+    #24242488   58%,
+    #242424cc   72%,
+    #242424    100%);
+}
+html.light .sl-ch-bg--right::before {
+  background: linear-gradient(to left,
+    transparent  0%,
+    transparent 38%,
+    #e8e4df88   58%,
+    #e8e4dfcc   72%,
+    #e8e4df    100%);
+}
+
+/* content above the photo panel */
+.sl-chapter > * { position: relative; z-index: 1; }
+.sl-chapter > .sl-ch-bg { position: absolute; z-index: 0; }
+
+/* Text for ALL photo chapters: centred, with a slight offset toward the open side.
+   Left-photo: nudge right so it clears the clear zone (~30% of screen).
+   Right-photo: mirror. Both overlap only the faded tail of the gradient. */
+.sl-chapter[data-ch="0"] .story-block,
+.sl-chapter[data-ch="0"] .story-quote,
+.sl-chapter[data-ch="2"] .story-block,
+.sl-chapter[data-ch="2"] .story-quote {
+  margin-left: 34%;
+  margin-right: auto;
+  max-width: 520px;
+}
+
+.sl-chapter[data-ch="1"] .story-block,
+.sl-chapter[data-ch="1"] .story-quote,
+.sl-chapter[data-ch="3"] .story-block,
+.sl-chapter[data-ch="3"] .story-quote {
+  margin-left: auto;
+  margin-right: 34%;
+  max-width: 520px;
 }
 
 /* ── fixed top bar ── */
@@ -533,17 +583,17 @@ html.light .sl-enter-btn:hover {
   background: rgba(0,0,0,.12) !important;
   border-color: rgba(0,0,0,.35) !important;
 }
-/* Hero Discover always uses dark-mode style — photo is always B&W dark */
+/* Hero Discover in light mode: dark ink to contrast the coloured photo */
 html.light .sl-hero .sl-enter-btn,
 html.light .sl-hero .sl-hero-cta {
-  background: rgba(255,255,255,.12) !important;
-  border-color: rgba(255,255,255,.28) !important;
-  color: rgba(255,255,255,.88) !important;
+  background: rgba(10,10,10,.08) !important;
+  border-color: rgba(10,10,10,.28) !important;
+  color: rgba(10,10,10,.88) !important;
 }
 html.light .sl-hero .sl-enter-btn:hover,
 html.light .sl-hero .sl-hero-cta:hover {
-  background: rgba(255,255,255,.22) !important;
-  border-color: rgba(255,255,255,.5) !important;
+  background: rgba(10,10,10,.16) !important;
+  border-color: rgba(10,10,10,.5) !important;
 }
 
 /* Lang toggle + theme button inside the landing topbar — monochrome, no green */
@@ -598,12 +648,12 @@ html.light .sl-topbar .theme-toggle:hover {
 /* Hero background — B&W photo, full viewport */
 .sl-hero-bg {
   position: absolute; inset: 0; z-index: 0;
-  background-image: url('/images/manunderlight.png');
+  background-image: url('/images/1.webp');
   background-size: cover;
   background-position: center 30%;
   background-repeat: no-repeat;
-  filter: blur(1px) brightness(.65) contrast(1.12) grayscale(1);
-  transform: scale(1.02);
+  filter: none;
+  transform: none;
 }
 /* Film-grain overlay */
 .sl-hero-bg::before {
@@ -615,7 +665,7 @@ html.light .sl-topbar .theme-toggle:hover {
 .sl-hero-bg::after { content: none; }
 
 html.light .sl-hero-bg {
-  filter: blur(1px) brightness(.78) contrast(1.08) grayscale(1);
+  filter: none;
 }
 html.light .sl-hero-bg::before {
   content: '';
@@ -649,8 +699,7 @@ html.light .sl-hero-overlay {
   color: rgba(255,255,255,.92); line-height: 1.35; margin: 0 0 40px;
   font-style: italic; text-shadow: 0 2px 24px rgba(0,0,0,.7);
 }
-/* Always white — hero is always a dark B&W photo */
-html.light .sl-hero-quote { color: rgba(255,255,255,.92); text-shadow: 0 2px 24px rgba(0,0,0,.7); }
+html.light .sl-hero-quote { color: rgba(10,10,10,.88); text-shadow: 0 1px 8px rgba(255,255,255,.5); }
 .sl-hero-cta {
   background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28);
   color: rgba(255,255,255,.9); font-size: 14px; font-weight: 600; letter-spacing: .04em;
@@ -662,9 +711,11 @@ html.light .sl-hero-quote { color: rgba(255,255,255,.92); text-shadow: 0 2px 24p
   background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.5); color: #fff;
 }
 html.light .sl-hero-cta {
-  background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.2); color: rgba(10,14,22,.85);
+  background: rgba(10,10,10,.08); border-color: rgba(10,10,10,.28); color: rgba(10,10,10,.88);
 }
-html.light .sl-hero-cta:hover { background: rgba(0,0,0,.15); }
+html.light .sl-hero-cta:hover {
+  background: rgba(10,10,10,.16); border-color: rgba(10,10,10,.5); color: rgba(10,10,10,1);
+}
 
 /* scroll chevron */
 .sl-scroll-hint {
@@ -1163,6 +1214,22 @@ html.light .sl-hero-figure { opacity: .78; }
 @media (max-width: 700px) {
   /* tall chapters: anchor to top so the start of content is always visible */
   .sl-chapter { justify-content: flex-start; }
+  /* photo panel: left/right strip on mobile, narrower, full height */
+  .sl-ch-bg { top: 4%; bottom: 4%; width: 45%; height: auto; }
+  .sl-ch-bg--left  { left: 0; }
+  .sl-ch-bg--right { right: 0; }
+  /* text: centred with small horizontal padding, no offset */
+  .sl-chapter[data-ch="0"] .story-block,
+  .sl-chapter[data-ch="0"] .story-quote,
+  .sl-chapter[data-ch="1"] .story-block,
+  .sl-chapter[data-ch="1"] .story-quote,
+  .sl-chapter[data-ch="2"] .story-block,
+  .sl-chapter[data-ch="2"] .story-quote,
+  .sl-chapter[data-ch="3"] .story-block,
+  .sl-chapter[data-ch="3"] .story-quote {
+    margin-left: auto; margin-right: auto; max-width: 100%;
+    padding-top: 0;
+  }
   /* hero is still centered — it's always exactly one viewport */
   .sl-hero { justify-content: center; }
   .sl-topbar { padding: 0 18px; }

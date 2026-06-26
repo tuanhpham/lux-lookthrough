@@ -103,25 +103,17 @@ function buildStoryBlocks(c: typeof EN): string {
     `<div class="story-quote"><span class="reveal">${text}</span></div>`;
   const block = (paras: string[], cls = '') =>
     `<div class="story-block${cls ? ' ' + cls : ''}">${paras.map(p).join('')}</div>`;
-  const chapter = (idx: number, inner: string) =>
-    `<section class="sl-chapter" data-ch="${idx}">${inner}</section>`;
+  const chapter = (idx: number, inner: string, photo?: string, side: 'left'|'right' = 'left') =>
+    `<section class="sl-chapter" data-ch="${idx}">
+      ${photo ? `<div class="sl-ch-bg sl-ch-bg--${side}" style="background-image:url('${photo}')"></div>` : ''}
+      ${inner}
+    </section>`;
 
   return [
-    chapter(0,
-      block(c.s1, 'story-open')
-    ),
-    chapter(1,
-      block(c.s2) +
-      block(c.s3)
-    ),
-    chapter(2,
-      q(c.q1) +
-      block(c.s4)
-    ),
-    chapter(3,
-      q(c.q2) +
-      block(c.s5)
-    ),
+    chapter(0, block(c.s1, 'story-open') + block(c.s2), '/images/2.webp', 'left'),
+    chapter(1, block(c.s3), '/images/3.webp', 'right'),
+    chapter(2, q(c.q1) + block(c.s4), '/images/4.webp', 'left'),
+    chapter(3, q(c.q2) + block(c.s5), '/images/5.webp', 'right'),
     chapter(4,
       q(c.q3) +
       block(c.s6) +
