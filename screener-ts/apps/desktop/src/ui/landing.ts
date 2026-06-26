@@ -296,22 +296,45 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
       requestAnimationFrame(step);
     };
 
-    // Intercept wheel — one tick = one chapter
+    // Intercept wheel only at chapter boundaries; allow free scroll within tall chapters
     let wheelCooldown = false;
     snap.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      if (wheelCooldown) return;
-      wheelCooldown = true;
-      setTimeout(() => { wheelCooldown = false; }, SCROLL_MS + 100);
-      animateTo(targetIdx + (e.deltaY > 0 ? 1 : -1));
+      if (animating) { e.preventDefault(); return; }
+
+      const vh       = snap.clientHeight;
+      const ch       = chapters[targetIdx];
+      const chTop    = chapterTop(targetIdx);
+      const chBottom = chTop + (ch?.offsetHeight ?? vh) - vh;
+      const scrolled = snap.scrollTop;
+      const goingDown = e.deltaY > 0;
+
+      const atBottom = scrolled >= chBottom - 2;
+      const atTop    = scrolled <= chTop + 2;
+
+      // Only jump chapters when at the boundary
+      if ((goingDown && atBottom) || (!goingDown && atTop)) {
+        e.preventDefault();
+        if (wheelCooldown) return;
+        wheelCooldown = true;
+        setTimeout(() => { wheelCooldown = false; }, SCROLL_MS + 100);
+        animateTo(targetIdx + (goingDown ? 1 : -1));
+      }
+      // Otherwise fall through — browser handles in-chapter scrolling
     }, { passive: false });
 
     // Touch swipe support
     let touchY = 0;
     snap.addEventListener('touchstart', (e) => { touchY = e.touches[0]!.clientY; }, { passive: true });
     snap.addEventListener('touchend', (e) => {
-      const dy = touchY - e.changedTouches[0]!.clientY;
-      if (Math.abs(dy) > 40) animateTo(targetIdx + (dy > 0 ? 1 : -1));
+      const dy   = touchY - e.changedTouches[0]!.clientY;
+      if (Math.abs(dy) < 40) return;
+      const vh      = snap.clientHeight;
+      const chTop   = chapterTop(targetIdx);
+      const chBot   = chTop + (chapters[targetIdx]?.offsetHeight ?? vh) - vh;
+      const goingDown = dy > 0;
+      if ((goingDown && snap.scrollTop >= chBot - 2) || (!goingDown && snap.scrollTop <= chTop + 2)) {
+        animateTo(targetIdx + (goingDown ? 1 : -1));
+      }
     }, { passive: true });
 
     revealAt(0);

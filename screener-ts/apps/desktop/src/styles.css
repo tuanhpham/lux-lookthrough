@@ -447,6 +447,28 @@ html.light .sl-wrap { background: #e8e4df; }
 .sl-chapter {
   min-height: 100dvh;
   display: flex; flex-direction: column; justify-content: center;
+  position: relative;
+}
+
+/* Chapter 0 ("Some people…") — cloud background, text at 2/3 height */
+.sl-chapter[data-ch="0"] {
+  background-image: url('/images/cloud.webp');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  justify-content: flex-end;
+  padding-bottom: calc(100dvh / 3 - 80px);
+}
+.sl-chapter[data-ch="0"]::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background: rgba(14,14,14,.52);
+}
+html.light .sl-chapter[data-ch="0"]::before {
+  background: rgba(232,228,223,.38);
+}
+.sl-chapter[data-ch="0"] > * {
+  position: relative; z-index: 1;
 }
 
 /* ── fixed top bar ── */
@@ -679,7 +701,12 @@ html.light .story-illo, html.light .story-illo-left {
 /* story blocks */
 .story-block { padding-top: 100px; padding-bottom: 90px; }
 .story-open { padding-top: 120px; }
-.story-open .story-p:first-child { font-size: 22px; font-weight: 300; color: var(--text); letter-spacing: -.01em; }
+.story-open .story-p:first-child {
+  font-size: 32px; font-weight: 200; color: #fff;
+  letter-spacing: -.02em; line-height: 1.3; margin-bottom: 20px;
+  text-shadow: 0 2px 24px rgba(0,0,0,.6);
+}
+html.light .story-open .story-p:first-child { color: #1a1a1a; text-shadow: none; }
 
 .story-p {
   font-size: 17px; line-height: 1.85; color: var(--subtext); margin: 0 0 18px;
@@ -738,13 +765,13 @@ html.light .sl-break span {
 #sl-veil {
   position: fixed; inset: 0; z-index: 50;
   pointer-events: none;
-  background: rgba(14,14,14,.82);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: rgba(14,14,14,.35);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   opacity: 0;
   transition: opacity 3s cubic-bezier(.4,0,.2,1);
 }
-html.light #sl-veil { background: rgba(232,228,223,.88); }
+html.light #sl-veil { background: rgba(232,228,223,.35); }
 #sl-veil.sl-veil--in {
   opacity: 1;
   transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
