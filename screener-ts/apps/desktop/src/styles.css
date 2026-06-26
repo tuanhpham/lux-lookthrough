@@ -516,6 +516,18 @@ html.light .sl-enter-btn:hover {
   background: rgba(0,0,0,.12) !important;
   border-color: rgba(0,0,0,.35) !important;
 }
+/* Hero Discover always uses dark-mode style — photo is always B&W dark */
+html.light .sl-hero .sl-enter-btn,
+html.light .sl-hero .sl-hero-cta {
+  background: rgba(255,255,255,.12) !important;
+  border-color: rgba(255,255,255,.28) !important;
+  color: rgba(255,255,255,.88) !important;
+}
+html.light .sl-hero .sl-enter-btn:hover,
+html.light .sl-hero .sl-hero-cta:hover {
+  background: rgba(255,255,255,.22) !important;
+  border-color: rgba(255,255,255,.5) !important;
+}
 
 /* Lang toggle + theme button inside the landing topbar — monochrome, no green */
 .sl-topbar .lang-toggle {
@@ -875,7 +887,7 @@ html.light #sl-veil { background: rgba(232,228,223,.55); }
 /* ── Bottom CTA ── */
 .sl-chapter-cta {
   display: flex; flex-direction: column; align-items: center;
-  gap: 14px; padding-top: 40px;
+  gap: 14px; padding-top: 40px; padding-bottom: 60px;
 }
 .sl-bottom-btn {
   font-size: 14px; padding: 9px 26px;
@@ -899,6 +911,94 @@ html.light .sl-bottom-btn:hover {
   border-color: rgba(0,0,0,.36) !important;
 }
 .sl-disc { font-size: 12px; margin: 0; }
+
+/* ── Exit overlay: radial blur vignette + circular art button ── */
+#sl-exit-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 1.2s cubic-bezier(.4,0,.2,1);
+}
+/* Two layered pseudo-elements handle the radial effect:
+   ::before = dark vignette (edges dark, center clear)
+   ::after  = blur mask via SVG filter workaround not needed —
+   we use a webkit mask on the overlay itself */
+#sl-exit-overlay::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center,
+    rgba(14,14,14,0)   0%,
+    rgba(14,14,14,0)  25%,
+    rgba(14,14,14,.45) 60%,
+    rgba(14,14,14,.88) 100%);
+  transition: background 1.2s;
+}
+html.light #sl-exit-overlay::before {
+  background: radial-gradient(ellipse at center,
+    rgba(200,196,191,0)   0%,
+    rgba(200,196,191,0)  25%,
+    rgba(200,196,191,.45) 60%,
+    rgba(200,196,191,.88) 100%);
+}
+/* Blur layer — masked so blur only applies to outer ring, not center */
+#sl-exit-overlay::after {
+  content: '';
+  position: absolute; inset: 0;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  /* mask: transparent center → opaque edges */
+  -webkit-mask-image: radial-gradient(ellipse at center,
+    transparent 0%, transparent 28%, black 62%);
+  mask-image: radial-gradient(ellipse at center,
+    transparent 0%, transparent 28%, black 62%);
+}
+#sl-exit-overlay.sl-exit--in {
+  opacity: 1;
+}
+/* Only the button itself captures clicks — overlay never blocks scroll */
+#sl-exit-overlay.sl-exit--in #sl-exit-btn {
+  pointer-events: auto;
+}
+
+/* Circular art button — solid inner border + dashed outer ring */
+#sl-exit-btn {
+  position: relative; z-index: 1;
+  width: 130px; height: 130px;
+  border-radius: 50%;
+  /* solid inner border */
+  border: 1px solid rgba(255,255,255,.65);
+  /* dashed outer ring via outline (offset pushes it outside) */
+  outline: 1.5px dashed rgba(255,255,255,.45);
+  outline-offset: 8px;
+  background: rgba(255,255,255,.04);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: rgba(255,255,255,.88);
+  font-family: var(--font-ui);
+  font-size: 11px; font-weight: 400;
+  letter-spacing: .22em; text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .3s, border-color .3s, outline-color .3s, transform .3s;
+}
+#sl-exit-btn:hover {
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.9);
+  outline-color: rgba(255,255,255,.7);
+  transform: scale(1.05);
+}
+html.light #sl-exit-btn {
+  border-color: rgba(20,20,20,.7);
+  outline-color: rgba(20,20,20,.45);
+  color: rgba(20,20,20,.88);
+  background: rgba(232,228,223,.25);
+}
+html.light #sl-exit-btn:hover {
+  border-color: rgba(20,20,20,.9);
+  outline-color: rgba(20,20,20,.65);
+  background: rgba(232,228,223,.45);
+}
 
 /* ── Gate modal ── */
 .gate-backdrop { cursor: pointer; }
@@ -1093,27 +1193,12 @@ html.light .sl-hero-figure { opacity: .78; }
   .sl-hero-quote { font-size: 20px; }
   .story-p { font-size: 16px; }
   .story-quote span { font-size: 16px; }
-
-  /* Mobile: swap · · · for full-bleed photo panels */
-  .sl-break {
-    height: 44vw; min-height: 220px; max-height: 380px;
-    padding: 0; background-size: cover; background-position: center;
-  }
-  .sl-break span { display: none; }
-  .sl-break-a { background-image: url('/images/childhood.png'); }
-  .sl-break-b { background-image: url('/images/study.png'); }
-  .sl-break-c { background-image: url('/images/start.png'); }
-  .sl-break-d { background-image: url('/images/trading.png'); }
-  .sl-break-a, .sl-break-b, .sl-break-c, .sl-break-d {
-    filter: grayscale(1) brightness(.6) contrast(1.12);
-  }
-  html.light .sl-break-a, html.light .sl-break-b,
-  html.light .sl-break-c, html.light .sl-break-d {
-    filter: grayscale(1) brightness(.82) contrast(1.08);
-  }
+  .story-open .story-p:first-child { font-size: 26px; }
+  #sl-exit-btn { width: 110px; height: 110px; font-size: 10px; }
 }
 @media (max-width: 420px) {
   .sl-hero-quote { font-size: 18px; }
+  .story-open .story-p:first-child { font-size: 22px; }
 }
 
 /* ── Language toggle + theme ─────────────────────────────────────────────── */

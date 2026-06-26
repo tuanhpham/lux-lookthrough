@@ -141,10 +141,7 @@ function buildStoryBlocks(c: typeof EN): string {
       q(c.q3) +
       `<div class="story-block">${c.s6.map(p).join('')}</div>` +
       `<div class="story-final reveal">${c.final}</div>` +
-      `<div class="sl-chapter-cta reveal">
-        <button id="sl-enter-bottom" class="btn sl-bottom-btn">${c.heroCta}</button>
-        <p class="sl-disc muted">Educational use only. Not financial advice.</p>
-       </div>`
+      ``
     ),
   ].join('\n');
 }
@@ -200,13 +197,21 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
 </div>
 
 <!-- Fixed veil: flashes between chapters -->
-<div id="sl-veil"></div>`;
+<div id="sl-veil"></div>
+
+<!-- Exit overlay: radial blur + circular art button, shown at end of last chapter -->
+<div id="sl-exit-overlay">
+  <button id="sl-exit-btn">
+    <span>${c.navPrivate}</span>
+  </button>
+</div>`;
 
   // wire all enter buttons
   const enter = () => onEnterPrivate();
   host.querySelector('#sl-enter-top')!.addEventListener('click', enter);
   host.querySelector('#sl-enter-hero')!.addEventListener('click', enter);
-  host.querySelector('#sl-enter-bottom')!.addEventListener('click', enter);
+  host.querySelector('#sl-enter-bottom')?.addEventListener('click', enter);
+  document.getElementById('sl-exit-btn')?.addEventListener('click', enter);
 
   // lang
   host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
@@ -296,43 +301,77 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
       requestAnimationFrame(step);
     };
 
+    const lastIdx   = chapters.length - 1;
+    const exitOverlay = document.getElementById('sl-exit-overlay')!;
+    let exitVisible = false;
+
+    const showExit = () => {
+      if (exitVisible) return;
+      exitVisible = true;
+      exitOverlay.classList.add('sl-exit--in');
+    };
+    const hideExit = () => {
+      if (!exitVisible) return;
+      exitVisible = false;
+      exitOverlay.classList.remove('sl-exit--in');
+      // ensure pointer-events are never stuck on the overlay
+      exitOverlay.style.pointerEvents = '';
+    };
+
     // Intercept wheel only at chapter boundaries; allow free scroll within tall chapters
     let wheelCooldown = false;
     snap.addEventListener('wheel', (e) => {
       if (animating) { e.preventDefault(); return; }
 
-      const vh       = snap.clientHeight;
-      const ch       = chapters[targetIdx];
-      const chTop    = chapterTop(targetIdx);
-      const chBottom = chTop + (ch?.offsetHeight ?? vh) - vh;
-      const scrolled = snap.scrollTop;
+      const vh        = snap.clientHeight;
+      const ch        = chapters[targetIdx];
+      const chTop     = chapterTop(targetIdx);
+      const chBottom  = chTop + (ch?.offsetHeight ?? vh) - vh;
+      const scrolled  = snap.scrollTop;
       const goingDown = e.deltaY > 0;
+      const atBottom  = scrolled >= chBottom - 2;
+      const atTop     = scrolled <= chTop + 2;
 
-      const atBottom = scrolled >= chBottom - 2;
-      const atTop    = scrolled <= chTop + 2;
+      if (goingDown && atBottom && targetIdx === lastIdx) {
+        // At bottom of last chapter — show exit overlay instead of jumping
+        e.preventDefault();
+        showExit();
+        return;
+      }
 
-      // Only jump chapters when at the boundary
+      if (!goingDown && atTop && exitVisible) {
+        // Scrolling up from exit state — hide overlay and resume
+        e.preventDefault();
+        hideExit();
+        return;
+      }
+
       if ((goingDown && atBottom) || (!goingDown && atTop)) {
         e.preventDefault();
+        hideExit();
         if (wheelCooldown) return;
         wheelCooldown = true;
         setTimeout(() => { wheelCooldown = false; }, SCROLL_MS + 100);
         animateTo(targetIdx + (goingDown ? 1 : -1));
       }
-      // Otherwise fall through — browser handles in-chapter scrolling
     }, { passive: false });
 
     // Touch swipe support
     let touchY = 0;
     snap.addEventListener('touchstart', (e) => { touchY = e.touches[0]!.clientY; }, { passive: true });
     snap.addEventListener('touchend', (e) => {
-      const dy   = touchY - e.changedTouches[0]!.clientY;
+      const dy        = touchY - e.changedTouches[0]!.clientY;
       if (Math.abs(dy) < 40) return;
-      const vh      = snap.clientHeight;
-      const chTop   = chapterTop(targetIdx);
-      const chBot   = chTop + (chapters[targetIdx]?.offsetHeight ?? vh) - vh;
+      const vh        = snap.clientHeight;
+      const chTop     = chapterTop(targetIdx);
+      const chBot     = chTop + (chapters[targetIdx]?.offsetHeight ?? vh) - vh;
       const goingDown = dy > 0;
+      if (goingDown && snap.scrollTop >= chBot - 2 && targetIdx === lastIdx) {
+        showExit(); return;
+      }
+      if (!goingDown && exitVisible) { hideExit(); return; }
       if ((goingDown && snap.scrollTop >= chBot - 2) || (!goingDown && snap.scrollTop <= chTop + 2)) {
+        hideExit();
         animateTo(targetIdx + (goingDown ? 1 : -1));
       }
     }, { passive: true });
