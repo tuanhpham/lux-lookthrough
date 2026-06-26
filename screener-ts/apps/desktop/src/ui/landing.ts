@@ -97,51 +97,35 @@ const VI = {
   final: `"True mastery is the birthplace of artistry —<br>and I call it the professional's art."<br><span class="story-attr">— T.A.</span>`,
 };
 
-// ── Inline photo illustrations ───────────────────────────────────────────────
-const illusHouse    = `<img class="story-illo reveal"      src="/images/childhood.png" alt="" aria-hidden="true" loading="lazy">`;
-const illusNotebook = `<img class="story-illo-left reveal" src="/images/study.png"     alt="" aria-hidden="true" loading="lazy">`;
-const illusFamily   = `<img class="story-illo reveal"      src="/images/start.png"     alt="" aria-hidden="true" loading="lazy">`;
-const illusTrading  = `<img class="story-illo-left reveal" src="/images/trading.png"   alt="" aria-hidden="true" loading="lazy">`;
-
 function buildStoryBlocks(c: typeof EN): string {
   const p  = (text: string) => `<p class="story-p reveal">${text}</p>`;
   const q  = (text: string) =>
     `<div class="story-quote"><span class="reveal">${text}</span></div>`;
-  const withIllo = (paras: string[], illo: string, side: 'right' | 'left' = 'right') =>
-    `<div class="story-with-illo${side === 'left' ? ' story-with-illo--left' : ''}">
-      <div class="story-block">${paras.map(p).join('')}</div>
-      ${illo}
-    </div>`;
+  const block = (paras: string[], cls = '') =>
+    `<div class="story-block${cls ? ' ' + cls : ''}">${paras.map(p).join('')}</div>`;
   const chapter = (idx: number, inner: string) =>
     `<section class="sl-chapter" data-ch="${idx}">${inner}</section>`;
 
-  // Ch 0: hero quote → opening lines (ends with manunderlight hero, which is the sl-hero above)
-  // Ch 1: childhood to "he breathed"  → s2 + s3 (childhood.png + study.png)
-  // Ch 2: quote1 + s4 (start.png) → ends "…fire of all."
-  // Ch 3: quote2 + s5 (trading.png) → ends "…you live it."
-  // Ch 4: quote3 + s6 + final
-
   return [
     chapter(0,
-      `<div class="story-block story-open">${c.s1.map(p).join('')}</div>`
+      block(c.s1, 'story-open')
     ),
     chapter(1,
-      withIllo(c.s2, illusHouse) +
-      withIllo(c.s3, illusNotebook, 'left')
+      block(c.s2) +
+      block(c.s3)
     ),
     chapter(2,
       q(c.q1) +
-      withIllo(c.s4, illusFamily)
+      block(c.s4)
     ),
     chapter(3,
       q(c.q2) +
-      withIllo(c.s5, illusTrading, 'left')
+      block(c.s5)
     ),
     chapter(4,
       q(c.q3) +
-      `<div class="story-block">${c.s6.map(p).join('')}</div>` +
-      `<div class="story-final reveal">${c.final}</div>` +
-      ``
+      block(c.s6) +
+      `<div class="story-final reveal">${c.final}</div>`
     ),
   ].join('\n');
 }
