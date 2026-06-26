@@ -803,6 +803,7 @@ html.light #sl-veil { background: rgba(232,228,223,.35); }
 /* ── Boot splash ── */
 #splash-overlay {
   position: fixed; inset: 0; z-index: 9999;
+  pointer-events: none;
   background: #0e0e0e;
   display: flex; align-items: center; justify-content: center;
 }
