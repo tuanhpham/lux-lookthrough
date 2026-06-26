@@ -189,10 +189,11 @@ window.addEventListener('keydown', (e) => {
 // Nav wiring. Selecting a tab closes the mobile drawer AND the desktop "More"
 // dropdown so the chosen tab is revealed cleanly.
 $$('[data-tab]').forEach((b) =>
-  b.addEventListener('click', () => {
-    show((b as HTMLElement).dataset.tab as Tab);
+  b.addEventListener('click', (e) => {
+    const tab = (b as HTMLElement).dataset.tab as Tab;
     closeNav();
     setMoreOpen(false);
+    pageTransition(e.currentTarget as Element, () => show(tab));
   }),
 );
 $('#logo-home')?.addEventListener('click', (e) => goToLanding(e.currentTarget as Element));

@@ -69,6 +69,7 @@ export function renderToolLanding(host: HTMLElement, onEnter: (trigger?: Element
 
   host.querySelector('#tl-enter')!.addEventListener('click', (e) => onEnter(e.currentTarget as Element));
   if (onBack) host.querySelector('#tl-back')?.addEventListener('click', (e) => onBack(e.currentTarget as Element));
+  // lang
   host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
     b.addEventListener('click', () => {
       pageTransition(b, () => {

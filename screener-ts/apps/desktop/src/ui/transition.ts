@@ -1,20 +1,16 @@
 /**
- * Cinematic page transition.
+ * Cinematic page transition — "curtain lift" from the trigger point.
  *
- * Phase 1 (0 → 900ms)  — circle slowly expands from the trigger origin,
- *                         easing in gently like a shutter opening.
- * Phase 2 (700ms)       — callback fires while screen is fully covered.
- * Phase 3 (900 → 1800ms)— overlay fades out smoothly, revealing the new page.
- * Phase 4 (1850ms)      — cleanup, pointer-events restored.
+ * 1. Overlay instantly covers the full screen.
+ * 2. Callback fires immediately — new page renders underneath.
+ * 3. A growing transparent circle expands from the trigger origin,
+ *    "lifting" the curtain to reveal the new page outward from that point.
  */
 
-const EXPAND_MS  = 1400;  // circle expand duration
-const HOLD_MS    = 900;   // when to fire callback (inside expand)
-const FADE_MS    = 0;     // overlay fade-out — instant cut to new page
-const FADE_START = 1450;  // when to start fade (just after expand completes)
-const CLEANUP_MS = FADE_START + FADE_MS + 50;
+const UNVEIL_MS = 1400; // how long the hole takes to expand across the screen
 
 let rippleEl: HTMLDivElement | null = null;
+let rafId = 0;
 
 function getEl(): HTMLDivElement {
   if (!rippleEl) {
@@ -28,7 +24,10 @@ function getEl(): HTMLDivElement {
 export function pageTransition(trigger: Element | null, callback: () => void): void {
   const el = getEl();
 
-  // Origin: centre of the trigger, as viewport percentages
+  // Cancel any in-progress animation
+  if (rafId) cancelAnimationFrame(rafId);
+
+  // Origin: centre of trigger as viewport percentages
   let ox = 50, oy = 50;
   if (trigger) {
     const r = trigger.getBoundingClientRect();
@@ -36,33 +35,46 @@ export function pageTransition(trigger: Element | null, callback: () => void): v
     oy = ((r.top  + r.height / 2) / window.innerHeight) * 100;
   }
 
-  // Reset without transition
+  type S = CSSStyleDeclaration & { webkitMaskImage: string };
+
+  const setMask = (val: string) => {
+    el.style.maskImage = val;
+    (el.style as S).webkitMaskImage = val;
+  };
+
+  // Show full overlay instantly — solid, no mask
   el.style.transition = 'none';
   el.style.opacity    = '1';
-  el.style.clipPath   = `circle(0% at ${ox}% ${oy}%)`;
-  void el.offsetWidth; // flush
+  setMask('none');
+  void el.offsetWidth; // flush paint
 
-  // Phase 1 — slow cinematic expand
-  el.style.transition = `clip-path ${EXPAND_MS}ms cubic-bezier(.25, .1, .25, 1)`;
-  el.style.clipPath   = `circle(170% at ${ox}% ${oy}%)`;
+  // Navigate immediately while screen is covered
+  callback();
 
-  // Fire callback while covered
-  const cbTimer = setTimeout(callback, HOLD_MS);
+  // Give the browser two frames to render the new page, then start unveiling
+  rafId = requestAnimationFrame(() => {
+    rafId = requestAnimationFrame(() => {
+      let start = 0;
+      // ease-out quart: fast burst from origin, coast gently to edges
+      const ease = (t: number) => 1 - (1 - t) ** 4;
 
-  // Phase 2 — slow fade out
-  const fadeTimer = setTimeout(() => {
-    el.style.transition = `opacity ${FADE_MS}ms cubic-bezier(.4, 0, .2, 1)`;
-    el.style.opacity    = '0';
-  }, FADE_START);
+      const step = (now: number) => {
+        if (!start) start = now;
+        const t = Math.min((now - start) / UNVEIL_MS, 1);
+        const r = ease(t) * 175; // 175% radius reaches all four corners
+        // transparent hole grows outward; solid ring surrounds it
+        setMask(`radial-gradient(circle at ${ox}% ${oy}%, transparent ${r - 0.5}%, black ${r + 0.5}%)`);
 
-  // Cleanup
-  const cleanTimer = setTimeout(() => {
-    el.style.transition = 'none';
-    el.style.opacity    = '1';
-    el.style.clipPath   = `circle(0% at ${ox}% ${oy}%)`;
-  }, CLEANUP_MS);
+        if (t < 1) {
+          rafId = requestAnimationFrame(step);
+        } else {
+          el.style.opacity = '0';
+          setMask('none');
+          rafId = 0;
+        }
+      };
 
-  // Safety: cancel pending timers if called again before completion
-  (el as HTMLDivElement & { _pt?: number[] })._pt?.forEach(clearTimeout);
-  (el as HTMLDivElement & { _pt?: number[] })._pt = [cbTimer, fadeTimer, cleanTimer];
+      rafId = requestAnimationFrame(step);
+    });
+  });
 }
