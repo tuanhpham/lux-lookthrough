@@ -1177,6 +1177,10 @@ html.light .sl-hero-figure { opacity: .78; }
 
 /* ── Responsive ── */
 @media (max-width: 700px) {
+  /* tall chapters: anchor to top so the start of content is always visible */
+  .sl-chapter { justify-content: flex-start; }
+  /* hero is still centered — it's always exactly one viewport */
+  .sl-hero { justify-content: center; }
   .sl-topbar { padding: 0 18px; }
   .sl-brand-name { display: none; }
   .story-block, .story-quote, .story-final { padding-left: 20px; padding-right: 20px; }

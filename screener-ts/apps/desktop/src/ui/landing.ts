@@ -256,6 +256,17 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
     const chapterTop = (i: number) =>
       chapters.slice(0, i).reduce((s, ch) => s + ch.offsetHeight, 0);
 
+    const getActiveIdx = () => {
+      const vh = snap.clientHeight || window.innerHeight;
+      let best = 0, bestOverlap = 0;
+      chapters.forEach((ch, i) => {
+        const r = ch.getBoundingClientRect();
+        const overlap = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0));
+        if (overlap > bestOverlap) { bestOverlap = overlap; best = i; }
+      });
+      return best;
+    };
+
     const revealAt = (idx: number) => {
       if (idx === activeIdx) return;
       chapters[idx]?.classList.add('sl-ch--revealed');
@@ -320,6 +331,13 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
 
     // Intercept wheel only at chapter boundaries; allow free scroll within tall chapters
     let wheelCooldown = false;
+    // On mobile, native touch scroll can bypass animateTo entirely — watch
+    // the scroll position directly and reveal whichever chapter is in view.
+    snap.addEventListener('scroll', () => {
+      const idx = getActiveIdx();
+      if (idx !== activeIdx) revealAt(idx);
+    }, { passive: true });
+
     snap.addEventListener('wheel', (e) => {
       if (animating) { e.preventDefault(); return; }
 
