@@ -103,40 +103,49 @@ const illusNotebook = `<img class="story-illo-left reveal" src="/images/study.pn
 const illusFamily   = `<img class="story-illo reveal"      src="/images/start.png"     alt="" aria-hidden="true" loading="lazy">`;
 const illusTrading  = `<img class="story-illo-left reveal" src="/images/trading.png"   alt="" aria-hidden="true" loading="lazy">`;
 
-// Chapter-break separators — · · · on desktop, full-bleed photo on mobile
-const SCENES = [
-  `<div class="sl-break sl-break-a" aria-hidden="true"><span>· · ·</span></div>`,
-  `<div class="sl-break sl-break-b" aria-hidden="true"><span>· · ·</span></div>`,
-  `<div class="sl-break sl-break-c" aria-hidden="true"><span>· · ·</span></div>`,
-  `<div class="sl-break sl-break-d" aria-hidden="true"><span>· · ·</span></div>`,
-];
-
 function buildStoryBlocks(c: typeof EN): string {
-  const block = (paras: string[], cls = '') =>
-    `<div class="story-block${cls ? ' ' + cls : ''}">${paras.map((p) => `<p class="story-p reveal">${p}</p>`).join('')}</div>`;
-  const quote = (text: string) =>
-    `<div class="story-quote reveal"><span>${text}</span></div>`;
-  const blockWithIllo = (paras: string[], illo: string, side: 'right' | 'left' = 'right') =>
+  const p  = (text: string) => `<p class="story-p reveal">${text}</p>`;
+  const q  = (text: string) =>
+    `<div class="story-quote"><span class="reveal">${text}</span></div>`;
+  const withIllo = (paras: string[], illo: string, side: 'right' | 'left' = 'right') =>
     `<div class="story-with-illo${side === 'left' ? ' story-with-illo--left' : ''}">
-      <div class="story-block">${paras.map((p) => `<p class="story-p reveal">${p}</p>`).join('')}</div>
+      <div class="story-block">${paras.map(p).join('')}</div>
       ${illo}
     </div>`;
+  const chapter = (idx: number, inner: string) =>
+    `<section class="sl-chapter" data-ch="${idx}">${inner}</section>`;
+
+  // Ch 0: hero quote → opening lines (ends with manunderlight hero, which is the sl-hero above)
+  // Ch 1: childhood to "he breathed"  → s2 + s3 (childhood.png + study.png)
+  // Ch 2: quote1 + s4 (start.png) → ends "…fire of all."
+  // Ch 3: quote2 + s5 (trading.png) → ends "…you live it."
+  // Ch 4: quote3 + s6 + final
 
   return [
-    block(c.s1, 'story-open'),
-    SCENES[0]!,
-    blockWithIllo(c.s2, illusHouse),
-    blockWithIllo(c.s3, illusNotebook, 'left'),
-    SCENES[1]!,
-    quote(c.q1),
-    blockWithIllo(c.s4, illusFamily),
-    SCENES[2]!,
-    quote(c.q2),
-    blockWithIllo(c.s5, illusTrading, 'left'),
-    SCENES[3]!,
-    quote(c.q3),
-    block(c.s6),
-    `<div class="story-final reveal">${c.final}</div>`,
+    chapter(0,
+      `<div class="story-block story-open">${c.s1.map(p).join('')}</div>`
+    ),
+    chapter(1,
+      withIllo(c.s2, illusHouse) +
+      withIllo(c.s3, illusNotebook, 'left')
+    ),
+    chapter(2,
+      q(c.q1) +
+      withIllo(c.s4, illusFamily)
+    ),
+    chapter(3,
+      q(c.q2) +
+      withIllo(c.s5, illusTrading, 'left')
+    ),
+    chapter(4,
+      q(c.q3) +
+      `<div class="story-block">${c.s6.map(p).join('')}</div>` +
+      `<div class="story-final reveal">${c.final}</div>` +
+      `<div class="sl-chapter-cta reveal">
+        <button id="sl-enter-bottom" class="btn sl-bottom-btn">${c.heroCta}</button>
+        <p class="sl-disc muted">Educational use only. Not financial advice.</p>
+       </div>`
+    ),
   ].join('\n');
 }
 
@@ -164,31 +173,34 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
     </div>
   </header>
 
-  <!-- ── Hero: full viewport, pastoral landscape ── -->
-  <section class="sl-hero">
-    <div class="sl-hero-bg"></div>
-    <div class="sl-hero-overlay"></div>
-    <div class="sl-hero-content">
-      <p class="sl-hero-quote">${c.heroQuote}</p>
-      <button id="sl-enter-hero" class="sl-hero-cta">${c.heroCta}</button>
+  <!-- snap container -->
+  <div class="sl-snap">
+
+    <!-- Ch −1: hero (full viewport snap point) -->
+    <section class="sl-hero sl-chapter" data-ch="-1">
+      <div class="sl-hero-bg"></div>
+      <div class="sl-hero-overlay"></div>
+      <div class="sl-hero-content">
+        <p class="sl-hero-quote">${c.heroQuote}</p>
+        <button id="sl-enter-hero" class="sl-hero-cta">${c.heroCta}</button>
+      </div>
+      <div class="sl-scroll-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </section>
+
+    <!-- Chapters 0–4 -->
+    <div class="sl-story">
+      ${buildStoryBlocks(c)}
     </div>
-    <div class="sl-scroll-hint">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-  </section>
 
-  <!-- ── Narrative scroll ── -->
-  <section class="sl-story">
-    ${buildStoryBlocks(c)}
-  </section>
 
-  <!-- ── Final CTA ── -->
-  <section class="sl-bottom-cta">
-    <button id="sl-enter-bottom" class="btn sl-bottom-btn">${c.heroCta}</button>
-    <p class="sl-disc muted">Educational use only. Not financial advice.</p>
-  </section>
+  </div>
 
-</div>`;
+</div>
+
+<!-- Fixed veil: flashes between chapters -->
+<div id="sl-veil"></div>`;
 
   // wire all enter buttons
   const enter = () => onEnterPrivate();
@@ -211,28 +223,97 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
     renderLanding(host, onEnterPrivate);
   });
 
-  // Scroll-reveal via getBoundingClientRect — more reliable than IntersectionObserver
-  // in Tauri webviews, which can fire the observer callback for all elements at load.
   requestAnimationFrame(() => {
-    let pending = Array.from(host.querySelectorAll<HTMLElement>('.reveal'));
+    const snap     = host.querySelector<HTMLElement>('.sl-snap')!;
+    const chapters = Array.from(host.querySelectorAll<HTMLElement>('.sl-chapter'));
+    const veil     = document.getElementById('sl-veil')!;
 
-    const check = () => {
-      const trigger = window.innerHeight * 0.82; // fire when top edge is in upper 82% of viewport
-      pending = pending.filter((el) => {
-        if (el.getBoundingClientRect().top > trigger) return true; // not yet visible
-        // Stagger siblings that enter at the same time
-        const idx = Array.from(el.parentElement?.children ?? []).indexOf(el);
-        if (idx > 0) {
-          const base = parseFloat(el.style.transitionDelay) || 0;
-          el.style.transitionDelay = `${base + idx * 0.15}s`;
-        }
-        el.classList.add('revealed');
-        return false;
+    // Stagger .reveal children inside each chapter
+    chapters.forEach((ch) => {
+      Array.from(ch.querySelectorAll<HTMLElement>('.reveal')).forEach((el, idx) => {
+        el.style.transitionDelay = `${idx * 0.18}s`;
       });
-      if (pending.length === 0) window.removeEventListener('scroll', check);
+      Array.from(ch.querySelectorAll<HTMLElement>('.story-illo,.story-illo-left')).forEach((el) => {
+        (el as HTMLElement).style.transitionDelay = '0.25s';
+      });
+    });
+
+    // ── Veil flash ──────────────────────────────────────────────────────
+    const SCROLL_MS = 1100; // chapter transition duration
+
+    // easeInOutCubic
+    const ease = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+
+    let animating = false;
+    let targetIdx = 0;
+    let activeIdx = -1;
+
+    const chapterTop = (i: number) =>
+      chapters.slice(0, i).reduce((s, ch) => s + ch.offsetHeight, 0);
+
+    const revealAt = (idx: number) => {
+      if (idx === activeIdx) return;
+      chapters[idx]?.classList.add('sl-ch--revealed');
+      // scrolling back up — hide the chapter below the one we returned to
+      if (activeIdx >= 0 && idx < activeIdx) {
+        chapters[activeIdx]!.classList.remove('sl-ch--revealed');
+      }
+      activeIdx = idx;
     };
 
-    window.addEventListener('scroll', check, { passive: true });
-    check(); // reveal anything already above the fold on first paint
+    // Animate snap.scrollTop from current to target over SCROLL_MS
+    const animateTo = (toIdx: number) => {
+      if (animating) return;
+      if (toIdx === targetIdx) return;
+      const clamp = Math.max(0, Math.min(chapters.length - 1, toIdx));
+      if (clamp === targetIdx) return;
+
+      animating = true;
+      targetIdx = clamp;
+
+      // Show veil at start of transition
+      veil.classList.add('sl-veil--in');
+
+      const from = snap.scrollTop;
+      const to   = chapterTop(clamp);
+      const t0   = performance.now();
+
+      const step = (now: number) => {
+        const p = Math.min((now - t0) / SCROLL_MS, 1);
+        snap.scrollTop = from + (to - from) * ease(p);
+        if (p < 1) {
+          requestAnimationFrame(step);
+        } else {
+          snap.scrollTop = to;
+          animating = false;
+          // Veil fades out; reveal chapter content after brief pause
+          setTimeout(() => {
+            veil.classList.remove('sl-veil--in');
+            revealAt(clamp);
+          }, 120);
+        }
+      };
+      requestAnimationFrame(step);
+    };
+
+    // Intercept wheel — one tick = one chapter
+    let wheelCooldown = false;
+    snap.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (wheelCooldown) return;
+      wheelCooldown = true;
+      setTimeout(() => { wheelCooldown = false; }, SCROLL_MS + 100);
+      animateTo(targetIdx + (e.deltaY > 0 ? 1 : -1));
+    }, { passive: false });
+
+    // Touch swipe support
+    let touchY = 0;
+    snap.addEventListener('touchstart', (e) => { touchY = e.touches[0]!.clientY; }, { passive: true });
+    snap.addEventListener('touchend', (e) => {
+      const dy = touchY - e.changedTouches[0]!.clientY;
+      if (Math.abs(dy) > 40) animateTo(targetIdx + (dy > 0 ? 1 : -1));
+    }, { passive: true });
+
+    revealAt(0);
   });
 }

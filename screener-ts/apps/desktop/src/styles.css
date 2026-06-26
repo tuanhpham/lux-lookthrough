@@ -435,6 +435,20 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .sl-wrap { position: relative; background: #242424; }
 html.light .sl-wrap { background: #e8e4df; }
 
+/* ── Snap scroll container — scroll driven by JS, no native snap ── */
+.sl-snap {
+  height: 100dvh;
+  overflow-y: scroll;
+  /* overflow hidden so mid-animation content doesn't peek */
+  overflow-x: hidden;
+}
+
+/* Each chapter is at least one viewport tall */
+.sl-chapter {
+  min-height: 100dvh;
+  display: flex; flex-direction: column; justify-content: center;
+}
+
 /* ── fixed top bar ── */
 .sl-topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 80;
@@ -524,7 +538,7 @@ html.light .sl-topbar .theme-toggle:hover {
 
 /* ── hero: full-viewport landscape ── */
 .sl-hero {
-  position: relative; height: 100dvh; min-height: 560px;
+  position: relative;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
 }
@@ -680,11 +694,7 @@ html.light .story-illo, html.light .story-illo-left {
   padding-left: calc(32px + 22px);
   /* border removed from wrapper — it ran the full height including padding */
 }
-/* Quote gets a slower, more deliberate reveal */
-.story-quote.reveal {
-  transform: translateY(40px);
-  transition: opacity 2.4s cubic-bezier(.16,1,.3,1), transform 2.4s cubic-bezier(.16,1,.3,1);
-}
+/* Quote: slower curtain — overrides the base .reveal transition duration */
 .story-quote span {
   display: block; font-size: 18px; font-weight: 300; font-style: italic;
   color: var(--subtext); line-height: 1.7; letter-spacing: .005em;
@@ -723,31 +733,120 @@ html.light .sl-break span {
   color: rgba(0,0,0,.18);
 }
 
-/* ── Scroll-reveal ── */
-.reveal {
-  opacity: 0; transform: translateY(56px);
-  transition: opacity 1.8s cubic-bezier(.16,1,.3,1), transform 1.8s cubic-bezier(.16,1,.3,1);
+/* ── Scroll-reveal (bidirectional) ── */
+/* ── Section veil (fixed blur flash between chapters) ── */
+#sl-veil {
+  position: fixed; inset: 0; z-index: 50;
+  pointer-events: none;
+  background: rgba(14,14,14,.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  opacity: 0;
+  transition: opacity 3s cubic-bezier(.4,0,.2,1);
 }
-.revealed { opacity: 1; transform: none; }
+html.light #sl-veil { background: rgba(232,228,223,.88); }
+#sl-veil.sl-veil--in {
+  opacity: 1;
+  transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
+}
 
-/* stagger — each paragraph waits noticeably longer than the last */
-.story-block .reveal:nth-child(2) { transition-delay: .28s; }
-.story-block .reveal:nth-child(3) { transition-delay: .56s; }
-.story-block .reveal:nth-child(4) { transition-delay: .84s; }
-.story-block .reveal:nth-child(5) { transition-delay: 1.1s; }
+/* ── Chapter reveal: clip-path wipe upward ── */
+/* hidden state */
+.reveal {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 1.2s cubic-bezier(.16,1,.3,1);
+}
+.story-illo, .story-illo-left {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 1.4s cubic-bezier(.16,1,.3,1);
+}
 
-/* illustrations fade in from side */
-.story-illo { opacity: 0; transform: translateX(20px); transition: opacity 1.6s cubic-bezier(.16,1,.3,1), transform 1.6s cubic-bezier(.16,1,.3,1); transition-delay: .3s; }
-.story-illo.revealed { opacity: 1; transform: none; }
-.story-illo-left { opacity: 0; transform: translateX(-20px); transition: opacity 1.6s cubic-bezier(.16,1,.3,1), transform 1.6s cubic-bezier(.16,1,.3,1); transition-delay: .3s; }
-.story-illo-left.revealed { opacity: 1; transform: none; }
+/* revealed state — triggered by .sl-ch--revealed on the chapter */
+.sl-ch--revealed .reveal        { clip-path: inset(0 0 0% 0); }
+.sl-ch--revealed .story-illo,
+.sl-ch--revealed .story-illo-left { clip-path: inset(0 0 0% 0); }
+
+/* hide (scroll-up): clip back down */
+.sl-chapter:not(.sl-ch--revealed) .reveal,
+.sl-chapter:not(.sl-ch--revealed) .story-illo,
+.sl-chapter:not(.sl-ch--revealed) .story-illo-left {
+  transition: clip-path 0.7s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Boot splash ── */
+#splash-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0e0e0e;
+  display: flex; align-items: center; justify-content: center;
+}
+.splash-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 32px;
+  animation: splashIn 1.8s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes splashIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+.splash-ring-wrap {
+  position: relative; width: 220px; height: 220px;
+  display: flex; align-items: center; justify-content: center;
+}
+.splash-ring { position: absolute; inset: 0; width: 220px; height: 220px; }
+
+/* Percentage counter inside the ring — iOS slot-machine digits */
+.splash-pct-wrap {
+  position: relative; z-index: 1;
+  display: flex; align-items: baseline; gap: 2px;
+}
+/* Row of digit columns */
+.splash-digits {
+  display: flex; align-items: baseline; gap: 0;
+}
+/* Single digit column — clips the scrolling spans */
+.splash-dslot {
+  position: relative;
+  width: 1ch; height: 1.15em;  /* tight clip: one digit tall */
+  overflow: hidden;
+  font-size: 52px; font-weight: 300; letter-spacing: -.03em;
+  color: rgba(255,255,255,.88); font-family: var(--font-ui);
+  line-height: 1.15;
+  /* hidden slots collapse to zero width until revealed */
+  max-width: 1ch; opacity: 1;
+  transition: max-width 280ms cubic-bezier(.4,0,.2,1),
+              opacity   280ms cubic-bezier(.4,0,.2,1);
+}
+.splash-dslot[data-hidden] {
+  max-width: 0; opacity: 0; overflow: hidden;
+}
+/* Individual digit span — absolutely positioned so two can coexist during flip */
+.splash-dchar {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.splash-pct-sign {
+  font-size: 52px; font-weight: 200; letter-spacing: -.02em;
+  color: rgba(255,255,255,.45); font-family: var(--font-mono);
+  align-self: flex-end; padding-bottom: 0; margin-left: 2px;
+}
+
+/* Thin editorial rule between ring and name */
+.splash-divider {
+  width: 32px; height: 1px;
+  background: rgba(255,255,255,.18);
+}
+
+/* "The Professional" — spaced serif-like uppercase */
+.splash-name {
+  font-size: 18px; font-weight: 300; letter-spacing: .28em;
+  text-transform: uppercase; color: rgba(255,255,255,.55);
+  font-family: var(--font-ui); margin: 0;
+}
 
 /* ── Bottom CTA ── */
-.sl-bottom-cta {
-  padding: 60px 32px 100px; display: flex; flex-direction: column;
-  align-items: center; gap: 20px; background: #242424;
+.sl-chapter-cta {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; padding-top: 40px;
 }
-html.light .sl-bottom-cta { background: #e8e4df; }
 .sl-bottom-btn {
   font-size: 14px; padding: 9px 26px;
   background: rgba(255,255,255,.08) !important;

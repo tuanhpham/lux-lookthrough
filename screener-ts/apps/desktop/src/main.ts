@@ -11,6 +11,7 @@ import { renderPlaybook } from './tabs/playbookTab.js';
 import { renderCaseStudies } from './tabs/caseStudiesTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
+import { runSplash } from './ui/splash.js';
 import { renderToolLanding } from './ui/toolLanding.js';
 import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
@@ -230,13 +231,12 @@ if (isSyncEnabled()) {
     .catch(() => {});
 }
 
-// Landing first; the CTA reveals the app and auto-runs picks.
+// Boot splash → then show landing.
 try {
   renderLanding($('#landing')!, requestPrivateAccess);
   applyStaticI18n();
-  // App mounted successfully → disarm the boot-phase error trap so benign
-  // runtime errors don't blank the screen.
   (window as unknown as { __APP_READY__?: boolean }).__APP_READY__ = true;
+  void runSplash(); // overlay sits on top; fades away when ring completes
 } catch (e) {
   showFatal(String((e as Error)?.stack || e));
 }

@@ -1,65 +1,27 @@
-Tech Stack
-The site is built on Next.js with these animation libraries: Framer Motion (declarative animations), Lenis (smooth scroll), GSAP core (panel-transition timelines only), and raw WebGL + Canvas 2D for the custom effects. A state machine drives the flow: loading → chapter → story → prologue.
+  ---
+  Page structure
 
-1. Ink / Sumi-e Reveal (the signature effect)
-A WebGL fragment shader paints an organic ink-blot mask, which is then applied as a CSS mask-image on a real DOM element.
+  ▎ "A full-screen cinematic landing page divided into snap sections — each chapter fills at least one viewport. Scrolling jumps chapter by chapter (no partial views), with a custom JS-driven 
+  ▎ scroll animation (~1 s easeInOutCubic) instead of native browser snap."
 
-Uses Worley noise (cellular noise), inverted and sharpened: splat = pow(1.0 - worley(...), 2.2).
-Three noise layers at different frequencies simulate ink bleeding into paper: large blots, mid "tendrils" (capillary spread), and fine micro-jitter at the edges.
-Reveal driven by smoothstep against a scroll-based threshold: thresh = 1.0 - progress * 1.4.
-The canvas is exported via canvas.toDataURL() and assigned to maskImage / webkitMaskImage. Use mask-composite: exclude to punch holes instead of revealing, and a uReverse flag to bleed the other direction on scroll-up.
-To rebuild: plain WebGL (no three.js needed) + CSS masks.
+  Between-chapter transition
 
-2. Scroll-Scrubbed Image Sequence
-Preloads a 62-frame PNG sequence (separate mobile set), fetched in batches of 10 via fetch → createImageBitmap to avoid blocking, then draws the frame matching scroll progress inside requestAnimationFrame:
+  ▎ "On chapter change, a full-screen blur veil fades in fast (~0.7 s) over the content — dark semi-transparent overlay with backdrop-filter: blur — then fades out slowly (~3 s) after landing,
+  ▎ revealing the new chapter underneath."
 
-Copyconst t = Math.min(Math.round(61 * progress), loaded - 1);
-ctx.drawImage(frames[t], 0, 0, w, h);
-This is the classic Apple-style scroll scrubbing. Canvas 2D only.
+  Content reveal inside a chapter
 
-3. Mouse Parallax
-A hook reads mousemove, computes cursor offset from screen center, and shifts each data-depth element by a different factor. Key detail: it lerps toward the target for smoothness, never snapping:
+  ▎ "Text and images are hidden with clip-path: inset(0 0 100% 0) (fully clipped from below). When a chapter becomes active, the clip wipes upward like a rising curtain, staggered per paragraph
+  ▎ (~0.18 s apart). Images follow the same direction. Scrolling back up reverses the clip quickly."
 
-Copytx += (target - tx) * 0.12;
-el.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
-Background frame uses depth ~0.04; video layers use higher depths and are scaled to 1.1 so edges never show during movement.
+  Counter / splash
 
-4. Line-Mask Text Reveal
-Splits a paragraph into lines, wraps each in overflow: hidden, then animates y: 110% → 0% with stagger (delay: 0.15 + 0.12 * index) and easing cubic-bezier(.16, 1, .3, 1). A separate variant fades individual words in (opacity 0.15 → 1) mapped to scrollYProgress via useTransform.
+  ▎ "A boot splash with a circular progress ring (SVG stroke-dashoffset) counting 0–100% over ~20 s. Each digit animates in an iOS picker-wheel slot machine — new digit drops in from above, old
+  ▎ digit exits downward, via clip-path overflow:hidden columns with translateY transitions. After 100%, a radial wipe (mask-image: radial-gradient) expands from the center outward, revealing the
+  ▎ page underneath."
 
-5. Slot-Machine Loader Counter
-The percentage digits roll like a slot machine: on change, the old and new digit stack and slide translateY(-1.15em → 0) with cubic-bezier(0.16, 1, 0.3, 1). The progress ring is an SVG using strokeDashoffset with manual easeInOut.
+  Scroll-up behaviour
 
-6. Full-Screen Panel Transitions
-A custom scroll engine hijacks native scroll (wheel, touch, keys) and advances one panel at a time. Each transition picks a preset (cloudReveal, curtainDown, silkReveal, softLift…), each defining enterFrom/enterTo/exit with blur, scale, and y-offset, plus a gradient "flash" layer. Timelines built with GSAP, with a darkening vignette layer at the edges.
-
-7. Moon & Stars
-~250 stars, each a motion.div looping opacity: [.2, 1, .2] infinitely. The moon has four halo layers (outer/mid/inner/bloom) and enters via scale: .4 → 1 on viewport entry. Images open with an "aperture" effect: clipPath: ellipse(18% → 150%) combined with brightness 2.5 → 1.
-
-Library Map (what to install)
-Raw WebGL for the ink mask, Framer Motion for most declarative animations, Lenis for smooth scroll, GSAP core for panel transitions, and Canvas 2D for the image sequence.
-
-
-
-● Scene 1 — between opening and childhood text
-
-  ▎ Black and white cinematic widescreen photograph. An empty dirt road stretches into the far distance through a flat countryside, flanked by low grass and bare trees. Overcast sky, soft 
-  ▎ diffused light, no sun visible. Deep shadows at the edges, the road slightly brighter at the horizon. No people, no text. Film grain, high contrast, aspect ratio 16:9.
+  ▎ "Chapters already scrolled past stay revealed. Only the chapter currently visible collapses when scrolling back up through it."
 
   ---
-  Scene 2 — between study text and first quote
-
-  ▎ Black and white cinematic widescreen photograph. Extreme close-up of an open notebook on a dark wooden desk, shot from slightly above. A single pen rests diagonally across the page. One side
-  ▎ of the frame lit by a narrow lamp beam, the other side in deep shadow. Handwritten lines barely visible. No people, no text. Film grain, high contrast, aspect ratio 16:9.
-
-  ---
-  Scene 3 — between family text and second quote
-
-  ▎ Black and white cinematic widescreen photograph. Two worn wooden chairs facing each other across a small table in an otherwise empty, dimly lit room. A single window behind them lets in faint
-  ▎ grey light. Heavy shadows on the walls. Quiet, still, intimate. No people, no text. Film grain, high contrast, aspect ratio 16:9.
-
-  ---
-  Scene 4 — between trading text and third quote
-
-  ▎ Black and white cinematic widescreen photograph. A single computer monitor glowing in complete darkness, displaying a candlestick chart. The screen light spills faintly onto a dark desk
-  ▎ surface below it. No other light source. Deep black background. No people, no text. Film grain, high contrast, aspect ratio 16:9.
