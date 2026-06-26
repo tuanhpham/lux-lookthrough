@@ -451,10 +451,53 @@ html.light .sl-wrap { background: #e8e4df; }
   position: relative;
 }
 
-/* Ch 0 ("Some people…") — text pushed to lower third */
-.sl-chapter[data-ch="0"] {
-  justify-content: flex-end;
-  padding-bottom: calc(100dvh / 3 - 80px);
+/* Content wrapper — centres everything as a group with equal top/bottom breathing room */
+.sl-ch-body {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  padding-top: clamp(64px, 8vh, 120px);
+  padding-bottom: clamp(64px, 8vh, 120px);
+  width: 100%;
+}
+
+/* Ch 0: short text — centre vertically */
+.sl-chapter[data-ch="0"] { justify-content: center; }
+
+/* Ch 1: medium text — centre */
+.sl-chapter[data-ch="1"] { justify-content: center; }
+
+/* Ch 2: quote + long body — centre, let it overflow naturally */
+.sl-chapter[data-ch="2"] { justify-content: center; }
+
+/* Ch 3: quote + medium body — centre */
+.sl-chapter[data-ch="3"] { justify-content: center; }
+
+/* Ch 4: full-bleed background, text centred */
+.sl-chapter[data-ch="4"] {
+  justify-content: center;
+  background-image: url('/images/5.webp');
+  background-size: cover;
+  background-position: center;
+}
+.sl-chapter[data-ch="4"]::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(
+    to bottom,
+    #242424cc 0%,
+    #24242488 30%,
+    #24242488 70%,
+    #242424cc 100%
+  );
+}
+html.light .sl-chapter[data-ch="4"]::before {
+  background: linear-gradient(
+    to bottom,
+    #e8e4dfcc 0%,
+    #e8e4df88 30%,
+    #e8e4df88 70%,
+    #e8e4dfcc 100%
+  );
 }
 
 /* ── Side photo panel: wide but only the outer edge is clear ──
@@ -518,26 +561,60 @@ html.light .sl-ch-bg--right::before {
 .sl-chapter > * { position: relative; z-index: 1; }
 .sl-chapter > .sl-ch-bg { position: absolute; z-index: 0; }
 
-/* Text for ALL photo chapters: centred, with a slight offset toward the open side.
-   Left-photo: nudge right so it clears the clear zone (~30% of screen).
-   Right-photo: mirror. Both overlap only the faded tail of the gradient. */
-.sl-chapter[data-ch="0"] .story-block,
-.sl-chapter[data-ch="0"] .story-quote,
-.sl-chapter[data-ch="2"] .story-block,
-.sl-chapter[data-ch="2"] .story-quote {
-  margin-left: 34%;
-  margin-right: auto;
-  max-width: 520px;
+/* ── Per-chapter text column placement ──────────────────────────────────────
+   Photo sits on one side, clear at the outer edge, faded toward centre.
+   Text column is pushed INTO the faded zone (opposite to the clear photo).
+   We offset the sl-ch-body wrapper so all children move together. */
+
+/* Left-photo (0, 2): photo clear at left → body pushed right */
+.sl-chapter[data-ch="0"] .sl-ch-body,
+.sl-chapter[data-ch="2"] .sl-ch-body {
+  padding-left: clamp(36%, 36%, 36%);
+  padding-right: 4%;
 }
 
+/* Right-photo (1, 3): photo clear at right → body pushed left */
+.sl-chapter[data-ch="1"] .sl-ch-body,
+.sl-chapter[data-ch="3"] .sl-ch-body {
+  padding-right: clamp(36%, 36%, 36%);
+  padding-left: 4%;
+}
+
+/* constrain text width inside the offset body */
+.sl-chapter[data-ch="0"] .story-block,
+.sl-chapter[data-ch="0"] .story-quote,
 .sl-chapter[data-ch="1"] .story-block,
 .sl-chapter[data-ch="1"] .story-quote,
+.sl-chapter[data-ch="2"] .story-block,
+.sl-chapter[data-ch="2"] .story-quote,
 .sl-chapter[data-ch="3"] .story-block,
 .sl-chapter[data-ch="3"] .story-quote {
-  margin-left: auto;
-  margin-right: 34%;
-  max-width: 520px;
+  margin-left: 0; margin-right: 0;
+  max-width: 100%;
+  padding-left: 0; padding-right: 0;
 }
+
+/* Ch 4: full-bleed bg — centred column */
+.sl-chapter[data-ch="4"] .sl-ch-body {
+  padding-left: 8%; padding-right: 8%;
+  align-items: center;
+}
+.sl-chapter[data-ch="4"] .story-block,
+.sl-chapter[data-ch="4"] .story-quote,
+.sl-chapter[data-ch="4"] .story-final {
+  margin-left: auto; margin-right: auto;
+  max-width: 580px;
+  padding-left: 0; padding-right: 0;
+}
+/* text colours on the photo background */
+.sl-chapter[data-ch="4"] .story-p       { color: rgba(220,215,208,.85); }
+.sl-chapter[data-ch="4"] .story-p em    { color: #fff; }
+.sl-chapter[data-ch="4"] .story-quote span { color: rgba(200,195,188,.8); }
+.sl-chapter[data-ch="4"] .story-final   { color: rgba(220,215,208,.9); border-top: none; }
+html.light .sl-chapter[data-ch="4"] .story-p       { color: rgba(30,26,22,.8); }
+html.light .sl-chapter[data-ch="4"] .story-p em    { color: #1a1510; }
+html.light .sl-chapter[data-ch="4"] .story-quote span { color: rgba(50,45,40,.75); }
+html.light .sl-chapter[data-ch="4"] .story-final   { color: rgba(30,26,22,.85); border-top: none; }
 
 /* ── fixed top bar ── */
 .sl-topbar {
@@ -648,7 +725,7 @@ html.light .sl-topbar .theme-toggle:hover {
 /* Hero background — B&W photo, full viewport */
 .sl-hero-bg {
   position: absolute; inset: 0; z-index: 0;
-  background-image: url('/images/1.webp');
+  background-image: url('/images/0.webp');
   background-size: cover;
   background-position: center 30%;
   background-repeat: no-repeat;
@@ -746,9 +823,10 @@ html.light .sl-story .story-quote span { color: #7a756e; border-left-color: rgba
   padding-left: 32px; padding-right: 32px;
 }
 
-/* story blocks — no illustrations, pure text centred in chapter */
-.story-block { padding-top: 60px; padding-bottom: 60px; }
-.story-open { padding-top: 80px; }
+/* story blocks */
+.story-block { padding-top: 40px; padding-bottom: 40px; }
+.story-open { padding-top: 0; }
+
 .story-open .story-p:first-child {
   font-size: 32px; font-weight: 200; color: #fff;
   letter-spacing: -.02em; line-height: 1.3; margin-bottom: 20px;
@@ -762,6 +840,17 @@ html.light .story-open .story-p:first-child { color: #1a1a1a; text-shadow: none;
 }
 .story-p:last-child { margin-bottom: 0; }
 .story-p em { color: var(--text); font-style: italic; font-weight: 400; }
+/* A paragraph that contains ONLY an <em> — standalone accent line */
+.story-p:has(> em:only-child) {
+  font-size: 19px;
+  color: rgba(235,232,225,.88);
+  letter-spacing: .01em;
+  margin-top: 24px;
+  margin-bottom: 24px;
+  padding-left: 24px;
+  border-left: 2px solid rgba(255,255,255,.18);
+}
+html.light .story-p:has(> em:only-child) { color: rgba(20,16,10,.82); border-left-color: rgba(0,0,0,.18); }
 
 /* pull quotes */
 .story-quote {
@@ -818,7 +907,7 @@ html.light .sl-break span {
   -webkit-backdrop-filter: blur(28px) saturate(0.8);
   will-change: opacity;
   opacity: 0;
-  transition: opacity 3s cubic-bezier(.4,0,.2,1);
+  transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
 }
 html.light #sl-veil { background: rgba(232,228,223,.55); }
 #sl-veil.sl-veil--in {
@@ -826,27 +915,25 @@ html.light #sl-veil { background: rgba(232,228,223,.55); }
   transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
 }
 
-/* ── Chapter reveal: clip-path wipe upward ── */
-/* hidden state */
+/* ── Chapter reveal: fade up per element, staggered via JS ── */
 .reveal {
-  clip-path: inset(0 0 100% 0);
-  transition: clip-path 1.2s cubic-bezier(.16,1,.3,1);
-}
-.story-illo, .story-illo-left {
-  clip-path: inset(0 0 100% 0);
-  transition: clip-path 1.4s cubic-bezier(.16,1,.3,1);
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.9s cubic-bezier(.25,1,.5,1),
+              transform 0.9s cubic-bezier(.16,1,.3,1);
 }
 
-/* revealed state — triggered by .sl-ch--revealed on the chapter */
-.sl-ch--revealed .reveal        { clip-path: inset(0 0 0% 0); }
-.sl-ch--revealed .story-illo,
-.sl-ch--revealed .story-illo-left { clip-path: inset(0 0 0% 0); }
+/* revealed — .sl-ch--revealed added to parent chapter by JS */
+.sl-ch--revealed .reveal {
+  opacity: 1;
+  transform: none;
+}
 
-/* hide (scroll-up): clip back down */
-.sl-chapter:not(.sl-ch--revealed) .reveal,
-.sl-chapter:not(.sl-ch--revealed) .story-illo,
-.sl-chapter:not(.sl-ch--revealed) .story-illo-left {
-  transition: clip-path 0.7s cubic-bezier(.4,0,.2,1);
+/* scroll-up disappear: faster fade down */
+.sl-chapter:not(.sl-ch--revealed) .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
 /* ── Boot splash ── */
@@ -1214,28 +1301,22 @@ html.light .sl-hero-figure { opacity: .78; }
 @media (max-width: 700px) {
   /* tall chapters: anchor to top so the start of content is always visible */
   .sl-chapter { justify-content: flex-start; }
-  /* photo panel: left/right strip on mobile, narrower, full height */
-  .sl-ch-bg { top: 4%; bottom: 4%; width: 45%; height: auto; }
+  /* photo panel: side strip on mobile */
+  .sl-ch-bg { top: 4%; bottom: 4%; width: 40%; height: auto; }
   .sl-ch-bg--left  { left: 0; }
   .sl-ch-bg--right { right: 0; }
-  /* text: centred with small horizontal padding, no offset */
-  .sl-chapter[data-ch="0"] .story-block,
-  .sl-chapter[data-ch="0"] .story-quote,
-  .sl-chapter[data-ch="1"] .story-block,
-  .sl-chapter[data-ch="1"] .story-quote,
-  .sl-chapter[data-ch="2"] .story-block,
-  .sl-chapter[data-ch="2"] .story-quote,
-  .sl-chapter[data-ch="3"] .story-block,
-  .sl-chapter[data-ch="3"] .story-quote {
-    margin-left: auto; margin-right: auto; max-width: 100%;
-    padding-top: 0;
+  /* reset body offsets — full width with padding on mobile */
+  .sl-chapter[data-ch="0"] .sl-ch-body,
+  .sl-chapter[data-ch="1"] .sl-ch-body,
+  .sl-chapter[data-ch="2"] .sl-ch-body,
+  .sl-chapter[data-ch="3"] .sl-ch-body {
+    padding-left: 20px; padding-right: 20px;
   }
   /* hero is still centered — it's always exactly one viewport */
   .sl-hero { justify-content: center; }
   .sl-topbar { padding: 0 18px; }
   .sl-brand-name { display: none; }
-  .story-block, .story-quote, .story-final { padding-left: 20px; padding-right: 20px; }
-  .story-quote { padding-left: calc(20px + 18px); }
+  .story-quote { padding-left: 18px; }
   .sl-hero-quote { font-size: 20px; }
   .story-p { font-size: 16px; }
   .story-quote span { font-size: 16px; }

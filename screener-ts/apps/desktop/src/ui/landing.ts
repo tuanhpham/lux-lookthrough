@@ -19,7 +19,8 @@ const EN = {
   s3: [
     `He noticed early on that he always started slower than everyone else. While others were already running, he was still finding his footing. But something strange kept happening — a quiet pattern that would repeat itself throughout his life — given enough time, he would find himself standing ahead.`,
     `Not because he was more gifted.`,
-    `But because he had nothing to distract him. No passion pulling him sideways. Only one thing: <em>repeat, until it becomes part of you.</em>`,
+    `But because he had nothing to distract him. No passion pulling him sideways.`,
+    `Only one thing: <em>repeat, until it becomes part of you.</em>`,
     `He copied math solutions over and over until his hand knew the answer before his mind did. He rewrote essay after essay until language stopped being something he learned — and became something he breathed.`,
   ],
   q1: `"It was never brilliance that made him exceptional. It was the quiet, relentless act of beginning again."`,
@@ -67,7 +68,8 @@ const VI = {
   s3: [
     `Anh nhận ra từ rất sớm rằng mình luôn bắt đầu chậm hơn người khác. Trong khi bạn bè đã chạy, anh vẫn còn đang tìm đường bước. Nhưng rồi — một điều kỳ lạ cứ lặp đi lặp lại trong cuộc đời anh — sau một thời gian, anh lại là người đứng trước.`,
     `Không phải vì anh thông minh hơn.`,
-    `Mà vì anh không có gì để phân tâm. Không có đam mê nào kéo anh đi lạc. Chỉ có một thứ duy nhất: <em>lặp lại, cho đến khi nào thứ đó thấm vào trong người.</em>`,
+    `Mà vì anh không có gì để phân tâm. Không có đam mê nào kéo anh đi lạc.`,
+    `Chỉ có một thứ duy nhất: <em>lặp lại, cho đến khi nào thứ đó thấm vào trong người.</em>`,
     `Anh chép đi chép lại những lời giải toán đến mức tay tự biết đường đi. Anh đọc đi đọc lại những bài văn mẫu đến mức ngôn ngữ không còn là thứ anh học — mà trở thành thứ anh thở.`,
   ],
   q1: `"Không phải thiên tài tạo ra sự xuất sắc. Chính sự kiên nhẫn lặp lại mới làm được điều đó."`,
@@ -103,17 +105,19 @@ function buildStoryBlocks(c: typeof EN): string {
     `<div class="story-quote"><span class="reveal">${text}</span></div>`;
   const block = (paras: string[], cls = '') =>
     `<div class="story-block${cls ? ' ' + cls : ''}">${paras.map(p).join('')}</div>`;
+  // sl-ch-body centres the content group as a whole unit inside the chapter
+  const body = (inner: string) => `<div class="sl-ch-body">${inner}</div>`;
   const chapter = (idx: number, inner: string, photo?: string, side: 'left'|'right' = 'left') =>
     `<section class="sl-chapter" data-ch="${idx}">
       ${photo ? `<div class="sl-ch-bg sl-ch-bg--${side}" style="background-image:url('${photo}')"></div>` : ''}
-      ${inner}
+      ${body(inner)}
     </section>`;
 
   return [
-    chapter(0, block(c.s1, 'story-open') + block(c.s2), '/images/2.webp', 'left'),
-    chapter(1, block(c.s3), '/images/3.webp', 'right'),
-    chapter(2, q(c.q1) + block(c.s4), '/images/4.webp', 'left'),
-    chapter(3, q(c.q2) + block(c.s5), '/images/5.webp', 'right'),
+    chapter(0, block(c.s1, 'story-open') + block(c.s2), '/images/1.webp', 'left'),
+    chapter(1, block(c.s3), '/images/2.webp', 'right'),
+    chapter(2, q(c.q1) + block(c.s4), '/images/3.webp', 'left'),
+    chapter(3, q(c.q2) + block(c.s5), '/images/4.webp', 'right'),
     chapter(4,
       q(c.q3) +
       block(c.s6) +
@@ -209,13 +213,10 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
     const chapters = Array.from(host.querySelectorAll<HTMLElement>('.sl-chapter'));
     const veil     = document.getElementById('sl-veil')!;
 
-    // Stagger .reveal children inside each chapter
+    // Stagger each .reveal element inside its chapter so they appear one by one
     chapters.forEach((ch) => {
       Array.from(ch.querySelectorAll<HTMLElement>('.reveal')).forEach((el, idx) => {
-        el.style.transitionDelay = `${idx * 0.18}s`;
-      });
-      Array.from(ch.querySelectorAll<HTMLElement>('.story-illo,.story-illo-left')).forEach((el) => {
-        (el as HTMLElement).style.transitionDelay = '0.25s';
+        el.style.transitionDelay = `${idx * 0.15}s`;
       });
     });
 
@@ -278,11 +279,9 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
         } else {
           snap.scrollTop = to;
           animating = false;
-          // Veil fades out; reveal chapter content after brief pause
-          setTimeout(() => {
-            veil.classList.remove('sl-veil--in');
-            revealAt(clamp);
-          }, 120);
+          // Start veil fade-out, then reveal text once veil has cleared
+          veil.classList.remove('sl-veil--in');
+          setTimeout(() => revealAt(clamp), 720);
         }
       };
       requestAnimationFrame(step);
