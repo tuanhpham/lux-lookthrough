@@ -439,8 +439,9 @@ html.light .sl-wrap { background: #e8e4df; }
 .sl-snap {
   height: 100dvh;
   overflow-y: scroll;
-  /* overflow hidden so mid-animation content doesn't peek */
   overflow-x: hidden;
+  /* own stacking context so backdrop-filter on #sl-veil composites correctly in Chrome */
+  isolation: isolate;
 }
 
 /* Each chapter is at least one viewport tall */
@@ -765,13 +766,14 @@ html.light .sl-break span {
 #sl-veil {
   position: fixed; inset: 0; z-index: 50;
   pointer-events: none;
-  background: rgba(14,14,14,.35);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  background: rgba(14,14,14,.55);
+  backdrop-filter: blur(28px) saturate(0.8);
+  -webkit-backdrop-filter: blur(28px) saturate(0.8);
+  will-change: opacity;
   opacity: 0;
   transition: opacity 3s cubic-bezier(.4,0,.2,1);
 }
-html.light #sl-veil { background: rgba(232,228,223,.35); }
+html.light #sl-veil { background: rgba(232,228,223,.55); }
 #sl-veil.sl-veil--in {
   opacity: 1;
   transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
