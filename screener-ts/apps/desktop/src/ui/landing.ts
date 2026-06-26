@@ -216,7 +216,7 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
     // Stagger each .reveal element inside its chapter so they appear one by one
     chapters.forEach((ch) => {
       Array.from(ch.querySelectorAll<HTMLElement>('.reveal')).forEach((el, idx) => {
-        el.style.transitionDelay = `${idx * 0.15}s`;
+        el.style.transitionDelay = `${idx * 0.22}s`;
       });
     });
 
@@ -261,30 +261,47 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
       const clamp = Math.max(0, Math.min(chapters.length - 1, toIdx));
       if (clamp === targetIdx) return;
 
+      const goingUp = clamp < targetIdx;
       animating = true;
       targetIdx = clamp;
 
-      // Show veil at start of transition
-      veil.classList.add('sl-veil--in');
+      const doScroll = () => {
+        veil.classList.add('sl-veil--in');
 
-      const from = snap.scrollTop;
-      const to   = chapterTop(clamp);
-      const t0   = performance.now();
+        const from = snap.scrollTop;
+        const to   = chapterTop(clamp);
+        const t0   = performance.now();
 
-      const step = (now: number) => {
-        const p = Math.min((now - t0) / SCROLL_MS, 1);
-        snap.scrollTop = from + (to - from) * ease(p);
-        if (p < 1) {
-          requestAnimationFrame(step);
-        } else {
-          snap.scrollTop = to;
-          animating = false;
-          // Start veil fade-out, then reveal text once veil has cleared
-          veil.classList.remove('sl-veil--in');
-          setTimeout(() => revealAt(clamp), 720);
-        }
+        const step = (now: number) => {
+          const p = Math.min((now - t0) / SCROLL_MS, 1);
+          snap.scrollTop = from + (to - from) * ease(p);
+          if (p < 1) {
+            requestAnimationFrame(step);
+          } else {
+            snap.scrollTop = to;
+            animating = false;
+            // Veil fades out, then reveal text once veil has cleared
+            veil.classList.remove('sl-veil--in');
+            setTimeout(() => revealAt(clamp), 720);
+          }
+        };
+        requestAnimationFrame(step);
       };
-      requestAnimationFrame(step);
+
+      if (goingUp && activeIdx >= 0) {
+        // Reverse stagger delays so elements disappear bottom-to-top
+        const els = Array.from(chapters[activeIdx]!.querySelectorAll<HTMLElement>('.reveal'));
+        const last = els.length - 1;
+        els.forEach((el, i) => { el.style.transitionDelay = `${(last - i) * 0.12}s`; });
+        chapters[activeIdx]!.classList.remove('sl-ch--revealed');
+        // Restore forward delays after the fade-out so reveal works correctly next time
+        setTimeout(() => {
+          els.forEach((el, i) => { el.style.transitionDelay = `${i * 0.22}s`; });
+          doScroll();
+        }, 380);
+      } else {
+        doScroll();
+      }
     };
 
     const lastIdx   = chapters.length - 1;
