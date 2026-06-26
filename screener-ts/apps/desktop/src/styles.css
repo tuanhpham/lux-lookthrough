@@ -1302,55 +1302,47 @@ html.light .sl-hero-figure { opacity: .78; }
   /* anchor chapters to top so content starts visible */
   .sl-chapter { justify-content: flex-start; }
 
-  /* photo: top banner, full width, ~38vh tall — both left & right variants */
+  /* photo: full chapter background on mobile — maximum visual impact */
   .sl-ch-bg {
-    left: 0; right: 0; top: 0; bottom: auto;
-    width: 100%; height: 38vh;
+    inset: 0; width: 100%; height: 100%;
     border-radius: 0;
   }
-  /* on mobile the gradient fades downward (photo top, text below) */
+  /* gradient: photo clear at top, fades to solid at bottom where text sits */
   .sl-ch-bg--left::before,
   .sl-ch-bg--right::before {
     background: linear-gradient(to bottom,
-      transparent  0%,
-      transparent 35%,
-      #24242488   62%,
-      #242424     85%,
-      #242424    100%);
+      transparent   0%,
+      transparent  25%,
+      #24242466    50%,
+      #242424cc    68%,
+      #242424      82%);
   }
   html.light .sl-ch-bg--left::before,
   html.light .sl-ch-bg--right::before {
     background: linear-gradient(to bottom,
-      transparent  0%,
-      transparent 35%,
-      #e8e4df88   62%,
-      #e8e4df     85%,
-      #e8e4df    100%);
+      transparent   0%,
+      transparent  25%,
+      #e8e4df66    50%,
+      #e8e4dfcc    68%,
+      #e8e4df      82%);
   }
 
-  /* text body: sits below the photo, full width, no side offset */
+  /* text body: anchored to the bottom of the chapter, no side offset */
   .sl-chapter[data-ch="0"] .sl-ch-body,
   .sl-chapter[data-ch="1"] .sl-ch-body,
   .sl-chapter[data-ch="2"] .sl-ch-body,
   .sl-chapter[data-ch="3"] .sl-ch-body {
     padding-left: 24px;
     padding-right: 24px;
-    padding-top: calc(38vh + 16px);
+    padding-top: 52vh;
     padding-bottom: 48px;
-  }
-
-  /* dark scrim behind text so white type is always readable */
-  .sl-chapter[data-ch="0"] .sl-ch-body,
-  .sl-chapter[data-ch="1"] .sl-ch-body,
-  .sl-chapter[data-ch="2"] .sl-ch-body,
-  .sl-chapter[data-ch="3"] .sl-ch-body {
-    background: linear-gradient(to bottom, transparent 0%, #242424 8%);
+    background: none;
   }
   html.light .sl-chapter[data-ch="0"] .sl-ch-body,
   html.light .sl-chapter[data-ch="1"] .sl-ch-body,
   html.light .sl-chapter[data-ch="2"] .sl-ch-body,
   html.light .sl-chapter[data-ch="3"] .sl-ch-body {
-    background: linear-gradient(to bottom, transparent 0%, #e8e4df 8%);
+    background: none;
   }
 
   /* hero is always exactly one viewport — keep it centred */
