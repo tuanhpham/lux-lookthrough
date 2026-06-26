@@ -432,7 +432,7 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .landing-foot { text-align: center; font-size: 12px; }
 
 /* ── wrapper — softened neutrals, easier on the eyes ── */
-.sl-wrap { position: relative; background: #141414; }
+.sl-wrap { position: relative; background: #242424; }
 html.light .sl-wrap { background: #e8e4df; }
 
 /* ── fixed top bar ── */
@@ -611,11 +611,11 @@ html.light .sl-scroll-hint { color: rgba(10,14,22,.3); }
 
 /* ── Narrative scroll ── */
 .sl-story {
-  background: #141414;
+  background: #242424;
 }
-.sl-story .story-p       { color: #8a8a8a; }
-.sl-story .story-p em    { color: #cecece; }
-.sl-story .story-quote span { color: #707070; border-left-color: rgba(160,160,160,.3); }
+.sl-story .story-p       { color: #b8b8b8; }
+.sl-story .story-p em    { color: #ebebeb; }
+.sl-story .story-quote span { color: #a0a0a0; border-left-color: rgba(180,180,180,.3); }
 html.light .sl-story {
   background: #e8e4df;
 }
@@ -652,7 +652,7 @@ html.light .sl-story .story-quote span { color: #7a756e; border-left-color: rgba
   position: sticky; top: 120px;
   align-self: start;
   /* B&W photos: slight contrast boost, no colour tinting */
-  filter: grayscale(1) contrast(1.08) brightness(.92);
+  filter: grayscale(1) contrast(1.05) brightness(1.0);
   box-shadow: 0 8px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
 }
 .story-illo-left { margin-right: 32px; }
@@ -705,53 +705,22 @@ html.light .story-illo, html.light .story-illo-left {
 html.light .story-final {
   border-top-color: rgba(0,0,0,.12);
 }
-.sl-story .story-final { color: #666; }
+.sl-story .story-final { color: #aaa; }
 html.light .sl-story .story-final { color: #444; }
 .story-attr { display: block; margin-top: 16px; font-size: 13px; font-style: normal; color: var(--faint); font-family: var(--font-mono); letter-spacing: .04em; }
 
-/* ── Scene separators — full-bleed atmospheric panels ── */
-.sl-scene {
-  width: 100%; height: 60vh; min-height: 320px; max-height: 520px;
-  position: relative; overflow: hidden;
+/* ── Chapter-break separators ── */
+.sl-break {
+  width: 100%; padding: 56px 0;
+  display: flex; align-items: center; justify-content: center;
 }
-.sl-scene::after { content: none; }
-
-/* Scene A — childhood.png */
-.sl-scene-a {
-  background-image: url('/images/childhood.png');
-  background-size: cover; background-position: center;
+.sl-break span {
+  font-size: 16px; letter-spacing: .55em;
+  color: rgba(255,255,255,.18);
+  font-family: var(--font-ui); user-select: none;
 }
-.sl-scene-a::before { content: none; }
-
-/* Scene B — study.png */
-.sl-scene-b {
-  background-image: url('/images/study.png');
-  background-size: cover; background-position: center;
-}
-.sl-scene-b::before { content: none; }
-
-/* Scene C — start.png */
-.sl-scene-c {
-  background-image: url('/images/start.png');
-  background-size: cover; background-position: center;
-}
-.sl-scene-c::before { content: none; }
-
-/* Scene D — trading.png */
-.sl-scene-d {
-  background-image: url('/images/trading.png');
-  background-size: cover; background-position: center;
-}
-.sl-scene-d::before { content: none; }
-
-/* Dark mode: darken scenes to feel like prints emerging from shadow */
-.sl-scene-a, .sl-scene-b, .sl-scene-c, .sl-scene-d {
-  filter: grayscale(1) brightness(.55) contrast(1.15);
-}
-/* Light mode: lighter, higher key — like prints on paper in daylight */
-html.light .sl-scene-a, html.light .sl-scene-b,
-html.light .sl-scene-c, html.light .sl-scene-d {
-  filter: grayscale(1) brightness(.82) contrast(1.08);
+html.light .sl-break span {
+  color: rgba(0,0,0,.18);
 }
 
 /* ── Scroll-reveal ── */
@@ -776,7 +745,7 @@ html.light .sl-scene-c, html.light .sl-scene-d {
 /* ── Bottom CTA ── */
 .sl-bottom-cta {
   padding: 60px 32px 100px; display: flex; flex-direction: column;
-  align-items: center; gap: 20px; background: #141414;
+  align-items: center; gap: 20px; background: #242424;
 }
 html.light .sl-bottom-cta { background: #e8e4df; }
 .sl-bottom-btn {
@@ -995,6 +964,24 @@ html.light .sl-hero-figure { opacity: .78; }
   .sl-hero-quote { font-size: 20px; }
   .story-p { font-size: 16px; }
   .story-quote span { font-size: 16px; }
+
+  /* Mobile: swap · · · for full-bleed photo panels */
+  .sl-break {
+    height: 44vw; min-height: 220px; max-height: 380px;
+    padding: 0; background-size: cover; background-position: center;
+  }
+  .sl-break span { display: none; }
+  .sl-break-a { background-image: url('/images/childhood.png'); }
+  .sl-break-b { background-image: url('/images/study.png'); }
+  .sl-break-c { background-image: url('/images/start.png'); }
+  .sl-break-d { background-image: url('/images/trading.png'); }
+  .sl-break-a, .sl-break-b, .sl-break-c, .sl-break-d {
+    filter: grayscale(1) brightness(.6) contrast(1.12);
+  }
+  html.light .sl-break-a, html.light .sl-break-b,
+  html.light .sl-break-c, html.light .sl-break-d {
+    filter: grayscale(1) brightness(.82) contrast(1.08);
+  }
 }
 @media (max-width: 420px) {
   .sl-hero-quote { font-size: 18px; }

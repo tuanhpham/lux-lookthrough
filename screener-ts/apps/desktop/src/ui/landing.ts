@@ -98,15 +98,17 @@ const VI = {
 };
 
 // ── Inline photo illustrations ───────────────────────────────────────────────
+const illusHouse    = `<img class="story-illo reveal"      src="/images/childhood.png" alt="" aria-hidden="true" loading="lazy">`;
+const illusNotebook = `<img class="story-illo-left reveal" src="/images/study.png"     alt="" aria-hidden="true" loading="lazy">`;
+const illusFamily   = `<img class="story-illo reveal"      src="/images/start.png"     alt="" aria-hidden="true" loading="lazy">`;
+const illusTrading  = `<img class="story-illo-left reveal" src="/images/trading.png"   alt="" aria-hidden="true" loading="lazy">`;
 
-
-
-// Full-width scene separators
+// Chapter-break separators — · · · on desktop, full-bleed photo on mobile
 const SCENES = [
-  `<div class="sl-scene sl-scene-a" aria-hidden="true"></div>`,
-  `<div class="sl-scene sl-scene-b" aria-hidden="true"></div>`,
-  `<div class="sl-scene sl-scene-c" aria-hidden="true"></div>`,
-  `<div class="sl-scene sl-scene-d" aria-hidden="true"></div>`,
+  `<div class="sl-break sl-break-a" aria-hidden="true"><span>· · ·</span></div>`,
+  `<div class="sl-break sl-break-b" aria-hidden="true"><span>· · ·</span></div>`,
+  `<div class="sl-break sl-break-c" aria-hidden="true"><span>· · ·</span></div>`,
+  `<div class="sl-break sl-break-d" aria-hidden="true"><span>· · ·</span></div>`,
 ];
 
 function buildStoryBlocks(c: typeof EN): string {
@@ -114,18 +116,23 @@ function buildStoryBlocks(c: typeof EN): string {
     `<div class="story-block${cls ? ' ' + cls : ''}">${paras.map((p) => `<p class="story-p reveal">${p}</p>`).join('')}</div>`;
   const quote = (text: string) =>
     `<div class="story-quote reveal"><span>${text}</span></div>`;
+  const blockWithIllo = (paras: string[], illo: string, side: 'right' | 'left' = 'right') =>
+    `<div class="story-with-illo${side === 'left' ? ' story-with-illo--left' : ''}">
+      <div class="story-block">${paras.map((p) => `<p class="story-p reveal">${p}</p>`).join('')}</div>
+      ${illo}
+    </div>`;
 
   return [
     block(c.s1, 'story-open'),
     SCENES[0]!,
-    block(c.s2),
-    block(c.s3),
+    blockWithIllo(c.s2, illusHouse),
+    blockWithIllo(c.s3, illusNotebook, 'left'),
     SCENES[1]!,
     quote(c.q1),
-    block(c.s4),
+    blockWithIllo(c.s4, illusFamily),
     SCENES[2]!,
     quote(c.q2),
-    block(c.s5),
+    blockWithIllo(c.s5, illusTrading, 'left'),
     SCENES[3]!,
     quote(c.q3),
     block(c.s6),

@@ -70,6 +70,21 @@ export function drawCandles(
     bars.map((b) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? UP + '44' : DOWN + '44' })),
   );
 
+  // 30-day average volume line on the same vol scale
+  const VOL_MA = 30;
+  const volMaData = bars
+    .map((b, i) => {
+      if (i < VOL_MA - 1) return null;
+      const avg = bars.slice(i - VOL_MA + 1, i + 1).reduce((s, x) => s + x.volume, 0) / VOL_MA;
+      return { time: b.date, value: avg };
+    })
+    .filter((d): d is { time: string; value: number } => d !== null);
+  const volMa = chart.addLineSeries({
+    priceScaleId: 'vol', color: '#ffb648', lineWidth: 1,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+  });
+  volMa.setData(volMaData);
+
   const emaSeries = new Map<number, ISeriesApi<'Line'>>();
   const addEma = (period: number, color: string) => {
     const vals = emaOfCloses(bars, period);
