@@ -35,5 +35,9 @@ export function initTheme(): void {
   applyTheme(saved);
   document
     .getElementById('theme-toggle')
-    ?.addEventListener('click', () => applyTheme(current() === 'light' ? 'dark' : 'light'));
+    ?.addEventListener('click', async (e) => {
+      const { pageTransition } = await import('./transition.js');
+      const next = current() === 'light' ? 'dark' : 'light';
+      pageTransition(e.currentTarget as Element, () => applyTheme(next));
+    });
 }

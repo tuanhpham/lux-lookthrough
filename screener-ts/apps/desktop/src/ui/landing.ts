@@ -1,5 +1,6 @@
 import { getLang, setLang } from './i18n.js';
 import { applyTheme } from './theme.js';
+import { pageTransition } from './transition.js';
 
 const EN = {
   navPrivate: 'Discover',
@@ -126,7 +127,7 @@ function buildStoryBlocks(c: typeof EN): string {
   ].join('\n');
 }
 
-export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): void {
+export function renderLanding(host: HTMLElement, onEnterPrivate: (trigger?: Element) => void): void {
   const isLight = document.documentElement.classList.contains('light');
   const lang = getLang();
   const c = lang === 'vi' ? VI : EN;
@@ -186,8 +187,8 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
   </button>
 </div>`;
 
-  // wire all enter buttons
-  const enter = () => onEnterPrivate();
+  // wire all enter buttons — pass the element so ripple originates from it
+  const enter = (e: Event) => onEnterPrivate(e.currentTarget as Element);
   host.querySelector('#sl-enter-top')!.addEventListener('click', enter);
   host.querySelector('#sl-enter-hero')!.addEventListener('click', enter);
   host.querySelector('#sl-enter-bottom')?.addEventListener('click', enter);
@@ -196,16 +197,21 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: () => void): vo
   // lang
   host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
     b.addEventListener('click', () => {
-      setLang(b.dataset.ll as 'en' | 'vi');
-      renderLanding(host, onEnterPrivate);
+      pageTransition(b, () => {
+        setLang(b.dataset.ll as 'en' | 'vi');
+        renderLanding(host, onEnterPrivate);
+      });
     }),
   );
 
   // theme
-  host.querySelector('#sl-theme')!.addEventListener('click', () => {
+  host.querySelector('#sl-theme')!.addEventListener('click', (e) => {
+    const btn = e.currentTarget as Element;
     const light = document.documentElement.classList.contains('light');
-    applyTheme(light ? 'dark' : 'light');
-    renderLanding(host, onEnterPrivate);
+    pageTransition(btn, () => {
+      applyTheme(light ? 'dark' : 'light');
+      renderLanding(host, onEnterPrivate);
+    });
   });
 
   requestAnimationFrame(() => {

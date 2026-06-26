@@ -936,6 +936,16 @@ html.light #sl-veil { background: rgba(232,228,223,.55); }
   transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
+/* ── Page transition ripple ── */
+#nav-ripple {
+  position: fixed; inset: 0; z-index: 8000;
+  pointer-events: none;
+  background: #181818;
+  clip-path: circle(0% at 50% 50%);
+  opacity: 1;
+}
+html.light #nav-ripple { background: #e0dbd5; }
+
 /* ── Boot splash ── */
 #splash-overlay {
   position: fixed; inset: 0; z-index: 9999;
@@ -1205,14 +1215,14 @@ html.light .sl-hero-figure { opacity: .78; }
 
 /* Stat strip */
 .tl-stats {
-  display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+  display: flex; align-items: stretch; gap: 0; flex-wrap: nowrap;
   border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
-  overflow: hidden; width: fit-content;
+  overflow: hidden; width: 100%; max-width: 480px;
 }
-.tl-stat { padding: 12px 16px; display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--surface); }
-.tl-stat-div { width: 1px; height: 32px; background: var(--border-soft); align-self: center; }
-.tl-stat-v { font-size: 16px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -.02em; }
-.tl-stat-l { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+.tl-stat { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: var(--surface); min-width: 0; }
+.tl-stat-div { flex-shrink: 0; width: 1px; background: var(--border-soft); align-self: stretch; }
+.tl-stat-v { font-size: 15px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -.02em; white-space: nowrap; }
+.tl-stat-l { font-size: 9.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; text-align: center; }
 
 /* Chart widget */
 .tl-chart-wrap { position: relative; }
@@ -1293,8 +1303,10 @@ html.light .sl-hero-figure { opacity: .78; }
   .tl-inner { padding: 40px 18px 60px; }
   .tl-topbar { padding: 0 18px; }
   .tl-feature-grid { grid-template-columns: 1fr; }
-  .tl-stats { width: 100%; flex-wrap: wrap; }
-  .tl-stat { flex: 1; }
+  .tl-stats { width: 100%; max-width: 100%; }
+  .tl-stat { padding: 10px 6px; }
+  .tl-stat-v { font-size: 13px; }
+  .tl-stat-l { font-size: 9px; letter-spacing: .03em; }
 }
 
 /* ── Responsive ── */

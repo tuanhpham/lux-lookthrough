@@ -12,6 +12,7 @@ import { renderCaseStudies } from './tabs/caseStudiesTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
 import { runSplash } from './ui/splash.js';
+import { pageTransition } from './ui/transition.js';
 import { renderToolLanding } from './ui/toolLanding.js';
 import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
@@ -141,18 +142,24 @@ function enterApp(): void {
 function showToolLanding(): void {
   $('#landing')!.classList.add('hidden');
   $('#tool-landing')!.classList.remove('hidden');
-  renderToolLanding($('#tool-landing')!, enterApp, goToLanding);
+  renderToolLanding(
+    $('#tool-landing')!,
+    (trigger) => pageTransition(trigger ?? null, enterApp),
+    (trigger) => goToLanding(trigger),
+  );
 }
 
-function requestPrivateAccess(): void {
-  showGate(showToolLanding);
+function requestPrivateAccess(trigger?: Element): void {
+  pageTransition(trigger ?? null, () => showGate(showToolLanding));
 }
 
-function goToLanding(): void {
-  $('#app')!.classList.add('hidden');
-  $('#tool-landing')!.classList.add('hidden');
-  $('#landing')!.classList.remove('hidden');
-  renderLanding($('#landing')!, requestPrivateAccess);
+function goToLanding(trigger?: Element): void {
+  pageTransition(trigger ?? null, () => {
+    $('#app')!.classList.add('hidden');
+    $('#tool-landing')!.classList.add('hidden');
+    $('#landing')!.classList.remove('hidden');
+    renderLanding($('#landing')!, requestPrivateAccess);
+  });
 }
 
 // ── Mobile nav dropdown ──────────────────────────────────────────────────────
@@ -188,13 +195,17 @@ $$('[data-tab]').forEach((b) =>
     setMoreOpen(false);
   }),
 );
-$('#logo-home')?.addEventListener('click', goToLanding);
-$('#nav-home')?.addEventListener('click', () => { closeNav(); showToolLanding(); });
+$('#logo-home')?.addEventListener('click', (e) => goToLanding(e.currentTarget as Element));
+$('#nav-home')?.addEventListener('click', (e) => { closeNav(); pageTransition(e.currentTarget as Element, showToolLanding); });
 
 // Language toggle: persist, re-translate static chrome, and re-render the open tab
 // so dynamic content (and the analysis summary's EN/VI) follows the switch.
 $$('[data-lang-btn]').forEach((b) =>
-  b.addEventListener('click', () => setLang((b as HTMLElement).dataset.langBtn as 'en' | 'vi')),
+  b.addEventListener('click', (e) => {
+    pageTransition(e.currentTarget as Element, () =>
+      setLang((b as HTMLElement).dataset.langBtn as 'en' | 'vi')
+    );
+  }),
 );
 onLangChange(() => {
   applyStaticI18n();

@@ -1,7 +1,8 @@
 import { t, getLang, setLang } from './i18n.js';
 import { applyTheme } from './theme.js';
+import { pageTransition } from './transition.js';
 
-export function renderToolLanding(host: HTMLElement, onEnter: () => void, onBack?: () => void): void {
+export function renderToolLanding(host: HTMLElement, onEnter: (trigger?: Element) => void, onBack?: (trigger?: Element) => void): void {
   const isLight = document.documentElement.classList.contains('light');
   const lang = getLang();
   const logoSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg>`;
@@ -66,17 +67,23 @@ export function renderToolLanding(host: HTMLElement, onEnter: () => void, onBack
       </div>
     </div>`;
 
-  host.querySelector('#tl-enter')!.addEventListener('click', onEnter);
-  if (onBack) host.querySelector('#tl-back')?.addEventListener('click', onBack);
+  host.querySelector('#tl-enter')!.addEventListener('click', (e) => onEnter(e.currentTarget as Element));
+  if (onBack) host.querySelector('#tl-back')?.addEventListener('click', (e) => onBack(e.currentTarget as Element));
   host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
     b.addEventListener('click', () => {
-      setLang(b.dataset.ll as 'en' | 'vi');
-      renderToolLanding(host, onEnter, onBack);
+      pageTransition(b, () => {
+        setLang(b.dataset.ll as 'en' | 'vi');
+        renderToolLanding(host, onEnter, onBack);
+      });
     }),
   );
-  host.querySelector('#tl-theme')!.addEventListener('click', () => {
-    applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light');
-    renderToolLanding(host, onEnter, onBack);
+  host.querySelector('#tl-theme')!.addEventListener('click', (e) => {
+    const btn = e.currentTarget as Element;
+    const light = document.documentElement.classList.contains('light');
+    pageTransition(btn, () => {
+      applyTheme(light ? 'dark' : 'light');
+      renderToolLanding(host, onEnter, onBack);
+    });
   });
 }
 
