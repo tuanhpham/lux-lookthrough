@@ -288,7 +288,7 @@ function renderDetail(
     }</div>
     <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f, symbol, asOf)}</div>
     <div class="section-title">${t('detail.about')}</div>
-    <div id="about-block">${aboutHtml(symbol, f)}</div>
+    <div id="about-block">${aboutHtml(symbol, f, true)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
   `;
 }
@@ -303,14 +303,21 @@ function shorten(text: string, max = 600): string {
 function aboutHtml(
   symbol: string,
   f: { name?: string | null; currency?: string | null; summary?: string | null; website?: string | null; sector?: string | null; industry?: string | null },
+  loading = false,
 ): string {
   const link = f.website
     ? `<a href="${f.website}" target="_blank" rel="noopener" class="link-ext">${f.website} ↗</a>`
     : '';
   if (f.summary) return `<p class="muted" style="line-height:1.6">${shorten(f.summary)}</p>${link}`;
-  return `<p class="muted" style="line-height:1.6">${
-    f.name ? f.name + (f.currency ? ` · ${f.currency}` : '') : symbol
-  } — fetching company profile…</p>`;
+  // Build a descriptive line from whatever fields we have.
+  const parts: string[] = [];
+  if (f.name) parts.push(f.name);
+  if (f.currency) parts.push(f.currency);
+  if (f.sector) parts.push(f.sector);
+  if (f.industry && f.industry !== f.sector) parts.push(f.industry);
+  const desc = parts.length ? parts.join(' · ') : symbol;
+  if (loading) return `<p class="muted" style="line-height:1.6">${desc} <span class="spinner" style="width:10px;height:10px;border-width:1px"></span></p>`;
+  return `<p class="muted" style="line-height:1.6">${desc}</p>${link}`;
 }
 
 /** Fundamentals stat grid — re-rendered when enrichment lands so beta / dividend
@@ -486,49 +493,39 @@ async function wireWatchlistPicker(ctx: AppContext, symbol: string): Promise<voi
  */
 async function patchWhenEnriched(ctx: AppContext, symbol: string, body: HTMLElement): Promise<void> {
   const deadline = Date.now() + 14_000;
-  let lastF: Awaited<ReturnType<AppContext['data']['getFundamentals']>> | null = null;
+
+  const patch = (f: Awaited<ReturnType<AppContext['data']['getFundamentals']>>, loading: boolean) => {
+    const about = body.querySelector('#about-block');
+    if (about) about.innerHTML = aboutHtml(symbol, f, loading);
+    const grid = body.querySelector('#fund-grid');
+    if (grid) { grid.innerHTML = fundGridHtml(f, symbol); attachTooltips(grid); }
+    const sub = body.querySelector('#detail-subtitle');
+    if (sub && (f.sector || f.industry)) {
+      sub.textContent = `${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}`;
+    }
+  };
 
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 1200));
-    // Modal closed or navigated to another symbol → stop polling.
     if ($('#modal')!.classList.contains('hidden')) return;
     const f = (await ctx.data.getFundamentals(symbol).catch(() => null)) as
       | (Awaited<ReturnType<AppContext['data']['getFundamentals']>> & { website?: string | null })
       | null;
     if (!f) continue;
-    // Only patch the currently-open symbol.
     if (!$('#modal-title')!.textContent?.toUpperCase().startsWith(symbol)) return;
-    lastF = f;
 
-    if (f.summary || f.sector || f.beta != null || f.dividendYield != null) {
-      const about = body.querySelector('#about-block');
-      if (about) about.innerHTML = aboutHtml(symbol, f);
-      const grid = body.querySelector('#fund-grid');
-      if (grid) {
-        grid.innerHTML = fundGridHtml(f, symbol);
-        attachTooltips(grid);
-      }
-      const sub = body.querySelector('#detail-subtitle');
-      if (sub && (f.sector || f.industry)) {
-        sub.textContent = `${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}`;
-      }
-      if (f.summary) return; // fully enriched — done
-    }
+    // quoteSummary has run when sector, beta, or dividendYield is set —
+    // these fields only come from quoteSummary, not the fast chart/meta call.
+    const enriched = f.sector != null || f.beta != null || f.dividendYield != null;
+    patch(f, !enriched);
+    if (enriched) return; // quoteSummary completed (summary may still be null — that's fine)
   }
 
-  // Deadline exceeded — quoteSummary was blocked or timed out.
-  // Replace the "fetching…" placeholder with whatever basic info we have.
+  // Deadline — clear the spinner with whatever we have.
   if ($('#modal')!.classList.contains('hidden')) return;
   if (!$('#modal-title')!.textContent?.toUpperCase().startsWith(symbol)) return;
-  const about = body.querySelector('#about-block');
-  if (about) {
-    const f = lastF;
-    const nameStr = f?.name ?? symbol;
-    const sectorStr = f?.sector ? ` · ${f.sector}` : '';
-    const industryStr = f?.industry ? ` · ${f.industry}` : '';
-    const ccy = f?.currency ? ` (${f.currency})` : '';
-    about.innerHTML = `<p class="muted" style="line-height:1.6">${nameStr}${ccy}${sectorStr}${industryStr}</p>`;
-  }
+  const f = await ctx.data.getFundamentals(symbol).catch(() => null);
+  if (f) patch(f, false);
 }
 
 type FinPoint = { period: string; revenue: number | null; netIncome: number | null; eps: number | null };
