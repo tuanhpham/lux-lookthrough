@@ -159,7 +159,13 @@ html.light .app-menu-btn { color: rgba(10,10,10,.65); }
 .app-menu-col { display: contents; }
 .app-menu-footer {
   flex-direction: row !important; gap: 24px !important;
-  padding-bottom: 40px; flex: unset !important;
+  padding: 16px 24px 40px; flex: unset !important;
+}
+
+@media (max-height: 820px) {
+  #app-menu .sl-menu-item { font-size: clamp(15px, 2vw, 20px); }
+  .app-menu-nav { gap: 6px; }
+  .app-menu-footer { padding-bottom: 24px; }
 }
 
 /* App menu items — smaller than landing (11 items vs 1) */
