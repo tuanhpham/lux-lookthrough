@@ -121,16 +121,14 @@ table td,
 .hidden { display: none !important; }
 #app { min-height: 100vh; }
 
-/* ── Top navigation (TradingView-style) ──────────────────────────────────── */
+/* ── Top navigation ─────────────────────────────────────────────────────── */
 #topnav {
-  /* Above the mobile dropdown backdrop (z 50) so the bar stays interactive and
-     its child dropdown isn't trapped beneath the scrim's stacking context. */
   position: sticky; top: 0; z-index: 60;
   display: flex; align-items: center; gap: 18px;
   height: 56px; padding: 0 22px;
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
+  background: transparent;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-bottom: none;
 }
 .topnav-brand {
   display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
@@ -507,7 +505,7 @@ html.light .sl-chapter[data-ch="4"]::before {
    before it reaches the centred text block. */
 .sl-ch-bg {
   position: absolute;
-  top: 4%; bottom: 4%;
+  top: 0; bottom: 0;
   width: 58%;
   background-size: cover;
   background-position: center;
@@ -658,17 +656,17 @@ html.light .sl-hero .sl-hero-cta:hover {
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
   background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.72) 0%,
-    rgba(14,14,14,.88) 45%,
-    rgba(14,14,14,.97) 100%);
+    rgba(14,14,14,.28) 0%,
+    rgba(14,14,14,.60) 40%,
+    rgba(14,14,14,.92) 100%);
   backdrop-filter: blur(18px) saturate(0.7);
   -webkit-backdrop-filter: blur(18px) saturate(0.7);
 }
 html.light #sl-menu {
   background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.72) 0%,
-    rgba(232,228,223,.88) 45%,
-    rgba(232,228,223,.97) 100%);
+    rgba(232,228,223,.28) 0%,
+    rgba(232,228,223,.60) 40%,
+    rgba(232,228,223,.92) 100%);
 }
 #sl-menu.sl-menu--open {
   opacity: 1; pointer-events: auto;
@@ -816,15 +814,11 @@ html.light .sl-scroll-hint { color: rgba(10,14,22,.3); }
 @keyframes bounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
 
 /* ── Narrative scroll ── */
-.sl-story {
-  background: #242424;
-}
+.sl-story { background: transparent; }
 .sl-story .story-p       { color: #b8b8b8; }
 .sl-story .story-p em    { color: #ebebeb; }
 .sl-story .story-quote span { color: #a0a0a0; border-left-color: rgba(180,180,180,.3); }
-html.light .sl-story {
-  background: #e8e4df;
-}
+html.light .sl-story { background: transparent; }
 html.light .sl-story .story-p       { color: #5a5650; }
 html.light .sl-story .story-p em    { color: #1e1a16; }
 html.light .sl-story .story-quote span { color: #7a756e; border-left-color: rgba(90,85,78,.28); }
