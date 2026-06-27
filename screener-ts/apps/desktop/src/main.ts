@@ -16,7 +16,7 @@ import { pageTransition } from './ui/transition.js';
 import { renderToolLanding } from './ui/toolLanding.js';
 import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
-import { initTheme, onThemeChange } from './ui/theme.js';
+import { initTheme, onThemeChange, applyTheme } from './ui/theme.js';
 import { openSyncSettings, onSynced } from './ui/syncSettings.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
 import { pullAndMerge } from './adapters/storage.js';
@@ -112,23 +112,6 @@ function show(tab: Tab): void {
   renderTab(tab);
 }
 
-// ── "More ▾" desktop dropdown ─────────────────────────────────────────────────
-function setMoreOpen(open: boolean): void {
-  const more = $('#nav-more-btn')?.closest('.nav-more');
-  if (!more) return;
-  more.classList.toggle('open', open);
-  $('#nav-more-btn')?.setAttribute('aria-expanded', String(open));
-}
-$('#nav-more-btn')?.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const more = $('#nav-more-btn')?.closest('.nav-more');
-  setMoreOpen(!more?.classList.contains('open'));
-});
-// Close the dropdown on any outside click.
-document.addEventListener('click', (e) => {
-  const more = $('#nav-more-btn')?.closest('.nav-more');
-  if (more?.classList.contains('open') && !more.contains(e.target as Node)) setMoreOpen(false);
-});
 
 function enterApp(): void {
   $('#tool-landing')!.classList.add('hidden');
@@ -147,13 +130,6 @@ function showToolLanding(): void {
     (trigger) => pageTransition(trigger ?? null, enterApp),
     (trigger) => goToLanding(trigger),
   );
-  // Wire tool-landing hamburger to the shared cinematic app menu
-  requestAnimationFrame(() => {
-    document.getElementById('tl-menu-btn')?.addEventListener('click', () => {
-      wireAppMenu();
-      openAppMenu();
-    });
-  });
 }
 
 function requestPrivateAccess(trigger?: Element): void {
@@ -169,7 +145,7 @@ function goToLanding(trigger?: Element): void {
   });
 }
 
-// ── App cinematic menu overlay (hamburger on mobile) ─────────────────────────
+// ── App cinematic menu overlay ────────────────────────────────────────────────
 function buildAppMenu(): HTMLElement {
   const lang = getLang();
   const isLight = document.documentElement.classList.contains('light');
@@ -177,23 +153,37 @@ function buildAppMenu(): HTMLElement {
   el.id = 'app-menu';
   el.innerHTML = `
     <header class="sl-menu-header">
-      <span class="sl-menu-brand">${t('brand.name')}</span>
+      <span class="sl-menu-brand">The Professional</span>
       <button id="app-menu-close" aria-label="Close menu">✕</button>
     </header>
-    <div class="sl-menu-items">
-      <button class="sl-menu-item" id="app-menu-home">${t('nav.home')}</button>
-      <button class="sl-menu-item" id="app-menu-picks" data-tab="picks">${t('nav.picks')}</button>
-      <button class="sl-menu-item" id="app-menu-screener" data-tab="screener">${t('nav.screener')}</button>
-      <button class="sl-menu-item" id="app-menu-watchlist" data-tab="watchlist">${t('nav.watchlist')}</button>
-      <button class="sl-menu-item" id="app-menu-sectors" data-tab="sectors">${t('nav.sectors')}</button>
-      <button class="sl-menu-item" id="app-menu-portfolio" data-tab="portfolio">${t('nav.portfolio')}</button>
-      <button class="sl-menu-item" id="app-menu-backtest" data-tab="backtest">${t('nav.backtest')}</button>
-      <button class="sl-menu-item" id="app-menu-blog" data-tab="blog">${t('nav.blog')}</button>
+    <nav class="app-menu-nav">
+      <div class="app-menu-col">
+        <button class="sl-menu-item" id="app-menu-home">${t('nav.home')}</button>
+        <button class="sl-menu-item" data-amtab="picks">${t('nav.picks')}</button>
+        <button class="sl-menu-item" data-amtab="screener">${t('nav.screener')}</button>
+        <button class="sl-menu-item" data-amtab="watchlist">${t('nav.watchlist')}</button>
+        <button class="sl-menu-item" data-amtab="sectors">${t('nav.sectors')}</button>
+        <button class="sl-menu-item" data-amtab="portfolio">${t('nav.portfolio')}</button>
+      </div>
+      <div class="app-menu-col">
+        <button class="sl-menu-item" data-amtab="backtest">${t('nav.backtest')}</button>
+        <button class="sl-menu-item" data-amtab="blog">${t('nav.blog')}</button>
+        <button class="sl-menu-item" data-amtab="playbook">${t('nav.playbook')}</button>
+        <button class="sl-menu-item" data-amtab="casestudies">${t('nav.casestudies')}</button>
+        <button class="sl-menu-item" data-amtab="learn">${t('nav.learn')}</button>
+        <button class="sl-menu-item" data-amtab="about">${t('nav.about')}</button>
+      </div>
+    </nav>
+    <div class="sl-menu-items app-menu-footer">
       <div class="sl-menu-controls">
         <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-aml="en">EN</button>
         <button class="sl-menu-ctrl${lang === 'vi' ? ' active' : ''}" data-aml="vi">VI</button>
       </div>
       <button class="sl-menu-ctrl" id="app-menu-theme">${isLight ? '☀️' : '🌙'}</button>
+      <button class="sl-menu-ctrl" id="app-menu-sync">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        Sync
+      </button>
     </div>`;
   document.body.appendChild(el);
   return el;
@@ -208,6 +198,10 @@ function getAppMenu(): HTMLElement {
 
 function openAppMenu(): void {
   const menu = getAppMenu();
+  // Highlight the currently active tab
+  menu.querySelectorAll<HTMLElement>('[data-amtab]').forEach((b) =>
+    b.classList.toggle('sl-menu--active', b.dataset.amtab === currentTab),
+  );
   menu.classList.add('app-menu--open');
   document.body.style.overflow = 'hidden';
   const tgl = $('#menu-toggle');
@@ -227,11 +221,11 @@ function wireAppMenu(): void {
   menu.querySelector('#app-menu-close')?.addEventListener('click', closeAppMenu);
   menu.querySelector('#app-menu-home')?.addEventListener('click', (e) => {
     closeAppMenu();
-    goToLanding(e.currentTarget as Element);
+    pageTransition(e.currentTarget as Element, showToolLanding);
   });
-  menu.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => {
+  menu.querySelectorAll<HTMLElement>('[data-amtab]').forEach((b) => {
     b.addEventListener('click', (e) => {
-      const tab = b.dataset.tab as Tab;
+      const tab = b.dataset.amtab as Tab;
       closeAppMenu();
       pageTransition(e.currentTarget as Element, () => { enterApp(); show(tab); });
     });
@@ -241,7 +235,6 @@ function wireAppMenu(): void {
       pageTransition(b, () => {
         closeAppMenu();
         setLang(b.dataset.aml as 'en' | 'vi');
-        // rebuild menu so lang buttons reflect new active state
         if (appMenuEl) { appMenuEl.remove(); appMenuEl = null; }
       });
     }),
@@ -251,9 +244,13 @@ function wireAppMenu(): void {
     const light = document.documentElement.classList.contains('light');
     pageTransition(btn, () => {
       closeAppMenu();
-      import('./ui/theme.js').then(({ applyTheme }) => applyTheme(light ? 'dark' : 'light'));
+      applyTheme(light ? 'dark' : 'light');
       if (appMenuEl) { appMenuEl.remove(); appMenuEl = null; }
     });
+  });
+  menu.querySelector('#app-menu-sync')?.addEventListener('click', () => {
+    closeAppMenu();
+    openSyncSettings(ctx);
   });
 }
 
@@ -268,36 +265,11 @@ $('#menu-toggle')?.addEventListener('click', () => {
     openAppMenu();
   }
 });
-// Close with Escape for keyboard/desktop users.
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    closeAppMenu();
-    setMoreOpen(false);
-  }
-});
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAppMenu(); });
 
-// Nav wiring. Selecting a tab closes the mobile drawer AND the desktop "More"
-// dropdown so the chosen tab is revealed cleanly.
-$$('[data-tab]').forEach((b) =>
-  b.addEventListener('click', (e) => {
-    const tab = (b as HTMLElement).dataset.tab as Tab;
-    closeNav();
-    setMoreOpen(false);
-    pageTransition(e.currentTarget as Element, () => show(tab));
-  }),
-);
-$('#logo-home')?.addEventListener('click', (e) => goToLanding(e.currentTarget as Element));
-$('#nav-home')?.addEventListener('click', (e) => { closeNav(); pageTransition(e.currentTarget as Element, showToolLanding); });
+$('#logo-home')?.addEventListener('click', (e) => pageTransition(e.currentTarget as Element, showToolLanding));
+$('#logo-home')?.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') pageTransition($('#logo-home')!, showToolLanding); });
 
-// Language toggle: persist, re-translate static chrome, and re-render the open tab
-// so dynamic content (and the analysis summary's EN/VI) follows the switch.
-$$('[data-lang-btn]').forEach((b) =>
-  b.addEventListener('click', (e) => {
-    pageTransition(e.currentTarget as Element, () =>
-      setLang((b as HTMLElement).dataset.langBtn as 'en' | 'vi')
-    );
-  }),
-);
 onLangChange(() => {
   applyStaticI18n();
   if (entered) renderTab(currentTab);
@@ -309,13 +281,10 @@ onThemeChange(() => {
 });
 
 // ── Device sync ──────────────────────────────────────────────────────────────
-// The cloud button opens the access-code dialog. A small dot on the button marks
-// "sync on". After a code is entered the dialog pulls+merges remote data and
-// calls back here to re-render the open tab so synced data shows immediately.
 function reflectSyncState(): void {
-  $('#sync-toggle')?.classList.toggle('sync-on', isSyncEnabled());
+  const btn = document.getElementById('app-menu-sync');
+  if (btn) btn.classList.toggle('sync-on', isSyncEnabled());
 }
-$('#sync-toggle')?.addEventListener('click', () => openSyncSettings(ctx));
 onSynced(() => {
   reflectSyncState();
   if (entered) renderTab(currentTab);

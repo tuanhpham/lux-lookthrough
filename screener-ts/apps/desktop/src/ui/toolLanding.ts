@@ -3,26 +3,38 @@ import { applyTheme } from './theme.js';
 import { pageTransition } from './transition.js';
 
 export function renderToolLanding(host: HTMLElement, onEnter: (trigger?: Element) => void, onBack?: (trigger?: Element) => void): void {
-  const isLight = document.documentElement.classList.contains('light');
   const lang = getLang();
-  const logoSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg>`;
+  const isLight = document.documentElement.classList.contains('light');
 
   host.innerHTML = `
     <div class="tl-wrap">
       <div class="tl-topbar">
-        <button class="tl-brand${onBack ? ' tl-brand-btn' : ''}" id="tl-back" title="Back to story">
-          <div class="logo logo-svg">${logoSvg}</div>
-          <span class="brand-name">${t('brand.name')}</span>
+        <div class="app-brand${onBack ? ' app-brand-btn' : ''}" id="tl-back" role="button" tabindex="0" title="Back to story">
+          <span class="app-brand-name">${t('brand.name')}</span>
+        </div>
+        <button id="tl-menu-btn" class="app-menu-btn" aria-label="Menu">
+          <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="22" height="22">
+            <line x1="3" y1="6" x2="19" y2="6"/>
+            <line x1="3" y1="11" x2="19" y2="11"/>
+            <line x1="3" y1="16" x2="19" y2="16"/>
+          </svg>
         </button>
-        <div class="tl-topbar-right">
-          <div class="lang-toggle topnav-ctrl-desktop" role="group" aria-label="Language">
-            <button data-ll="en" class="${lang === 'en' ? 'active' : ''}">EN</button>
-            <button data-ll="vi" class="${lang === 'vi' ? 'active' : ''}">VI</button>
+      </div>
+
+      <!-- Welcome Page cinematic menu -->
+      <div id="tl-menu">
+        <header class="sl-menu-header">
+          <span class="sl-menu-brand">The Professional</span>
+          <button id="tl-menu-close" aria-label="Close menu">✕</button>
+        </header>
+        <div class="sl-menu-items">
+          <button class="sl-menu-item" id="tl-menu-blog">${lang === 'vi' ? 'Blog' : 'Blog'}</button>
+          <button class="sl-menu-item" id="tl-menu-platform">${lang === 'vi' ? 'Nền tảng' : 'Platform'}</button>
+          <div class="sl-menu-controls">
+            <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-tll="en">EN</button>
+            <button class="sl-menu-ctrl${lang === 'vi' ? ' active' : ''}" data-tll="vi">VI</button>
           </div>
-          <button id="tl-theme" class="theme-toggle topnav-ctrl-desktop" title="Toggle theme">${isLight ? '☀️' : '🌙'}</button>
-          <button id="tl-menu-btn" class="menu-toggle tl-menu-btn" aria-label="Menu">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="22" height="22"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-          </button>
+          <button class="sl-menu-ctrl" id="tl-menu-theme">${isLight ? '☀️' : '🌙'}</button>
         </div>
       </div>
 
@@ -71,20 +83,49 @@ export function renderToolLanding(host: HTMLElement, onEnter: (trigger?: Element
     </div>`;
 
   host.querySelector('#tl-enter')!.addEventListener('click', (e) => onEnter(e.currentTarget as Element));
-  if (onBack) host.querySelector('#tl-back')?.addEventListener('click', (e) => onBack(e.currentTarget as Element));
-  // lang
-  host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
+  if (onBack) {
+    const back = host.querySelector('#tl-back');
+    back?.addEventListener('click', (e) => onBack(e.currentTarget as Element));
+    back?.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') onBack(back); });
+  }
+
+  // ── Welcome Page menu ────────────────────────────────────────────────────
+  const tlMenu = host.querySelector<HTMLElement>('#tl-menu')!;
+  const openTlMenu  = () => { tlMenu.classList.add('tl-menu--open'); document.body.style.overflow = 'hidden'; };
+  const closeTlMenu = () => { tlMenu.classList.remove('tl-menu--open'); document.body.style.overflow = ''; };
+
+  host.querySelector('#tl-menu-btn')!.addEventListener('click', openTlMenu);
+  host.querySelector('#tl-menu-close')!.addEventListener('click', closeTlMenu);
+
+  // Blog → back to landing story
+  host.querySelector('#tl-menu-blog')!.addEventListener('click', (e) => {
+    closeTlMenu();
+    if (onBack) onBack(e.currentTarget as Element);
+  });
+
+  // Platform → enter the app
+  host.querySelector('#tl-menu-platform')!.addEventListener('click', (e) => {
+    closeTlMenu();
+    onEnter(e.currentTarget as Element);
+  });
+
+  // Lang toggle
+  host.querySelectorAll<HTMLElement>('[data-tll]').forEach((b) =>
     b.addEventListener('click', () => {
       pageTransition(b, () => {
-        setLang(b.dataset.ll as 'en' | 'vi');
+        closeTlMenu();
+        setLang(b.dataset.tll as 'en' | 'vi');
         renderToolLanding(host, onEnter, onBack);
       });
     }),
   );
-  host.querySelector('#tl-theme')!.addEventListener('click', (e) => {
+
+  // Theme toggle
+  host.querySelector('#tl-menu-theme')!.addEventListener('click', (e) => {
     const btn = e.currentTarget as Element;
     const light = document.documentElement.classList.contains('light');
     pageTransition(btn, () => {
+      closeTlMenu();
       applyTheme(light ? 'dark' : 'light');
       renderToolLanding(host, onEnter, onBack);
     });

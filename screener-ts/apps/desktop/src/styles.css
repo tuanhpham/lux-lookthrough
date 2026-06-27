@@ -121,90 +121,59 @@ table td,
 .hidden { display: none !important; }
 #app { min-height: 100vh; }
 
-/* ── Top navigation ─────────────────────────────────────────────────────── */
+/* ── Top navigation — minimal cinematic bar ─────────────────────────────── */
 #topnav {
-  position: sticky; top: 0; z-index: 60;
-  display: flex; align-items: center; gap: 18px;
-  height: 56px; padding: 0 22px;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 80;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px; padding: 0 36px;
   background: transparent;
-  backdrop-filter: none; -webkit-backdrop-filter: none;
-  border-bottom: none;
-}
-.topnav-brand {
-  display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
-  background: transparent; border: 0; padding: 4px 6px; cursor: pointer;
-  color: inherit; border-radius: var(--radius-sm); transition: background .15s ease;
-}
-.topnav-brand:hover { background: var(--cardhover); }
-.logo {
-  width: 30px; height: 30px; border-radius: 9px;
-  background: linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #0a6e52));
-  color: var(--accent-ink); display: grid; place-items: center; font-weight: 800;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
-              0 6px 18px -6px color-mix(in srgb, var(--accent) 60%, transparent);
-}
-.logo svg { width: 17px; height: 17px; }
-.brand-name { font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
-.brand-sub {
-  color: var(--faint); font-size: 10px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .12em; margin-top: 1px;
 }
 
-/* Inline tab row — centered in the bar (brand left, controls right). */
-.topnav-tabs { display: flex; align-items: center; justify-content: center; gap: 2px; flex: 1 1 auto; min-width: 0; }
-.nav-btn {
-  position: relative;
-  display: inline-flex; align-items: center; gap: 6px;
-  background: transparent; border: 0; color: var(--subtext);
-  padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
-  font-weight: 600; letter-spacing: -0.01em; white-space: nowrap;
-  transition: background .16s ease, color .16s ease;
+/* Shared brand: serif, no icon */
+.app-brand {
+  display: flex; align-items: center; cursor: pointer; user-select: none;
 }
-/* On desktop the icon is decorative — visible but subdued. */
-.nav-btn svg { width: 15px; height: 15px; flex: 0 0 auto; opacity: .7; transition: opacity .15s; }
-.nav-btn:hover { background: var(--cardhover); color: var(--text); }
-.nav-btn:hover svg { opacity: 1; }
-.nav-btn.active { color: var(--text); }
-.nav-btn.active svg { opacity: 1; }
-/* Active indicator: an underline tick flush with the nav's bottom border. */
-.nav-btn.active::after {
-  content: ''; position: absolute; left: 10px; right: 10px; bottom: -9px; height: 2px;
-  border-radius: 2px 2px 0 0; background: var(--accent);
-  box-shadow: 0 0 12px var(--accent);
+.app-brand-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
+  text-transform: uppercase; color: rgba(255,255,255,.82);
+}
+html.light .app-brand-name { color: rgba(10,10,10,.75); }
+.app-brand-btn { opacity: .8; transition: opacity .15s; }
+.app-brand-btn:hover { opacity: 1; }
+
+/* Shared hamburger */
+.app-menu-btn {
+  background: none; border: none; cursor: pointer; padding: 4px;
+  color: rgba(255,255,255,.75);
+  display: flex; align-items: center; justify-content: center;
+}
+html.light .app-menu-btn { color: rgba(10,10,10,.65); }
+.app-menu-btn svg { width: 22px; height: 22px; }
+
+/* App menu — single centered column, matching reference */
+.app-menu-nav {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1; gap: 2px;
+}
+.app-menu-col { display: contents; }
+.app-menu-footer {
+  flex-direction: row !important; gap: 24px !important;
+  padding-bottom: 40px; flex: unset !important;
 }
 
-/* Right-side controls. */
-.topnav-controls { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; margin-left: auto; }
-
-/* tool-landing hamburger — hidden on desktop, shown on mobile via media query */
-.tl-menu-btn { display: none; }
-
-/* ── "More ▾" tab group (desktop) ──────────────────────────────────────────
-   The reference tabs live in a dropdown so the inline row can't overflow into
-   the brand/controls. On phones (≤980px) this whole structure flattens — see
-   the responsive block. */
-.nav-more { position: relative; display: inline-flex; flex: 0 0 auto; }
-/* The trigger highlights when one of its tabs is the active one. */
-.nav-more.has-active > .nav-more-trigger { color: var(--text); }
-.nav-more.has-active > .nav-more-trigger svg { opacity: 1; }
-.nav-more-panel {
-  position: absolute; top: calc(100% + 8px); right: 0; z-index: 62;
-  display: flex; flex-direction: column; align-items: stretch; gap: 1px; min-width: 184px;
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: var(--shadow-lg); padding: 6px;
-  opacity: 0; transform: translateY(-6px); pointer-events: none;
-  transition: opacity .16s ease, transform .16s ease;
+/* App menu items — smaller than landing (11 items vs 1) */
+#app-menu .sl-menu-item {
+  font-size: clamp(18px, 2.4vw, 26px);
+  font-weight: 300;
+  letter-spacing: .07em;
 }
-.nav-more.open > .nav-more-panel { opacity: 1; transform: none; pointer-events: auto; }
-/* Inside the dropdown, tabs read as a vertical menu (icon + label, left-aligned). */
-.nav-more-panel .nav-btn { justify-content: flex-start; gap: 10px; padding: 9px 11px; width: 100%; }
-.nav-more-panel .nav-btn.active { background: var(--accent-wash); color: var(--accent); }
-.nav-more-panel .nav-btn.active svg { opacity: 1; }
-/* The underline tick doesn't make sense in the vertical menu. */
-.nav-more-panel .nav-btn.active::after { display: none; }
+
+/* Active tab indicator in app menu */
+#app-menu [data-amtab].sl-menu--active { color: var(--accent); }
 
 /* ── Main column ─────────────────────────────────────────────────────────── */
-#main { max-width: 1240px; margin: 0 auto; width: 100%; padding: 30px 34px 96px; }
+#main { max-width: 1240px; margin: 0 auto; width: 100%; padding: 76px 34px 96px; }
 h1 { font-size: 26px; margin: 0 0 5px; font-weight: 800; letter-spacing: -0.035em; }
 .subtitle { color: var(--subtext); margin: 0 0 22px; font-size: 14px; letter-spacing: -0.01em; }
 
@@ -654,22 +623,22 @@ html.light .sl-hero .sl-hero-cta:hover {
 
 /* ── Full-screen menu overlay ── */
 #sl-menu {
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; top: 0; left: 0; right: 0; height: 80vh; z-index: 200;
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
   background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.28) 0%,
-    rgba(14,14,14,.60) 40%,
-    rgba(14,14,14,.92) 100%);
+    rgba(14,14,14,.04) 0%,
+    rgba(14,14,14,.50) 55%,
+    rgba(14,14,14,.88) 100%);
   backdrop-filter: blur(18px) saturate(0.7);
   -webkit-backdrop-filter: blur(18px) saturate(0.7);
 }
 html.light #sl-menu {
   background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.28) 0%,
-    rgba(232,228,223,.60) 40%,
-    rgba(232,228,223,.92) 100%);
+    rgba(232,228,223,.04) 0%,
+    rgba(232,228,223,.50) 55%,
+    rgba(232,228,223,.88) 100%);
 }
 #sl-menu.sl-menu--open {
   opacity: 1; pointer-events: auto;
@@ -686,23 +655,32 @@ html.light #sl-menu {
   text-transform: uppercase; color: rgba(255,255,255,.82);
 }
 html.light .sl-menu-brand { color: rgba(10,10,10,.75); }
-#sl-menu-close {
+#sl-menu-close,
+#app-menu-close,
+#tl-menu-close {
   background: none; border: none; cursor: pointer;
   color: rgba(255,255,255,.65); font-size: 18px; line-height: 1;
   padding: 4px 8px; transition: color 0.2s;
 }
-#sl-menu-close:hover { color: rgba(255,255,255,.95); }
-html.light #sl-menu-close { color: rgba(10,10,10,.5); }
-html.light #sl-menu-close:hover { color: rgba(10,10,10,.9); }
+#sl-menu-close:hover,
+#app-menu-close:hover,
+#tl-menu-close:hover { color: rgba(255,255,255,.95); }
+html.light #sl-menu-close,
+html.light #app-menu-close,
+html.light #tl-menu-close { color: rgba(10,10,10,.5); }
+html.light #sl-menu-close:hover,
+html.light #app-menu-close:hover,
+html.light #tl-menu-close:hover { color: rgba(10,10,10,.9); }
 
 /* menu body */
 .sl-menu-items {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  flex: 1; gap: 32px;
+  flex: 1; gap: 18px;
 }
 .sl-menu-item {
   font-size: clamp(28px, 5vw, 48px);
   font-weight: 200;
+  font-family: Georgia, 'Times New Roman', serif;
   letter-spacing: .08em;
   color: rgba(255,255,255,.82);
   background: none; border: none; cursor: pointer;
@@ -1178,23 +1156,32 @@ html.light .sl-hero-figure { opacity: .78; }
    ══════════════════════════════════════════════════════════════════════════════ */
 .tl-wrap { min-height: 100dvh; background: var(--bg); display: flex; flex-direction: column; }
 
-/* ── Top bar (mirrors sl-topbar) ── */
+/* ── Tool-landing top bar ── */
 .tl-topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 36px; height: 56px;
   background: transparent;
-  backdrop-filter: none; -webkit-backdrop-filter: none;
-  border-bottom: none;
   gap: 16px; flex-shrink: 0;
 }
-.tl-brand { display: flex; align-items: center; gap: 9px; }
-.tl-brand-btn {
-  background: transparent; border: none; padding: 0; cursor: pointer;
-  color: inherit; font-family: inherit; transition: opacity .15s;
+
+/* ── Welcome Page menu overlay (same visual as sl-menu / app-menu) ── */
+#tl-menu {
+  position: fixed; top: 0; left: 0; right: 0; height: 80vh; z-index: 200;
+  display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.6s ease;
+  background: radial-gradient(ellipse at center,
+    rgba(14,14,14,.04) 0%, rgba(14,14,14,.50) 55%, rgba(14,14,14,.88) 100%);
+  backdrop-filter: blur(18px) saturate(0.7);
+  -webkit-backdrop-filter: blur(18px) saturate(0.7);
 }
-.tl-brand-btn:hover { opacity: .7; }
-.tl-topbar-right { display: flex; align-items: center; gap: 10px; }
+html.light #tl-menu {
+  background: radial-gradient(ellipse at center,
+    rgba(232,228,223,.04) 0%, rgba(232,228,223,.50) 55%, rgba(232,228,223,.88) 100%);
+}
+#tl-menu.tl-menu--open { opacity: 1; pointer-events: auto; }
+#tl-menu .sl-menu-header { padding: 0 36px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
 
 /* ── Inner scroll container ── */
 .tl-inner {
@@ -1315,49 +1302,41 @@ html.light .sl-hero-figure { opacity: .78; }
   .tl-stat { padding: 10px 6px; }
   .tl-stat-v { font-size: 13px; }
   .tl-stat-l { font-size: 9px; letter-spacing: .03em; }
-  .tl-menu-btn { display: inline-grid; }
-  .tl-topbar-right .topnav-ctrl-desktop { display: none !important; }
+  .tl-topbar { padding: 0 18px; }
 }
 
 /* ── Responsive ── */
 @media (max-width: 700px) {
-  /* anchor chapters to top so content starts visible */
-  .sl-chapter { justify-content: flex-start; }
-
   /* photo: full chapter background on mobile — maximum visual impact */
   .sl-ch-bg {
     inset: 0; width: 100%; height: 100%;
     border-radius: 0;
   }
-  /* gradient: photo clear at top, fades to solid at bottom where text sits */
+  /* gradient: photo visible at edges, darkened in the center where text sits */
   .sl-ch-bg--left::before,
   .sl-ch-bg--right::before {
-    background: linear-gradient(to bottom,
-      transparent   0%,
-      transparent  25%,
-      #24242466    50%,
-      #242424cc    68%,
-      #242424      82%);
+    background: radial-gradient(ellipse at center,
+      #242424cc 0%,
+      #24242466 50%,
+      transparent 100%);
   }
   html.light .sl-ch-bg--left::before,
   html.light .sl-ch-bg--right::before {
-    background: linear-gradient(to bottom,
-      transparent   0%,
-      transparent  20%,
-      #e8e4df55    42%,
-      #e8e4dfee    60%,
-      #e8e4df      72%);
+    background: radial-gradient(ellipse at center,
+      #e8e4dfcc 0%,
+      #e8e4df66 50%,
+      transparent 100%);
   }
 
-  /* text body: anchored to the bottom of the chapter, no side offset */
+  /* text body: centered, no side offset */
   .sl-chapter[data-ch="0"] .sl-ch-body,
   .sl-chapter[data-ch="1"] .sl-ch-body,
   .sl-chapter[data-ch="2"] .sl-ch-body,
   .sl-chapter[data-ch="3"] .sl-ch-body {
     padding-left: 24px;
     padding-right: 24px;
-    padding-top: 52vh;
-    padding-bottom: 48px;
+    padding-top: 0;
+    padding-bottom: 0;
     background: none;
   }
   html.light .sl-chapter[data-ch="0"] .sl-ch-body,
@@ -1478,48 +1457,28 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 
-/* ── Hamburger (mobile only) + dropdown backdrop ─────────────────────────── */
-.menu-toggle { display: none; background: transparent; border: 0; color: var(--text); cursor: pointer; place-items: center; width: 38px; height: 38px; border-radius: var(--radius-sm); }
-.menu-toggle:hover { background: var(--cardhover); }
-.menu-toggle svg { width: 22px; height: 22px; }
-.sidebar-backdrop { display: none; }
-
-/* ── Responsive: phones & small tablets ──────────────────────────────────────
-   Breakpoint at 980px: above it the bar shows brand + 6 inline tabs + a "More ▾"
-   dropdown (holding Analysis/Playbook/Learn/About) + the cloud/lang/theme
-   controls — which fits comfortably. Below it the whole nav collapses behind the
-   hamburger and the "More" group flattens into that single dropdown list. */
-/* ── App cinematic menu overlay (mirrors sl-menu) ── */
+/* ── App cinematic menu overlay ── */
 #app-menu {
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; top: 0; left: 0; right: 0; height: 80vh; z-index: 200;
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
   background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.28) 0%, rgba(14,14,14,.60) 40%, rgba(14,14,14,.92) 100%);
+    rgba(14,14,14,.04) 0%, rgba(14,14,14,.50) 55%, rgba(14,14,14,.88) 100%);
   backdrop-filter: blur(18px) saturate(0.7);
   -webkit-backdrop-filter: blur(18px) saturate(0.7);
 }
 html.light #app-menu {
   background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.28) 0%, rgba(232,228,223,.60) 40%, rgba(232,228,223,.92) 100%);
+    rgba(232,228,223,.04) 0%, rgba(232,228,223,.50) 55%, rgba(232,228,223,.88) 100%);
 }
 #app-menu.app-menu--open { opacity: 1; pointer-events: auto; }
-#app-menu .sl-menu-header { padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
-#app-menu .sl-menu-items { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 24px; }
-#app-menu .sl-menu-item { font-size: clamp(20px, 5vw, 36px); }
+#app-menu .sl-menu-header { padding: 0 36px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
 
 @media (max-width: 980px) {
-  #topnav { gap: 8px; padding: 0 12px; }
-  /* Hide inline tabs and desktop-only controls; show only the hamburger. */
-  .menu-toggle { display: inline-grid; }
-  .topnav-tabs { display: none; }
-  .topnav-ctrl-desktop { display: none !important; }
+  #topnav { padding: 0 18px; }
 
-  /* Backdrop not used anymore (overlay is full-screen), keep for safety */
-  .sidebar-backdrop { display: none; }
-
-  #main { max-width: none; margin: 0; width: 100%; padding: 18px 15px calc(40px + env(safe-area-inset-bottom)); }
+  #main { max-width: none; margin: 0; width: 100%; padding: 76px 15px calc(40px + env(safe-area-inset-bottom)); }
   h1 { font-size: 22px; }
   .subtitle { font-size: 13px; margin-bottom: 16px; }
   .card { padding: 14px; border-radius: var(--radius); }

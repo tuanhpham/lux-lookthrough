@@ -31,7 +31,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     en: 'A professional-grade equity screener built on Qullamaggie methodology. Scan any stock or sector for VCP & episodic-pivot setups, track momentum leaders with a 0–100 quality score, read market regime and sector rotation — then backtest, plan trades and paper-trade — all in one place.',
     vi: 'Bộ lọc cổ phiếu chuyên nghiệp xây dựng trên phương pháp Qullamaggie. Quét bất kỳ mã hay ngành nào để tìm thiết lập VCP & điểm xoay đột biến, theo dõi mã dẫn dắt động lượng qua điểm chất lượng 0–100, đọc bối cảnh thị trường và luân chuyển ngành — rồi backtest, lập kế hoạch và giao dịch mô phỏng — tất cả trong một nơi.',
   },
-  'landing.cta': { en: 'Launch the Screener →', vi: 'Mở bộ lọc →' },
+  'landing.cta': { en: 'Launch the Platform →', vi: 'Vào nền tảng →' },
   'landing.nosignup': { en: 'No sign-up · runs locally', vi: 'Không cần đăng ký · chạy cục bộ' },
   // Strategy strip
   'landing.strat.title': { en: 'Three scanning strategies, one tool', vi: 'Ba chiến lược quét, một công cụ' },

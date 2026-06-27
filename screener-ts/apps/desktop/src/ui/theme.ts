@@ -1,5 +1,6 @@
 /** Dark/light theme toggle, persisted in localStorage. Charts read CSS vars at
  * creation, so subscribers re-draw any open charts on switch. */
+import { pageTransition } from './transition.js';
 type Theme = 'dark' | 'light';
 
 const subscribers: Array<(t: Theme) => void> = [];
@@ -35,8 +36,7 @@ export function initTheme(): void {
   applyTheme(saved);
   document
     .getElementById('theme-toggle')
-    ?.addEventListener('click', async (e) => {
-      const { pageTransition } = await import('./transition.js');
+    ?.addEventListener('click', (e) => {
       const next = current() === 'light' ? 'dark' : 'light';
       pageTransition(e.currentTarget as Element, () => applyTheme(next));
     });
