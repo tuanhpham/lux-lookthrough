@@ -161,36 +161,48 @@ export function renderPicks(ctx: AppContext): void {
   root.innerHTML = `
     <h1>${t('picks.title')}</h1>
     <p class="subtitle">${t('picks.sub')}</p>
-    <div class="toolbar">
-      ${(['qm', 'momentumscan', 'surge'] as PicksStrategy[])
-        .map(
-          (s) =>
-            `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t(
-              'picks.' + s,
-            )}</button>`,
-        )
-        .join('')}
-      <button id="picks-refresh" class="btn-outline" style="margin-left:auto">${t('picks.run')}</button>
-      <button id="picks-stop" class="btn-outline hidden">${t('picks.stop')}</button>
+
+    <div class="picks-config card">
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.strategy') ?? 'Strategy'}</span>
+        <div class="picks-pill-group">
+          ${(['qm', 'momentumscan', 'surge'] as PicksStrategy[])
+            .map((s) => `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t('picks.' + s)}</button>`)
+            .join('')}
+        </div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.market')}</span>
+        <div class="picks-pill-group">
+          ${markets.map(([m, label]) => `<button class="range-btn ${m === picksMarket ? 'active' : ''}" data-market="${m}">${label}</button>`).join('')}
+        </div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.universe') ?? 'Universe'}</span>
+        <div class="picks-pill-group" id="picks-uni-row"></div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.filter')}</span>
+        <div class="picks-pill-group">
+          <label class="muted picks-prefilter-label">
+            <input type="checkbox" id="picks-prefilter" ${momentumPrefilter ? 'checked' : ''} />
+            ${t('picks.prefilter')}
+          </label>
+        </div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.asof')}</span>
+        <div class="picks-pill-group">
+          ${asOfControlsHtml('picks')}
+        </div>
+      </div>
+      <div class="picks-config-actions">
+        <button id="picks-refresh" class="btn">${t('picks.run')}</button>
+        <button id="picks-stop" class="btn-outline hidden">${t('picks.stop')}</button>
+        <div id="picks-regime" class="muted picks-regime-inline"></div>
+      </div>
     </div>
-    <div class="toolbar" style="margin-top:-4px">
-      <span class="muted" style="font-size:12px">${t('picks.market')}:</span>
-      ${markets
-        .map(
-          ([m, label]) =>
-            `<button class="range-btn ${m === picksMarket ? 'active' : ''}" data-market="${m}">${label}</button>`,
-        )
-        .join('')}
-    </div>
-    <div class="toolbar" style="margin-top:-4px" id="picks-uni-row"></div>
-    <div class="toolbar" style="margin-top:-4px">
-      <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="checkbox" id="picks-prefilter" ${momentumPrefilter ? 'checked' : ''} />
-        ${t('picks.prefilter')}
-      </label>
-    </div>
-    ${asOfControlsHtml('picks')}
-    <div id="picks-regime" class="muted" style="margin:6px 0 0;font-size:12px"></div>
+
     <div id="picks-progress" class="picks-progress hidden"><div id="picks-bar"></div></div>
     <div id="picks-status" class="muted" style="margin:8px 0 12px"></div>
     <div id="picks-results"></div>`;
@@ -294,7 +306,6 @@ function renderUniverseRow(ctx: AppContext): void {
   const row = $('#picks-uni-row')!;
   const opts = UNIVERSES_BY_MARKET[picksMarket];
   row.innerHTML =
-    `<span class="muted" style="font-size:12px">${t('picks.universe')}:</span>` +
     opts
       .map(
         (o) =>
@@ -1003,17 +1014,29 @@ export function renderSectors(ctx: AppContext): void {
   root.innerHTML = `
     <h1>${t('sectors.title')}</h1>
     <p class="subtitle">${t('sectors.sub')}</p>
-    <div class="toolbar" style="margin-bottom:8px">
-      <span class="muted" style="font-size:12px">${t('picks.market')}:</span>
-      ${markets
-        .map(
-          ([m, label]) =>
-            `<button class="range-btn ${m === sectorMarket ? 'active' : ''}" data-sector-market="${m}">${label}</button>`,
-        )
-        .join('')}
+    <div class="picks-config card">
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.market')}</span>
+        <div class="picks-pill-group">
+          ${markets
+            .map(
+              ([m, label]) =>
+                `<button class="range-btn ${m === sectorMarket ? 'active' : ''}" data-sector-market="${m}">${label}</button>`,
+            )
+            .join('')}
+        </div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.asof')}</span>
+        <div class="picks-pill-group">
+          ${asOfControlsHtml('sectors')}
+        </div>
+      </div>
+      <div class="picks-config-actions">
+        <button id="load-sectors" class="btn">${t('sectors.scan')}</button>
+        <span id="sector-status" class="muted"></span>
+      </div>
     </div>
-    ${asOfControlsHtml('sectors')}
-    <div class="row" style="margin-bottom:12px"><button id="load-sectors" class="btn-outline">${t('sectors.scan')}</button><span id="sector-status" class="muted"></span></div>
     <div id="sector-results"></div>`;
   root.querySelectorAll<HTMLElement>('[data-sector-market]').forEach((b) =>
     b.addEventListener('click', () => {

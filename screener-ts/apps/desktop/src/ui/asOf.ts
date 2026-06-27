@@ -54,7 +54,7 @@ export function asOfControlsHtml(scope: AsOfScope): string {
   const years: AsOfState['yearsBack'][] = [2, 5, 10, 'max'];
   const live = s.date == null;
   return `
-    <div class="toolbar asof-row" style="margin-top:-4px">
+    <div class="asof-row">
       <span class="muted" style="font-size:12px">${vi ? '📅 Tính đến ngày' : '📅 As of date'}:</span>
       <input type="date" class="field asof-date" max="${todayIso()}" value="${s.date ?? ''}" style="width:150px" />
       <button class="range-btn asof-live ${live ? 'active' : ''}" title="${vi ? 'Dữ liệu thời gian thực' : 'Live / real-time'}">${vi ? 'Trực tiếp' : 'Live'}</button>

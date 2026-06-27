@@ -124,6 +124,7 @@ function enterApp(): void {
 
 function showToolLanding(): void {
   $('#landing')!.classList.add('hidden');
+  $('#app')!.classList.add('hidden');
   $('#tool-landing')!.classList.remove('hidden');
   renderToolLanding(
     $('#tool-landing')!,

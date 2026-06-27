@@ -154,7 +154,7 @@ html.light .app-menu-btn { color: rgba(10,10,10,.65); }
 /* App menu — single centered column, matching reference */
 .app-menu-nav {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  flex: 1; gap: 2px;
+  flex: 1; gap: 10px;
 }
 .app-menu-col { display: contents; }
 .app-menu-footer {
@@ -168,9 +168,57 @@ html.light .app-menu-btn { color: rgba(10,10,10,.65); }
   font-weight: 300;
   letter-spacing: .07em;
 }
+html[lang="vi"] #app-menu .sl-menu-item {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-weight: 300;
+  letter-spacing: .01em;
+}
 
 /* Active tab indicator in app menu */
 #app-menu [data-amtab].sl-menu--active { color: var(--accent); }
+
+/* ── Top Picks / Sectors config card ── */
+.picks-config {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  margin-bottom: 28px; padding: 0; overflow: hidden;
+}
+.picks-config-row {
+  display: contents;
+}
+.picks-config-row:not(:last-of-type) .picks-config-label,
+.picks-config-row:not(:last-of-type) .picks-pill-group {
+  border-bottom: 1px solid var(--border-soft);
+}
+.picks-config-label {
+  padding: 13px 16px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); white-space: nowrap;
+  border-right: 1px solid var(--border-soft);
+  display: flex; align-items: center;
+}
+.picks-pill-group {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 10px 16px;
+}
+.picks-config-extras {
+  align-items: center; gap: 12px;
+}
+.picks-prefilter-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; cursor: pointer;
+}
+.picks-config-actions {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+  grid-column: 1 / -1;
+}
+.picks-regime-inline {
+  font-size: 11.5px; margin-left: 4px;
+}
 
 /* ── Main column ─────────────────────────────────────────────────────────── */
 #main { max-width: 1240px; margin: 0 auto; width: 100%; padding: 76px 34px 96px; }
@@ -684,9 +732,13 @@ html.light #tl-menu-close:hover { color: rgba(10,10,10,.9); }
   letter-spacing: .08em;
   color: rgba(255,255,255,.82);
   background: none; border: none; cursor: pointer;
-  font-family: Georgia, 'Times New Roman', serif;
   transition: color 0.2s, opacity 0.2s;
   text-align: center;
+}
+html[lang="vi"] .sl-menu-item {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-weight: 300;
+  letter-spacing: .01em;
 }
 html.light .sl-menu-item { color: rgba(20,16,10,.8); }
 .sl-menu-item:hover { color: #fff; opacity: 0.95; }
@@ -1353,6 +1405,10 @@ html.light #tl-menu {
   /* hero is always exactly one viewport — keep it centred */
   .sl-hero { justify-content: center; }
   .sl-topbar { padding: 0 18px; }
+  .sl-menu-header,
+  #tl-menu .sl-menu-header,
+  #app-menu .sl-menu-header { padding: 0 18px; }
+  .app-menu-nav { gap: 18px; }
   .story-quote { padding-left: 18px; }
   .sl-hero-quote { font-size: 20px; }
   .story-p { font-size: 16px; }
@@ -1392,7 +1448,8 @@ html.light #tl-menu {
 .link-btn:hover { color: var(--accent); }
 
 /* ── As-of (point-in-time) controls ──────────────────────────────────────── */
-.asof-row { flex-wrap: wrap; gap: 6px; align-items: center; }
+.asof-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 16px; }
+.picks-pill-group .asof-row { margin: 0; }
 .asof-row .asof-date { padding: 4px 8px; }
 .asof-flag {
   font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
@@ -1648,4 +1705,268 @@ html.light #app-menu {
   .about-h1 { font-size: 22px; }
   .about-footer-strip { flex-direction: column; }
   .about-divider { display: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CINEMATIC TOOL THEME — artistic style layer over all app tabs
+   Serif headings · editorial spacing · restrained depth · ink-on-paper feel
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page heading: serif, light, large ── */
+#main h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 300;
+  letter-spacing: .04em;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+#main .subtitle {
+  font-size: 13px;
+  letter-spacing: .02em;
+  color: var(--faint);
+  margin-bottom: 28px;
+}
+
+/* ── Section labels: tiny all-caps dividers ── */
+#main .section-title {
+  font-size: 10px;
+  letter-spacing: .14em;
+  color: var(--faint);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin: 32px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* ── Cards: more air, softer border ── */
+#main .card {
+  border-color: var(--border-soft);
+  box-shadow: none;
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+
+/* ── Toolbar: no visual separation, pure spacing ── */
+#main .toolbar {
+  gap: 6px;
+  margin-bottom: 24px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* ── Pill buttons: subtler inactive state ── */
+#main .range-btn {
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  border-color: var(--border-soft);
+  color: var(--faint);
+  transition: color .2s ease, border-color .2s ease, background .2s ease;
+}
+#main .range-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+#main .range-btn.active {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Primary button: understated glow ── */
+#main button.btn {
+  font-weight: 600;
+  letter-spacing: .04em;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ── Table: no outer border, gentle row lines ── */
+#main table {
+  border-collapse: collapse;
+}
+#main th {
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  color: var(--faint);
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  background: transparent;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+#main td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+#main tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+
+/* ── Stat tiles: editorial flat look ── */
+#main .stat {
+  border-color: var(--border-soft);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: none;
+}
+#main .stat:hover { transform: none; border-color: var(--border); }
+#main .stat .k {
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+#main .stat .v {
+  font-size: 18px;
+  font-weight: 300;
+  letter-spacing: -.01em;
+  margin-top: 6px;
+}
+
+/* ── Badges: softer, no hard border ── */
+#main .badge {
+  font-size: 10px;
+  letter-spacing: .06em;
+  padding: 2px 8px;
+  border-color: transparent;
+  border-radius: 4px;
+}
+
+/* ── Input fields: thinner, quieter ── */
+#main .field {
+  border-color: var(--border-soft);
+  background: transparent;
+  font-size: 13px;
+  padding: 8px 11px;
+}
+#main .field:hover { border-color: var(--border); }
+#main label.field-label {
+  font-size: 10px;
+  letter-spacing: .1em;
+}
+
+/* ── About page: full cinematic treatment ── */
+.about-page { max-width: 680px; }
+
+.about-hero {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: 0;
+  padding: 0 0 36px;
+  margin-bottom: 36px;
+}
+.about-badge {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 11px;
+  letter-spacing: .14em;
+  background: none;
+  border: none;
+  color: var(--faint);
+  padding: 0;
+  margin-bottom: 14px;
+}
+.about-h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 300;
+  letter-spacing: .06em;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.about-tagline {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--subtext);
+  letter-spacing: .01em;
+}
+
+.about-quote {
+  border-left: 2px solid var(--faint);
+  background: none;
+  border-radius: 0;
+  padding: 4px 24px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--text);
+  margin-bottom: 36px;
+}
+html.light .about-quote { border-left-color: var(--border); }
+
+.about-narrative {
+  border: none;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: 14.5px;
+  line-height: 1.85;
+  color: var(--subtext);
+  margin-bottom: 48px;
+}
+
+.about-pillars-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 11px;
+  letter-spacing: .14em;
+  color: var(--faint);
+  margin-bottom: 16px;
+}
+.about-pillars { gap: 16px; margin-bottom: 48px; }
+.about-pillar {
+  background: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 20px 18px;
+  box-shadow: none;
+  gap: 10px;
+}
+.about-pillar-icon {
+  background: none;
+  border: none;
+  color: var(--accent);
+  width: 28px; height: 28px;
+}
+.about-pillar strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .04em;
+}
+.about-pillar .muted { font-size: 12.5px; line-height: 1.65; }
+
+.about-footer-strip {
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border-soft);
+  border-radius: 0;
+  padding: 20px 0 0;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.about-meta-label { color: var(--faint); font-weight: 400; }
+
+/* ── Vietnamese font overrides: replace Georgia with Source Serif 4 ─────── */
+/* Georgia lacks pre-composed Vietnamese glyphs — diacritics float incorrectly */
+html[lang="vi"] #main h1,
+html[lang="vi"] .picks-config-label,
+html[lang="vi"] #main th,
+html[lang="vi"] #main .stat .k,
+html[lang="vi"] .app-brand-name,
+html[lang="vi"] .sl-menu-brand,
+html[lang="vi"] .about-h1,
+html[lang="vi"] .about-badge,
+html[lang="vi"] .about-pillars-title,
+html[lang="vi"] .about-pillar strong {
+  font-family: 'Source Serif 4', Georgia, serif;
+}
+html[lang="vi"] .sl-menu-item,
+html[lang="vi"] #app-menu .sl-menu-item {
+  font-family: 'Source Serif 4', Georgia, serif;
+  letter-spacing: .04em;
 }

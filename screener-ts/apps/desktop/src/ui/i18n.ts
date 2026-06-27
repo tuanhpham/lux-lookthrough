@@ -63,7 +63,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.surge': { en: 'Surge', vi: 'Bứt tốc' },
   'picks.prefilter': { en: 'Momentum pre-filter', vi: 'Lọc động lượng trước' },
   'picks.broad': { en: 'Broad universe', vi: 'Toàn thị trường' },
-  'picks.run': { en: '↻ Run', vi: '↻ Chạy' },
+  'picks.strategy': { en: 'Strategy', vi: 'Chiến lược' },
+  'picks.filter': { en: 'Filter', vi: 'Lọc' },
+  'picks.asof': { en: 'As of', vi: 'Tính đến' },
+  'picks.run': { en: 'Run scan', vi: 'Chạy quét' },
   'picks.market': { en: 'Market', vi: 'Thị trường' },
   'picks.market.us': { en: '🇺🇸 US', vi: '🇺🇸 Mỹ' },
   'picks.market.vn': { en: '🇻🇳 Vietnam', vi: '🇻🇳 Việt Nam' },
@@ -218,7 +221,9 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
 
 let lang: Lang = ((): Lang => {
   const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('lang') : null;
-  return saved === 'vi' ? 'vi' : 'en';
+  const resolved: Lang = saved === 'vi' ? 'vi' : 'en';
+  document.documentElement.lang = resolved;
+  return resolved;
 })();
 
 const subscribers: Array<(l: Lang) => void> = [];
