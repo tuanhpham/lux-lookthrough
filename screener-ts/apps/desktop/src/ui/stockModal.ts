@@ -481,12 +481,15 @@ async function wireWatchlistPicker(ctx: AppContext, symbol: string): Promise<voi
  * Poll the fundamentals cache for a few seconds and live-patch the enriched
  * fields (sector/industry subtitle, company About + website) into the open
  * modal once the background crumb fetch resolves. Stops as soon as the summary
- * lands or the modal is closed, and gives up after the budget.
+ * lands or the modal is closed, and gives up after the budget — but always
+ * clears the "fetching…" placeholder on exit so it never stays forever.
  */
 async function patchWhenEnriched(ctx: AppContext, symbol: string, body: HTMLElement): Promise<void> {
-  const deadline = Date.now() + 12_000;
+  const deadline = Date.now() + 14_000;
+  let lastF: Awaited<ReturnType<AppContext['data']['getFundamentals']>> | null = null;
+
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1200));
     // Modal closed or navigated to another symbol → stop polling.
     if ($('#modal')!.classList.contains('hidden')) return;
     const f = (await ctx.data.getFundamentals(symbol).catch(() => null)) as
@@ -495,6 +498,7 @@ async function patchWhenEnriched(ctx: AppContext, symbol: string, body: HTMLElem
     if (!f) continue;
     // Only patch the currently-open symbol.
     if (!$('#modal-title')!.textContent?.toUpperCase().startsWith(symbol)) return;
+    lastF = f;
 
     if (f.summary || f.sector || f.beta != null || f.dividendYield != null) {
       const about = body.querySelector('#about-block');
@@ -510,6 +514,20 @@ async function patchWhenEnriched(ctx: AppContext, symbol: string, body: HTMLElem
       }
       if (f.summary) return; // fully enriched — done
     }
+  }
+
+  // Deadline exceeded — quoteSummary was blocked or timed out.
+  // Replace the "fetching…" placeholder with whatever basic info we have.
+  if ($('#modal')!.classList.contains('hidden')) return;
+  if (!$('#modal-title')!.textContent?.toUpperCase().startsWith(symbol)) return;
+  const about = body.querySelector('#about-block');
+  if (about) {
+    const f = lastF;
+    const nameStr = f?.name ?? symbol;
+    const sectorStr = f?.sector ? ` · ${f.sector}` : '';
+    const industryStr = f?.industry ? ` · ${f.industry}` : '';
+    const ccy = f?.currency ? ` (${f.currency})` : '';
+    about.innerHTML = `<p class="muted" style="line-height:1.6">${nameStr}${ccy}${sectorStr}${industryStr}</p>`;
   }
 }
 
