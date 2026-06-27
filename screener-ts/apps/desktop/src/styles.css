@@ -675,18 +675,22 @@ html.light .sl-hero .sl-hero-cta:hover {
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
-  background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.18) 0%,
-    rgba(14,14,14,.62) 55%,
-    rgba(14,14,14,.92) 100%);
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  background:
+    radial-gradient(ellipse at center,
+      rgba(14,14,14,.0) 0%,
+      rgba(14,14,14,.35) 55%,
+      rgba(14,14,14,.55) 100%),
+    rgba(14,14,14,.78);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
 }
 html.light #sl-menu {
-  background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.18) 0%,
-    rgba(232,228,223,.62) 55%,
-    rgba(232,228,223,.92) 100%);
+  background:
+    radial-gradient(ellipse at center,
+      rgba(232,228,223,.0) 0%,
+      rgba(232,228,223,.35) 55%,
+      rgba(232,228,223,.55) 100%),
+    rgba(232,228,223,.82);
 }
 #sl-menu.sl-menu--open {
   opacity: 1; pointer-events: auto;
@@ -1223,14 +1227,22 @@ html.light .sl-hero-figure { opacity: .78; }
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
-  background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.18) 0%, rgba(14,14,14,.62) 55%, rgba(14,14,14,.92) 100%);
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  background:
+    radial-gradient(ellipse at center,
+      rgba(14,14,14,.0) 0%,
+      rgba(14,14,14,.35) 55%,
+      rgba(14,14,14,.55) 100%),
+    rgba(14,14,14,.78);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
 }
 html.light #tl-menu {
-  background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.18) 0%, rgba(232,228,223,.62) 55%, rgba(232,228,223,.92) 100%);
+  background:
+    radial-gradient(ellipse at center,
+      rgba(232,228,223,.0) 0%,
+      rgba(232,228,223,.35) 55%,
+      rgba(232,228,223,.55) 100%),
+    rgba(232,228,223,.82);
 }
 #tl-menu.tl-menu--open { opacity: 1; pointer-events: auto; }
 #tl-menu .sl-menu-header { padding: 0 36px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
@@ -1520,14 +1532,22 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
-  background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.18) 0%, rgba(14,14,14,.62) 55%, rgba(14,14,14,.92) 100%);
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  background:
+    radial-gradient(ellipse at center,
+      rgba(14,14,14,.0) 0%,
+      rgba(14,14,14,.35) 55%,
+      rgba(14,14,14,.55) 100%),
+    rgba(14,14,14,.78);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
 }
 html.light #app-menu {
-  background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.18) 0%, rgba(232,228,223,.62) 55%, rgba(232,228,223,.92) 100%);
+  background:
+    radial-gradient(ellipse at center,
+      rgba(232,228,223,.0) 0%,
+      rgba(232,228,223,.35) 55%,
+      rgba(232,228,223,.55) 100%),
+    rgba(232,228,223,.82);
 }
 #app-menu.app-menu--open { opacity: 1; pointer-events: auto; }
 #app-menu .sl-menu-header { padding: 0 36px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
