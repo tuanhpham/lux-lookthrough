@@ -6,7 +6,7 @@
  * 4. Radial wipe expands from center outward (~16s)
  */
 
-const RING_MS  = window.innerWidth <= 700 ? 5000 : 10000; // ring fill duration
+const RING_MS  = window.innerWidth <= 700 ? 1000 : 2000; // ring fill duration
 const HOLD_MS  = 700;   // pause at 100% before wipe
 const WIPE_MS  = 16000; // radial wipe duration
 const DIGIT_MS = 180;   // per-digit flip animation duration (ms)
