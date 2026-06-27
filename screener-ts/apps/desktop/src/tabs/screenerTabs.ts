@@ -29,7 +29,7 @@ import {
   type OHLCV,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, el, num, pct, fmtBig } from '../ui/dom.js';
+import { $, el, num, pct, fmtBig, flagSvg } from '../ui/dom.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { momentumTable, type MomentumSortKey } from '../ui/momentumTable.js';
 import { screenerTable, type ScreenerRow, type ScreenerSortKey } from '../ui/screenerTable.js';
@@ -155,8 +155,8 @@ function renderScanBanner(at: number, scanned: number, onRefresh: () => void): v
 export function renderPicks(ctx: AppContext): void {
   const root = $('#tab-picks')!;
   const markets: [Market, string][] = [
-    ['us', t('picks.market.us')],
-    ['vn', t('picks.market.vn')],
+    ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
+    ['vn', `${flagSvg('vn')} ${t('picks.market.vn')}`],
   ];
   root.innerHTML = `
     <h1>${t('picks.title')}</h1>
@@ -751,6 +751,18 @@ let screenerMarket: Market = 'us';
 const screenerSectorMap = (): Record<string, string[]> =>
   screenerMarket === 'vn' ? VN_SECTOR_STOCKS : SECTOR_STOCKS;
 
+/** Cache id for the current screener inputs (market + sectors + symbols + filters + asof). */
+function screenerCacheId(): string {
+  const syms = (($('#sym-input') as HTMLInputElement | null)?.value ?? '')
+    .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean).sort().join(',');
+  const sects = [...selectedSectors].sort().join(',');
+  const setup = ($('#setup-filter') as HTMLSelectElement | null)?.value ?? '';
+  const minQ   = ($('#min-quality') as HTMLInputElement | null)?.value.trim() ?? '';
+  const mom   = ($('#momentum-filter') as HTMLSelectElement | null)?.value ?? '';
+  const parts = [screenerMarket, sects || '_', syms || '_', setup || '_', minQ || '_', mom || '_'];
+  return `screener:${parts.join(':')}${cacheSuffix('screener')}`;
+}
+
 /** (Re)paint the sector chips for the active market and wire their toggles. */
 function renderSectorChips(): void {
   const chips = $('#sector-chips')!;
@@ -771,8 +783,8 @@ function renderSectorChips(): void {
 export function renderScreener(ctx: AppContext): void {
   const root = $('#tab-screener')!;
   const markets: [Market, string][] = [
-    ['us', t('picks.market.us')],
-    ['vn', t('picks.market.vn')],
+    ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
+    ['vn', `${flagSvg('vn')} ${t('picks.market.vn')}`],
   ];
   root.innerHTML = `
     <h1>${t('screener.title')}</h1>
@@ -830,6 +842,7 @@ export function renderScreener(ctx: AppContext): void {
   wireAsOfControls('screener', root, () => applyHistoricalFlag('screener', root));
   applyHistoricalFlag('screener', root);
   $('#run-screen')!.addEventListener('click', () => void runScreen(ctx));
+  void showScreen(ctx);
 }
 
 /** Toggle the .historical-mode class on a tab root so its results edge tints
@@ -838,7 +851,27 @@ function applyHistoricalFlag(scope: AsOfScope, root: HTMLElement): void {
   root.classList.toggle('historical-mode', isHistorical(scope));
 }
 
-/** Programmatic entry used by the Sectors tab "Screen stocks" button. */
+/** Render cached screener results if available, else show prompt. */
+async function showScreen(ctx: AppContext): Promise<void> {
+  const cached = await loadScan<ScreenerRow>(ctx, screenerCacheId());
+  if (!cached) return; // no cache — leave the empty state, user presses Run
+  const asOf = getAsOf('screener').date;
+  renderScanBannerInto('#screen-status', cached.at, cached.scanned, () => void runScreen(ctx), t('screener.run'));
+  const out = $('#screen-results')!;
+  out.innerHTML = '';
+  if (cached.rows.length) out.appendChild(exportBar(cached.rows, 'screener'));
+  out.appendChild(
+    screenerTable(cached.rows, {
+      sortKey: screenSort.key,
+      sortDesc: screenSort.desc,
+      onRowClick: (sym) => void openStock(ctx, sym, asOf),
+      onSortChange: (key, desc) => { screenSort = { key, desc }; },
+    }),
+  );
+}
+
+/** Programmatic entry used by the Sectors tab "Screen stocks" button.
+ * Checks cache first — only runs a live scan if no results exist for today. */
 export function screenSector(ctx: AppContext, sector: string): void {
   // Keep the Screener's market aligned with the Sectors tab so the sector exists.
   screenerMarket = sectorMarket;
@@ -848,7 +881,14 @@ export function screenSector(ctx: AppContext, sector: string): void {
   $('#tab-screener')!
     .querySelectorAll<HTMLElement>('[data-sector]')
     .forEach((b) => b.classList.toggle('active', b.dataset.sector === sector));
-  void runScreen(ctx);
+  // Show cached results if available; only run live if none found.
+  void loadScan<ScreenerRow>(ctx, screenerCacheId()).then((cached) => {
+    if (cached) {
+      void showScreen(ctx);
+    } else {
+      void runScreen(ctx);
+    }
+  });
 }
 
 async function runScreen(ctx: AppContext): Promise<void> {
@@ -926,6 +966,9 @@ async function runScreen(ctx: AppContext): Promise<void> {
       },
     }),
   );
+  // Persist results so coming back (or switching from Sectors) is instant.
+  await saveScan<ScreenerRow>(ctx, screenerCacheId(), top, scanned);
+  renderScanBannerInto('#screen-status', Date.now(), scanned, () => void runScreen(ctx), t('screener.run'));
 }
 
 /** Columns for exporting screener rows to CSV/HTML (Phase 12). */
@@ -1008,8 +1051,8 @@ const sectorMapFor = (m: Market): Record<string, string[]> =>
 export function renderSectors(ctx: AppContext): void {
   const root = $('#tab-sectors')!;
   const markets: [Market, string][] = [
-    ['us', t('picks.market.us')],
-    ['vn', t('picks.market.vn')],
+    ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
+    ['vn', `${flagSvg('vn')} ${t('picks.market.vn')}`],
   ];
   root.innerHTML = `
     <h1>${t('sectors.title')}</h1>

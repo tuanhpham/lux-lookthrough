@@ -49,9 +49,9 @@ interface ChartMeta {
   longName?: string;
   shortName?: string;
   regularMarketPrice?: number;
+  regularMarketVolume?: number;
   fiftyTwoWeekHigh?: number;
   fiftyTwoWeekLow?: number;
-  regularMarketVolume?: number;
 }
 
 interface ChartResult {
@@ -135,7 +135,7 @@ export class YahooProvider implements DataProvider {
         const l = q.low?.[i];
         const rawClose = q.close?.[i];
         const v = q.volume?.[i];
-        if (o == null || h == null || l == null || rawClose == null || v == null) continue;
+        if (o == null || h == null || l == null || rawClose == null) continue;
 
         // Match yfinance `auto_adjust=True`: scale ALL of OHLC by the same
         // per-bar factor (adjClose / rawClose), leaving volume unadjusted.
@@ -150,8 +150,30 @@ export class YahooProvider implements DataProvider {
           high: h * factor,
           low: l * factor,
           close: (adjClose ?? rawClose),
-          volume: v,
+          volume: v ?? 0,
         });
+      }
+      // Yahoo omits today's intraday bar from the daily series; patch it in from
+      // meta.regularMarketPrice so the chart always shows the latest price.
+      // Use LOCAL date (not UTC) — the user's market is in their own timezone.
+      const livePrice = result.meta?.regularMarketPrice;
+      if (livePrice != null && bars.length) {
+        const now = new Date();
+        const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const lastBar = bars[bars.length - 1]!;
+        // Only add a synthetic bar when: (a) the last bar is in the past AND
+        // (b) today is a weekday (Mon-Fri). Avoids a fake Saturday/Sunday candle.
+        const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
+        if (lastBar.date < localToday && dayOfWeek >= 1 && dayOfWeek <= 5) {
+          bars.push({
+            date: localToday,
+            open: livePrice,
+            high: livePrice,
+            low: livePrice,
+            close: livePrice,
+            volume: result.meta?.regularMarketVolume ?? 0,
+          });
+        }
       }
     }
     const ohlcv: OHLCV = { symbol, bars };

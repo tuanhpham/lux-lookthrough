@@ -115,7 +115,6 @@ export function renderToolLanding(host: HTMLElement, onEnter: (trigger?: Element
       pageTransition(b, () => {
         closeTlMenu();
         setLang(b.dataset.tll as 'en' | 'vi');
-        renderToolLanding(host, onEnter, onBack);
       });
     }),
   );

@@ -22,8 +22,15 @@ export function today(): string {
   return `${y}-${m}-${day}`;
 }
 
-function dayKey(id: string, day: string): string {
-  return `${PREFIX}${id}:${day}`;
+/** A historical id contains '@' (the as-of date suffix). For those we use a
+ * stable key — the as-of date IS the discriminator, so "today" is irrelevant
+ * and the result stays cached permanently until the user re-runs it. */
+function isHistoricalId(id: string): boolean {
+  return id.includes('@');
+}
+
+function storageKey(id: string, day: string): string {
+  return isHistoricalId(id) ? `${PREFIX}${id}` : `${PREFIX}${id}:${day}`;
 }
 
 export interface CachedScan<T> {
@@ -36,12 +43,15 @@ export interface CachedScan<T> {
   rows: T[];
 }
 
-/** Load today's cached scan for `id`, or null if none. */
+/** Load the cached scan for `id`:
+ * - Live ids: only today's entry counts (once-a-day).
+ * - Historical ids (contain '@'): load permanently — the as-of date is stable. */
 export async function loadScan<T>(ctx: AppContext, id: string): Promise<CachedScan<T> | null> {
-  return ctx.storage.get<CachedScan<T>>(dayKey(id, today()));
+  return ctx.storage.get<CachedScan<T>>(storageKey(id, today()));
 }
 
-/** Save today's scan results and prune stale days (best-effort). */
+/** Save scan results. Live scans are keyed to today; historical scans are
+ * stored permanently under a stable key. Stale live entries are pruned. */
 export async function saveScan<T>(
   ctx: AppContext,
   id: string,
@@ -50,13 +60,13 @@ export async function saveScan<T>(
 ): Promise<void> {
   const day = today();
   const payload: CachedScan<T> = { id, day, at: Date.now(), scanned, rows };
-  await ctx.storage.set(dayKey(id, day), payload);
-  void pruneOldScans(ctx).catch(() => {});
+  await ctx.storage.set(storageKey(id, day), payload);
+  if (!isHistoricalId(id)) void pruneOldScans(ctx).catch(() => {});
 }
 
-/** Remove this strategy's cached result for today (forces a re-run next open). */
+/** Remove this strategy's cached result (forces a re-run next open). */
 export async function clearScan(ctx: AppContext, id: string): Promise<void> {
-  await ctx.storage.delete(dayKey(id, today()));
+  await ctx.storage.delete(storageKey(id, today()));
 }
 
 /** Delete any `scan:*` entry whose day is older than the KEEP_DAYS window. */

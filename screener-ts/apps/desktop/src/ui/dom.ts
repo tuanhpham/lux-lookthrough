@@ -43,6 +43,31 @@ export function fmtPrice(v: number | null | undefined, symbol?: string): string 
   return '$' + num(v);
 }
 
+/** Inline SVG country flag, 16×12px. Renders on all platforms (no emoji). */
+export function flagSvg(country: 'us' | 'vn'): string {
+  if (country === 'us') {
+    // 13 stripes (7 red, 6 white) + blue canton with simplified star block
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 12" width="16" height="12" style="vertical-align:middle;border-radius:2px;flex-shrink:0" aria-hidden="true">
+      <rect width="16" height="12" fill="#B22234"/>
+      <rect y="0.923" width="16" height="0.923" fill="#fff"/>
+      <rect y="2.769" width="16" height="0.923" fill="#fff"/>
+      <rect y="4.615" width="16" height="0.923" fill="#fff"/>
+      <rect y="6.462" width="16" height="0.923" fill="#fff"/>
+      <rect y="8.308" width="16" height="0.923" fill="#fff"/>
+      <rect y="10.154" width="16" height="0.923" fill="#fff"/>
+      <rect width="7" height="6.462" fill="#3C3B6E"/>
+      <text x="0.4" y="5.8" font-size="4.5" fill="#fff" font-family="serif" letter-spacing="0.3">★★★★★★</text>
+      <text x="0.4" y="3.6" font-size="4.5" fill="#fff" font-family="serif" letter-spacing="0.3">★★★★★★</text>
+      <text x="0.4" y="1.6" font-size="4.5" fill="#fff" font-family="serif" letter-spacing="0.3">★★★★★</text>
+    </svg>`;
+  }
+  // Vietnam: red background, central yellow 5-pointed star
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 12" width="16" height="12" style="vertical-align:middle;border-radius:2px;flex-shrink:0" aria-hidden="true">
+    <rect width="16" height="12" fill="#DA251D"/>
+    <polygon points="8,1.5 9.1,4.7 12.5,4.7 9.8,6.7 10.8,9.9 8,7.9 5.2,9.9 6.2,6.7 3.5,4.7 6.9,4.7" fill="#FFFF00"/>
+  </svg>`;
+}
+
 export function scoreColor(s: number): string {
   return s >= 70 ? 'var(--accent)' : s >= 40 ? 'var(--warn)' : 'var(--faint)';
 }

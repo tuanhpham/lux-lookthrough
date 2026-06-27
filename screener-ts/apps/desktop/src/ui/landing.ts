@@ -238,7 +238,6 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: (trigger?: Elem
       pageTransition(b, () => {
         closeMenu();
         setLang(b.dataset.ml as 'en' | 'vi');
-        renderLanding(host, onEnterPrivate);
       });
     }),
   );

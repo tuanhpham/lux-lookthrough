@@ -8,12 +8,12 @@
 
 :root {
   /* Near-black layered canvas. */
-  --bg: #07080b;
-  --surface: #0a0c11;
-  --card: #0d1016;
-  --cardhover: #12161d;
-  --border: #1d222c;
-  --border-soft: #15191f;
+  --bg: #0c0b0f;
+  --surface: #100f14;
+  --card: #141219;
+  --cardhover: #1a1820;
+  --border: #221f2c;
+  --border-soft: #1a1820;
   --text: #e9edf4;
   --subtext: #99a2b2;
   --faint: #5c6575;
@@ -41,16 +41,17 @@
   --shadow-lg: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 32px 64px -24px rgba(0, 0, 0, .8);
 
   --font-ui: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 html.light {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --card: #ffffff;
-  --cardhover: #f3f5f8;
-  --border: #e4e8ee;
-  --border-soft: #eef1f5;
+  --bg: #f0ece7;
+  --surface: #faf8f5;
+  --card: #faf8f5;
+  --cardhover: #f0ece7;
+  --border: #ddd8d2;
+  --border-soft: #e8e4df;
   --text: #0a0e16;
   --subtext: #58616f;
   --faint: #97a0af;
@@ -134,7 +135,7 @@ table td,
   display: flex; align-items: center; cursor: pointer; user-select: none;
 }
 .app-brand-name {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
   text-transform: uppercase; color: rgba(255,255,255,.82);
 }
@@ -172,7 +173,8 @@ html.light .app-menu-btn { color: rgba(10,10,10,.65); }
 #app-menu .sl-menu-item {
   font-size: clamp(18px, 2.4vw, 26px);
   font-weight: 300;
-  letter-spacing: .07em;
+  font-family: 'Source Serif 4', Georgia, serif;
+  letter-spacing: .06em;
 }
 html[lang="vi"] #app-menu .sl-menu-item {
   font-family: 'Hanken Grotesk', sans-serif;
@@ -198,7 +200,7 @@ html[lang="vi"] #app-menu .sl-menu-item {
 }
 .picks-config-label {
   padding: 13px 16px;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
   color: var(--faint); white-space: nowrap;
   border-right: 1px solid var(--border-soft);
@@ -228,8 +230,8 @@ html[lang="vi"] #app-menu .sl-menu-item {
 
 /* ── Main column ─────────────────────────────────────────────────────────── */
 #main { max-width: 1240px; margin: 0 auto; width: 100%; padding: 76px 34px 96px; }
-h1 { font-size: 26px; margin: 0 0 5px; font-weight: 800; letter-spacing: -0.035em; }
-.subtitle { color: var(--subtext); margin: 0 0 22px; font-size: 14px; letter-spacing: -0.01em; }
+h1 { font-size: 26px; margin: 0 0 5px; font-weight: 300; font-family: 'Source Serif 4', Georgia, serif; letter-spacing: .02em; }
+.subtitle { color: var(--subtext); margin: 0 0 22px; font-size: 14px; letter-spacing: .01em; line-height: 1.5; }
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
 .card {
@@ -283,6 +285,7 @@ button.btn:active, button.btn-outline:active { transform: translateY(1px); }
   border-radius: 999px; padding: 5px 13px; font-size: 12px; font-weight: 700; cursor: pointer;
   font-family: var(--font-ui); letter-spacing: -0.01em;
   transition: color .15s ease, border-color .15s ease, background .15s ease;
+  display: inline-flex; align-items: center; gap: 5px;
 }
 .range-btn:hover { color: var(--text); border-color: var(--faint); }
 .range-btn.active {
@@ -358,8 +361,8 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
   border-color: var(--accent-line);
 }
 .analysis-list { margin: 0; padding-left: 18px; }
-.analysis-list li { line-height: 1.7; margin-bottom: 5px; color: var(--subtext); }
-.analysis-list li b { color: var(--text); }
+.analysis-list li { line-height: 1.75; margin-bottom: 5px; color: var(--subtext); font-size: 14px; }
+.analysis-list li b { color: var(--text); font-weight: 400; }
 .hl {
   color: var(--text); font-weight: 700; font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -397,6 +400,22 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .btn-icon { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; padding: 8px 12px; }
 .btn-icon svg { width: 15px; height: 15px; }
 .btn-icon .ext { width: 12px; height: 12px; opacity: .6; }
+.tv-chart-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  color: var(--accent); text-decoration: none;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  transition: color .15s, background .15s, border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.tv-chart-btn:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
 .icon-btn { background: transparent; border: 0; color: var(--faint); cursor: pointer; padding: 2px 6px; border-radius: var(--radius-xs); font-size: 13px; line-height: 1; }
 .icon-btn:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .danger { color: var(--danger); }
@@ -426,7 +445,7 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
   display: flex; justify-content: space-between; align-items: center;
   padding: 15px 20px; border-bottom: 1px solid var(--border);
 }
-#modal-title { font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+#modal-title { font-weight: 700; font-size: 17px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 #modal-close { background: 0; border: 0; color: var(--faint); font-size: 22px; cursor: pointer; line-height: 1; padding: 2px 8px; border-radius: var(--radius-xs); transition: color .15s, background .15s; }
 #modal-close:hover { color: var(--text); background: var(--cardhover); }
 .modal-body { padding: 20px; }
@@ -437,11 +456,12 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 /* ── Blog / prose ────────────────────────────────────────────────────────── */
 .post-card { display: block; text-align: left; width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 17px; cursor: pointer; margin-bottom: 10px; transition: border-color .15s, background .15s, transform .12s; }
 .post-card:hover { background: var(--cardhover); border-color: var(--accent-line); transform: translateY(-1px); }
-.prose { line-height: 1.7; }
-.prose h1 { font-size: 25px; margin-top: 0; letter-spacing: -0.03em; }
-.prose h2 { font-size: 18px; margin-top: 24px; letter-spacing: -0.02em; }
-.prose table { margin: 10px 0; }
-.prose blockquote { border-left: 2px solid var(--accent); margin: 14px 0; padding: 8px 16px; color: var(--subtext); background: var(--surface); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
+.prose { line-height: 1.75; font-family: var(--font-serif); font-weight: 300; font-size: 15px; }
+.prose h1 { font-size: 25px; margin-top: 0; letter-spacing: .01em; }
+.prose h2 { font-size: 18px; margin-top: 24px; letter-spacing: .01em; }
+.prose p { margin: 0 0 16px; }
+.prose table { margin: 10px 0; font-family: var(--font-ui); font-weight: 400; font-size: 13px; }
+.prose blockquote { border-left: 2px solid var(--accent); margin: 14px 0; padding: 8px 16px; color: var(--subtext); background: var(--surface); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; font-style: italic; }
 .prose code { background: var(--surface); padding: 1px 6px; border-radius: 5px; font-family: var(--font-mono); font-size: .92em; }
 
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
@@ -649,7 +669,7 @@ html.light .sl-chapter[data-ch="4"] .story-final   { color: rgba(30,26,22,.85); 
 }
 .sl-brand { display: flex; align-items: center; gap: 9px; }
 .sl-brand-name {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
   text-transform: uppercase; color: rgba(255,255,255,.82);
 }
@@ -677,7 +697,7 @@ html.light .sl-hero .sl-hero-cta:hover {
 
 /* ── Full-screen menu overlay ── */
 #sl-menu {
-  position: fixed; top: 0; left: 0; right: 0; height: 80vh; z-index: 200;
+  position: fixed; top: 0; left: 0; right: 0; height: 90vh; z-index: 200;
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
@@ -708,7 +728,7 @@ html.light #sl-menu {
   padding: 0 36px; height: 56px; flex-shrink: 0;
 }
 .sl-menu-brand {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
   text-transform: uppercase; color: rgba(255,255,255,.82);
 }
@@ -737,21 +757,34 @@ html.light #tl-menu-close:hover { color: rgba(10,10,10,.9); }
 }
 .sl-menu-item {
   font-size: clamp(28px, 5vw, 48px);
-  font-weight: 200;
-  font-family: Georgia, 'Times New Roman', serif;
-  letter-spacing: .08em;
+  font-weight: 300;
+  font-family: 'Source Serif 4', Georgia, serif;
+  letter-spacing: .06em;
   color: rgba(255,255,255,.82);
   background: none; border: none; cursor: pointer;
-  transition: color 0.2s, opacity 0.2s;
+  transition: color 0.25s;
   text-align: center;
+  position: relative;
+  padding-bottom: 4px;
 }
+.sl-menu-item::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%; height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.35s cubic-bezier(.25, 1, .5, 1);
+}
+.sl-menu-item:hover::after { transform: scaleX(1); }
 html[lang="vi"] .sl-menu-item {
   font-family: 'Hanken Grotesk', sans-serif;
   font-weight: 300;
   letter-spacing: .01em;
 }
 html.light .sl-menu-item { color: rgba(20,16,10,.8); }
-.sl-menu-item:hover { color: #fff; opacity: 0.95; }
+.sl-menu-item:hover { color: #fff; }
 html.light .sl-menu-item:hover { color: rgba(10,6,0,1); }
 
 /* smaller lang/theme controls */
@@ -909,7 +942,7 @@ html.light .story-p:has(> em:only-child) { color: rgba(20,16,10,.82); border-lef
 }
 /* Quote: slower curtain — overrides the base .reveal transition duration */
 .story-quote span {
-  display: block; font-size: 18px; font-weight: 300; font-style: italic;
+  display: block; font-family: var(--font-serif); font-size: 18px; font-weight: 300; font-style: italic;
   color: var(--subtext); line-height: 1.7; letter-spacing: .005em;
   /* short accent bar beside text only — not full-height */
   border-left: 1px solid var(--accent-line);
@@ -921,6 +954,7 @@ html.light .story-p:has(> em:only-child) { color: rgba(20,16,10,.82); border-lef
 .story-final {
   padding-top: 80px; padding-bottom: 100px;
   border-top: 1px solid rgba(255,255,255,.07);
+  font-family: var(--font-serif);
   font-size: 18px; font-weight: 300; font-style: italic;
   color: var(--subtext); line-height: 1.75; letter-spacing: .01em;
   text-align: center;
@@ -1229,7 +1263,7 @@ html.light .sl-hero-figure { opacity: .78; }
 
 /* ── Welcome Page menu overlay (same visual as sl-menu / app-menu) ── */
 #tl-menu {
-  position: fixed; top: 0; left: 0; right: 0; height: 80vh; z-index: 200;
+  position: fixed; top: 0; left: 0; right: 0; height: 90vh; z-index: 200;
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
@@ -1270,10 +1304,11 @@ html.light #tl-menu {
   padding: 4px 12px; margin-bottom: 22px;
 }
 .tl-h1 {
-  font-size: clamp(26px, 3.5vw, 44px); font-weight: 800; line-height: 1.18;
-  letter-spacing: -.035em; color: var(--text); margin: 0 0 18px;
+  font-size: clamp(26px, 3.5vw, 44px); font-weight: 300; line-height: 1.22;
+  font-family: 'Source Serif 4', Georgia, serif;
+  letter-spacing: .02em; color: var(--text); margin: 0 0 18px;
 }
-.tl-sub { font-size: 16px; color: var(--subtext); line-height: 1.65; margin: 0 0 28px; max-width: 480px; }
+.tl-sub { font-size: 16px; color: var(--subtext); line-height: 1.6; margin: 0 0 28px; max-width: 480px; }
 .tl-cta-row { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; flex-wrap: wrap; }
 .tl-cta-btn { font-size: 15px; padding: 12px 28px; }
 .tl-nosignup { font-size: 12px; }
@@ -1342,8 +1377,8 @@ html.light #tl-menu {
 .tl-strat-card:hover { border-color: var(--accent-line); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .tl-strat-icon { width: 36px; height: 36px; color: var(--accent); }
 .tl-strat-icon svg { width: 100%; height: 100%; }
-.tl-strat-card strong { font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
-.tl-strat-card p { font-size: 13px; line-height: 1.55; margin: 0; }
+.tl-strat-card strong { font-size: 14px; font-weight: 400; font-family: var(--font-serif); letter-spacing: .01em; }
+.tl-strat-card p { font-size: 13px; font-family: var(--font-serif); font-weight: 300; line-height: 1.65; margin: 0; }
 
 /* ── Feature grid ── */
 .tl-feature-grid {
@@ -1352,8 +1387,8 @@ html.light #tl-menu {
 .tl-feat-card { display: flex; flex-direction: column; gap: 8px; padding: 18px 18px; }
 .tl-feat-icon { width: 28px; height: 28px; color: var(--accent2); }
 .tl-feat-icon svg { width: 100%; height: 100%; }
-.tl-feat-card strong { font-size: 13px; font-weight: 700; }
-.tl-feat-card p { font-size: 12px; line-height: 1.5; margin: 0; }
+.tl-feat-card strong { font-size: 13px; font-weight: 400; font-family: var(--font-serif); }
+.tl-feat-card p { font-size: 12px; font-family: var(--font-serif); font-weight: 300; line-height: 1.6; margin: 0; }
 
 .tl-foot { font-size: 11.5px; text-align: center; margin: 0; }
 
@@ -1534,7 +1569,7 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
 
 /* ── App cinematic menu overlay ── */
 #app-menu {
-  position: fixed; top: 0; left: 0; right: 0; height: 80vh; z-index: 200;
+  position: fixed; top: 0; left: 0; right: 0; height: 90vh; z-index: 200;
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
@@ -1710,7 +1745,7 @@ html.light #app-menu {
 }
 .about-pillar-icon svg { width: 18px; height: 18px; }
 .about-pillar strong { font-size: 14px; font-weight: 600; color: var(--text); }
-.about-pillar .muted { font-size: 12px; line-height: 1.55; margin: 0; }
+.about-pillar .muted { font-size: 12.5px; line-height: 1.55; margin: 0; }
 
 .about-footer-strip {
   display: flex;
@@ -1743,7 +1778,7 @@ html.light #app-menu {
 
 /* ── Page heading: serif, light, large ── */
 #main h1 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: clamp(26px, 4vw, 42px);
   font-weight: 300;
   letter-spacing: .04em;
@@ -1825,7 +1860,7 @@ html.light #app-menu {
   padding: 8px 12px 6px;
   border-bottom: 1px solid var(--border-soft);
   background: transparent;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
 }
 #main td {
   padding: 10px 12px;
@@ -1845,7 +1880,7 @@ html.light #app-menu {
 #main .stat .k {
   font-size: 9.5px;
   letter-spacing: .12em;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
 }
 #main .stat .v {
   font-size: 18px;
@@ -1888,7 +1923,7 @@ html.light #app-menu {
   margin-bottom: 36px;
 }
 .about-badge {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 11px;
   letter-spacing: .14em;
   background: none;
@@ -1898,7 +1933,7 @@ html.light #app-menu {
   margin-bottom: 14px;
 }
 .about-h1 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 300;
   letter-spacing: .06em;
@@ -1907,7 +1942,7 @@ html.light #app-menu {
 }
 .about-tagline {
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--subtext);
   letter-spacing: .01em;
 }
@@ -1917,7 +1952,7 @@ html.light #app-menu {
   background: none;
   border-radius: 0;
   padding: 4px 24px;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-style: italic;
   font-size: 16px;
   font-weight: 300;
@@ -1934,13 +1969,13 @@ html.light .about-quote { border-left-color: var(--border); }
   border-radius: 0;
   padding: 0;
   font-size: 14.5px;
-  line-height: 1.85;
+  line-height: 1.8;
   color: var(--subtext);
   margin-bottom: 48px;
 }
 
 .about-pillars-title {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 11px;
   letter-spacing: .14em;
   color: var(--faint);
@@ -1962,12 +1997,12 @@ html.light .about-quote { border-left-color: var(--border); }
   width: 28px; height: 28px;
 }
 .about-pillar strong {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px;
   font-weight: 400;
   letter-spacing: .04em;
 }
-.about-pillar .muted { font-size: 12.5px; line-height: 1.65; }
+.about-pillar .muted { font-family: var(--font-serif); font-weight: 300; font-size: 12.5px; line-height: 1.65; }
 
 .about-footer-strip {
   background: none;
@@ -1980,22 +2015,9 @@ html.light .about-quote { border-left-color: var(--border); }
 }
 .about-meta-label { color: var(--faint); font-weight: 400; }
 
-/* ── Vietnamese font overrides: replace Georgia with Source Serif 4 ─────── */
-/* Georgia lacks pre-composed Vietnamese glyphs — diacritics float incorrectly */
-html[lang="vi"] #main h1,
-html[lang="vi"] .picks-config-label,
-html[lang="vi"] #main th,
-html[lang="vi"] #main .stat .k,
-html[lang="vi"] .app-brand-name,
-html[lang="vi"] .sl-menu-brand,
-html[lang="vi"] .about-h1,
-html[lang="vi"] .about-badge,
-html[lang="vi"] .about-pillars-title,
-html[lang="vi"] .about-pillar strong {
-  font-family: 'Source Serif 4', Georgia, serif;
-}
+#about-block p { font-size: 14px; line-height: 1.7; }
+
+/* ── Vietnamese: tighten letter-spacing for wider VN glyphs ─────────────── */
 html[lang="vi"] .sl-menu-item,
-html[lang="vi"] #app-menu .sl-menu-item {
-  font-family: 'Source Serif 4', Georgia, serif;
-  letter-spacing: .04em;
-}
+html[lang="vi"] #app-menu .sl-menu-item { letter-spacing: .04em; }
+html[lang="vi"] .tl-h1 { letter-spacing: .01em; }

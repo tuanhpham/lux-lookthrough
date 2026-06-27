@@ -277,9 +277,24 @@ window.addEventListener('app:show-tab', (e) => {
 $('#logo-home')?.addEventListener('click', (e) => pageTransition(e.currentTarget as Element, showToolLanding));
 $('#logo-home')?.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') pageTransition($('#logo-home')!, showToolLanding); });
 
-onLangChange(() => {
+function reRenderCurrentPage(): void {
   applyStaticI18n();
-  if (entered) renderTab(currentTab);
+  if (!$('#app')!.classList.contains('hidden')) {
+    renderTab(currentTab);
+  } else if (!$('#tool-landing')!.classList.contains('hidden')) {
+    renderToolLanding(
+      $('#tool-landing')!,
+      (trigger) => pageTransition(trigger ?? null, enterApp),
+      (trigger) => goToLanding(trigger),
+    );
+  } else if (!$('#landing')!.classList.contains('hidden')) {
+    renderLanding($('#landing')!, requestPrivateAccess);
+  }
+}
+
+onLangChange(() => {
+  if (appMenuEl) { appMenuEl.remove(); appMenuEl = null; }
+  reRenderCurrentPage();
 });
 
 // Re-render the open tab on theme switch so charts pick up the new CSS colors.
