@@ -676,17 +676,17 @@ html.light .sl-hero .sl-hero-cta:hover {
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
   background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.04) 0%,
-    rgba(14,14,14,.50) 55%,
-    rgba(14,14,14,.88) 100%);
-  backdrop-filter: blur(18px) saturate(0.7);
-  -webkit-backdrop-filter: blur(18px) saturate(0.7);
+    rgba(14,14,14,.18) 0%,
+    rgba(14,14,14,.62) 55%,
+    rgba(14,14,14,.92) 100%);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
 }
 html.light #sl-menu {
   background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.04) 0%,
-    rgba(232,228,223,.50) 55%,
-    rgba(232,228,223,.88) 100%);
+    rgba(232,228,223,.18) 0%,
+    rgba(232,228,223,.62) 55%,
+    rgba(232,228,223,.92) 100%);
 }
 #sl-menu.sl-menu--open {
   opacity: 1; pointer-events: auto;
@@ -1224,13 +1224,13 @@ html.light .sl-hero-figure { opacity: .78; }
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
   background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.04) 0%, rgba(14,14,14,.50) 55%, rgba(14,14,14,.88) 100%);
-  backdrop-filter: blur(18px) saturate(0.7);
-  -webkit-backdrop-filter: blur(18px) saturate(0.7);
+    rgba(14,14,14,.18) 0%, rgba(14,14,14,.62) 55%, rgba(14,14,14,.92) 100%);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
 }
 html.light #tl-menu {
   background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.04) 0%, rgba(232,228,223,.50) 55%, rgba(232,228,223,.88) 100%);
+    rgba(232,228,223,.18) 0%, rgba(232,228,223,.62) 55%, rgba(232,228,223,.92) 100%);
 }
 #tl-menu.tl-menu--open { opacity: 1; pointer-events: auto; }
 #tl-menu .sl-menu-header { padding: 0 36px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
@@ -1521,16 +1521,19 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
   background: radial-gradient(ellipse at center,
-    rgba(14,14,14,.04) 0%, rgba(14,14,14,.50) 55%, rgba(14,14,14,.88) 100%);
-  backdrop-filter: blur(18px) saturate(0.7);
-  -webkit-backdrop-filter: blur(18px) saturate(0.7);
+    rgba(14,14,14,.18) 0%, rgba(14,14,14,.62) 55%, rgba(14,14,14,.92) 100%);
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
 }
 html.light #app-menu {
   background: radial-gradient(ellipse at center,
-    rgba(232,228,223,.04) 0%, rgba(232,228,223,.50) 55%, rgba(232,228,223,.88) 100%);
+    rgba(232,228,223,.18) 0%, rgba(232,228,223,.62) 55%, rgba(232,228,223,.92) 100%);
 }
 #app-menu.app-menu--open { opacity: 1; pointer-events: auto; }
 #app-menu .sl-menu-header { padding: 0 36px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+@media (max-width: 700px) {
+  #app-menu .sl-menu-header { padding: 0 18px; }
+}
 
 @media (max-width: 980px) {
   #topnav { padding: 0 18px; }
