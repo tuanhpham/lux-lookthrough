@@ -7,7 +7,7 @@ type Lang = 'en' | 'vi';
 const STRINGS: Record<string, { en: string; vi: string }> = {
   // Brand / nav
   'brand.name': { en: 'The Professional', vi: 'The Professional' },
-  'brand.sub': { en: 'Screener for The Professionals', vi: 'Bộ lọc cho dân chuyên nghiệp' },
+  'brand.sub': { en: 'The Platform', vi: 'Nền tảng' },
   'nav.home': { en: 'Home', vi: 'Trang chủ' },
   'nav.picks': { en: 'Top Picks', vi: 'Lựa chọn hàng đầu' },
   'nav.screener': { en: 'Screener', vi: 'Bộ lọc' },
@@ -24,7 +24,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'foot.disclaimer': { en: 'Educational use only. Not financial advice.', vi: 'Chỉ dùng cho mục đích học tập. Không phải lời khuyên đầu tư.' },
 
   // Landing
-  'landing.badge': { en: 'Screener for The Professionals', vi: 'Bộ lọc cho dân chuyên nghiệp' },
+  'landing.badge': { en: 'The Platform', vi: 'Nền tảng' },
   'landing.h1a': { en: 'Trade the strongest stocks,', vi: 'Giao dịch những cổ phiếu mạnh nhất,' },
   'landing.h1b': { en: 'in the strongest setups.', vi: 'ở những thiết lập tốt nhất.' },
   'landing.sub': {

@@ -1245,9 +1245,8 @@ function renderSectorSnapshot(ctx: AppContext, rows: SectorSnapshotRow[]): void 
       }),
     );
     detail.querySelector<HTMLElement>('[data-screen]')!.addEventListener('click', () => {
-      // Switch to the Screener tab, then pre-fill + run for this sector.
-      document.querySelector<HTMLElement>('[data-tab="screener"]')?.click();
       screenSector(ctx, s.sector);
+      window.dispatchEvent(new CustomEvent('app:show-tab', { detail: 'screener' }));
     });
   }
 }

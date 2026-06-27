@@ -267,6 +267,12 @@ $('#menu-toggle')?.addEventListener('click', () => {
   }
 });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAppMenu(); });
+window.addEventListener('app:show-tab', (e) => {
+  const tab = (e as CustomEvent<Tab>).detail;
+  enterApp();
+  currentTab = tab;
+  TABS.forEach((name) => $(`#tab-${name}`)!.classList.toggle('hidden', name !== tab));
+});
 
 $('#logo-home')?.addEventListener('click', (e) => pageTransition(e.currentTarget as Element, showToolLanding));
 $('#logo-home')?.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') pageTransition($('#logo-home')!, showToolLanding); });
