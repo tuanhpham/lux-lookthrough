@@ -68,9 +68,6 @@
            center, language/theme right. On phones the tabs collapse behind the
            hamburger into a dropdown (#topnav-menu). -->
       <header id="topnav">
-        <button id="menu-toggle" class="menu-toggle" aria-label="Menu" aria-expanded="false" aria-controls="nav">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-        </button>
         <button class="topnav-brand" id="logo-home" title="Back to story">
           <div class="logo logo-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg></div>
           <span class="brand-name" data-i18n="brand.name">The Professional</span>
@@ -138,14 +135,17 @@
           </div>
         </nav>
         <div class="topnav-controls">
-          <button id="sync-toggle" class="theme-toggle" title="Device sync" aria-label="Device sync">
+          <button id="sync-toggle" class="theme-toggle topnav-ctrl-desktop" title="Device sync" aria-label="Device sync">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
           </button>
-          <div class="lang-toggle" role="group" aria-label="Language">
+          <div class="lang-toggle topnav-ctrl-desktop" role="group" aria-label="Language">
             <button data-lang-btn="en">EN</button>
             <button data-lang-btn="vi">VI</button>
           </div>
-          <button id="theme-toggle" class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+          <button id="theme-toggle" class="theme-toggle topnav-ctrl-desktop" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+          <button id="menu-toggle" class="menu-toggle" aria-label="Menu" aria-expanded="false" aria-controls="nav">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
         </div>
       </header>
       <!-- Dim backdrop behind the open mobile dropdown. -->

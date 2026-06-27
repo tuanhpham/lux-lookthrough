@@ -176,6 +176,9 @@ table td,
 /* Right-side controls. */
 .topnav-controls { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; margin-left: auto; }
 
+/* tool-landing hamburger — hidden on desktop, shown on mobile via media query */
+.tl-menu-btn { display: none; }
+
 /* ── "More ▾" tab group (desktop) ──────────────────────────────────────────
    The reference tabs live in a dropdown so the inline row can't overflow into
    the brand/controls. On phones (≤980px) this whole structure flattens — see
@@ -1180,9 +1183,9 @@ html.light .sl-hero-figure { opacity: .78; }
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 36px; height: 56px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-  border-bottom: 1px solid var(--border-soft);
+  background: transparent;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-bottom: none;
   gap: 16px; flex-shrink: 0;
 }
 .tl-brand { display: flex; align-items: center; gap: 9px; }
@@ -1227,7 +1230,7 @@ html.light .sl-hero-figure { opacity: .78; }
 .tl-stat { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: var(--surface); min-width: 0; }
 .tl-stat-div { flex-shrink: 0; width: 1px; background: var(--border-soft); align-self: stretch; }
 .tl-stat-v { font-size: 15px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -.02em; white-space: nowrap; }
-.tl-stat-l { font-size: 9.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; text-align: center; }
+.tl-stat-l { font-size: 9.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; text-align: center; line-height: 1.3; word-break: break-word; }
 
 /* Chart widget */
 .tl-chart-wrap { position: relative; }
@@ -1312,6 +1315,8 @@ html.light .sl-hero-figure { opacity: .78; }
   .tl-stat { padding: 10px 6px; }
   .tl-stat-v { font-size: 13px; }
   .tl-stat-l { font-size: 9px; letter-spacing: .03em; }
+  .tl-menu-btn { display: inline-grid; }
+  .tl-topbar-right .topnav-ctrl-desktop { display: none !important; }
 }
 
 /* ── Responsive ── */
@@ -1484,54 +1489,35 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
    dropdown (holding Analysis/Playbook/Learn/About) + the cloud/lang/theme
    controls — which fits comfortably. Below it the whole nav collapses behind the
    hamburger and the "More" group flattens into that single dropdown list. */
+/* ── App cinematic menu overlay (mirrors sl-menu) ── */
+#app-menu {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.6s ease;
+  background: radial-gradient(ellipse at center,
+    rgba(14,14,14,.28) 0%, rgba(14,14,14,.60) 40%, rgba(14,14,14,.92) 100%);
+  backdrop-filter: blur(18px) saturate(0.7);
+  -webkit-backdrop-filter: blur(18px) saturate(0.7);
+}
+html.light #app-menu {
+  background: radial-gradient(ellipse at center,
+    rgba(232,228,223,.28) 0%, rgba(232,228,223,.60) 40%, rgba(232,228,223,.92) 100%);
+}
+#app-menu.app-menu--open { opacity: 1; pointer-events: auto; }
+#app-menu .sl-menu-header { padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+#app-menu .sl-menu-items { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 24px; }
+#app-menu .sl-menu-item { font-size: clamp(20px, 5vw, 36px); }
+
 @media (max-width: 980px) {
   #topnav { gap: 8px; padding: 0 12px; }
-  /* Show the hamburger and collapse the inline tabs into a dropdown; the
-     language + theme controls stay in the bar (they're compact). */
+  /* Hide inline tabs and desktop-only controls; show only the hamburger. */
   .menu-toggle { display: inline-grid; }
+  .topnav-tabs { display: none; }
+  .topnav-ctrl-desktop { display: none !important; }
 
-  /* Inline tabs → a compact dropdown panel anchored under the bar. */
-  .topnav-tabs {
-    position: fixed; top: calc(56px + env(safe-area-inset-top)); right: 8px; left: 8px; z-index: 61;
-    flex-direction: column; align-items: stretch; gap: 1px;
-    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow-lg); padding: 6px;
-    max-height: calc(100dvh - 72px - env(safe-area-inset-top)); overflow-y: auto;
-    opacity: 0; transform: translateY(-8px); pointer-events: none;
-    transition: opacity .2s ease, transform .2s ease;
-  }
-  #app.nav-open .topnav-tabs { opacity: 1; transform: none; pointer-events: auto; }
-  /* Compact row: icon left + label. Icon is the same size as the desktop, label is slightly larger for touch. */
-  .nav-btn {
-    padding: 10px 12px; font-size: 14px; border-radius: var(--radius-sm);
-    gap: 10px; justify-content: flex-start;
-  }
-  .nav-btn svg { width: 18px; height: 18px; opacity: .8; flex: 0 0 18px; }
-  /* Active marker becomes a left accent bar (replaces the bottom underline). */
-  .nav-btn.active { background: var(--accent-wash); color: var(--accent); }
-  .nav-btn.active svg { opacity: 1; }
-  .nav-btn.active::after { left: 0; right: auto; top: 6px; bottom: 6px; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
-
-  /* "More" group flattens: hide the trigger, and let its 4 tabs sit inline with
-     the others in the dropdown list (no nested popover on phones). */
-  .nav-more { display: contents; }
-  .nav-more-trigger { display: none; }
-  .nav-more-panel {
-    display: contents; position: static; background: 0; border: 0; box-shadow: none; padding: 0;
-    opacity: 1; transform: none; pointer-events: auto; min-width: 0;
-  }
-  .nav-more-panel .nav-btn { padding: 10px 12px; }
-  .nav-more-panel .nav-btn.active::after { display: block; }
-
-  /* Backdrop sits BELOW the bar (top: 56px) so the nav bar stays bright, and is
-     only a light scrim — just enough to signal "tap to close" without darkening
-     the whole screen. */
-  .sidebar-backdrop {
-    display: block; position: fixed; top: calc(56px + env(safe-area-inset-top)); right: 0; bottom: 0; left: 0; z-index: 55;
-    background: rgba(3, 5, 9, .2); cursor: pointer;
-    opacity: 0; pointer-events: none; transition: opacity .26s ease;
-  }
-  #app.nav-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
+  /* Backdrop not used anymore (overlay is full-screen), keep for safety */
+  .sidebar-backdrop { display: none; }
 
   #main { max-width: none; margin: 0; width: 100%; padding: 18px 15px calc(40px + env(safe-area-inset-bottom)); }
   h1 { font-size: 22px; }

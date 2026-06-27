@@ -147,6 +147,13 @@ function showToolLanding(): void {
     (trigger) => pageTransition(trigger ?? null, enterApp),
     (trigger) => goToLanding(trigger),
   );
+  // Wire tool-landing hamburger to the shared cinematic app menu
+  requestAnimationFrame(() => {
+    document.getElementById('tl-menu-btn')?.addEventListener('click', () => {
+      wireAppMenu();
+      openAppMenu();
+    });
+  });
 }
 
 function requestPrivateAccess(trigger?: Element): void {
@@ -162,26 +169,109 @@ function goToLanding(trigger?: Element): void {
   });
 }
 
-// ── Mobile nav dropdown ──────────────────────────────────────────────────────
-// On phones the inline top-nav tabs collapse behind the hamburger into a
-// dropdown. We toggle a class on #app and keep aria-expanded in sync; tapping a
-// nav item or the backdrop closes it.
-function setNav(open: boolean): void {
-  $('#app')!.classList.toggle('nav-open', open);
-  const tgl = $('#menu-toggle');
-  if (tgl) tgl.setAttribute('aria-expanded', String(open));
+// ── App cinematic menu overlay (hamburger on mobile) ─────────────────────────
+function buildAppMenu(): HTMLElement {
+  const lang = getLang();
+  const isLight = document.documentElement.classList.contains('light');
+  const el = document.createElement('div');
+  el.id = 'app-menu';
+  el.innerHTML = `
+    <header class="sl-menu-header">
+      <span class="sl-menu-brand">${t('brand.name')}</span>
+      <button id="app-menu-close" aria-label="Close menu">✕</button>
+    </header>
+    <div class="sl-menu-items">
+      <button class="sl-menu-item" id="app-menu-home">${t('nav.home')}</button>
+      <button class="sl-menu-item" id="app-menu-picks" data-tab="picks">${t('nav.picks')}</button>
+      <button class="sl-menu-item" id="app-menu-screener" data-tab="screener">${t('nav.screener')}</button>
+      <button class="sl-menu-item" id="app-menu-watchlist" data-tab="watchlist">${t('nav.watchlist')}</button>
+      <button class="sl-menu-item" id="app-menu-sectors" data-tab="sectors">${t('nav.sectors')}</button>
+      <button class="sl-menu-item" id="app-menu-portfolio" data-tab="portfolio">${t('nav.portfolio')}</button>
+      <button class="sl-menu-item" id="app-menu-backtest" data-tab="backtest">${t('nav.backtest')}</button>
+      <button class="sl-menu-item" id="app-menu-blog" data-tab="blog">${t('nav.blog')}</button>
+      <div class="sl-menu-controls">
+        <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-aml="en">EN</button>
+        <button class="sl-menu-ctrl${lang === 'vi' ? ' active' : ''}" data-aml="vi">VI</button>
+      </div>
+      <button class="sl-menu-ctrl" id="app-menu-theme">${isLight ? '☀️' : '🌙'}</button>
+    </div>`;
+  document.body.appendChild(el);
+  return el;
 }
-const closeNav = (): void => setNav(false);
 
-$('#menu-toggle')?.addEventListener('click', () =>
-  setNav(!$('#app')!.classList.contains('nav-open')),
-);
-$('#sidebar-backdrop')?.addEventListener('click', closeNav);
-$('#sidebar-backdrop')?.addEventListener('touchend', closeNav);
-// Close the dropdowns with Escape for keyboard/desktop users.
+let appMenuEl: HTMLElement | null = null;
+let appMenuWired = false;
+function getAppMenu(): HTMLElement {
+  if (!appMenuEl || !document.body.contains(appMenuEl)) { appMenuEl = buildAppMenu(); appMenuWired = false; }
+  return appMenuEl;
+}
+
+function openAppMenu(): void {
+  const menu = getAppMenu();
+  menu.classList.add('app-menu--open');
+  document.body.style.overflow = 'hidden';
+  const tgl = $('#menu-toggle');
+  if (tgl) tgl.setAttribute('aria-expanded', 'true');
+}
+function closeAppMenu(): void {
+  appMenuEl?.classList.remove('app-menu--open');
+  document.body.style.overflow = '';
+  const tgl = $('#menu-toggle');
+  if (tgl) tgl.setAttribute('aria-expanded', 'false');
+}
+
+function wireAppMenu(): void {
+  if (appMenuWired) return;
+  appMenuWired = true;
+  const menu = getAppMenu();
+  menu.querySelector('#app-menu-close')?.addEventListener('click', closeAppMenu);
+  menu.querySelector('#app-menu-home')?.addEventListener('click', (e) => {
+    closeAppMenu();
+    goToLanding(e.currentTarget as Element);
+  });
+  menu.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => {
+    b.addEventListener('click', (e) => {
+      const tab = b.dataset.tab as Tab;
+      closeAppMenu();
+      pageTransition(e.currentTarget as Element, () => { enterApp(); show(tab); });
+    });
+  });
+  menu.querySelectorAll<HTMLElement>('[data-aml]').forEach((b) =>
+    b.addEventListener('click', () => {
+      pageTransition(b, () => {
+        closeAppMenu();
+        setLang(b.dataset.aml as 'en' | 'vi');
+        // rebuild menu so lang buttons reflect new active state
+        if (appMenuEl) { appMenuEl.remove(); appMenuEl = null; }
+      });
+    }),
+  );
+  menu.querySelector('#app-menu-theme')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget as Element;
+    const light = document.documentElement.classList.contains('light');
+    pageTransition(btn, () => {
+      closeAppMenu();
+      import('./ui/theme.js').then(({ applyTheme }) => applyTheme(light ? 'dark' : 'light'));
+      if (appMenuEl) { appMenuEl.remove(); appMenuEl = null; }
+    });
+  });
+}
+
+const closeNav = (): void => closeAppMenu();
+
+$('#menu-toggle')?.addEventListener('click', () => {
+  const menu = getAppMenu();
+  if (menu.classList.contains('app-menu--open')) {
+    closeAppMenu();
+  } else {
+    wireAppMenu();
+    openAppMenu();
+  }
+});
+// Close with Escape for keyboard/desktop users.
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    closeNav();
+    closeAppMenu();
     setMoreOpen(false);
   }
 });

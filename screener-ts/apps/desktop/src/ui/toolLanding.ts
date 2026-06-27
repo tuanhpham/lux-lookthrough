@@ -15,11 +15,14 @@ export function renderToolLanding(host: HTMLElement, onEnter: (trigger?: Element
           <span class="brand-name">${t('brand.name')}</span>
         </button>
         <div class="tl-topbar-right">
-          <div class="lang-toggle" role="group" aria-label="Language">
+          <div class="lang-toggle topnav-ctrl-desktop" role="group" aria-label="Language">
             <button data-ll="en" class="${lang === 'en' ? 'active' : ''}">EN</button>
             <button data-ll="vi" class="${lang === 'vi' ? 'active' : ''}">VI</button>
           </div>
-          <button id="tl-theme" class="theme-toggle" title="Toggle theme">${isLight ? '☀️' : '🌙'}</button>
+          <button id="tl-theme" class="theme-toggle topnav-ctrl-desktop" title="Toggle theme">${isLight ? '☀️' : '🌙'}</button>
+          <button id="tl-menu-btn" class="menu-toggle tl-menu-btn" aria-label="Menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="22" height="22"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
         </div>
       </div>
 
