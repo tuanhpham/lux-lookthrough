@@ -138,16 +138,16 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: (trigger?: Elem
   <!-- ── Fixed top bar ── -->
   <header class="sl-topbar">
     <div class="sl-brand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="sl-logo-svg"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg>
       <span class="sl-brand-name">The Professional</span>
     </div>
     <div class="sl-topbar-right">
-      <div class="lang-toggle" role="group" aria-label="Language">
-        <button data-ll="en" class="${lang === 'en' ? 'active' : ''}">EN</button>
-        <button data-ll="vi" class="${lang === 'vi' ? 'active' : ''}">VI</button>
-      </div>
-      <button id="sl-theme" class="theme-toggle" title="Toggle theme">${isLight ? '☀️' : '🌙'}</button>
-      <button id="sl-enter-top" class="btn sl-enter-btn">${c.navPrivate}</button>
+      <button id="sl-menu-btn" aria-label="Open menu">
+        <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="22" height="22">
+          <line x1="3" y1="6" x2="19" y2="6"/>
+          <line x1="3" y1="11" x2="19" y2="11"/>
+          <line x1="3" y1="16" x2="19" y2="16"/>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -185,30 +185,70 @@ export function renderLanding(host: HTMLElement, onEnterPrivate: (trigger?: Elem
   <button id="sl-exit-btn">
     <span>${c.navPrivate}</span>
   </button>
+</div>
+
+<!-- Full-screen cinematic menu overlay -->
+<div id="sl-menu">
+  <header class="sl-menu-header">
+    <span class="sl-menu-brand">The Professional</span>
+    <button id="sl-menu-close" aria-label="Close menu">✕</button>
+  </header>
+  <div class="sl-menu-items">
+    <button class="sl-menu-item" id="sl-menu-discover">${c.navPrivate}</button>
+    <div class="sl-menu-controls">
+      <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-ml="en">EN</button>
+      <button class="sl-menu-ctrl${lang === 'vi' ? ' active' : ''}" data-ml="vi">VI</button>
+    </div>
+    <button class="sl-menu-ctrl" id="sl-menu-theme">${isLight ? '☀️' : '🌙'}</button>
+  </div>
 </div>`;
 
   // wire all enter buttons — pass the element so ripple originates from it
   const enter = (e: Event) => onEnterPrivate(e.currentTarget as Element);
-  host.querySelector('#sl-enter-top')!.addEventListener('click', enter);
   host.querySelector('#sl-enter-hero')!.addEventListener('click', enter);
   host.querySelector('#sl-enter-bottom')?.addEventListener('click', enter);
   document.getElementById('sl-exit-btn')?.addEventListener('click', enter);
 
-  // lang
-  host.querySelectorAll<HTMLElement>('[data-ll]').forEach((b) =>
+  // menu open/close helpers
+  const menu = document.getElementById('sl-menu')!;
+  const openMenu = () => {
+    menu.classList.add('sl-menu--open');
+    document.body.style.overflow = 'hidden';
+  };
+  const closeMenu = () => {
+    menu.classList.remove('sl-menu--open');
+    document.body.style.overflow = '';
+  };
+
+  // hamburger
+  host.querySelector('#sl-menu-btn')!.addEventListener('click', openMenu);
+
+  // close button
+  document.getElementById('sl-menu-close')!.addEventListener('click', closeMenu);
+
+  // menu discover
+  document.getElementById('sl-menu-discover')!.addEventListener('click', (e) => {
+    const btn = e.currentTarget as Element;
+    pageTransition(btn, () => { closeMenu(); onEnterPrivate(btn); });
+  });
+
+  // menu lang buttons
+  document.querySelectorAll<HTMLElement>('[data-ml]').forEach((b) =>
     b.addEventListener('click', () => {
       pageTransition(b, () => {
-        setLang(b.dataset.ll as 'en' | 'vi');
+        closeMenu();
+        setLang(b.dataset.ml as 'en' | 'vi');
         renderLanding(host, onEnterPrivate);
       });
     }),
   );
 
-  // theme
-  host.querySelector('#sl-theme')!.addEventListener('click', (e) => {
+  // menu theme button
+  document.getElementById('sl-menu-theme')!.addEventListener('click', (e) => {
     const btn = e.currentTarget as Element;
     const light = document.documentElement.classList.contains('light');
     pageTransition(btn, () => {
+      closeMenu();
       applyTheme(light ? 'dark' : 'light');
       renderLanding(host, onEnterPrivate);
     });
