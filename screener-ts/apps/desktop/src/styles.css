@@ -1748,9 +1748,12 @@ html.light #app-menu {
   /* Portfolio: account tabs wrap tightly */
   #tab-portfolio .toolbar .range-btn { font-size: 10.5px; padding: 5px 8px; }
 
-  /* Volume table: hide less-critical columns */
-  #picks-results table td:nth-child(3),
-  #picks-results table th:nth-child(3) { display: none; }
+  /* Volume table: hide less-critical columns on small screens.
+     Columns: 1=Symbol 2=Vol Ratio 3=Peak Vol 4=Baseline 5=Sector ΔVol% 6=Sector name */
+  #picks-results table td:nth-child(4),
+  #picks-results table th:nth-child(4),
+  #picks-results table td:nth-child(6),
+  #picks-results table th:nth-child(6) { display: none; }
 
   /* As-of controls: stack date input */
   .asof-row { flex-direction: column; align-items: flex-start; }
