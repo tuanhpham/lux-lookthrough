@@ -113,6 +113,12 @@ const SECTOR_BY_SYMBOL: Record<string, string> = (() => {
 /** Momentum pre-filter toggle (F4). Default OFF — the QM/VCP scan runs on the
  * full universe; tick it to narrow to top-momentum names first. */
 let momentumPrefilter = false;
+let minPicksPrice = 0;
+
+/** Recent-window length (trading days) for the Volume strategy. */
+type VolumePeriod = '1w' | '1m' | '3m';
+const VOLUME_PERIOD_DAYS: Record<VolumePeriod, number> = { '1w': 5, '1m': 21, '3m': 63 };
+let volumePeriod: VolumePeriod = '1w';
 
 let picksStrategy: PicksStrategy = 'qm';
 let picksMarket: Market = 'us';
@@ -128,7 +134,10 @@ let scanToken = 0;
  * day is appended by the scanCache layer; an as-of suffix keeps a historical
  * scan in its own slot so it never collides with the live one. */
 function picksCacheId(): string {
-  return `${picksStrategy}:${picksMarket}:${picksUniverse}${momentumPrefilter ? ':pf' : ''}${cacheSuffix('picks')}`;
+  const pf = momentumPrefilter ? ':pf' : '';
+  const mp = minPicksPrice > 0 ? `:p${minPicksPrice}` : '';
+  const vp = picksStrategy === 'volume' ? `:${volumePeriod}` : '';
+  return `${picksStrategy}:${picksMarket}:${picksUniverse}${pf}${mp}${vp}${cacheSuffix('picks')}`;
 }
 
 /** Render the "Scanned at HH:MM today · Refresh" banner into a status element.
@@ -184,11 +193,26 @@ export function renderPicks(ctx: AppContext): void {
       </div>
       <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.filter')}</span>
-        <div class="picks-pill-group">
+        <div class="picks-pill-group" style="align-items:center;gap:12px">
           <label class="muted picks-prefilter-label">
             <input type="checkbox" id="picks-prefilter" ${momentumPrefilter ? 'checked' : ''} />
             ${t('picks.prefilter')}
           </label>
+          <label class="muted" style="display:flex;align-items:center;gap:5px">
+            ${t('picks.minprice')}
+            <input id="picks-minprice" type="number" min="0" step="1"
+              value="${minPicksPrice > 0 ? minPicksPrice : ''}"
+              placeholder="0"
+              style="width:72px" class="field" />
+          </label>
+        </div>
+      </div>
+      <div class="picks-config-row${picksStrategy === 'volume' ? '' : ' hidden'}" id="picks-vol-period-row">
+        <span class="picks-config-label">${t('picks.vol.period')}</span>
+        <div class="picks-pill-group">
+          ${(['1w', '1m', '3m'] as VolumePeriod[])
+            .map((p) => `<button class="range-btn ${p === volumePeriod ? 'active' : ''}" data-volperiod="${p}">${t('picks.vol.period.' + p)}</button>`)
+            .join('')}
         </div>
       </div>
       <div class="picks-config-row">
@@ -212,6 +236,7 @@ export function renderPicks(ctx: AppContext): void {
     b.addEventListener('click', () => {
       picksStrategy = b.dataset.strategy as PicksStrategy;
       root.querySelectorAll('[data-strategy]').forEach((x) => x.classList.toggle('active', x === b));
+      $('#picks-vol-period-row')!.classList.toggle('hidden', picksStrategy !== 'volume');
       void showPicks(ctx);
     }),
   );
@@ -236,6 +261,18 @@ export function renderPicks(ctx: AppContext): void {
     momentumPrefilter = (e.target as HTMLInputElement).checked;
     void showPicks(ctx);
   });
+  $('#picks-minprice')!.addEventListener('change', (e) => {
+    const v = parseFloat((e.target as HTMLInputElement).value);
+    minPicksPrice = isNaN(v) || v < 0 ? 0 : v;
+    void showPicks(ctx);
+  });
+  root.querySelectorAll<HTMLElement>('[data-volperiod]').forEach((b) =>
+    b.addEventListener('click', () => {
+      volumePeriod = b.dataset.volperiod as VolumePeriod;
+      root.querySelectorAll('[data-volperiod]').forEach((x) => x.classList.toggle('active', x === b));
+      void showPicks(ctx);
+    }),
+  );
   wireAsOfControls('picks', root, () => {
     applyHistoricalFlag('picks', root);
     void showPicks(ctx);
@@ -567,6 +604,7 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
     fetched += data.size;
     for (const series of data.values() as IterableIterator<OHLCV>) {
       if (!series.bars || series.bars.length < 60) continue;
+      if (minPicksPrice > 0 && series.bars[series.bars.length - 1]!.close < minPicksPrice) continue;
       scanned += 1;
       const r = scanQm(series.symbol, series.bars, DEFAULT_QM_CONFIG);
       allScans.push(r);
@@ -718,6 +756,12 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
     ranked = ranked.filter((r) => {
       const bars = fullMap.get(r.symbol)?.bars;
       return bars ? detectSurge(bars).isSurge : false;
+    });
+  }
+  if (minPicksPrice > 0) {
+    ranked = ranked.filter((r) => {
+      const bars = fullMap.get(r.symbol)?.bars;
+      return bars ? bars[bars.length - 1]!.close >= minPicksPrice : false;
     });
   }
   const rows: MomentumRow[] = ranked.map((r) => {
@@ -914,10 +958,16 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
   const sectorRanks = computeSectorVolumeRank(fullMap, sectorMap);
   const sectorVolByName = new Map(sectorRanks.map((r) => [r.sector, r.volumeChangePct]));
 
+  const recentDays = VOLUME_PERIOD_DAYS[volumePeriod];
+  const baselineDays = recentDays * 3; // baseline = 3× the recent window
+  const volCfg = { recentDays, baselineDays, minRatio: 2.0 };
+  const minBars = recentDays + baselineDays;
+
   const rows: VolumeRow[] = [];
   for (const [sym, ohlcv] of fullMap) {
-    if (!ohlcv.bars || ohlcv.bars.length < 55) continue; // need recentDays(5) + baselineDays(50)
-    const vs = detectVolumeSurge(ohlcv.bars);
+    if (!ohlcv.bars || ohlcv.bars.length < minBars) continue;
+    if (minPicksPrice > 0 && ohlcv.bars[ohlcv.bars.length - 1]!.close < minPicksPrice) continue;
+    const vs = detectVolumeSurge(ohlcv.bars, volCfg);
     if (!vs.isVolumeSurge) continue;
     const sector = SECTOR_BY_SYMBOL[sym] ?? null;
     rows.push({
