@@ -671,7 +671,7 @@ html.light .sl-chapter[data-ch="4"] .story-final   { color: rgba(30,26,22,.85); 
 .sl-brand-name {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
-  text-transform: uppercase; color: rgba(10,10,10,.75);
+  text-transform: uppercase; color: rgba(255,255,255,.82);
 }
 html.light .sl-brand-name { color: rgba(10,10,10,.75); }
 .sl-topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -684,6 +684,16 @@ html.light .sl-brand-name { color: rgba(10,10,10,.75); }
 }
 html.light #sl-menu-btn { color: rgba(10,10,10,.65); }
 #sl-menu-btn svg { width: 22px; height: 22px; }
+/* Hero Discover in light mode: dark ink to contrast the coloured photo */
+html.light .sl-hero .sl-hero-cta {
+  background: rgba(10,10,10,.08) !important;
+  border-color: rgba(10,10,10,.28) !important;
+  color: rgba(10,10,10,.88) !important;
+}
+html.light .sl-hero .sl-hero-cta:hover {
+  background: rgba(10,10,10,.16) !important;
+  border-color: rgba(10,10,10,.5) !important;
+}
 
 /* ── Full-screen menu overlay ── */
 #sl-menu {
@@ -693,10 +703,10 @@ html.light #sl-menu-btn { color: rgba(10,10,10,.65); }
   transition: opacity 0.6s ease;
   background:
     radial-gradient(ellipse at center,
-      rgba(232,228,223,.0) 0%,
-      rgba(232,228,223,.35) 55%,
-      rgba(232,228,223,.55) 100%),
-    rgba(232,228,223,.82);
+      rgba(14,14,14,.0) 0%,
+      rgba(14,14,14,.35) 55%,
+      rgba(14,14,14,.55) 100%),
+    rgba(14,14,14,.78);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
 }
@@ -720,7 +730,7 @@ html.light #sl-menu {
 .sl-menu-brand {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
-  text-transform: uppercase; color: rgba(10,10,10,.75);
+  text-transform: uppercase; color: rgba(255,255,255,.82);
 }
 html.light .sl-menu-brand { color: rgba(10,10,10,.75); }
 #sl-menu-close,
@@ -870,14 +880,14 @@ html.light .sl-hero-quote {
     0 1px 2px rgba(255,255,255,1);
 }
 .sl-hero-cta {
-  background: rgba(10,10,10,.08); border: 1px solid rgba(10,10,10,.28);
-  color: rgba(10,10,10,.88); font-size: 14px; font-weight: 600; letter-spacing: .04em;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28);
+  color: rgba(255,255,255,.9); font-size: 14px; font-weight: 600; letter-spacing: .04em;
   padding: 12px 28px; border-radius: 999px; cursor: pointer;
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   transition: background .2s, border-color .2s, color .2s;
 }
 .sl-hero-cta:hover {
-  background: rgba(10,10,10,.16); border-color: rgba(10,10,10,.5); color: rgba(10,10,10,1);
+  background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.5); color: #fff;
 }
 html.light .sl-hero-cta {
   background: rgba(10,10,10,.08); border-color: rgba(10,10,10,.28); color: rgba(10,10,10,.88);
