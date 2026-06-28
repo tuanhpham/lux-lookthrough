@@ -33,9 +33,12 @@ export class MarketRouterProvider implements DataProvider {
     private vn: DataProvider,
   ) {}
 
-  /** Only HNX/UPCoM go to VNDirect; HOSE stays on Yahoo for fundamentals. */
+  /** Only HNX/UPCoM go to VNDirect; HOSE stays on Yahoo for fundamentals.
+   * A symbol with no VN exchange suffix is always a US ticker — never route
+   * bare names to VNDirect, since some HNX/UPCoM tickers (e.g. "DLR") collide
+   * with US symbols and would return Vietnamese data for a US stock. */
   private pick(symbol: string): DataProvider {
-    return isHnxOrUpcomTicker(symbol) ? this.vn : this.us;
+    return isVnTicker(symbol) && isHnxOrUpcomTicker(symbol) ? this.vn : this.us;
   }
 
   getOHLCV(symbol: string, period: Period): Promise<OHLCV> {

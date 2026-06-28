@@ -54,6 +54,12 @@ interface ChartMeta {
   fiftyTwoWeekLow?: number;
 }
 
+interface SplitEvent {
+  date: number;       // unix timestamp
+  numerator: number;  // "to" count (e.g. 4 for a 4:1 split)
+  denominator: number;// "from" count (e.g. 1 for a 4:1 split)
+}
+
 interface ChartResult {
   chart: {
     result?: Array<{
@@ -68,6 +74,10 @@ interface ChartResult {
           volume?: (number | null)[];
         }>;
         adjclose?: Array<{ adjclose?: (number | null)[] }>;
+      };
+      events?: {
+        splits?: Record<string, SplitEvent>;
+        dividends?: Record<string, { amount: number; date: number }>;
       };
     }>;
     error?: unknown;
@@ -128,8 +138,42 @@ export class YahooProvider implements DataProvider {
     const bars: Bar[] = [];
     if (result?.timestamp) {
       const q = result.indicators.quote[0]!;
-      const adj = result.indicators.adjclose?.[0]?.adjclose;
-      for (let i = 0; i < result.timestamp.length; i++) {
+
+      // Build a split-only cumulative factor per bar so historical prices are
+      // comparable to today (same as TradingView's default "Adjusted data").
+      // We deliberately IGNORE dividends: dividend-adjusted prices pull older
+      // bars far below market reality for high-yield stocks (e.g. REITs like DLR),
+      // making the chart look completely wrong vs every mainstream charting tool.
+      //
+      // Algorithm: collect all split events sorted newest-first, then walk bars
+      // from oldest to newest accumulating the forward split factor for each bar.
+      // A 4:1 split (numerator=4, denominator=1) on date T means bars BEFORE T
+      // must be divided by 4 to be comparable to post-split prices.
+      const splitEvents = Object.values(result.events?.splits ?? {}).sort(
+        (a, b) => b.date - a.date,
+      );
+
+      // Precompute per-bar split factor walking newest→oldest.
+      // The most-recent bar always has factor=1 (already at post-split prices).
+      // Each split encountered while stepping back multiplies the running factor
+      // by (denominator/numerator): a 4:1 split means pre-split prices are 4×
+      // higher, so we divide by 4 (multiply by 1/4) to normalise to today's scale.
+      const n = result.timestamp.length;
+      const splitFactors = new Float64Array(n).fill(1);
+      let cumFactor = 1;
+      let splitIdx = 0; // points into splitEvents (sorted newest-first)
+      for (let i = n - 1; i >= 0; i--) {
+        const ts = result.timestamp[i]!;
+        // Absorb all splits that fall strictly after this bar's timestamp.
+        while (splitIdx < splitEvents.length && splitEvents[splitIdx]!.date > ts) {
+          const s = splitEvents[splitIdx]!;
+          cumFactor *= s.denominator / s.numerator; // e.g. ×(1/4) for a 4:1 split
+          splitIdx++;
+        }
+        splitFactors[i] = cumFactor;
+      }
+
+      for (let i = 0; i < n; i++) {
         const o = q.open?.[i];
         const h = q.high?.[i];
         const l = q.low?.[i];
@@ -137,19 +181,14 @@ export class YahooProvider implements DataProvider {
         const v = q.volume?.[i];
         if (o == null || h == null || l == null || rawClose == null) continue;
 
-        // Match yfinance `auto_adjust=True`: scale ALL of OHLC by the same
-        // per-bar factor (adjClose / rawClose), leaving volume unadjusted.
-        // Using adjClose for close while keeping raw O/H/L (the old bug) breaks
-        // candles AND diverges from the backend's screener inputs.
-        const adjClose = adj?.[i];
-        const factor = adjClose != null && rawClose !== 0 ? adjClose / rawClose : 1;
+        const f = splitFactors[i]!;
         const d = new Date(result.timestamp[i]! * 1000);
         bars.push({
           date: d.toISOString().slice(0, 10),
-          open: o * factor,
-          high: h * factor,
-          low: l * factor,
-          close: (adjClose ?? rawClose),
+          open: o * f,
+          high: h * f,
+          low: l * f,
+          close: rawClose * f,
           volume: v ?? 0,
         });
       }
