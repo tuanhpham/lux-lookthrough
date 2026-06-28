@@ -544,7 +544,7 @@ html.light .sl-chapter[data-ch="4"]::before {
   );
 }
 
-/* ── Side photo panel: wide but only the outer edge is clear ──
+/* ── Side photo panel ─────────────────────────────────────────────────────────
    The panel spans ~58% of the chapter from the edge.
    A steep linear gradient makes only the outer ~1/3 of the screen
    clearly visible; the rest dissolves into the page background
@@ -559,9 +559,9 @@ html.light .sl-chapter[data-ch="4"]::before {
   z-index: 0;
 }
 .sl-ch-bg--left  { left: 0; right: auto; }
-.sl-ch-bg--right { right: 0; left: auto; }
+.sl-ch-bg--right { right: 0; left: auto; background-position: right center; }
 
-/* Left photo: outer-left edge is clear, fades to transparent before center */
+/* Left photo: outer-left edge is clear, fades to page color before center */
 .sl-ch-bg--left::before {
   content: '';
   position: absolute; inset: 0;
@@ -610,18 +610,18 @@ html.light .sl-ch-bg--right::before {
    Text column is pushed INTO the faded zone (opposite to the clear photo).
    We offset the sl-ch-body wrapper so all children move together. */
 
-/* Left-photo (0, 2): photo clear at left → body pushed right */
+/* Left-photo (0, 2): text starts at 62%, overlapping the faded photo zone */
 .sl-chapter[data-ch="0"] .sl-ch-body,
 .sl-chapter[data-ch="2"] .sl-ch-body {
-  padding-left: clamp(36%, 36%, 36%);
-  padding-right: 4%;
+  padding-left: 62%;
+  padding-right: 3%;
 }
 
-/* Right-photo (1, 3): photo clear at right → body pushed left */
+/* Right-photo (1, 3): text ends at 38%, overlapping the faded photo zone */
 .sl-chapter[data-ch="1"] .sl-ch-body,
 .sl-chapter[data-ch="3"] .sl-ch-body {
-  padding-right: clamp(36%, 36%, 36%);
-  padding-left: 4%;
+  padding-right: 62%;
+  padding-left: 3%;
 }
 
 /* constrain text width inside the offset body */
@@ -859,10 +859,26 @@ html.light .sl-hero-overlay {
 }
 .sl-hero-quote {
   font-size: clamp(22px, 4vw, 38px); font-weight: 300; letter-spacing: .02em;
-  color: rgba(255,255,255,.92); line-height: 1.35; margin: 0 0 40px;
-  font-style: italic; text-shadow: 0 2px 24px rgba(0,0,0,.7);
+  color: rgba(255,255,255,.96); line-height: 1.35; margin: 0 0 40px;
+  font-style: italic;
+  /* Layered dark-halo shadows: tight jet-black at centre, softening outward.
+     Carves the letters out of the moonlit bright centre in dark mode. */
+  text-shadow:
+    0 0 1px rgba(0,0,0,1),
+    0 0 6px rgba(0,0,0,.95),
+    0 0 18px rgba(0,0,0,.85),
+    0 0 38px rgba(0,0,0,.6),
+    0 2px 3px rgba(0,0,0,1);
 }
-html.light .sl-hero-quote { color: rgba(10,10,10,.88); text-shadow: 0 1px 8px rgba(255,255,255,.5); }
+html.light .sl-hero-quote {
+  color: rgba(10,10,10,.92);
+  /* Light-mode halo: luminous white glow pushes dark text off the bright photo. */
+  text-shadow:
+    0 0 2px rgba(255,255,255,1),
+    0 0 10px rgba(255,255,255,.9),
+    0 0 28px rgba(255,255,255,.65),
+    0 1px 2px rgba(255,255,255,1);
+}
 .sl-hero-cta {
   background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28);
   color: rgba(255,255,255,.9); font-size: 14px; font-weight: 600; letter-spacing: .04em;
@@ -891,13 +907,13 @@ html.light .sl-scroll-hint { color: rgba(10,14,22,.3); }
 
 /* ── Narrative scroll ── */
 .sl-story { background: transparent; }
-.sl-story .story-p       { color: #b8b8b8; }
-.sl-story .story-p em    { color: #ebebeb; }
-.sl-story .story-quote span { color: #a0a0a0; border-left-color: rgba(180,180,180,.3); }
+.sl-story .story-p       { color: rgba(255,255,255,.88); }
+.sl-story .story-p em    { color: #fff; }
+.sl-story .story-quote span { color: rgba(255,255,255,.78); border-left-color: rgba(255,255,255,.22); }
 html.light .sl-story { background: transparent; }
-html.light .sl-story .story-p       { color: #5a5650; }
-html.light .sl-story .story-p em    { color: #1e1a16; }
-html.light .sl-story .story-quote span { color: #7a756e; border-left-color: rgba(90,85,78,.28); }
+html.light .sl-story .story-p       { color: rgba(10,10,10,.88); }
+html.light .sl-story .story-p em    { color: #000; }
+html.light .sl-story .story-quote span { color: rgba(10,10,10,.75); border-left-color: rgba(0,0,0,.2); }
 
 /* Text blocks are constrained; scene panels are full-bleed */
 .story-block, .story-quote, .story-final {
@@ -962,8 +978,8 @@ html.light .story-p:has(> em:only-child) { color: rgba(20,16,10,.82); border-lef
 html.light .story-final {
   border-top-color: rgba(0,0,0,.12);
 }
-.sl-story .story-final { color: #aaa; }
-html.light .sl-story .story-final { color: #444; }
+.sl-story .story-final { color: rgba(255,255,255,.72); }
+html.light .sl-story .story-final { color: rgba(10,10,10,.72); }
 .story-attr { display: block; margin-top: 16px; font-size: 13px; font-style: normal; color: var(--faint); font-family: var(--font-mono); letter-spacing: .04em; }
 
 /* ── Chapter-break separators ── */
