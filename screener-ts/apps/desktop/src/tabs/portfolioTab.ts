@@ -803,12 +803,19 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           }
           return String(tickerBars[0]!.close);
         }
-        const initPrice = priceForDate(today());
+        const openShares = active().lots
+          .filter((l) => l.ticker === t && l.remainingShares > 0)
+          .reduce((s, l) => s + l.remainingShares, 0);
+        function roundPrice(raw: string): string {
+          const n = Number(raw);
+          return raw && !Number.isNaN(n) ? n.toFixed(2) : raw;
+        }
+        const initPrice = roundPrice(priceForDate(today()));
         const res = await formDialog(`Sell ${t}`, [
-          { key: 'shares', label: 'Shares to sell', type: 'number' },
+          { key: 'shares', label: 'Shares to sell', type: 'number', value: openShares > 0 ? String(openShares) : '' },
           { key: 'price', label: 'Sell price', type: 'number', value: initPrice },
           { key: 'date', label: 'Date', type: 'date', value: today() },
-        ], { onChange: (vals) => ({ price: priceForDate(vals.date ?? today()) }) });
+        ], { onChange: (vals) => ({ price: roundPrice(priceForDate(vals.date ?? today())) }) });
         if (!res) return;
         const shares = Number(res.shares);
         const price = Number(res.price);
@@ -831,8 +838,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       b.addEventListener('click', async () => {
         const t = b.dataset.stop!;
         const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.stop;
+        const latestPrice = prices(active().account.id)[t];
+        const suggestion = cur != null ? cur.toFixed(2) : latestPrice != null ? latestPrice.toFixed(2) : '';
         const res = await formDialog(`Stop-loss for ${t}`, [
-          { key: 'stop', label: 'Stop price (blank to clear)', type: 'number', value: cur != null ? String(cur) : '' },
+          { key: 'stop', label: 'Stop price (blank to clear)', type: 'number', value: suggestion },
         ]);
         if (!res) return;
         const stop = res.stop === '' ? undefined : Number(res.stop);
@@ -850,8 +859,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       b.addEventListener('click', async () => {
         const t = b.dataset.target!;
         const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.target;
+        const latestPrice = prices(active().account.id)[t];
+        const suggestion = cur != null ? cur.toFixed(2) : latestPrice != null ? latestPrice.toFixed(2) : '';
         const res = await formDialog(`Target for ${t}`, [
-          { key: 'target', label: 'Target price (blank to clear)', type: 'number', value: cur != null ? String(cur) : '' },
+          { key: 'target', label: 'Target price (blank to clear)', type: 'number', value: suggestion },
         ]);
         if (!res) return;
         const target = res.target === '' ? undefined : Number(res.target);
