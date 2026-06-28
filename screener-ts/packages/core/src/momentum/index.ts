@@ -33,3 +33,5 @@ export type { MomentumFilterOptions, MomentumFilterResult } from './momentumFilt
 export { momentumToRow } from './momentumRow.js';
 export { detectSurge, DEFAULT_SURGE_CONFIG } from './surge.js';
 export type { SurgeConfig, SurgeResult } from './surge.js';
+export { detectVolumeSurge, DEFAULT_VOLUME_SURGE_CONFIG } from './volumeSurge.js';
+export type { VolumeSurgeConfig, VolumeSurgeResult } from './volumeSurge.js';

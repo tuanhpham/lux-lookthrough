@@ -25,12 +25,16 @@ export interface ScreenerRow {
   relativeStrength: number;
   distanceFrom52wHighPct: number;
   atrPct: number;
+  /** Recent-vs-baseline volume ratio from detectVolumeSurge (0 = not computed). */
+  volRatio?: number;
+  /** Sector 3m-vs-6m volume change %, for industry comparison. */
+  sectorVolChangePct?: number | null;
 }
 
 export type ScreenerSortKey =
   | 'symbol' | 'qualityScore' | 'setupType' | 'momentumScore' | 'classification'
   | 'return1m' | 'return3m' | 'return6m' | 'relativeStrength'
-  | 'pivot' | 'entryPrice' | 'riskPct' | 'distanceFrom52wHighPct';
+  | 'pivot' | 'entryPrice' | 'riskPct' | 'distanceFrom52wHighPct' | 'volRatio';
 
 interface Column {
   key: ScreenerSortKey;
@@ -48,6 +52,7 @@ const COLUMNS: Column[] = [
   { key: 'return3m', label: '3M', defaultDesc: true },
   { key: 'return6m', label: '6M', defaultDesc: true },
   { key: 'relativeStrength', label: 'RS', defaultDesc: true },
+  { key: 'volRatio', label: 'Vol×', defaultDesc: true },
   { key: 'pivot', label: 'Pivot', defaultDesc: true },
   { key: 'entryPrice', label: 'Entry', defaultDesc: true },
   { key: 'riskPct', label: 'Risk %', defaultDesc: false },
@@ -107,6 +112,15 @@ export function screenerTable(rows: ScreenerRow[], options: ScreenerTableOptions
         `<th class="sortable ${c.key === sortKey ? 'sorted' : ''}" data-sort="${c.key}">${c.label}${arrow(c.key)}</th>`,
     ).join('');
 
+    const volCell = (r: ScreenerRow): string => {
+      if (!r.volRatio) return '—';
+      const color = r.volRatio >= 3 ? 'var(--accent)' : r.volRatio >= 2 ? 'var(--warn)' : 'inherit';
+      const secPart = r.sectorVolChangePct != null
+        ? ` <span class="muted" style="font-size:10px">(sec ${r.sectorVolChangePct >= 0 ? '+' : ''}${r.sectorVolChangePct.toFixed(1)}%)</span>`
+        : '';
+      return `<span style="color:${color};font-weight:700">${r.volRatio.toFixed(2)}×</span>${secPart}`;
+    };
+
     const body = sorted
       .map(
         (r) => `<tr data-sym="${r.symbol}">
@@ -119,6 +133,7 @@ export function screenerTable(rows: ScreenerRow[], options: ScreenerTableOptions
         <td>${retCell(r.return3m)}</td>
         <td>${retCell(r.return6m)}</td>
         <td>${num(r.relativeStrength, 1)}</td>
+        <td>${volCell(r)}</td>
         <td>${fmtPrice(r.pivot, r.symbol)}</td>
         <td>${fmtPrice(r.entryPrice, r.symbol)}</td>
         <td>${r.riskPct != null ? num(r.riskPct, 1) + '%' : '—'}</td>

@@ -14,6 +14,7 @@ import {
   momentumToRow,
   detectRegime,
   detectSurge,
+  detectVolumeSurge,
   filterByMomentum,
   generateWatchlists,
   type Period,
@@ -93,9 +94,9 @@ const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string
 const BIG_UNIVERSES = new Set<UniverseMode>(['all', 'vnall', 'hnx', 'upcom', 'vnmarket']);
 
 /** Top Picks strategies: Qullamaggie (QM pattern setups), Momentum (the
- * exploration scan of strongest movers), and Surge (held above EMA5 all week +
- * a >20% two-week move). The legacy conviction-score presets were removed. */
-type PicksStrategy = 'qm' | 'momentumscan' | 'surge';
+ * exploration scan of strongest movers), Surge (held above EMA5 all week +
+ * a >20% two-week move), and Volume (abnormal volume vs own baseline). */
+type PicksStrategy = 'qm' | 'momentumscan' | 'surge' | 'volume';
 
 /** US index benchmarks for market regime + relative strength (F2). */
 const BENCHMARKS = ['SPY', 'QQQ'];
@@ -166,7 +167,7 @@ export function renderPicks(ctx: AppContext): void {
       <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.strategy') ?? 'Strategy'}</span>
         <div class="picks-pill-group">
-          ${(['qm', 'momentumscan', 'surge'] as PicksStrategy[])
+          ${(['qm', 'momentumscan', 'surge', 'volume'] as PicksStrategy[])
             .map((s) => `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t('picks.' + s)}</button>`)
             .join('')}
         </div>
@@ -269,6 +270,20 @@ async function showPicks(ctx: AppContext): Promise<void> {
           onSortChange: (key, desc) => {
             qmSort = { key, desc };
           },
+        }),
+      );
+      return;
+    }
+  } else if (picksStrategy === 'volume') {
+    const cached = await loadScan<VolumeRow>(ctx, picksCacheId());
+    if (cached) {
+      renderScanBanner(cached.at, cached.scanned, () => void runPicks(ctx));
+      out.replaceChildren(
+        volumeTable(cached.rows, {
+          sortKey: volumeSort.key,
+          sortDesc: volumeSort.desc,
+          onRowClick: (sym) => void openStock(ctx, sym, asOf),
+          onSortChange: (key, desc) => { volumeSort = { key, desc }; },
         }),
       );
       return;
@@ -423,13 +438,16 @@ function renderRegimeBanner(regime: MarketRegime | null, sectors: SectorMomentum
 }
 
 /**
- * Top Picks dispatcher: routes to the Qullamaggie scan, the Momentum
- * exploration scan, or the Surge scan. All are incremental, cancellable, and
- * render their own table; the legacy conviction-score path was removed.
+ * Top Picks dispatcher: routes to the Qullamaggie scan, the Momentum/Surge
+ * scan, or the Volume surge scan.
  */
 async function runPicks(ctx: AppContext): Promise<void> {
   if (picksStrategy === 'momentumscan' || picksStrategy === 'surge') {
     await runMomentumPicks(ctx, picksStrategy === 'surge');
+    return;
+  }
+  if (picksStrategy === 'volume') {
+    await runVolumePicks(ctx);
     return;
   }
   await runQmPicks(ctx);
@@ -744,6 +762,204 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
   finish();
 }
 
+// ── Volume Surge scan ──────────────────────────────────────────────────────────
+
+interface VolumeRow {
+  symbol: string;
+  sector: string | null;
+  price: number;
+  ratio: number;
+  recentAvgVolume: number;
+  baselineAvgVolume: number;
+  sectorVolChangePct: number | null;
+}
+
+type VolumeSortKey = 'symbol' | 'ratio' | 'recentAvgVolume' | 'sectorVolChangePct';
+let volumeSort: { key: VolumeSortKey; desc: boolean } = { key: 'ratio', desc: true };
+
+function volumeTable(
+  rows: VolumeRow[],
+  opts: {
+    sortKey?: VolumeSortKey;
+    sortDesc?: boolean;
+    onRowClick?: (sym: string) => void;
+    onSortChange?: (key: VolumeSortKey, desc: boolean) => void;
+  } = {},
+): HTMLElement {
+  const COLS: { key: VolumeSortKey; label: string; defaultDesc: boolean }[] = [
+    { key: 'symbol', label: 'Symbol', defaultDesc: false },
+    { key: 'ratio', label: t('picks.vol.ratio'), defaultDesc: true },
+    { key: 'recentAvgVolume', label: t('picks.vol.recent'), defaultDesc: true },
+    { key: 'recentAvgVolume', label: t('picks.vol.baseline'), defaultDesc: true },
+    { key: 'sectorVolChangePct', label: t('picks.vol.sector'), defaultDesc: true },
+  ];
+
+  let sortKey = opts.sortKey ?? 'ratio';
+  let sortDesc = opts.sortDesc ?? true;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.style.overflowX = 'auto';
+
+  const render = (): void => {
+    const sortedRows = [...rows].sort((a, b) => {
+      const av = sortKey === 'symbol' ? a[sortKey] : (a[sortKey] ?? -Infinity);
+      const bv = sortKey === 'symbol' ? b[sortKey] : (b[sortKey] ?? -Infinity);
+      let c: number;
+      if (typeof av === 'string') c = av.localeCompare(String(bv));
+      else c = (av as number) - (bv as number);
+      return sortDesc ? -c : c;
+    });
+
+    const arrow = (k: VolumeSortKey): string => (k === sortKey ? (sortDesc ? ' ▾' : ' ▴') : '');
+    // Build header — "Baseline" column reuses the same key as "Recent" for display only
+    const headLabels = ['Symbol', t('picks.vol.ratio'), t('picks.vol.recent'), t('picks.vol.baseline'), t('picks.vol.sector'), 'Sector'];
+    const headKeys: (VolumeSortKey | null)[] = ['symbol', 'ratio', 'recentAvgVolume', null, 'sectorVolChangePct', null];
+    const headHtml = headKeys.map((k, i) =>
+      k != null
+        ? `<th class="sortable ${k === sortKey ? 'sorted' : ''}" data-vsort="${k}">${headLabels[i]}${arrow(k)}</th>`
+        : `<th>${headLabels[i]}</th>`,
+    ).join('');
+
+    const bodyHtml = sortedRows.map((r) => {
+      const sectorStr = r.sectorVolChangePct != null
+        ? `${r.sectorVolChangePct >= 0 ? '+' : ''}${r.sectorVolChangePct.toFixed(1)}%`
+        : '—';
+      const ratioColor = r.ratio >= 3 ? 'var(--accent)' : r.ratio >= 2 ? 'var(--warn)' : 'inherit';
+      return `<tr data-vsym="${r.symbol}" style="cursor:pointer">
+        <td><strong>${r.symbol}</strong></td>
+        <td style="color:${ratioColor};font-weight:700">${r.ratio.toFixed(2)}×</td>
+        <td>${fmtBig(r.recentAvgVolume)}</td>
+        <td class="muted">${fmtBig(r.baselineAvgVolume)}</td>
+        <td>${r.sectorVolChangePct != null ? `<span style="color:${r.sectorVolChangePct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${sectorStr}</span>` : '—'}</td>
+        <td class="muted" style="font-size:11px">${r.sector ?? '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const emptyRow = sortedRows.length === 0
+      ? `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--subtext)">No volume surges found.</td></tr>`
+      : '';
+
+    wrap.innerHTML = `<table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}${emptyRow}</tbody></table>`;
+
+    wrap.querySelectorAll<HTMLElement>('th.sortable').forEach((th) =>
+      th.addEventListener('click', () => {
+        const k = th.dataset.vsort as VolumeSortKey;
+        if (k === sortKey) sortDesc = !sortDesc;
+        else { sortKey = k; sortDesc = COLS.find((c) => c.key === k)?.defaultDesc ?? true; }
+        opts.onSortChange?.(sortKey, sortDesc);
+        render();
+      }),
+    );
+    if (opts.onRowClick) {
+      wrap.querySelectorAll<HTMLElement>('[data-vsym]').forEach((tr) =>
+        tr.addEventListener('click', () => opts.onRowClick!(tr.dataset.vsym!)),
+      );
+    }
+  };
+
+  render();
+  return wrap;
+}
+
+/**
+ * Volume Surge scan: fetches the full universe, runs `detectVolumeSurge` per
+ * symbol to find stocks trading ≥2× their 10-week baseline volume, and ranks
+ * them by ratio descending. Each row is annotated with its sector's 3m-vs-6m
+ * volume change so the user can see whether the surge is stock-specific or
+ * part of a sector rotation.
+ */
+async function runVolumePicks(ctx: AppContext): Promise<void> {
+  const myToken = ++scanToken;
+  const status = $('#picks-status')!;
+  const out = $('#picks-results')!;
+  const progress = $('#picks-progress')!;
+  const bar = $('#picks-bar')!;
+  const stopBtn = $('#picks-stop')!;
+  const runBtn = $('#picks-refresh')!;
+
+  out.innerHTML = '';
+  progress.classList.remove('hidden');
+  stopBtn.classList.remove('hidden');
+  runBtn.classList.add('hidden');
+  bar.style.width = '0%';
+  status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
+
+  const finish = (): void => {
+    progress.classList.add('hidden');
+    stopBtn.classList.add('hidden');
+    runBtn.classList.remove('hidden');
+  };
+
+  let symbols: string[];
+  try {
+    symbols = await resolveUniverse(picksUniverse);
+  } catch {
+    symbols = CURATED;
+  }
+  if (myToken !== scanToken) return;
+
+  const asOf = getAsOf('picks').date;
+  const fetchPeriod = fetchPeriodFor('picks', PERIOD);
+
+  const fullMap = await fetchUniverseToMap(ctx, symbols, myToken, fetchPeriod, asOf);
+  if (fullMap === null) {
+    status.textContent = `${t('picks.stopped')}.`;
+    finish();
+    return;
+  }
+
+  // Sector volume change map (3m vs 6m) for industry comparison context.
+  const sectorMap = picksMarket === 'vn' ? VN_SECTOR_STOCKS : SECTOR_STOCKS;
+  const sectorRanks = computeSectorVolumeRank(fullMap, sectorMap);
+  const sectorVolByName = new Map(sectorRanks.map((r) => [r.sector, r.volumeChangePct]));
+
+  const rows: VolumeRow[] = [];
+  for (const [sym, ohlcv] of fullMap) {
+    if (!ohlcv.bars || ohlcv.bars.length < 55) continue; // need recentDays(5) + baselineDays(50)
+    const vs = detectVolumeSurge(ohlcv.bars);
+    if (!vs.isVolumeSurge) continue;
+    const sector = SECTOR_BY_SYMBOL[sym] ?? null;
+    rows.push({
+      symbol: sym,
+      sector,
+      price: ohlcv.bars[ohlcv.bars.length - 1]!.close,
+      ratio: vs.ratio,
+      recentAvgVolume: vs.recentAvgVolume,
+      baselineAvgVolume: vs.baselineAvgVolume,
+      sectorVolChangePct: sector ? (sectorVolByName.get(sector) ?? null) : null,
+    });
+  }
+
+  rows.sort((a, b) => b.ratio - a.ratio);
+
+  if (myToken !== scanToken) { finish(); return; }
+
+  const label = t('picks.volume');
+  status.textContent =
+    `${t('picks.done')}: ${rows.length} ${label} ${t('picks.matches')} (${t('picks.scanned')} ${fullMap.size}).`;
+
+  const renderTable = (): void => {
+    out.replaceChildren(
+      volumeTable(rows.slice(0, 50), {
+        sortKey: volumeSort.key,
+        sortDesc: volumeSort.desc,
+        onRowClick: (sym) => void openStock(ctx, sym, asOf),
+        onSortChange: (key, desc) => { volumeSort = { key, desc }; },
+      }),
+    );
+  };
+
+  if (!rows.length) {
+    out.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">No ${label} surges found in universe.</div>`;
+  } else {
+    renderTable();
+  }
+
+  void saveScan<VolumeRow>(ctx, picksCacheId(), rows.slice(0, 50), fullMap.size);
+  finish();
+}
+
 // ── Screener ────────────────────────────────────────────────────────────────────
 const selectedSectors = new Set<string>();
 let screenerMarket: Market = 'us';
@@ -928,6 +1144,11 @@ async function runScreen(ctx: AppContext): Promise<void> {
   const { spy: spyRaw } = await fetchBenchmarks(ctx, fetchPeriod, screenerMarket);
   const spy = spyRaw ? sliceSeries(spyRaw, asOf) : null;
 
+  // Sector volume ranks for industry comparison in each row.
+  const screenerSectorStocks = screenerSectorMap();
+  const sectorVolRanks = computeSectorVolumeRank(data, screenerSectorStocks);
+  const screenerSectorVolByName = new Map(sectorVolRanks.map((r) => [r.sector, r.volumeChangePct]));
+
   let scanned = 0;
   const rows: ScreenerRow[] = [];
   for (const series of data.values() as IterableIterator<OHLCV>) {
@@ -939,7 +1160,9 @@ async function runScreen(ctx: AppContext): Promise<void> {
     if (setupFilter && q.setupType !== setupFilter) continue;
     if (q.qualityScore < minQuality) continue;
     if (momentumFilter && classRank[m.classification] < classRank[momentumFilter]) continue;
-    rows.push(toScreenerRow(q, m));
+    const vs = detectVolumeSurge(series.bars);
+    const sector = SECTOR_BY_SYMBOL[series.symbol] ?? null;
+    rows.push(toScreenerRow(q, m, vs.ratio > 0 ? vs.ratio : undefined, sector ? screenerSectorVolByName.get(sector) : undefined));
   }
 
   rows.sort((a, b) => screenerSortValue(b, sortBy) - screenerSortValue(a, sortBy));
@@ -982,6 +1205,7 @@ const SCREENER_EXPORT_COLS: ReportColumn<ScreenerRow>[] = [
   { key: 'return3m', label: '3M %', format: (v) => (v == null ? '' : (v as number).toFixed(1)) },
   { key: 'return6m', label: '6M %', format: (v) => (v == null ? '' : (v as number).toFixed(1)) },
   { key: 'relativeStrength', label: 'RS', format: (v) => (v as number).toFixed(1) },
+  { key: 'volRatio', label: 'Vol×', format: (v) => (v == null ? '' : (v as number).toFixed(2)) },
   { key: 'pivot', label: 'Pivot', format: (v) => (v == null ? '' : (v as number).toFixed(2)) },
   { key: 'entryPrice', label: 'Entry', format: (v) => (v == null ? '' : (v as number).toFixed(2)) },
   { key: 'stopLoss', label: 'Stop', format: (v) => (v == null ? '' : (v as number).toFixed(2)) },
@@ -1017,6 +1241,8 @@ function screenerSortValue(r: ScreenerRow, key: ScreenerSortKey): number {
 function toScreenerRow(
   q: ReturnType<typeof scanQm>,
   m: ReturnType<typeof computeMomentumScore>,
+  volRatio?: number,
+  sectorVolChangePct?: number | null,
 ): ScreenerRow {
   return {
     symbol: q.symbol,
@@ -1036,6 +1262,8 @@ function toScreenerRow(
     relativeStrength: m.relativeStrength,
     distanceFrom52wHighPct: m.distanceFrom52wHighPct,
     atrPct: m.atrPct,
+    volRatio,
+    sectorVolChangePct,
   };
 }
 
