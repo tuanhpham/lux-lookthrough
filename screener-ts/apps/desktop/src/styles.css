@@ -1638,12 +1638,66 @@ html.light #app-menu {
   th { position: static; }
   .grid-cards { grid-template-columns: 1fr; }
 
+  /* ── picks-config card: stack label above pills on narrow screens ── */
+  .picks-config {
+    grid-template-columns: 1fr;
+  }
+  .picks-config-row { display: block; }
+  .picks-config-label {
+    border-right: none;
+    border-bottom: none;
+    padding: 10px 14px 4px;
+    font-size: 9px;
+  }
+  .picks-config-row:not(:last-of-type) .picks-config-label { border-bottom: none; }
+  .picks-config-row:not(:last-of-type) .picks-pill-group {
+    border-bottom: 1px solid var(--border-soft);
+    padding-bottom: 12px;
+  }
+  .picks-pill-group { padding: 6px 14px 10px; gap: 5px; }
+  .picks-config-actions { padding: 12px 14px; gap: 8px; }
+  .picks-config-actions .btn,
+  .picks-config-actions .btn-outline { flex: 1; min-width: 0; }
+
+  /* ── Screener: 4-col filter grid → 2-col ── */
+  #tab-screener .grid[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Screener run row */
+  #tab-screener .row[style*="margin-top:14px"] { flex-direction: column; align-items: stretch; }
+  #run-screen { width: 100%; }
+  #screen-status { text-align: center; }
+
+  /* ── Top Picks: actions row buttons equal width ── */
+  #picks-refresh, #picks-stop { flex-shrink: 0; }
+
+  /* ── Sectors: same treatment as picks config ── */
+  #tab-sectors .picks-config-actions { flex-wrap: wrap; }
+  #load-sectors { width: 100%; }
+
+  /* ── Watchlist: wrap action buttons to 2-up grid ── */
+  #tab-watchlist .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: end;
+  }
+  #tab-watchlist .row #wl-symbol { grid-column: 1 / -1; }
+  #tab-watchlist .row #wl-add { grid-column: 1; }
+  #tab-watchlist .row #wl-refresh { grid-column: 2; }
+  #tab-watchlist .row #wl-plan,
+  #tab-watchlist .row #wl-export,
+  #tab-watchlist .row #wl-import { grid-column: 1 / -1; }
+
   /* ── Paper Trading: phone-friendly layout ────────────────────────── */
-  /* Toolbar: account buttons wrap naturally; shrink text a bit */
-  #tab-portfolio .toolbar { gap: 6px; }
+  #tab-portfolio .toolbar { gap: 6px; flex-wrap: wrap; }
   #tab-portfolio .toolbar .range-btn { font-size: 11px; padding: 5px 10px; }
-  /* ↻ Update + Compare go full-width at the bottom of the toolbar */
+  /* Update + Clear Cache: paired equal-width buttons on their own row */
   #tab-portfolio #acct-update,
+  #tab-portfolio #acct-clear-cache {
+    flex: 1 1 0;
+    margin-left: 0 !important;
+    min-width: 0;
+  }
+  /* Compare goes full width */
   #tab-portfolio #acct-compare { margin-left: 0 !important; width: 100%; }
   /* Stats: 2-up grid instead of 4-up */
   #tab-portfolio .grid[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
@@ -1665,6 +1719,52 @@ html.light #app-menu {
   .modal-body .toolbar .range-btn { padding: 7px 12px; font-size: 12px; }
   .modal-body .grid[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
   #fund-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ── Tight mobile: extra layout adjustments under 600px ── */
+@media (max-width: 600px) {
+  #main { padding-left: 12px; padding-right: 12px; }
+  #main .card { padding: 12px; border-radius: 10px; }
+
+  /* Picks config: tighter pills */
+  .picks-pill-group { gap: 4px; padding: 5px 12px 9px; }
+  .range-btn { padding: 5px 11px; font-size: 11px; }
+
+  /* Screener: single-col filters */
+  #tab-screener .grid[style*="repeat(4"] { grid-template-columns: 1fr !important; }
+
+  /* Sector chips: allow wrapping at smaller size */
+  #sector-chips { gap: 4px; }
+
+  /* Watchlist action row: stack all buttons */
+  #tab-watchlist .row {
+    grid-template-columns: 1fr 1fr;
+  }
+  #tab-watchlist .row #wl-add,
+  #tab-watchlist .row #wl-refresh,
+  #tab-watchlist .row #wl-plan,
+  #tab-watchlist .row #wl-export { grid-column: auto; }
+
+  /* Portfolio: account tabs wrap tightly */
+  #tab-portfolio .toolbar .range-btn { font-size: 10.5px; padding: 5px 8px; }
+
+  /* Volume table: hide less-critical columns */
+  #picks-results table td:nth-child(3),
+  #picks-results table th:nth-child(3) { display: none; }
+
+  /* As-of controls: stack date input */
+  .asof-row { flex-direction: column; align-items: flex-start; }
+  .asof-row .range-btn, .asof-row .asof-date, .asof-row .asof-flag,
+  .asof-row .asof-live { align-self: flex-start; }
+
+  /* h1 smaller on tiny screens */
+  #main h1 { font-size: 20px; letter-spacing: .02em; }
+  #main .subtitle { margin-bottom: 18px; }
+
+  /* Modal: tighter head */
+  .modal-head { padding: 12px 16px; }
+  #modal-title { font-size: 15px; }
+  .modal-body { padding: 14px 16px; }
 }
 
 /* ── Stock detail analysis: keep text readable in every orientation ──────── */
