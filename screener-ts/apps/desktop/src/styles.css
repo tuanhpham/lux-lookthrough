@@ -673,7 +673,7 @@ html.light .sl-chapter[data-ch="4"] .story-final   { color: rgba(30,26,22,.85); 
   font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
   text-transform: uppercase; color: rgba(255,255,255,.82);
 }
-html.light .sl-brand-name { color: rgba(10,10,10,.75); }
+html.light .sl-brand-name { color: rgba(255,255,255,.85); }
 .sl-topbar-right { display: flex; align-items: center; gap: 10px; }
 
 /* hamburger button */
@@ -682,7 +682,7 @@ html.light .sl-brand-name { color: rgba(10,10,10,.75); }
   color: rgba(255,255,255,.75); padding: 4px;
   display: flex; align-items: center; justify-content: center;
 }
-html.light #sl-menu-btn { color: rgba(10,10,10,.65); }
+html.light #sl-menu-btn { color: rgba(255,255,255,.85); }
 #sl-menu-btn svg { width: 22px; height: 22px; }
 /* Hero Discover in light mode: dark ink to contrast the coloured photo */
 html.light .sl-hero .sl-hero-cta {
@@ -880,14 +880,14 @@ html.light .sl-hero-quote {
     0 1px 2px rgba(255,255,255,1);
 }
 .sl-hero-cta {
-  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28);
-  color: rgba(255,255,255,.9); font-size: 14px; font-weight: 600; letter-spacing: .04em;
+  background: rgba(10,10,10,.08); border: 1px solid rgba(10,10,10,.28);
+  color: rgba(10,10,10,.88); font-size: 14px; font-weight: 600; letter-spacing: .04em;
   padding: 12px 28px; border-radius: 999px; cursor: pointer;
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   transition: background .2s, border-color .2s, color .2s;
 }
 .sl-hero-cta:hover {
-  background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.5); color: #fff;
+  background: rgba(10,10,10,.16); border-color: rgba(10,10,10,.5); color: rgba(10,10,10,1);
 }
 html.light .sl-hero-cta {
   background: rgba(10,10,10,.08); border-color: rgba(10,10,10,.28); color: rgba(10,10,10,.88);
