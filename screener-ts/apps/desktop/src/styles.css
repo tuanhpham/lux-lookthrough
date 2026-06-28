@@ -1412,25 +1412,27 @@ html.light #tl-menu {
 
 /* ── Responsive ── */
 @media (max-width: 700px) {
-  /* photo: full chapter background on mobile — maximum visual impact */
+  /* photo: full chapter background on mobile — blur + scale to hide blur edges */
   .sl-ch-bg {
     inset: 0; width: 100%; height: 100%;
     border-radius: 0;
+    filter: blur(5px);
+    transform: scale(1.06); /* prevent blurred edges showing */
   }
-  /* gradient: photo visible at edges, darkened in the center where text sits */
+  /* overlay: heavier dark veil so text reads clearly over the blurred photo */
   .sl-ch-bg--left::before,
   .sl-ch-bg--right::before {
     background: radial-gradient(ellipse at center,
-      #242424cc 0%,
-      #24242466 50%,
-      transparent 100%);
+      rgba(0,0,0,.72) 0%,
+      rgba(0,0,0,.55) 50%,
+      rgba(0,0,0,.35) 100%);
   }
   html.light .sl-ch-bg--left::before,
   html.light .sl-ch-bg--right::before {
     background: radial-gradient(ellipse at center,
-      #e8e4dfcc 0%,
-      #e8e4df66 50%,
-      transparent 100%);
+      rgba(232,228,223,.82) 0%,
+      rgba(232,228,223,.65) 50%,
+      rgba(232,228,223,.4) 100%);
   }
 
   /* text body: centered, no side offset */
@@ -1444,16 +1446,16 @@ html.light #tl-menu {
     padding-bottom: 0;
     background: none;
   }
-  html.light .sl-chapter[data-ch="0"] .sl-ch-body,
-  html.light .sl-chapter[data-ch="1"] .sl-ch-body,
-  html.light .sl-chapter[data-ch="2"] .sl-ch-body,
-  html.light .sl-chapter[data-ch="3"] .sl-ch-body {
-    background: none;
-  }
-  /* stronger text contrast in light mode where photo gradient meets text */
-  html.light .sl-story .story-p       { color: #2a2620; }
-  html.light .sl-story .story-p em    { color: #0e0c09; }
-  html.light .sl-story .story-quote span { color: #3a3630; }
+
+  /* text: lift to near-white on dark mobile for legibility over blurred photo */
+  .sl-story .story-p       { color: rgba(255,255,255,.88); }
+  .sl-story .story-p em    { color: #fff; }
+  .sl-story .story-quote span { color: rgba(255,255,255,.78); }
+  .sl-story .story-final   { color: rgba(255,255,255,.7); }
+  /* light mode: stronger dark contrast */
+  html.light .sl-story .story-p       { color: #1e1a16; }
+  html.light .sl-story .story-p em    { color: #0a0806; }
+  html.light .sl-story .story-quote span { color: #2e2a24; }
 
   /* hero is always exactly one viewport — keep it centred */
   .sl-hero { justify-content: center; }
