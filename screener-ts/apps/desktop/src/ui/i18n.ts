@@ -63,7 +63,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.surge': { en: 'Surge', vi: 'Bứt tốc' },
   'picks.volume': { en: 'Volume', vi: 'Khối lượng' },
   'picks.vol.period': { en: 'Volume period', vi: 'Kỳ khối lượng' },
-  'picks.vol.minavgvol': { en: 'Min Avg Vol', vi: 'KL TB tối thiểu' },
+  'picks.vol.minavgvol': { en: 'Min Peak Vol', vi: 'KL đỉnh tối thiểu' },
   'picks.vol.period.1w': { en: '1 Week', vi: '1 tuần' },
   'picks.vol.period.1m': { en: '1 Month', vi: '1 tháng' },
   'picks.vol.period.3m': { en: '3 Months', vi: '3 tháng' },

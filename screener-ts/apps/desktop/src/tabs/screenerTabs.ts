@@ -1010,13 +1010,14 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
   const minBars = recentDays + baselineDays;
 
   const rows: VolumeRow[] = [];
+  let filteredByBars = 0, filteredByPrice = 0, filteredByRatio = 0, filteredByPeakVol = 0;
   for (const [sym, ohlcv] of fullMap) {
-    if (!ohlcv.bars || ohlcv.bars.length < minBars) continue;
-    if (minPicksPrice > 0 && ohlcv.bars[ohlcv.bars.length - 1]!.close < minPicksPrice) continue;
+    if (!ohlcv.bars || ohlcv.bars.length < minBars) { filteredByBars++; continue; }
+    if (minPicksPrice > 0 && ohlcv.bars[ohlcv.bars.length - 1]!.close < minPicksPrice) { filteredByPrice++; continue; }
     const vs = detectVolumeSurge(ohlcv.bars, volCfg);
-    if (!vs.isVolumeSurge) continue;
-    // Min avg vol filters by baseline average — the stock's typical quiet-day volume.
-    if (minAvgVol > 0 && vs.baselineAvgVolume < minAvgVol) continue;
+    if (!vs.isVolumeSurge) { filteredByRatio++; continue; }
+    // Min peak vol filter: the spike itself must meet the liquidity threshold.
+    if (minAvgVol > 0 && vs.peakVolume < minAvgVol) { filteredByPeakVol++; continue; }
     const sector = SECTOR_BY_SYMBOL[sym] ?? null;
     rows.push({
       symbol: sym,
@@ -1035,8 +1036,14 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
   if (myToken !== scanToken) { finish(); return; }
 
   const label = t('picks.volume');
+  const filterParts: string[] = [];
+  if (filteredByBars > 0) filterParts.push(`${filteredByBars} no history`);
+  if (filteredByPrice > 0) filterParts.push(`${filteredByPrice} price<${minPicksPrice}`);
+  if (filteredByRatio > 0) filterParts.push(`${filteredByRatio} no spike`);
+  if (filteredByPeakVol > 0) filterParts.push(`${filteredByPeakVol} peak<${fmtBig(minAvgVol)}`);
+  const filterNote = filterParts.length ? ` · filtered: ${filterParts.join(', ')}` : '';
   status.textContent =
-    `${t('picks.done')}: ${rows.length} ${label} ${t('picks.matches')} (${t('picks.scanned')} ${fullMap.size}).`;
+    `${t('picks.done')}: ${rows.length} ${label} ${t('picks.matches')} (${t('picks.scanned')} ${fullMap.size}${filterNote}).`;
 
   const renderTable = (): void => {
     out.replaceChildren(
