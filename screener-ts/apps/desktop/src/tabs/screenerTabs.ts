@@ -113,7 +113,24 @@ const SECTOR_BY_SYMBOL: Record<string, string> = (() => {
 /** Momentum pre-filter toggle (F4). Default OFF — the QM/VCP scan runs on the
  * full universe; tick it to narrow to top-momentum names first. */
 let momentumPrefilter = false;
-let minPicksPrice = 0;
+
+const MIN_PRICE_OPTS_US = [0, 1, 5, 10, 20, 50] as const;
+const MIN_PRICE_OPTS_VN = [0, 5_000, 10_000, 20_000, 50_000, 100_000] as const;
+type MinPriceOpt = 0 | 1 | 5 | 10 | 20 | 50 | 5000 | 10000 | 20000 | 50000 | 100000;
+let minPicksPrice: MinPriceOpt = 0;
+
+function minPriceOpts(): readonly number[] {
+  return picksMarket === 'vn' ? MIN_PRICE_OPTS_VN : MIN_PRICE_OPTS_US;
+}
+function minPriceLabel(v: number): string {
+  if (v === 0) return t('opt.any');
+  if (picksMarket === 'vn') return v >= 1000 ? `${v / 1000}K` : String(v);
+  return `$${v}`;
+}
+
+const MIN_AVG_VOL_OPTS = [0, 10_000, 50_000, 100_000, 200_000, 500_000, 1_000_000] as const;
+type MinAvgVolOpt = (typeof MIN_AVG_VOL_OPTS)[number];
+let minAvgVol: MinAvgVolOpt = 0;
 
 /** Recent-window length (trading days) for the Volume strategy. */
 type VolumePeriod = '1w' | '1m' | '3m';
@@ -137,7 +154,8 @@ function picksCacheId(): string {
   const pf = momentumPrefilter ? ':pf' : '';
   const mp = minPicksPrice > 0 ? `:p${minPicksPrice}` : '';
   const vp = picksStrategy === 'volume' ? `:${volumePeriod}` : '';
-  return `${picksStrategy}:${picksMarket}:${picksUniverse}${pf}${mp}${vp}${cacheSuffix('picks')}`;
+  const mv = picksStrategy === 'volume' && minAvgVol > 0 ? `:v${minAvgVol}` : '';
+  return `${picksStrategy}:${picksMarket}:${picksUniverse}${pf}${mp}${vp}${mv}${cacheSuffix('picks')}`;
 }
 
 /** Render the "Scanned at HH:MM today · Refresh" banner into a status element.
@@ -192,18 +210,15 @@ export function renderPicks(ctx: AppContext): void {
         <div class="picks-pill-group" id="picks-uni-row"></div>
       </div>
       <div class="picks-config-row">
+        <span class="picks-config-label">${t('picks.minprice')}</span>
+        <div class="picks-pill-group" id="picks-minprice-row"></div>
+      </div>
+      <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.filter')}</span>
-        <div class="picks-pill-group" style="align-items:center;gap:12px">
-          <label class="muted picks-prefilter-label">
+        <div class="picks-pill-group">
+          <label class="picks-prefilter-label">
             <input type="checkbox" id="picks-prefilter" ${momentumPrefilter ? 'checked' : ''} />
             ${t('picks.prefilter')}
-          </label>
-          <label class="muted" style="display:flex;align-items:center;gap:5px">
-            ${t('picks.minprice')}
-            <input id="picks-minprice" type="number" min="0" step="1"
-              value="${minPicksPrice > 0 ? minPicksPrice : ''}"
-              placeholder="0"
-              style="width:72px" class="field" />
           </label>
         </div>
       </div>
@@ -213,6 +228,16 @@ export function renderPicks(ctx: AppContext): void {
           ${(['1w', '1m', '3m'] as VolumePeriod[])
             .map((p) => `<button class="range-btn ${p === volumePeriod ? 'active' : ''}" data-volperiod="${p}">${t('picks.vol.period.' + p)}</button>`)
             .join('')}
+        </div>
+      </div>
+      <div class="picks-config-row${picksStrategy === 'volume' ? '' : ' hidden'}" id="picks-vol-minavgvol-row">
+        <span class="picks-config-label">${t('picks.vol.minavgvol')}</span>
+        <div class="picks-pill-group">
+          ${(MIN_AVG_VOL_OPTS as readonly MinAvgVolOpt[]).map((v) =>
+            `<button class="range-btn ${v === minAvgVol ? 'active' : ''}" data-minavgvol="${v}">${
+              v === 0 ? t('opt.any') : v >= 1_000_000 ? '1M' : `${v / 1000}K`
+            }</button>`
+          ).join('')}
         </div>
       </div>
       <div class="picks-config-row">
@@ -236,7 +261,9 @@ export function renderPicks(ctx: AppContext): void {
     b.addEventListener('click', () => {
       picksStrategy = b.dataset.strategy as PicksStrategy;
       root.querySelectorAll('[data-strategy]').forEach((x) => x.classList.toggle('active', x === b));
-      $('#picks-vol-period-row')!.classList.toggle('hidden', picksStrategy !== 'volume');
+      const isVol = picksStrategy === 'volume';
+      $('#picks-vol-period-row')!.classList.toggle('hidden', !isVol);
+      $('#picks-vol-minavgvol-row')!.classList.toggle('hidden', !isVol);
       void showPicks(ctx);
     }),
   );
@@ -249,10 +276,12 @@ export function renderPicks(ctx: AppContext): void {
       picksUniverse = UNIVERSES_BY_MARKET[m][0]!.mode;
       root.querySelectorAll('[data-market]').forEach((x) => x.classList.toggle('active', x === b));
       renderUniverseRow(ctx);
+      renderMinPriceRow(ctx);
       void showPicks(ctx);
     }),
   );
   renderUniverseRow(ctx);
+  renderMinPriceRow(ctx);
   $('#picks-refresh')!.addEventListener('click', () => void runPicks(ctx));
   $('#picks-stop')!.addEventListener('click', () => {
     scanToken++; // abort the running scan loop
@@ -261,11 +290,13 @@ export function renderPicks(ctx: AppContext): void {
     momentumPrefilter = (e.target as HTMLInputElement).checked;
     void showPicks(ctx);
   });
-  $('#picks-minprice')!.addEventListener('change', (e) => {
-    const v = parseFloat((e.target as HTMLInputElement).value);
-    minPicksPrice = isNaN(v) || v < 0 ? 0 : v;
-    void showPicks(ctx);
-  });
+  root.querySelectorAll<HTMLElement>('[data-minavgvol]').forEach((b) =>
+    b.addEventListener('click', () => {
+      minAvgVol = parseInt(b.dataset.minavgvol!, 10) as MinAvgVolOpt;
+      root.querySelectorAll('[data-minavgvol]').forEach((x) => x.classList.toggle('active', x === b));
+      void showPicks(ctx);
+    }),
+  );
   root.querySelectorAll<HTMLElement>('[data-volperiod]').forEach((b) =>
     b.addEventListener('click', () => {
       volumePeriod = b.dataset.volperiod as VolumePeriod;
@@ -372,6 +403,22 @@ function renderUniverseRow(ctx: AppContext): void {
       picksUniverse = b.dataset.universe as UniverseMode;
       row.querySelectorAll('[data-universe]').forEach((x) => x.classList.toggle('active', x === b));
       $('#picks-uni-hint')!.textContent = universeHint();
+      void showPicks(ctx);
+    }),
+  );
+}
+
+function renderMinPriceRow(ctx: AppContext): void {
+  const row = $('#picks-minprice-row')!;
+  // Reset selection when current value doesn't exist in the new market's presets.
+  if (!minPriceOpts().includes(minPicksPrice)) minPicksPrice = 0;
+  row.innerHTML = minPriceOpts()
+    .map((v) => `<button class="range-btn ${v === minPicksPrice ? 'active' : ''}" data-minprice="${v}">${minPriceLabel(v)}</button>`)
+    .join('');
+  row.querySelectorAll<HTMLElement>('[data-minprice]').forEach((b) =>
+    b.addEventListener('click', () => {
+      minPicksPrice = parseInt(b.dataset.minprice!, 10) as MinPriceOpt;
+      row.querySelectorAll('[data-minprice]').forEach((x) => x.classList.toggle('active', x === b));
       void showPicks(ctx);
     }),
   );
@@ -813,12 +860,13 @@ interface VolumeRow {
   sector: string | null;
   price: number;
   ratio: number;
+  peakVolume: number;
   recentAvgVolume: number;
   baselineAvgVolume: number;
   sectorVolChangePct: number | null;
 }
 
-type VolumeSortKey = 'symbol' | 'ratio' | 'recentAvgVolume' | 'sectorVolChangePct';
+type VolumeSortKey = 'symbol' | 'ratio' | 'peakVolume' | 'sectorVolChangePct';
 let volumeSort: { key: VolumeSortKey; desc: boolean } = { key: 'ratio', desc: true };
 
 function volumeTable(
@@ -833,8 +881,7 @@ function volumeTable(
   const COLS: { key: VolumeSortKey; label: string; defaultDesc: boolean }[] = [
     { key: 'symbol', label: 'Symbol', defaultDesc: false },
     { key: 'ratio', label: t('picks.vol.ratio'), defaultDesc: true },
-    { key: 'recentAvgVolume', label: t('picks.vol.recent'), defaultDesc: true },
-    { key: 'recentAvgVolume', label: t('picks.vol.baseline'), defaultDesc: true },
+    { key: 'peakVolume', label: t('picks.vol.peak'), defaultDesc: true },
     { key: 'sectorVolChangePct', label: t('picks.vol.sector'), defaultDesc: true },
   ];
 
@@ -856,9 +903,8 @@ function volumeTable(
     });
 
     const arrow = (k: VolumeSortKey): string => (k === sortKey ? (sortDesc ? ' ▾' : ' ▴') : '');
-    // Build header — "Baseline" column reuses the same key as "Recent" for display only
-    const headLabels = ['Symbol', t('picks.vol.ratio'), t('picks.vol.recent'), t('picks.vol.baseline'), t('picks.vol.sector'), 'Sector'];
-    const headKeys: (VolumeSortKey | null)[] = ['symbol', 'ratio', 'recentAvgVolume', null, 'sectorVolChangePct', null];
+    const headLabels = ['Symbol', t('picks.vol.ratio'), t('picks.vol.peak'), t('picks.vol.baseline'), t('picks.vol.sector'), 'Sector'];
+    const headKeys: (VolumeSortKey | null)[] = ['symbol', 'ratio', 'peakVolume', null, 'sectorVolChangePct', null];
     const headHtml = headKeys.map((k, i) =>
       k != null
         ? `<th class="sortable ${k === sortKey ? 'sorted' : ''}" data-vsort="${k}">${headLabels[i]}${arrow(k)}</th>`
@@ -873,7 +919,7 @@ function volumeTable(
       return `<tr data-vsym="${r.symbol}" style="cursor:pointer">
         <td><strong>${r.symbol}</strong></td>
         <td style="color:${ratioColor};font-weight:700">${r.ratio.toFixed(2)}×</td>
-        <td>${fmtBig(r.recentAvgVolume)}</td>
+        <td>${fmtBig(r.peakVolume)}</td>
         <td class="muted">${fmtBig(r.baselineAvgVolume)}</td>
         <td>${r.sectorVolChangePct != null ? `<span style="color:${r.sectorVolChangePct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${sectorStr}</span>` : '—'}</td>
         <td class="muted" style="font-size:11px">${r.sector ?? '—'}</td>
@@ -969,12 +1015,15 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
     if (minPicksPrice > 0 && ohlcv.bars[ohlcv.bars.length - 1]!.close < minPicksPrice) continue;
     const vs = detectVolumeSurge(ohlcv.bars, volCfg);
     if (!vs.isVolumeSurge) continue;
+    // Min avg vol filters by baseline average — the stock's typical quiet-day volume.
+    if (minAvgVol > 0 && vs.baselineAvgVolume < minAvgVol) continue;
     const sector = SECTOR_BY_SYMBOL[sym] ?? null;
     rows.push({
       symbol: sym,
       sector,
       price: ohlcv.bars[ohlcv.bars.length - 1]!.close,
       ratio: vs.ratio,
+      peakVolume: vs.peakVolume,
       recentAvgVolume: vs.recentAvgVolume,
       baselineAvgVolume: vs.baselineAvgVolume,
       sectorVolChangePct: sector ? (sectorVolByName.get(sector) ?? null) : null,
