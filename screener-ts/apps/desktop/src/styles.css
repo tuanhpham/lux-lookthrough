@@ -1490,13 +1490,15 @@ html.light #tl-menu {
 
 /* ── Info tooltips ───────────────────────────────────────────────────────── */
 .info-i {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 13px; height: 13px; border-radius: 999px;
-  background: color-mix(in srgb, var(--subtext) 18%, transparent);
-  color: var(--subtext); font-size: 8px; font-weight: 800; font-style: normal;
-  cursor: help; vertical-align: middle; margin-left: 3px;
+  display: inline-block;
+  width: 10px; height: 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--subtext) 15%, transparent);
+  color: var(--subtext); font-size: 7px; font-weight: 700; font-style: italic;
+  text-align: center; line-height: 10px;
+  cursor: help; vertical-align: top; margin-left: 1px;
   transition: background .15s, color .15s, box-shadow .15s;
   border: 1px solid var(--border-soft);
+  position: relative; top: 1px;
 }
 .info-i:hover {
   background: var(--accent); color: var(--accent-ink);

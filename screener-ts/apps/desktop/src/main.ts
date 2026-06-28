@@ -46,7 +46,7 @@ const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'portfolio', 'backtes
 type Tab = (typeof TABS)[number];
 
 let entered = false;
-let currentTab: Tab = 'picks';
+let currentTab: Tab = 'portfolio';
 
 /** Apply translations to every [data-i18n] node and sync the language toggle. */
 function applyStaticI18n(): void {
@@ -119,7 +119,7 @@ function enterApp(): void {
   applyStaticI18n();
   if (entered) return;
   entered = true;
-  show('picks');
+  show('portfolio');
 }
 
 function showToolLanding(): void {
@@ -160,11 +160,11 @@ function buildAppMenu(): HTMLElement {
     <nav class="app-menu-nav">
       <div class="app-menu-col">
         <button class="sl-menu-item" id="app-menu-home">${t('nav.home')}</button>
+        <button class="sl-menu-item" data-amtab="portfolio">${t('nav.portfolio')}</button>
         <button class="sl-menu-item" data-amtab="picks">${t('nav.picks')}</button>
         <button class="sl-menu-item" data-amtab="screener">${t('nav.screener')}</button>
         <button class="sl-menu-item" data-amtab="watchlist">${t('nav.watchlist')}</button>
         <button class="sl-menu-item" data-amtab="sectors">${t('nav.sectors')}</button>
-        <button class="sl-menu-item" data-amtab="portfolio">${t('nav.portfolio')}</button>
       </div>
       <div class="app-menu-col">
         <button class="sl-menu-item" data-amtab="backtest">${t('nav.backtest')}</button>

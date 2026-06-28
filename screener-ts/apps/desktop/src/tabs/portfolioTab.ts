@@ -27,6 +27,19 @@ import { formDialog } from '../ui/forms.js';
 import { attachCombobox } from '../ui/combobox.js';
 import { openStock } from '../ui/stockModal.js';
 import { infoIcon, attachTooltips } from '../ui/tooltip.js';
+import { t } from '../ui/i18n.js';
+
+function noDataHtml(msg?: string): string {
+  const text = msg ?? t('pf.nodata');
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:160px;gap:10px;user-select:none">
+    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" opacity=".25">
+      <rect x="6" y="10" width="28" height="22" rx="3" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M6 16h28" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2"/>
+      <path d="M13 26l4-5 4 4 4-6 4 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="muted" style="font-size:12px;text-align:center;line-height:1.5;max-width:200px">${text}</span>
+  </div>`;
+}
 
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())].sort();
 
@@ -294,18 +307,19 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
 
 function toolbarHtml(): string {
   return `<div class="toolbar">
-      <button class="range-btn ${activeId === OVERVIEW_ID ? 'active' : ''}" data-acct="${OVERVIEW_ID}">Overview</button>
+      <button class="range-btn ${activeId === OVERVIEW_ID ? 'active' : ''}" data-acct="${OVERVIEW_ID}">${t('pf.overview')}</button>
       ${accounts
         .map(
           (a) =>
             `<button class="range-btn ${a.account.id === activeId ? 'active' : ''}" data-acct="${a.account.id}">${a.account.name}</button>`,
         )
         .join('')}
-      <button id="acct-new" class="range-btn">＋ New account</button>
-      <button id="acct-edit" class="range-btn"${activeId === OVERVIEW_ID ? ' disabled' : ''}>✎ Edit account</button>
-      <button id="acct-delete" class="range-btn"${activeId === OVERVIEW_ID ? ' disabled' : ''}>🗑 Delete account</button>
-      <button id="acct-update" class="btn" style="margin-left:auto"${activeId === OVERVIEW_ID ? ' disabled title="Switch to an individual account to update prices"' : ''}>↻ Update</button>
-      <button id="acct-clear-cache" class="btn-outline"${activeId === OVERVIEW_ID ? ' disabled' : ''} title="Wipe cached price bars so next update re-fetches full history">Clear cache</button>
+      <button id="acct-new" class="range-btn">${t('pf.newacct')}</button>
+      <button id="acct-edit" class="range-btn"${activeId === OVERVIEW_ID ? ' disabled' : ''}>${t('pf.editacct')}</button>
+      <button id="acct-delete" class="range-btn"${activeId === OVERVIEW_ID ? ' disabled' : ''}>${t('pf.delacct')}</button>
+      ${activeId !== OVERVIEW_ID ? `
+      <button id="acct-update" class="btn" style="margin-left:auto">${t('pf.update')}</button>
+      <button id="acct-clear-cache" class="btn-outline" title="${t('pf.clearcache')}">${t('pf.clearcache')}</button>` : ''}
     </div>`;
 }
 
@@ -332,30 +346,30 @@ function draw(ctx: AppContext): void {
   const cache = (st as AccountState & { _candleCache?: ReturnType<typeof buildCandleSeries> })._candleCache;
 
   root.innerHTML = `
-    <h1>Paper Trading</h1>
-    <p class="subtitle">Independent multi-account strategy testing. All cash, PnL and risk are per account.</p>
+    <h1>${t('pf.title')}</h1>
+    <p class="subtitle">${t('pf.sub')}</p>
     ${toolbarHtml()}
     <div id="update-status" class="muted" style="margin-bottom:10px"></div>
 
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
       <div class="stat"><div class="k">Initial capital</div><div class="v">${money(st.account.initialCapital)}</div></div>
-      <div class="stat"><div class="k">Equity</div><div class="v">${money(m.equity)}</div></div>
-      <div class="stat"><div class="k">Cash</div><div class="v">${money(m.cash)}</div></div>
-      <div class="stat"><div class="k">Total PnL</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(m.totalPnL)} (${pct(m.totalPnLPct)})</div></div>
-      <div class="stat"><div class="k">Open risk</div><div class="v">${money(m.totalOpenRiskEur)} (${pct(m.totalOpenRiskPct)})</div></div>
-      <div class="stat"><div class="k">Realized / Unrealized</div><div class="v">${money(m.realizedPnL)} / ${money(m.unrealizedPnL)}</div></div>
-      <div class="stat"><div class="k">Win rate</div><div class="v">${num(m.winRate * 100, 0)}%</div></div>
-      <div class="stat"><div class="k">Avg R / Expectancy</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(m.expectancy)}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.equity')}</div><div class="v">${money(m.equity)}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.cash')}</div><div class="v">${money(m.cash)}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.pnl')}</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(m.totalPnL)} (${pct(m.totalPnLPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.risk')}</div><div class="v">${money(m.totalOpenRiskEur)} (${pct(m.totalOpenRiskPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.realizedpnl')} / ${t('pf.stat.unrealpnl')}</div><div class="v">${money(m.realizedPnL)} / ${money(m.unrealizedPnL)}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.winrate')}</div><div class="v">${num(m.winRate * 100, 0)}%</div></div>
+      <div class="stat"><div class="k">Avg R / ${t('pf.stat.expectancy')}</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(m.expectancy)}</div></div>
       <div class="stat"><div class="k">Max drawdown</div><div class="v">${num(m.maxDrawdownPct, 1)}%</div></div>
       <div class="stat"><div class="k">Avg holding period</div><div class="v">${avgHold.count ? num(avgHold.days, 0) + ' days' : '—'}</div></div>
     </div>
 
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
-        <span class="section-title" style="margin:0">Portfolio</span>
+        <span class="section-title" style="margin:0">${t('pf.title')}</span>
         <div class="toolbar" style="margin:0;gap:4px">
-          <button class="range-btn" data-pf-view="equity">Equity</button>
-          <button class="range-btn active" data-pf-view="candle">Candle</button>
+          <button class="range-btn" data-pf-view="equity">${t('pf.chart.equity')}</button>
+          <button class="range-btn active" data-pf-view="candle">${t('pf.chart.candle')}</button>
         </div>
         <div class="toolbar" style="margin:0;gap:4px" id="pf-range-bar">
           <button class="range-btn active" data-pf-range="all">All</button>
@@ -378,22 +392,22 @@ function draw(ctx: AppContext): void {
 
     ${m.openPositionsWithoutStop > 0 ? `<div class="notice" style="margin-bottom:12px">${m.openPositionsWithoutStop} open position(s) have no stop set — risk is excluded until you add one.</div>` : ''}
 
-    <div class="section-title">Open Positions <span class="muted" style="text-transform:none;font-weight:400">— click a ticker to open its chart</span></div>
+    <div class="section-title">${t('pf.sec.openpos')} <span class="muted" style="text-transform:none;font-weight:400">— ${t('pf.sec.openpos.hint')}</span></div>
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       <table style="white-space:nowrap"><thead><tr>
-        <th>Ticker ${infoIcon('pf_ticker')}</th>
-        <th>Shares ${infoIcon('pf_shares')}</th>
-        <th>Avg cost ${infoIcon('pf_avgcost')}</th>
-        <th>Last ${infoIcon('pf_last')}</th>
-        <th>Mkt value ${infoIcon('pf_mktval')}</th>
-        <th>Unreal. PnL ${infoIcon('pf_unrealpnl')}</th>
-        <th>Risk ${infoIcon('pf_risk')}</th>
-        <th>R ${infoIcon('pf_rmult')}</th>
-        <th>Stop ${infoIcon('pf_stop')}</th>
-        <th>Target ${infoIcon('pf_target')}</th>
-        <th>Days ${infoIcon('pf_days')}</th>
-        <th>Conc. ${infoIcon('pf_conc')}</th>
-        <th>Actions ${infoIcon('pf_actions')}</th>
+        <th>${t('pf.col.ticker')}${infoIcon('pf_ticker')}</th>
+        <th>${t('pf.col.shares')}${infoIcon('pf_shares')}</th>
+        <th>${t('pf.col.avgcost')}${infoIcon('pf_avgcost')}</th>
+        <th>${t('pf.col.last')}${infoIcon('pf_last')}</th>
+        <th>${t('pf.col.value')}${infoIcon('pf_mktval')}</th>
+        <th>${t('pf.col.unrealpnl')}${infoIcon('pf_unrealpnl')}</th>
+        <th>${t('pf.col.risk')}${infoIcon('pf_risk')}</th>
+        <th>${t('pf.col.rmult')}${infoIcon('pf_rmult')}</th>
+        <th>${t('pf.col.stop')}${infoIcon('pf_stop')}</th>
+        <th>${t('pf.col.target')}${infoIcon('pf_target')}</th>
+        <th>${t('pf.col.days')}${infoIcon('pf_days')}</th>
+        <th>${t('pf.col.conc')}${infoIcon('pf_conc')}</th>
+        <th>${t('pf.col.actions')}${infoIcon('pf_actions')}</th>
       </tr></thead>
       <tbody>${
         positions.length
@@ -408,13 +422,13 @@ function draw(ctx: AppContext): void {
           <td>${pos.target != null ? '$' + num(pos.target) : '—'}</td>
           <td>${pos.daysHeld}</td><td>${num(pos.concentrationPct, 0)}%</td>
           <td class="row" style="gap:4px;flex-wrap:nowrap">
-            <button class="action-btn action-btn--stop" data-stop="${pos.ticker}" title="${pos.stop != null ? 'Edit stop-loss level' : 'Set stop-loss level'}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v7m0 0 3-3M8 8 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="11" width="14" height="3" rx="1" fill="currentColor" opacity=".35"/></svg>Stop</button>
-            <button class="action-btn action-btn--target" data-target="${pos.ticker}" title="Set profit target"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r=".8" fill="currentColor"/></svg>Target</button>
-            <button class="action-btn action-btn--sell" data-sell="${pos.ticker}" title="Record a partial or full sell"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M9 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Sell</button>
-            <button class="action-btn action-btn--chart" data-open-chart="${pos.ticker}" data-chart-from="${st.lots.filter((l) => l.ticker === pos.ticker).map((l) => l.buyDate).sort()[0] ?? ''}" data-chart-shares="${pos.shares}" title="Show price × shares chart"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M1 14 5 9l3 3 3-4 4-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Chart</button></td></tr>`,
+            <button class="action-btn action-btn--stop" data-stop="${pos.ticker}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v7m0 0 3-3M8 8 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="11" width="14" height="3" rx="1" fill="currentColor" opacity=".35"/></svg>${t('pf.btn.stop')}</button>
+            <button class="action-btn action-btn--target" data-target="${pos.ticker}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r=".8" fill="currentColor"/></svg>${t('pf.btn.target')}</button>
+            <button class="action-btn action-btn--sell" data-sell="${pos.ticker}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M9 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('pf.btn.sell')}</button>
+            <button class="action-btn action-btn--chart" data-open-chart="${pos.ticker}" data-chart-from="${st.lots.filter((l) => l.ticker === pos.ticker).map((l) => l.buyDate).sort()[0] ?? ''}" data-chart-shares="${pos.shares}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M1 14 5 9l3 3 3-4 4-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('pf.btn.chart')}</button></td></tr>`,
               )
               .join('')
-          : `<tr><td colspan="13" class="muted" style="text-align:center;padding:20px">No open positions.</td></tr>`
+          : `<tr><td colspan="13" class="muted" style="text-align:center;padding:20px">${t('pf.nopos')}</td></tr>`
       }</tbody></table>
     </div>
     <p class="muted" style="font-size:11px;margin:-6px 0 14px">
@@ -422,7 +436,7 @@ function draw(ctx: AppContext): void {
       Set or edit either anytime with the buttons above; risk recalculates. Clearing the stop removes it.
     </p>
 
-    <div class="section-title">Transaction History</div>
+    <div class="section-title">${t('pf.sec.txhistory')}</div>
     <div class="card" style="overflow-x:auto;margin-bottom:4px">${transactionHistoryHtml(st)}</div>
     <div id="row-chart-panel" style="display:none;margin-bottom:14px">
       <div class="card" style="padding:8px">
@@ -454,7 +468,7 @@ function draw(ctx: AppContext): void {
 
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
-        <div class="section-title" style="margin-top:0">Record a Buy / Sell</div>
+        <div class="section-title" style="margin-top:0">${t('pf.sec.buy')}</div>
         <div class="row"><input id="b-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
           <input id="b-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
           <input id="b-price" class="field" type="number" step="any" placeholder="Price" style="width:90px" />
@@ -563,7 +577,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           try { drawLine(pfEl, pts, { baseline: stChart.account.initialCapital, money: true, currency: currSym, height: 260, maxLine: true, minLine: true, currentLine: true }); }
           catch { pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>Chart unavailable.</div>`; }
         } else {
-          pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>No data yet — click <strong>Update</strong> first.</div>`;
+          pfEl.innerHTML = noDataHtml();
         }
       } else {
         const bars = sliceBars(cache?.portfolio ?? [], pfRange);
@@ -571,7 +585,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           try { pfCandleChart = drawCandles(pfEl, bars, null, pfEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
           catch { pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>Chart unavailable.</div>`; }
         } else {
-          pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>No data yet — click <strong>Update</strong> first.</div>`;
+          pfEl.innerHTML = noDataHtml();
         }
       }
       const emaBar = $('#pf-ema-bar');
@@ -620,7 +634,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       rowEmaBar.style.display = rowClView === 'candle' ? '' : 'none';
       rowChartDiv.innerHTML = '';
       if (!rowBars.length) {
-        rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>No data — click <strong>Update</strong> first.</div>`;
+        rowChartDiv.innerHTML = noDataHtml();
         return;
       }
       if (rowClView === 'candle') {
@@ -698,11 +712,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         applyBars(rawFromMap);
       } else {
         rowBars = [];
-        rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>Loading…</div>`;
+        rowChartDiv.innerHTML = noDataHtml(t('pf.loading'));
         loadBarCache(ctx, active().account.id).then((bc) => {
           applyBars(bc[ticker] ?? []);
         }).catch(() => {
-          rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>Failed to load data.</div>`;
+          rowChartDiv.innerHTML = noDataHtml(t('pf.failload'));
         });
       }
     }
@@ -744,6 +758,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       snapshotNow(active());
       await save(ctx);
       draw(ctx);
+      void update(ctx);
     });
 
     // sell from the form (manual ticker/shares/price/date)
@@ -759,6 +774,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         snapshotNow(active());
         await save(ctx);
         draw(ctx);
+        void update(ctx);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -803,6 +819,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           snapshotNow(active());
           await save(ctx);
           draw(ctx);
+          void update(ctx);
         } catch (e) {
           alert((e as Error).message);
         }
@@ -824,6 +841,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         }
         await save(ctx);
         draw(ctx);
+        void update(ctx);
       }),
     );
 
@@ -842,6 +860,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         }
         await save(ctx);
         draw(ctx);
+        void update(ctx);
       }),
     );
 
@@ -853,6 +872,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         snapshotNow(active());
         await save(ctx);
         draw(ctx);
+        void update(ctx);
       }),
     );
 
@@ -864,6 +884,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         snapshotNow(active());
         await save(ctx);
         draw(ctx);
+        void update(ctx);
       }),
     );
 
@@ -1314,10 +1335,9 @@ function buildOverviewHtml(): string {
     : `<p class="muted" style="font-size:12px;margin:0 0 8px">Click an account name to open it.</p>`;
 
   return `
-    <h1>Paper Trading</h1>
-    <p class="subtitle">Overview across all accounts.</p>
+    <h1>${t('pf.title')}</h1>
+    <p class="subtitle">${t('pf.sub.overview')}</p>
     ${toolbarHtml()}
-    <div id="update-status" class="muted" style="margin-bottom:10px"></div>
 
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
       <div class="stat"><div class="k">Total initial capital</div><div class="v">${money(totalInitialCap)}</div></div>
@@ -1334,10 +1354,10 @@ function buildOverviewHtml(): string {
 
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
-        <span class="section-title" style="margin:0">Combined Portfolio</span>
+        <span class="section-title" style="margin:0">${t('pf.overview.combined')}</span>
         <div class="toolbar" style="margin:0;gap:4px">
-          <button class="range-btn" data-pf-view="equity">Equity</button>
-          <button class="range-btn active" data-pf-view="candle">Candle</button>
+          <button class="range-btn" data-pf-view="equity">${t('pf.chart.equity')}</button>
+          <button class="range-btn active" data-pf-view="candle">${t('pf.chart.candle')}</button>
         </div>
         <div class="toolbar" style="margin:0;gap:4px" id="pf-range-bar">
           <button class="range-btn active" data-pf-range="all">All</button>
@@ -1358,7 +1378,7 @@ function buildOverviewHtml(): string {
       <div id="portfolio-chart" style="height:260px"></div>
     </div>
 
-    <div class="section-title">Cross-account comparison</div>
+    <div class="section-title">${t('pf.overview.compare')}</div>
     ${compareNote}
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       <table><thead><tr><th>Account</th><th>Return %</th><th>Equity</th><th>Win rate</th><th>Expectancy</th><th>Avg R</th><th>Max DD</th><th>Open risk %</th><th>Open</th><th>Closed</th></tr></thead>
@@ -1393,15 +1413,6 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     await save(ctx);
     draw(ctx);
   });
-
-  // Update button is disabled on overview — still wire it to show a message
-  const updateBtn = $('#acct-update') as HTMLButtonElement | null;
-  if (updateBtn) {
-    updateBtn.addEventListener('click', () => {
-      const s = root.querySelector<HTMLElement>('#update-status');
-      if (s) s.textContent = 'Switch to an individual account to update prices.';
-    });
-  }
 
   // open account links in compare table
   root.querySelectorAll<HTMLElement>('[data-acct-open]').forEach((a) =>
@@ -1459,17 +1470,17 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
       const pts = slicePoints(combinedEquity, pfRange);
       if (pts.length) {
         try { drawLine(pfEl, pts, { baseline: totalInitialCap, money: true, currency: '€', height: 260 }); }
-        catch { pfEl.innerHTML = `<div class="muted" style="text-align:center;padding:60px">Chart unavailable.</div>`; }
+        catch { pfEl.innerHTML = noDataHtml(t('pf.unavailable')); }
       } else {
-        pfEl.innerHTML = `<div class="muted" style="text-align:center;padding:60px">No data yet — update individual accounts first.</div>`;
+        pfEl.innerHTML = noDataHtml(t('pf.nodata.overview'));
       }
     } else {
       const bars = sliceBars(combinedPortfolioBars, pfRange);
       if (bars.length) {
         try { pfCandleChart = drawCandles(pfEl, bars, null, pfEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
-        catch { pfEl.innerHTML = `<div class="muted" style="text-align:center;padding:60px">Chart unavailable.</div>`; }
+        catch { pfEl.innerHTML = noDataHtml(t('pf.unavailable')); }
       } else {
-        pfEl.innerHTML = `<div class="muted" style="text-align:center;padding:60px">No data yet — update individual accounts first.</div>`;
+        pfEl.innerHTML = noDataHtml(t('pf.nodata.overview'));
       }
     }
     const emaBar = root.querySelector<HTMLElement>('#pf-ema-bar');
