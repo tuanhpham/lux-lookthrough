@@ -55,35 +55,45 @@ export function drawCandles(
   bars: Bar[],
   overlay: TradeOverlay | null,
   emaState: Record<number, boolean> = Object.fromEntries(EMA_CONFIG.map((e) => [e.period, e.on])),
+  opts: { noVolume?: boolean; height?: number; maxLine?: boolean; minLine?: boolean } = {},
 ): CandleChart {
+  const { noVolume = false, height = 280, maxLine = false, minLine = false } = opts;
   container.innerHTML = '';
-  const chart = createChart(container, { ...themeOptions(), width: container.clientWidth, height: 280 });
+  const w = container.clientWidth || container.offsetWidth || 600;
+  const chart = createChart(container, { ...themeOptions(), width: w, height });
   const candle = chart.addCandlestickSeries({
     upColor: UP, downColor: DOWN, borderVisible: false,
     wickUpColor: UP, wickDownColor: DOWN,
   });
   candle.setData(bars.map((b) => ({ time: b.date, open: b.open, high: b.high, low: b.low, close: b.close })));
 
-  const vol = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
-  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-  vol.setData(
-    bars.map((b) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? UP + '44' : DOWN + '44' })),
-  );
+  if (bars.length && (maxLine || minLine)) {
+    const highs = bars.map((b) => b.high);
+    const lows = bars.map((b) => b.low);
+    if (maxLine) candle.createPriceLine({ price: Math.max(...highs), color: DOWN, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: '' });
+    if (minLine) candle.createPriceLine({ price: Math.min(...lows), color: UP, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: '' });
+  }
 
-  // 30-day average volume line on the same vol scale
-  const VOL_MA = 30;
-  const volMaData = bars
-    .map((b, i) => {
-      if (i < VOL_MA - 1) return null;
-      const avg = bars.slice(i - VOL_MA + 1, i + 1).reduce((s, x) => s + x.volume, 0) / VOL_MA;
-      return { time: b.date, value: avg };
-    })
-    .filter((d): d is { time: string; value: number } => d !== null);
-  const volMa = chart.addLineSeries({
-    priceScaleId: 'vol', color: '#ffb648', lineWidth: 1,
-    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-  });
-  volMa.setData(volMaData);
+  if (!noVolume) {
+    const vol = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
+    chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    vol.setData(
+      bars.map((b) => ({ time: b.date, value: b.volume, color: b.close >= b.open ? UP + '44' : DOWN + '44' })),
+    );
+    const VOL_MA = 30;
+    const volMaData = bars
+      .map((b, i) => {
+        if (i < VOL_MA - 1) return null;
+        const avg = bars.slice(i - VOL_MA + 1, i + 1).reduce((s, x) => s + x.volume, 0) / VOL_MA;
+        return { time: b.date, value: avg };
+      })
+      .filter((d): d is { time: string; value: number } => d !== null);
+    const volMa = chart.addLineSeries({
+      priceScaleId: 'vol', color: '#ffb648', lineWidth: 1,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+    volMa.setData(volMaData);
+  }
 
   const emaSeries = new Map<number, ISeriesApi<'Line'>>();
   const addEma = (period: number, color: string) => {
@@ -146,6 +156,12 @@ export function drawCandles(
 
 export interface LineOptions {
   baseline?: number;
+  /** Draw a dashed horizontal line at the series maximum. */
+  maxLine?: boolean;
+  /** Draw a dashed horizontal line at the series minimum. */
+  minLine?: boolean;
+  /** Draw a dashed horizontal line at the current (last) value. */
+  currentLine?: boolean;
   /** Format the value axis as compact volume (1.2B / 340M / 5K) — matches the
    * backend's sector volume chart. */
   volume?: boolean;
@@ -177,12 +193,13 @@ export function drawLine(
   points: { time: string; value: number }[],
   options: LineOptions = {},
 ): IChartApi {
-  const { baseline, volume = false, money = false, currency = '€', height = 240 } = options;
+  const { baseline, maxLine = false, minLine = false, currentLine = false, volume = false, money = false, currency = '€', height = 240 } = options;
   container.innerHTML = '';
   const base = themeOptions();
+  const w = container.clientWidth || container.offsetWidth || 600;
   const chart = createChart(container, {
     ...base,
-    width: container.clientWidth,
+    width: w,
     height,
     // Money mode: format the y-axis as compact currency so labels are readable.
     localization: money ? { priceFormatter: (v: number) => compactMoney(v, currency) } : undefined,
@@ -204,6 +221,24 @@ export function drawLine(
   if (baseline != null && points.length) {
     const baseSeries = chart.addLineSeries({ color: '#5b6577', lineWidth: 1, lineStyle: LineStyle.Dashed, lastValueVisible: false, priceLineVisible: false });
     baseSeries.setData(points.map((p) => ({ time: p.time, value: baseline })));
+  }
+  if (points.length) {
+    const vals = points.map((p) => p.value);
+    if (maxLine) {
+      const maxVal = Math.max(...vals);
+      const s = chart.addLineSeries({ color: DOWN, lineWidth: 1, lineStyle: LineStyle.Dashed, lastValueVisible: false, priceLineVisible: false });
+      s.setData(points.map((p) => ({ time: p.time, value: maxVal })));
+    }
+    if (minLine) {
+      const minVal = Math.min(...vals);
+      const s = chart.addLineSeries({ color: UP, lineWidth: 1, lineStyle: LineStyle.Dashed, lastValueVisible: false, priceLineVisible: false });
+      s.setData(points.map((p) => ({ time: p.time, value: minVal })));
+    }
+    if (currentLine) {
+      const curVal = vals[vals.length - 1]!;
+      const s = chart.addLineSeries({ color: '#8a95a8', lineWidth: 1, lineStyle: LineStyle.Dashed, lastValueVisible: false, priceLineVisible: false });
+      s.setData(points.map((p) => ({ time: p.time, value: curVal })));
+    }
   }
   chart.timeScale().fitContent();
   // Self-disconnecting observer: if the chart was disposed (container re-rendered

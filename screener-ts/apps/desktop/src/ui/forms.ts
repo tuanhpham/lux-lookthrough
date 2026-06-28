@@ -11,7 +11,13 @@ export interface Field {
   placeholder?: string;
 }
 
-export function formDialog(title: string, fields: Field[]): Promise<Record<string, string> | null> {
+export interface FormDialogOptions {
+  /** Called whenever any field changes. Return a partial record to overwrite
+   * specific field values live (e.g. auto-fill price when date changes). */
+  onChange?: (values: Record<string, string>) => Partial<Record<string, string>> | void;
+}
+
+export function formDialog(title: string, fields: Field[], opts: FormDialogOptions = {}): Promise<Record<string, string> | null> {
   return new Promise((resolve) => {
     const host = document.createElement('div');
     host.className = 'dialog-host';
@@ -38,6 +44,21 @@ export function formDialog(title: string, fields: Field[]): Promise<Record<strin
 
     const inputs = Array.from(host.querySelectorAll<HTMLInputElement>('.dialog-field'));
     inputs[0]?.focus();
+
+    if (opts.onChange) {
+      const onChange = opts.onChange;
+      const handleChange = () => {
+        const current: Record<string, string> = {};
+        for (const i of inputs) current[i.dataset.key!] = i.value;
+        const overrides = onChange(current);
+        if (overrides) {
+          for (const i of inputs) {
+            if (i.dataset.key! in overrides) i.value = overrides[i.dataset.key!] ?? i.value;
+          }
+        }
+      };
+      for (const i of inputs) i.addEventListener('change', handleChange);
+    }
 
     const close = (result: Record<string, string> | null) => {
       host.remove();

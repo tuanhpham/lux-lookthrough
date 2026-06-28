@@ -1,0 +1,33 @@
+{
+  "name": "@screener/core",
+  "version": "0.1.0",
+  "description": "Platform-agnostic stock-screener logic: indicators, patterns, scoring, screener, portfolio. Zero Node/DOM/UI deps.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.9"
+  },
+  "comment": "No runtime dependencies: indicators are hand-rolled on plain arrays for exact Python parity. technicalindicators is used ONLY by the app for chart EMA overlays, never in core.",
+  "dependencies": {
+    "vite": "8.0.16"
+  }
+}

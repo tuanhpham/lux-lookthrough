@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>The Professional</title>
+
+    <!-- PWA: installable ("Add to Home Screen"), opens full-screen like an app.
+         The web build registers /sw.js (see main.ts); Tauri ignores it. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#07080b" />
+    <meta name="description" content="Qullamaggie + momentum equity screener: VCP & episodic-pivot setups, a 0–100 quality score, market regime, sector rotation, charts and paper trading." />
+
+    <!-- Typefaces: Hanken Grotesk (refined grotesk UI) + JetBrains Mono
+         (tabular numerals for every price/return/score — the terminal signature). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&family=Hanken+Grotesk:ital,wght@0,300..800;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- iOS standalone (Safari → Share → Add to Home Screen) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Screener" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <!-- Boot-phase error trap: surfaces module import/init failures (which would
+         otherwise be a silent black screen). It disarms once the app mounts
+         (window.__APP_READY__), so benign runtime errors after load — e.g. a
+         chart resize firing after disposal — never blank the whole app. -->
+    <script>
+      (function () {
+        function ignorable(msg) {
+          // Known-benign lightweight-charts teardown noise.
+          return /Object is disposed/i.test(msg);
+        }
+        function paint(msg) {
+          if (window.__APP_READY__ || ignorable(msg)) return;
+          var b = document.getElementById('boot-error') || document.createElement('div');
+          b.id = 'boot-error';
+          b.style.cssText =
+            'position:fixed;inset:12px;z-index:99999;background:#1a0d10;color:#ffb3ba;border:1px solid #ff5d6c;border-radius:12px;padding:16px;font:13px/1.5 monospace;white-space:pre-wrap;overflow:auto';
+          b.textContent = 'App error (boot):\n\n' + msg;
+          (document.body || document.documentElement).appendChild(b);
+        }
+        window.addEventListener('error', function (e) {
+          paint(String((e.error && e.error.stack) || e.message || e));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          paint('Unhandled rejection:\n' + String((e.reason && e.reason.stack) || e.reason));
+        });
+      })();
+    </script>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <!-- Narrative landing: public, shown first -->
+    <div id="landing"></div>
+
+    <!-- Tool landing: shown after gate passes, before entering the app -->
+    <div id="tool-landing" class="hidden"></div>
+
+    <div id="app" class="hidden">
+      <!-- TradingView-style sticky top navigation: brand left, inline tabs
+           center, language/theme right. On phones the tabs collapse behind the
+           hamburger into a dropdown (#topnav-menu). -->
+      <header id="topnav">
+        <div class="app-brand" id="logo-home" role="button" tabindex="0" title="Back to story">
+          <span class="app-brand-name">The Professional</span>
+        </div>
+        <button id="menu-toggle" class="app-menu-btn" aria-label="Menu" aria-expanded="false">
+          <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="22" height="22">
+            <line x1="3" y1="6" x2="19" y2="6"/>
+            <line x1="3" y1="11" x2="19" y2="11"/>
+            <line x1="3" y1="16" x2="19" y2="16"/>
+          </svg>
+        </button>
+      </header>
+      <main id="main">
+        <section id="tab-picks" class="tab"></section>
+        <section id="tab-screener" class="tab hidden"></section>
+        <section id="tab-watchlist" class="tab hidden"></section>
+        <section id="tab-sectors" class="tab hidden"></section>
+        <section id="tab-portfolio" class="tab hidden"></section>
+        <section id="tab-backtest" class="tab hidden"></section>
+        <section id="tab-blog" class="tab hidden"></section>
+        <section id="tab-playbook" class="tab hidden"></section>
+        <section id="tab-casestudies" class="tab hidden"></section>
+        <section id="tab-learn" class="tab hidden"></section>
+        <section id="tab-about" class="tab hidden"></section>
+      </main>
+    </div>
+
+    <div id="modal" class="modal hidden">
+      <div id="modal-backdrop" class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="modal-head">
+          <div id="modal-title">—</div>
+          <button id="modal-close">×</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+      </div>
+    </div>
+    <div id="tooltip" class="tooltip hidden"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

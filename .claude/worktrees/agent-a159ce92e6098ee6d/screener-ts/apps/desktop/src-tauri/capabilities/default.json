@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core capabilities: HTTP to financial APIs + app-data file storage.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://query1.finance.yahoo.com/*" },
+        { "url": "https://query2.finance.yahoo.com/*" },
+        { "url": "https://finnhub.io/*" },
+        { "url": "https://en.wikipedia.org/*" },
+        { "url": "https://www.nasdaqtrader.com/*" }
+      ]
+    },
+    "fs:default",
+    {
+      "identifier": "fs:allow-app-meta-recursive",
+      "allow": [{ "path": "$APPDATA/**" }]
+    }
+  ]
+}
