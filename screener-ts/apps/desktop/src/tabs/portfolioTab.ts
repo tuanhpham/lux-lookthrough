@@ -115,14 +115,6 @@ async function load(ctx: AppContext): Promise<void> {
     await save(ctx);
   }
   if (activeId !== OVERVIEW_ID && !accounts.some((a) => a.account.id === activeId)) activeId = OVERVIEW_ID;
-  // Pre-populate barMapByAccount so row charts work before first Update click
-  for (const acct of accounts) {
-    if (!barMapByAccount.has(acct.account.id)) {
-      void loadBarCache(ctx, acct.account.id).then((bc) => {
-        barMapByAccount.set(acct.account.id, new Map(Object.entries(bc)));
-      });
-    }
-  }
 }
 async function save(ctx: AppContext): Promise<void> {
   await ctx.storage.set(ACCT_KEY, accounts);
@@ -290,6 +282,13 @@ function avgHoldingDays(st: AccountState): { days: number; count: number } {
 
 export async function renderPortfolio(ctx: AppContext): Promise<void> {
   await load(ctx);
+  // Pre-load bar caches for all accounts into memory so row charts are instant
+  await Promise.all(
+    accounts.map(async (acct) => {
+      const bc = await loadBarCache(ctx, acct.account.id);
+      barMapByAccount.set(acct.account.id, new Map(Object.entries(bc)));
+    }),
+  );
   draw(ctx);
 }
 
@@ -425,7 +424,33 @@ function draw(ctx: AppContext): void {
 
     <div class="section-title">Transaction History</div>
     <div class="card" style="overflow-x:auto;margin-bottom:4px">${transactionHistoryHtml(st)}</div>
-    <div id="closed-chart-panel" style="margin-bottom:14px"></div>
+    <div id="row-chart-panel" style="display:none;margin-bottom:14px">
+      <div class="card" style="padding:8px">
+        <div id="row-chart-header" class="pos-chart-header">
+          <div class="pos-chart-id">
+            <span id="row-chart-ticker" class="pos-chart-ticker"></span>
+            <span id="row-chart-shares" class="pos-chart-shares"></span>
+            <span id="row-chart-dates" class="pos-chart-dates"></span>
+            <span id="row-chart-days" class="pos-chart-days"></span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <div class="toolbar" style="margin:0;gap:3px">
+              <button class="range-btn active" id="row-view-candle" data-rv="candle">Candle</button>
+              <button class="range-btn" id="row-view-equity" data-rv="equity">Equity</button>
+            </div>
+            <div class="toolbar" id="row-ema-bar" style="margin:0;gap:4px">
+              <button class="range-btn" data-re="5">EMA5</button>
+              <button class="range-btn" data-re="10">EMA10</button>
+              <button class="range-btn" data-re="21">EMA21</button>
+              <button class="range-btn" data-re="50">EMA50</button>
+              <button class="range-btn" data-re="150">EMA150</button>
+              <button class="range-btn" data-re="200">EMA200</button>
+            </div>
+          </div>
+        </div>
+        <div id="row-chart-div" style="height:260px"></div>
+      </div>
+    </div>
 
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
@@ -579,17 +604,61 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }),
     );
 
-    // ── Per-position row chart panel ────────────────────────────────────────────
-    // Uses _candleCache.positions — same source as the portfolio chart, so no
-    // async file I/O is needed. Bars are already scaled by shares held.
-    const closedChartPanel = $('#closed-chart-panel')!;
-    let rowCandleChart: ReturnType<typeof drawCandles> | null = null;
+    // ── Per-position row chart panel ──────────────────────────────────────────
+    // Static elements are in root.innerHTML — same approach as portfolio chart.
+    const rowPanel    = $('#row-chart-panel')!;
+    const rowChartDiv = $('#row-chart-div')!;
+    const rowEmaBar   = $('#row-ema-bar')!;
+    let rowChart: { destroy(): void } | null = null;
     let rowActiveBtn: HTMLElement | null = null;
+    let rowClView: 'candle' | 'equity' = 'candle';
+    let rowClEma: Record<number, boolean> = { 5: false, 10: false, 21: false, 50: false, 150: false, 200: false };
+    let rowBars: Bar[] = [];
 
-    function openRowChart(b: HTMLElement, ticker: string, fromDate: string, toDate: string) {
+    function renderRowChart() {
+      if (rowChart) { try { rowChart.destroy(); } catch { /* */ } rowChart = null; }
+      rowEmaBar.style.display = rowClView === 'candle' ? '' : 'none';
+      rowChartDiv.innerHTML = '';
+      if (!rowBars.length) {
+        rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>No data — click <strong>Update</strong> first.</div>`;
+        return;
+      }
+      if (rowClView === 'candle') {
+        try { rowChart = drawCandles(rowChartDiv, rowBars, null, rowClEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
+        catch (e) { rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>${(e as Error).message}</div>`; }
+      } else {
+        const pts = rowBars.map((bar) => ({ time: bar.date, value: bar.close }));
+        try {
+          const lc = drawLine(rowChartDiv, pts, { money: true, currency: currSym, height: 260, maxLine: true, minLine: true });
+          rowChart = { destroy() { try { lc.remove(); } catch { /* */ } rowChartDiv.innerHTML = ''; } };
+        }
+        catch (e) { rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>${(e as Error).message}</div>`; }
+      }
+    }
+
+    // View toggle
+    root.querySelectorAll<HTMLElement>('[data-rv]').forEach((vb) =>
+      vb.addEventListener('click', () => {
+        rowClView = vb.dataset.rv as 'candle' | 'equity';
+        root.querySelectorAll('[data-rv]').forEach((x) => x.classList.remove('active'));
+        vb.classList.add('active');
+        renderRowChart();
+      }),
+    );
+    // EMA toggle
+    root.querySelectorAll<HTMLElement>('[data-re]').forEach((eb) =>
+      eb.addEventListener('click', () => {
+        const p = Number(eb.dataset.re);
+        rowClEma[p] = !rowClEma[p];
+        eb.classList.toggle('active', rowClEma[p]);
+        if (rowChart && 'setEma' in rowChart) (rowChart as ReturnType<typeof drawCandles>).setEma(p, rowClEma[p]);
+      }),
+    );
+
+    function openRowChart(b: HTMLElement, ticker: string, shares: number, fromDate: string, toDate: string) {
       if (rowActiveBtn === b) {
-        if (rowCandleChart) { try { rowCandleChart.destroy(); } catch { /* ignore */ } rowCandleChart = null; }
-        closedChartPanel.innerHTML = '';
+        rowPanel.style.display = 'none';
+        if (rowChart) { try { rowChart.destroy(); } catch { /* */ } rowChart = null; }
         rowActiveBtn = null;
         b.classList.remove('active');
         return;
@@ -598,90 +667,57 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       rowActiveBtn = b;
       b.classList.add('active');
 
-      // Bars from _candleCache — already scaled by shares, spanning the holding period
-      const posBars: Bar[] = cache?.positions.find((p) => p.ticker === ticker)?.bars ?? [];
-
+      // Update header labels
       const todayStr = new Date().toISOString().slice(0, 10);
-      const holdDaysCount = fromDate ? daysBetween(fromDate, toDate || todayStr) : null;
-      const dateRange = fromDate
-        ? `${fromDate}<span style=”opacity:.45;padding:0 4px”>→</span>${toDate || 'now'}<span class=”pos-chart-days”>${holdDaysCount}d</span>`
-        : 'Full history';
+      const endStr = toDate || todayStr;
+      ($('#row-chart-ticker') as HTMLElement).textContent = ticker;
+      ($('#row-chart-shares') as HTMLElement).textContent = `×${shares}`;
+      ($('#row-chart-dates') as HTMLElement).textContent = `${fromDate} → ${toDate || 'now'}`;
+      ($('#row-chart-days') as HTMLElement).textContent = `${daysBetween(fromDate, endStr)}d`;
 
-      closedChartPanel.innerHTML = `
-        <div class=”card” style=”padding:8px”>
-          <div class=”pos-chart-header”>
-            <div class=”pos-chart-id”>
-              <span class=”pos-chart-ticker”>${ticker}</span>
-              <span class=”pos-chart-dates”>${dateRange}</span>
-            </div>
-            <div style=”display:flex;gap:6px;flex-wrap:wrap;align-items:center”>
-              <div class=”toolbar” style=”margin:0;gap:3px”>
-                <button class=”range-btn active” data-cl-view=”candle”>Candle</button>
-                <button class=”range-btn” data-cl-view=”equity”>Equity</button>
-              </div>
-              <div class=”toolbar” style=”margin:0;gap:4px” id=”cl-ema-bar”>
-                <button class=”range-btn” data-cl-ema=”5”>EMA5</button>
-                <button class=”range-btn” data-cl-ema=”10”>EMA10</button>
-                <button class=”range-btn” data-cl-ema=”21”>EMA21</button>
-                <button class=”range-btn” data-cl-ema=”50”>EMA50</button>
-                <button class=”range-btn” data-cl-ema=”150”>EMA150</button>
-                <button class=”range-btn” data-cl-ema=”200”>EMA200</button>
-              </div>
-            </div>
-          </div>
-          <div id=”row-chart” style=”height:260px”></div>
-        </div>`;
+      // Reset view state
+      rowClView = 'candle';
+      rowClEma = { 5: false, 10: false, 21: false, 50: false, 150: false, 200: false };
+      root.querySelectorAll('[data-rv]').forEach((x) => x.classList.remove('active'));
+      ($('#row-view-candle') as HTMLElement).classList.add('active');
+      root.querySelectorAll('[data-re]').forEach((x) => x.classList.remove('active'));
 
-      let clView: 'candle' | 'equity' = 'candle';
-      let clEma: Record<number, boolean> = { 5: false, 10: false, 21: false, 50: false, 150: false, 200: false };
-      if (rowCandleChart) { try { rowCandleChart.destroy(); } catch { /* ignore */ } rowCandleChart = null; }
+      rowPanel.style.display = '';
 
-      function renderRowChart() {
-        const chartEl = closedChartPanel.querySelector<HTMLElement>('#row-chart');
-        if (!chartEl) return;
-        if (rowCandleChart) { try { rowCandleChart.destroy(); } catch { /* ignore */ } rowCandleChart = null; }
-        const emaBar = closedChartPanel.querySelector<HTMLElement>('#cl-ema-bar');
-        if (emaBar) emaBar.style.display = clView === 'candle' ? '' : 'none';
-
-        if (!posBars.length) {
-          chartEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>No price data for <strong>${ticker}</strong> — click <strong>Update</strong> first.</div>`;
-          return;
-        }
-        chartEl.innerHTML = '';
-        if (clView === 'candle') {
-          try { rowCandleChart = drawCandles(chartEl, posBars, null, clEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
-          catch (e) { chartEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>Chart error: ${(e as Error).message}</div>`; }
-        } else {
-          const pts = posBars.map((bar) => ({ time: bar.date, value: bar.close }));
-          try { drawLine(chartEl, pts, { money: true, currency: currSym, height: 260, maxLine: true, minLine: true, currentLine: true }); }
-          catch (e) { chartEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>Chart error: ${(e as Error).message}</div>`; }
-        }
+      function applyBars(raw: Bar[]) {
+        rowBars = raw
+          .filter((bar) => bar.date >= fromDate && bar.date <= endStr)
+          .map((bar) => ({ ...bar, open: bar.open * shares, high: bar.high * shares, low: bar.low * shares, close: bar.close * shares }));
+        renderRowChart();
       }
-      renderRowChart();
 
-      closedChartPanel.querySelectorAll<HTMLElement>('[data-cl-view]').forEach((vb) =>
-        vb.addEventListener('click', () => {
-          clView = vb.dataset.clView as 'candle' | 'equity';
-          closedChartPanel.querySelectorAll('[data-cl-view]').forEach((x) => x.classList.remove('active'));
-          vb.classList.add('active');
-          renderRowChart();
-        }),
-      );
-      closedChartPanel.querySelectorAll<HTMLElement>('[data-cl-ema]').forEach((eb) =>
-        eb.addEventListener('click', () => {
-          const p = Number(eb.dataset.clEma);
-          clEma[p] = !clEma[p];
-          eb.classList.toggle('active', clEma[p]);
-          if (rowCandleChart) rowCandleChart.setEma(p, clEma[p]);
-        }),
-      );
+      // barMapByAccount holds raw (unscaled) bars populated during renderPortfolio/update.
+      // _candleCache bars are already scaled by remainingShares — wrong for closed rows.
+      const rawFromMap = barMapByAccount.get(active().account.id)?.get(ticker);
+      if (rawFromMap?.length) {
+        applyBars(rawFromMap);
+      } else {
+        rowBars = [];
+        rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>Loading…</div>`;
+        loadBarCache(ctx, active().account.id).then((bc) => {
+          applyBars(bc[ticker] ?? []);
+        }).catch(() => {
+          rowChartDiv.innerHTML = `<div class=”muted” style=”text-align:center;padding:40px”>Failed to load data.</div>`;
+        });
+      }
     }
 
     root.querySelectorAll<HTMLElement>('[data-closed-chart]').forEach((b) =>
-      b.addEventListener('click', () => openRowChart(b, b.dataset.closedChart!, b.dataset.chartFrom ?? '', b.dataset.chartTo ?? '')),
+      b.addEventListener('click', () => openRowChart(
+        b, b.dataset.closedChart!, Number(b.dataset.chartShares) || 1,
+        b.dataset.chartFrom ?? '', b.dataset.chartTo ?? '',
+      )),
     );
     root.querySelectorAll<HTMLElement>('[data-open-chart]').forEach((b) =>
-      b.addEventListener('click', () => openRowChart(b, b.dataset.openChart!, b.dataset.chartFrom ?? '', '')),
+      b.addEventListener('click', () => openRowChart(
+        b, b.dataset.openChart!, Number(b.dataset.chartShares) || 1,
+        b.dataset.chartFrom ?? '', '',
+      )),
     );
 
     // orders list
