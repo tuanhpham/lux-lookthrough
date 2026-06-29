@@ -74,7 +74,9 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
         const current: Record<string, string> = {};
         for (const el of allFields) {
           if (el.dataset.type === 'info') continue;
-          current[el.dataset.key!] = (el as HTMLInputElement).value;
+          // Normalize comma decimal separator so onChange receives parseable values
+          // on locales/keyboards that produce "185,50" instead of "185.50".
+          current[el.dataset.key!] = (el as HTMLInputElement).value.replace(',', '.');
         }
         const overrides = onChange(current);
         if (overrides) {
@@ -107,7 +109,8 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
       const out: Record<string, string> = {};
       for (const el of allFields) {
         if (el.dataset.type === 'info') continue; // exclude display-only fields
-        out[el.dataset.key!] = (el as HTMLInputElement).value.trim();
+        // Normalize comma decimal separator (iOS/European keyboards send "185,50")
+        out[el.dataset.key!] = (el as HTMLInputElement).value.trim().replace(',', '.');
       }
       close(out);
     };

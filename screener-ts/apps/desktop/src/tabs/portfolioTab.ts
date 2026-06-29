@@ -930,10 +930,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     // Live risk / R:R preview in the buy form.
     const riskHintEl = $('#b-riskhint')!;
     const updateRiskHint = () => {
-      const price = Number(($('#b-price') as HTMLInputElement).value);
-      const stopVal = Number(($('#b-stop') as HTMLInputElement).value);
-      const targetVal = Number(($('#b-target') as HTMLInputElement).value);
-      const sharesVal = Number(($('#b-shares') as HTMLInputElement).value);
+      const price = Number(($('#b-price') as HTMLInputElement).value.replace(',', '.'));
+      const stopVal = Number(($('#b-stop') as HTMLInputElement).value.replace(',', '.'));
+      const targetVal = Number(($('#b-target') as HTMLInputElement).value.replace(',', '.'));
+      const sharesVal = Number(($('#b-shares') as HTMLInputElement).value.replace(',', '.'));
       const priceCcyEl = $('#b-price-ccy') as HTMLSelectElement | null;
       const priceCcy = (priceCcyEl?.value ?? 'USD') as 'EUR' | 'USD';
       const sym = priceCcy === 'EUR' ? '€' : '$';
@@ -958,11 +958,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     // buy
     $('#b-go')!.addEventListener('click', async () => {
       const t = ($('#b-ticker') as HTMLInputElement).value.trim().toUpperCase();
-      const shares = Number(($('#b-shares') as HTMLInputElement).value);
-      const price = Number(($('#b-price') as HTMLInputElement).value);
+      const shares = Number(($('#b-shares') as HTMLInputElement).value.replace(',', '.'));
+      const price = Number(($('#b-price') as HTMLInputElement).value.replace(',', '.'));
       const date = ($('#b-date') as HTMLInputElement).value || today();
-      const stop = Number(($('#b-stop') as HTMLInputElement).value) || undefined;
-      const target = Number(($('#b-target') as HTMLInputElement).value) || undefined;
+      const stop = Number(($('#b-stop') as HTMLInputElement).value.replace(',', '.')) || undefined;
+      const target = Number(($('#b-target') as HTMLInputElement).value.replace(',', '.')) || undefined;
       const priceCcy = (($('#b-price-ccy') as HTMLSelectElement | null)?.value ?? 'USD') as 'EUR' | 'USD';
       if (!t || shares <= 0 || price <= 0) return;
       const fxAtBuy = eurUsdForDate(date);
@@ -1160,7 +1160,13 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           },
         });
         if (!res) return;
-        const stopRaw = res.stop === '' ? undefined : Number(res.stop);
+        // Replace comma decimal separator (iOS/European keyboards) before parsing.
+        const stopStr2 = (res.stop ?? '').replace(',', '.');
+        const stopRaw = stopStr2 === '' ? undefined : Number(stopStr2);
+        if (stopRaw !== undefined && (isNaN(stopRaw) || stopRaw <= 0)) {
+          alert('Invalid stop price — use numbers only (e.g. 185.50).');
+          return;
+        }
         // Normalize to account base currency (EUR)
         const fxNow = latestEurUsdRate ?? 1;
         const stop = (stopRaw != null && active().account.currency === 'EUR' && res.ccy === 'USD' && fxNow > 1)
@@ -1239,7 +1245,12 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           },
         });
         if (!res) return;
-        const targetRaw = res.target === '' ? undefined : Number(res.target);
+        const targetStr2 = (res.target ?? '').replace(',', '.');
+        const targetRaw = targetStr2 === '' ? undefined : Number(targetStr2);
+        if (targetRaw !== undefined && (isNaN(targetRaw) || targetRaw <= 0)) {
+          alert('Invalid target price — use numbers only (e.g. 220.50).');
+          return;
+        }
         const fxNow = latestEurUsdRate ?? 1;
         const target = (targetRaw != null && active().account.currency === 'EUR' && res.ccy === 'USD' && fxNow > 1)
           ? targetRaw / fxNow : targetRaw;
@@ -1252,10 +1263,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }),
     );
 
-    // delete a single SELL (returns the shares to its lot) — testing convenience
+    // delete a single SELL (returns the shares to its lot — does NOT remove the buy)
     root.querySelectorAll<HTMLElement>('[data-del-sell]').forEach((b) =>
       b.addEventListener('click', async () => {
-        if (!confirm('Delete this sell? The shares return to the open position.')) return;
+        if (!confirm('Undo this sell? The shares return to the open position. The original buy lot remains.')) return;
         deleteSell(active(), b.dataset.delSell!);
         snapshotNow(active());
         await save(ctx);
@@ -1267,8 +1278,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     // delete a BUY lot (and any sells matched to it)
     root.querySelectorAll<HTMLElement>('[data-del-lot]').forEach((b) =>
       b.addEventListener('click', async () => {
-        if (!confirm('Delete this buy and any of its sells? All figures recompute.')) return;
-        deleteLot(active(), b.dataset.delLot!);
+        const lotId = b.dataset.delLot!;
+        const lot = active().lots.find((l) => l.id === lotId);
+        const lotDesc = lot ? `${lot.shares} × ${lot.ticker} @ ${dispSymbol()}${num(toDisplay(lot.buyPrice))} on ${lot.buyDate}` : 'this buy';
+        if (!confirm(`Delete buy: ${lotDesc}?\nThis removes the lot and any sells matched to it. Average cost will update.`)) return;
+        deleteLot(active(), lotId);
         snapshotNow(active());
         await save(ctx);
         draw(ctx);
