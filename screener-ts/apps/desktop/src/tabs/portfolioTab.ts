@@ -95,6 +95,9 @@ function wirePriceHint(
     hintEl.querySelector('[data-use]')!.addEventListener('click', (e) => {
       e.preventDefault();
       priceEl.value = String(num(converted));
+      // Programmatic .value assignment doesn't fire input/change events — dispatch manually
+      // so listeners like updateRiskHint pick up the new value.
+      priceEl.dispatchEvent(new Event('input', { bubbles: true }));
     });
   }
 
@@ -1601,11 +1604,32 @@ function buildCandleSeries(
     barByTickerDate.set(sym, m);
   }
 
+  // Normalize a raw USD bar to the account's base currency (EUR) on a given date.
+  // Mirrors the normalizeClose() logic in buildDailyEquity so the candle close
+  // matches the equity snapshot on any given day.
+  function normalizeBar(b: Bar, date: string): Bar {
+    if (st.account.currency !== 'EUR') return b;
+    const fx = eurUsdForDate(date);
+    if (!(fx > 1)) return b;
+    return {
+      date: b.date,
+      open: b.open / fx,
+      high: b.high / fx,
+      low: b.low / fx,
+      close: b.close / fx,
+      volume: b.volume,
+    };
+  }
+
   const prevClose = new Map<string, number>();
   function getBar(sym: string, date: string): Bar | null {
     const m = barByTickerDate.get(sym);
-    const b = m?.get(date);
-    if (b) { prevClose.set(sym, b.close); return b; }
+    const raw = m?.get(date);
+    if (raw) {
+      const nb = normalizeBar(raw, date);
+      prevClose.set(sym, nb.close);
+      return nb;
+    }
     const pc = prevClose.get(sym);
     if (pc == null) return null;
     return { date, open: pc, high: pc, low: pc, close: pc, volume: 0 };
