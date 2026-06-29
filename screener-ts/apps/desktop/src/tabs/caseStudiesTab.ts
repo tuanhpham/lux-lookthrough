@@ -199,7 +199,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         <div><label class="field-label">${vi ? 'Mục tiêu' : 'Target'}</label><input id="f-target" class="field" type="number" step="any" value="${study.target ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Ngày thoát' : 'Exit date'}</label><input id="f-exitdate" class="field" type="date" max="${todayIso()}" value="${study.exitDate ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Giá thoát' : 'Exit price'}</label><input id="f-exitprice" class="field" type="number" step="any" value="${study.exitPrice ?? ''}" /></div>
-        <div><label class="field-label">${vi ? 'Kết quả R (tùy chọn)' : 'Result R (optional)'}</label><input id="f-rmult" class="field" type="number" step="any" value="${study.rMultiple ?? ''}" /></div>
+        <div><label class="field-label" title="${vi ? '(exitPrice − entry) / (entry − stop). Tự động tính nếu để trống.' : '(exitPrice − entry) / (entry − stop). Auto-calculated if left blank.'}">${vi ? 'Kết quả R' : 'Result R'} <span class="muted" style="font-size:10px">${vi ? '(tự động)' : '(auto)'}</span></label><input id="f-rmult" class="field" type="number" step="any" value="${study.rMultiple ?? ''}" placeholder="${vi ? 'tự động' : 'auto'}" /></div>
       </div>
     </div>
 
@@ -263,6 +263,17 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       const v = ($(sel) as HTMLInputElement).value.trim();
       return v === '' ? null : Number(v);
     };
+    const entry = numOrNull('#f-entry');
+    const stop = numOrNull('#f-stop');
+    const exitPrice = numOrNull('#f-exitprice');
+    const rManual = numOrNull('#f-rmult');
+    // Auto-calculate Result R when left blank and we have all three values.
+    const rMultiple =
+      rManual != null
+        ? rManual
+        : entry != null && stop != null && exitPrice != null && entry !== stop
+          ? parseFloat(((exitPrice - entry) / (entry - stop)).toFixed(2))
+          : null;
     const updated: CaseStudy = {
       ...study,
       symbol,
@@ -270,12 +281,12 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       keyDate: ($('#f-keydate') as HTMLInputElement).value || todayIso(),
       setupType: ($('#f-setup') as HTMLInputElement).value.trim() || 'Setup',
       outcome: ($('#f-outcome') as HTMLSelectElement).value as CaseOutcome,
-      entry: numOrNull('#f-entry'),
-      stop: numOrNull('#f-stop'),
+      entry,
+      stop,
       target: numOrNull('#f-target'),
       exitDate: ($('#f-exitdate') as HTMLInputElement).value || null,
-      exitPrice: numOrNull('#f-exitprice'),
-      rMultiple: numOrNull('#f-rmult'),
+      exitPrice,
+      rMultiple,
       catalysts,
       notes: ($('#f-notes') as HTMLTextAreaElement).value,
       updatedAt: todayIso(),

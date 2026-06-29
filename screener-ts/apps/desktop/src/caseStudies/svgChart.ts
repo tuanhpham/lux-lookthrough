@@ -15,12 +15,16 @@ export interface CaseChartColors {
   grid: string;
   axis: string;
   text: string;
+  ema5: string;
+  ema10: string;
+  ema21: string;
   ema50: string;
   ema200: string;
   entry: string;
   stop: string;
   target: string;
   catalyst: string;
+  volAvg: string;
 }
 
 /** Dark-theme palette mirroring the app's terminal tokens. The export embeds
@@ -31,12 +35,16 @@ export const DARK_CHART_COLORS: CaseChartColors = {
   grid: '#1d222c',
   axis: '#5c6575',
   text: '#99a2b2',
+  ema5: '#7dd3fc',
+  ema10: '#fbbf24',
+  ema21: '#a78bfa',
   ema50: '#f5a623',
   ema200: '#ff5266',
   entry: '#5b8cff',
   stop: '#ff5266',
   target: '#18d89a',
   catalyst: '#c084fc',
+  volAvg: '#5c6575',
 };
 
 /** Slice bars to ±windowMonths around the key date. */
@@ -125,6 +133,14 @@ export function caseSvgChart(
     );
   }
 
+  // 30-day average volume line — computed from all bars up to the key date so it
+  // reflects the "normal" volume context of the entry.
+  const barsToKey = bars.filter((b) => b.date <= study.keyDate);
+  const avgVol30 = (() => {
+    const src = barsToKey.slice(-30);
+    return src.length ? src.reduce((s, b) => s + b.volume, 0) / src.length : null;
+  })();
+
   // Volume strip (subtle, at the bottom of the price area).
   for (let i = 0; i < n; i++) {
     const b = bars[i]!;
@@ -135,16 +151,37 @@ export function caseSvgChart(
     );
   }
 
-  // EMAs (50, 200) when enough bars.
-  const polyline = (vals: number[], color: string) => {
+  // Highlight circle on the entry-day volume bar top.
+  if (keyIdx >= 0) {
+    const kx = x(keyIdx);
+    const ky = volY(bars[keyIdx]!.volume);
+    parts.push(
+      `<circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="4" fill="none" stroke="${c.entry}" stroke-width="1.5"/>`,
+    );
+  }
+
+  // 30-day average volume dashed line.
+  if (avgVol30 != null && avgVol30 > 0) {
+    const ay = volY(avgVol30);
+    parts.push(
+      `<line x1="${padL}" y1="${ay.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${ay.toFixed(1)}" stroke="${c.volAvg}" stroke-width="1" stroke-dasharray="4 3" opacity="0.7"/>`,
+      `<text x="${(W - padR + 4).toFixed(1)}" y="${(ay + 3).toFixed(1)}" fill="${c.volAvg}" font-family="monospace" font-size="8">avg</text>`,
+    );
+  }
+
+  // EMAs: draw deeper EMAs first (behind shorter ones).
+  const polyline = (vals: number[], color: string, width = 1.2) => {
     const pts = vals
       .map((v, i) => (Number.isNaN(v) ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`))
       .filter(Boolean)
       .join(' ');
-    return pts ? `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.2" opacity="0.8"/>` : '';
+    return pts ? `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${width}" opacity="0.8"/>` : '';
   };
-  if (n >= 50) parts.push(polyline(emaOfCloses(bars, 50), c.ema50));
   if (n >= 200) parts.push(polyline(emaOfCloses(bars, 200), c.ema200));
+  if (n >= 50) parts.push(polyline(emaOfCloses(bars, 50), c.ema50));
+  if (n >= 21) parts.push(polyline(emaOfCloses(bars, 21), c.ema21));
+  if (n >= 10) parts.push(polyline(emaOfCloses(bars, 10), c.ema10));
+  if (n >= 5) parts.push(polyline(emaOfCloses(bars, 5), c.ema5, 1.0));
 
   // Candles.
   for (let i = 0; i < n; i++) {
