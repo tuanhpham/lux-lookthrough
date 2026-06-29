@@ -1040,25 +1040,46 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     root.querySelectorAll<HTMLElement>('[data-stop]').forEach((b) =>
       b.addEventListener('click', async () => {
         const t = b.dataset.stop!;
-        const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.stop;
-        const latestPrice = prices(active().account.id)[t];
-        // Show suggestion in display currency
-        const curDisp = cur != null ? toDisplay(cur).toFixed(2) : latestPrice != null ? toDisplay(latestPrice).toFixed(2) : '';
+        const openLots = active().lots.filter((l) => l.ticker === t && l.remainingShares > 0);
+        const totalShares = openLots.reduce((s, l) => s + l.remainingShares, 0);
+        const cur = openLots[0]?.stop;
+        const latestPrice = prices(active().account.id)[t]; // EUR-normalized by priceCache fix
+        const curDisp = cur != null ? toDisplay(cur).toFixed(2) : '';
+        const latestDisp = latestPrice != null ? toDisplay(latestPrice) : null;
         let prevStopCcy = displayCurrency;
+
+        function stopRiskInfo(stopStr: string, ccyStr: string): string {
+          const stopVal = Number(stopStr);
+          if (!stopVal || !latestDisp || latestDisp <= stopVal) return '';
+          const sym = ccyStr === 'EUR' ? '€' : '$';
+          const risk = latestDisp - stopVal;
+          const riskPct = (risk / latestDisp) * 100;
+          const total = totalShares > 0 ? risk * totalShares : null;
+          return `<span class="muted" style="font-size:11px">Risk/share <b>${sym}${num(risk)}</b> (${riskPct.toFixed(1)}%)` +
+            (total != null ? ` · Total <b>${sym}${num(total)}</b>` : '') + `</span>`;
+        }
+
         const res = await formDialog(`Stop-loss for ${t}`, [
           { key: 'ccy', label: 'Currency', type: 'select', value: displayCurrency,
             options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
-          { key: 'stop', label: 'Stop price (blank to clear)', type: 'number', value: curDisp },
+          { key: 'stop', label: 'Stop price (blank to clear)', type: 'number', value: curDisp,
+            placeholder: latestDisp != null ? `e.g. ${(latestDisp * 0.93).toFixed(2)}` : '' },
+          { key: '_risk', label: '', type: 'info', value: stopRiskInfo(curDisp, displayCurrency) },
         ], {
           onChange: (vals) => {
             const newCcy = (vals.ccy ?? 'USD') as 'EUR' | 'USD';
-            if (newCcy === prevStopCcy) return {};
-            prevStopCcy = newCcy;
-            const currentVal = Number(vals.stop);
-            if (!currentVal) return {};
-            const fx = latestEurUsdRate ?? 1;
-            const converted = newCcy === 'EUR' ? currentVal / fx : currentVal * fx;
-            return { stop: converted.toFixed(2) };
+            const stopStr = vals.stop ?? '';
+            const updates: Partial<Record<string, string>> = {};
+            if (newCcy !== prevStopCcy) {
+              prevStopCcy = newCcy;
+              const currentVal = Number(stopStr);
+              if (currentVal) {
+                const fx = latestEurUsdRate ?? 1;
+                updates.stop = (newCcy === 'EUR' ? currentVal / fx : currentVal * fx).toFixed(2);
+              }
+            }
+            updates._risk = stopRiskInfo(updates.stop ?? stopStr, newCcy);
+            return updates;
           },
         });
         if (!res) return;
@@ -1080,24 +1101,51 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     root.querySelectorAll<HTMLElement>('[data-target]').forEach((b) =>
       b.addEventListener('click', async () => {
         const t = b.dataset.target!;
-        const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.target;
-        const latestPrice = prices(active().account.id)[t];
-        const curDisp = cur != null ? toDisplay(cur).toFixed(2) : latestPrice != null ? toDisplay(latestPrice).toFixed(2) : '';
+        const openLots = active().lots.filter((l) => l.ticker === t && l.remainingShares > 0);
+        const totalShares = openLots.reduce((s, l) => s + l.remainingShares, 0);
+        const cur = openLots[0]?.target;
+        const latestPrice = prices(active().account.id)[t]; // EUR-normalized
+        const curDisp = cur != null ? toDisplay(cur).toFixed(2) : '';
+        const latestDisp = latestPrice != null ? toDisplay(latestPrice) : null;
+        const stopDisp = openLots[0]?.stop != null ? toDisplay(openLots[0]!.stop) : null;
         let prevTargetCcy = displayCurrency;
+
+        function targetRRInfo(targetStr: string, ccyStr: string): string {
+          const targetVal = Number(targetStr);
+          if (!targetVal || !latestDisp || targetVal <= latestDisp || !stopDisp) return '';
+          const sym = ccyStr === 'EUR' ? '€' : '$';
+          const reward = targetVal - latestDisp;
+          const risk = latestDisp - stopDisp;
+          if (risk <= 0) return '';
+          const rr = reward / risk;
+          const rewardPct = (reward / latestDisp) * 100;
+          const totalReward = totalShares > 0 ? reward * totalShares : null;
+          return `<span class="muted" style="font-size:11px">Upside <b>${sym}${num(reward)}</b> (${rewardPct.toFixed(1)}%)` +
+            (totalReward != null ? ` · Total <b>${sym}${num(totalReward)}</b>` : '') +
+            ` · R:R <b>${rr.toFixed(1)}:1</b></span>`;
+        }
+
         const res = await formDialog(`Target for ${t}`, [
           { key: 'ccy', label: 'Currency', type: 'select', value: displayCurrency,
             options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
-          { key: 'target', label: 'Target price (blank to clear)', type: 'number', value: curDisp },
+          { key: 'target', label: 'Target price (blank to clear)', type: 'number', value: curDisp,
+            placeholder: latestDisp != null ? `e.g. ${(latestDisp * 1.20).toFixed(2)}` : '' },
+          { key: '_rr', label: '', type: 'info', value: targetRRInfo(curDisp, displayCurrency) },
         ], {
           onChange: (vals) => {
             const newCcy = (vals.ccy ?? 'USD') as 'EUR' | 'USD';
-            if (newCcy === prevTargetCcy) return {};
-            prevTargetCcy = newCcy;
-            const currentVal = Number(vals.target);
-            if (!currentVal) return {};
-            const fx = latestEurUsdRate ?? 1;
-            const converted = newCcy === 'EUR' ? currentVal / fx : currentVal * fx;
-            return { target: converted.toFixed(2) };
+            const targetStr = vals.target ?? '';
+            const updates: Partial<Record<string, string>> = {};
+            if (newCcy !== prevTargetCcy) {
+              prevTargetCcy = newCcy;
+              const currentVal = Number(targetStr);
+              if (currentVal) {
+                const fx = latestEurUsdRate ?? 1;
+                updates.target = (newCcy === 'EUR' ? currentVal / fx : currentVal * fx).toFixed(2);
+              }
+            }
+            updates._rr = targetRRInfo(updates.target ?? targetStr, newCcy);
+            return updates;
           },
         });
         if (!res) return;

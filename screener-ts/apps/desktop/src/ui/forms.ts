@@ -6,7 +6,8 @@
 export interface Field {
   key: string;
   label: string;
-  type?: 'text' | 'number' | 'date' | 'select';
+  /** 'info' renders a read-only display div — excluded from the returned values. */
+  type?: 'text' | 'number' | 'date' | 'select' | 'info';
   value?: string;
   placeholder?: string;
   options?: { value: string; label: string }[];
@@ -14,7 +15,8 @@ export interface Field {
 
 export interface FormDialogOptions {
   /** Called whenever any field changes. Return a partial record to overwrite
-   * specific field values live (e.g. auto-fill price when date changes). */
+   * specific field values live (e.g. auto-fill price when date changes).
+   * 'info' field values are set as innerHTML so they can contain HTML. */
   onChange?: (values: Record<string, string>) => Partial<Record<string, string>> | void;
 }
 
@@ -31,15 +33,25 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
             .map(
               (f) => {
                 if (f.type === 'select' && f.options) {
-                  const opts = f.options.map((o) =>
+                  const optHtml = f.options.map((o) =>
                     `<option value="${o.value}"${o.value === f.value ? ' selected' : ''}>${o.label}</option>`
                   ).join('');
                   return `<label class="field-label">${f.label}</label>
-                    <select class="field dialog-field" data-key="${f.key}">${opts}</select>`;
+                    <select class="field dialog-field" data-key="${f.key}">${optHtml}</select>`;
                 }
+                if (f.type === 'info') {
+                  return `${f.label ? `<label class="field-label">${f.label}</label>` : ''}
+                    <div class="dialog-info dialog-field" data-key="${f.key}" data-type="info">${f.value ?? ''}</div>`;
+                }
+                // Use type="text" with inputmode="decimal" for number fields so that
+                // iOS WKWebView returns the typed value reliably (type="number" has a
+                // known Safari bug where .value can return '' for valid decimal input).
+                const isNum = f.type === 'number';
                 return `<label class="field-label">${f.label}</label>
-                  <input class="field dialog-field" data-key="${f.key}" type="${f.type ?? 'text'}"
-                    value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" ${f.type === 'number' ? 'step="any"' : ''} />`;
+                  <input class="field dialog-field" data-key="${f.key}"
+                    type="${isNum ? 'text' : (f.type ?? 'text')}"
+                    ${isNum ? 'inputmode="decimal" autocorrect="off" autocapitalize="off"' : ''}
+                    value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" />`;
               }
             )
             .join('')}
@@ -51,22 +63,39 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
       </div>`;
     document.body.appendChild(host);
 
-    const inputs = Array.from(host.querySelectorAll<HTMLInputElement>('.dialog-field'));
+    const allFields = Array.from(host.querySelectorAll<HTMLElement>('.dialog-field'));
+    // Focusable inputs (not info divs)
+    const inputs = allFields.filter((el) => el.dataset.type !== 'info') as HTMLInputElement[];
     inputs[0]?.focus();
 
     if (opts.onChange) {
       const onChange = opts.onChange;
       const handleChange = () => {
         const current: Record<string, string> = {};
-        for (const i of inputs) current[i.dataset.key!] = i.value;
+        for (const el of allFields) {
+          if (el.dataset.type === 'info') continue;
+          current[el.dataset.key!] = (el as HTMLInputElement).value;
+        }
         const overrides = onChange(current);
         if (overrides) {
-          for (const i of inputs) {
-            if (i.dataset.key! in overrides) i.value = overrides[i.dataset.key!] ?? i.value;
+          for (const el of allFields) {
+            const key = el.dataset.key!;
+            if (!(key in overrides)) continue;
+            const val = overrides[key] ?? '';
+            if (el.dataset.type === 'info') {
+              el.innerHTML = val;
+            } else {
+              (el as HTMLInputElement).value = val;
+            }
           }
         }
       };
-      for (const i of inputs) i.addEventListener('change', handleChange);
+      // Fire on both 'input' (every keystroke) and 'change' (blur / select change).
+      for (const el of allFields) {
+        if (el.dataset.type === 'info') continue;
+        el.addEventListener('input', handleChange);
+        el.addEventListener('change', handleChange);
+      }
     }
 
     const close = (result: Record<string, string> | null) => {
@@ -76,7 +105,10 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
     };
     const submit = () => {
       const out: Record<string, string> = {};
-      for (const i of inputs) out[i.dataset.key!] = i.value.trim();
+      for (const el of allFields) {
+        if (el.dataset.type === 'info') continue; // exclude display-only fields
+        out[el.dataset.key!] = (el as HTMLInputElement).value.trim();
+      }
       close(out);
     };
     const onKey = (e: KeyboardEvent) => {
