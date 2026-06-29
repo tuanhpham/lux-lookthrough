@@ -605,16 +605,16 @@ function draw(ctx: AppContext): void {
       <div class="card">
         <div class="section-title" style="margin-top:0">${t('pf.sec.buy')}</div>
         <div class="row"><input id="b-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
-          <input id="b-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
-          <input id="b-price" class="field" type="number" step="any" placeholder="Price" style="width:90px" />
+          <input id="b-shares" class="field" type="text" inputmode="numeric" autocorrect="off" autocapitalize="off" placeholder="Shares" style="width:90px" />
+          <input id="b-price" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Price" style="width:90px" />
           <select id="b-price-ccy" class="field" style="width:72px" title="Currency in which price is entered">
             <option value="USD" ${displayCurrency === 'USD' ? 'selected' : ''}>$ USD</option>
             <option value="EUR" ${displayCurrency === 'EUR' ? 'selected' : ''}>€ EUR</option>
           </select>
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
         <div id="b-pricehint" class="price-hint"></div>
-        <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="number" step="any" placeholder="Stop (optional)" style="width:130px" />
-          <input id="b-target" class="field" type="number" step="any" placeholder="Target (optional)" style="width:130px" />
+        <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Stop (optional)" style="width:130px" />
+          <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" />
           <button id="b-go" class="btn">Buy</button>
           <button id="s-go" class="btn-outline">Sell</button></div>
         <div id="b-riskhint" class="price-hint" style="margin-top:4px"></div>
@@ -933,9 +933,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         (totalRisk != null ? ` · Total <b>${sym}${num(totalRisk)}</b>` : '') +
         rrStr;
     };
-    ['#b-price', '#b-stop', '#b-target', '#b-shares', '#b-price-ccy'].forEach((sel) =>
-      $(sel)?.addEventListener('input', updateRiskHint),
-    );
+    ['#b-price', '#b-stop', '#b-target', '#b-shares', '#b-price-ccy'].forEach((sel) => {
+      const el = $(sel);
+      el?.addEventListener('input', updateRiskHint);
+      el?.addEventListener('change', updateRiskHint); // fallback for iOS WKWebView
+    });
 
     // buy
     $('#b-go')!.addEventListener('click', async () => {
