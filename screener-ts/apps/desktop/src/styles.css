@@ -300,6 +300,128 @@ button.btn:active, button.btn-outline:active { transform: translateY(1px); }
   background: var(--accent-wash); border-color: var(--accent-line); color: var(--accent);
 }
 
+/* ── Portfolio toolbar ──────────────────────────────────────────────────────
+   Two zones: left = nav (Overview + dropdown + icon actions)
+              right = actions (Update + CCY toggle)
+   All controls share the same 28px height so nothing looks oversized.        */
+.pf-toolbar-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.pf-toolbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.pf-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* Shared height for every toolbar control */
+.pf-nav-btn,
+.pf-icon-btn,
+.pf-action-btn,
+.pf-acct-select,
+.pf-ccy-btn {
+  height: 28px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+}
+
+/* Overview / nav button */
+.pf-nav-btn {
+  padding: 0 11px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--subtext);
+  font-weight: 600;
+}
+.pf-nav-btn:hover { border-color: var(--accent-line); color: var(--text); }
+.pf-nav-btn.active {
+  background: var(--accent-wash);
+  border-color: var(--accent-line);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Account dropdown — color-scheme tells the browser to use the right OS theme
+   for the native option popup (fixes white-on-white in dark mode)             */
+.pf-acct-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0 26px 0 10px;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 7px center;
+  border: 1px solid var(--border);
+  color: var(--subtext);
+  font-weight: 600;
+  min-width: 130px;
+  max-width: 200px;
+  color-scheme: dark;
+}
+html.light .pf-acct-select { color-scheme: light; }
+.pf-acct-select:focus { outline: none; border-color: var(--accent-line); }
+.pf-acct-select.active {
+  background-color: var(--accent-wash);
+  border-color: var(--accent-line);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Small icon buttons: ＋ ✎ ✕ */
+.pf-icon-btn {
+  width: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--subtext);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+.pf-icon-btn:hover:not(:disabled) { border-color: var(--accent-line); color: var(--accent); }
+.pf-icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* Action buttons: Update / Clear */
+.pf-action-btn {
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--subtext);
+  font-weight: 600;
+}
+.pf-action-btn:hover { border-color: var(--accent-line); color: var(--text); }
+.pf-action-btn--primary {
+  background: var(--accent-wash);
+  border-color: var(--accent-line);
+  color: var(--accent);
+  font-weight: 700;
+}
+.pf-action-btn--primary:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent);
+}
+
+@media (max-width: 600px) {
+  .pf-toolbar-wrap { flex-direction: column; align-items: stretch; }
+  .pf-toolbar-nav  { flex-wrap: wrap; }
+  .pf-toolbar-actions { justify-content: flex-end; }
+  .pf-acct-select { max-width: 100%; min-width: 0; flex: 1; }
+}
+
 /* Portfolio currency toggle — always visually prominent */
 .pf-ccy-btn {
   background: var(--accent-wash);

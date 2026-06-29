@@ -390,29 +390,72 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
     ...accounts.map(async (acct) => {
       const bc = await loadBarCache(ctx, acct.account.id);
       barMapByAccount.set(acct.account.id, new Map(Object.entries(bc)));
+      // Seed priceCache from the last cached bar so prices display immediately
+      // on load without requiring a manual "Update" click.
+      const priceMap: PriceMap = {};
+      for (const [sym, bars] of Object.entries(bc)) {
+        if (!bars.length) continue;
+        const rawClose = bars[bars.length - 1]!.close;
+        // Will be overwritten with proper FX-normalized value once EURUSD loads,
+        // but use raw for now so the UI isn't blank.
+        priceMap[sym] = rawClose;
+      }
+      priceCache.set(acct.account.id, priceMap);
     }),
-    loadEurUsdCache(ctx).then(applyEurUsdBars),
+    loadEurUsdCache(ctx).then((bars) => {
+      applyEurUsdBars(bars);
+      // Re-normalize priceCache with the now-loaded FX rates
+      for (const acct of accounts) {
+        const pm = priceCache.get(acct.account.id);
+        if (!pm || acct.account.currency !== 'EUR') continue;
+        const normalized: PriceMap = {};
+        for (const [sym, rawClose] of Object.entries(pm)) {
+          const bc = barMapByAccount.get(acct.account.id);
+          const acctBars = bc?.get(sym);
+          if (!acctBars?.length) { normalized[sym] = rawClose; continue; }
+          const barDate = acctBars[acctBars.length - 1]!.date;
+          const fx = eurUsdForDate(barDate);
+          normalized[sym] = fx > 1 ? rawClose / fx : rawClose;
+        }
+        priceCache.set(acct.account.id, normalized);
+      }
+    }),
   ]);
   draw(ctx);
 }
 
 function toolbarHtml(): string {
-  return `<div class="toolbar">
-      <button class="range-btn ${activeId === OVERVIEW_ID ? 'active' : ''}" data-acct="${OVERVIEW_ID}">${t('pf.overview')}</button>
-      ${accounts
-        .map(
-          (a) =>
-            `<button class="range-btn ${a.account.id === activeId ? 'active' : ''}" data-acct="${a.account.id}">${a.account.name}</button>`,
-        )
-        .join('')}
-      <button id="acct-new" class="range-btn">${t('pf.newacct')}</button>
-      <button id="acct-edit" class="range-btn"${activeId === OVERVIEW_ID ? ' disabled' : ''}>${t('pf.editacct')}</button>
-      <button id="acct-delete" class="range-btn"${activeId === OVERVIEW_ID ? ' disabled' : ''}>${t('pf.delacct')}</button>
-      ${activeId !== OVERVIEW_ID ? `
-      <button id="acct-update" class="btn" style="margin-left:auto">${t('pf.update')}</button>
-      <button id="acct-clear-cache" class="btn-outline" title="${t('pf.clearcache')}">${t('pf.clearcache')}</button>` : ''}
-      <button id="pf-ccy-toggle" class="pf-ccy-btn${displayCurrency === 'USD' ? ' usd' : ''}" style="margin-left:${activeId === OVERVIEW_ID ? 'auto' : '4px'}" title="Toggle display currency${latestEurUsdRate ? ' · EURUSD ' + latestEurUsdRate.toFixed(4) : ''}">${displayCurrency === 'EUR' ? '€ EUR' : '$ USD'}</button>
-    </div>`;
+  const isOverview = activeId === OVERVIEW_ID;
+  // Account selector: Overview button + dropdown for accounts (scales to any count)
+  const activeAcct = isOverview ? null : accounts.find((a) => a.account.id === activeId);
+  const acctOptions = accounts.map((a) => {
+    const m = computeAccountMetrics(a, prices(a.account.id));
+    return `<option value="${a.account.id}"${a.account.id === activeId ? ' selected' : ''}>${a.account.name}  (${pct(m.totalPnLPct)})</option>`;
+  }).join('');
+
+  const fxTitle = latestEurUsdRate ? ` · EURUSD ${latestEurUsdRate.toFixed(4)}` : '';
+  return `<div class="pf-toolbar-wrap">
+    <div class="pf-toolbar-nav">
+      <button class="pf-nav-btn${isOverview ? ' active' : ''}" data-acct="${OVERVIEW_ID}">${t('pf.overview')}</button>
+      <select id="pf-acct-select" class="pf-acct-select${!isOverview ? ' active' : ''}">
+        <option value="" ${isOverview ? 'selected' : ''} disabled>${t('pf.selectacct')}</option>
+        ${acctOptions}
+      </select>
+      <button id="acct-new"    class="pf-icon-btn" title="New account">＋</button>
+      <button id="acct-edit"   class="pf-icon-btn"${isOverview ? ' disabled' : ''} title="Edit account">✎</button>
+      <button id="acct-delete" class="pf-icon-btn"${isOverview ? ' disabled' : ''} title="Delete account">✕</button>
+    </div>
+    <div class="pf-toolbar-actions">
+      ${!isOverview
+        ? `<button id="acct-update"      class="pf-action-btn pf-action-btn--primary">${t('pf.update')}</button>
+           <button id="acct-clear-cache" class="pf-action-btn">${t('pf.clearcache')}</button>`
+        : `<button id="acct-update-all"  class="pf-action-btn pf-action-btn--primary">${t('pf.updateall')}</button>`}
+      <button id="pf-ccy-toggle" class="pf-ccy-btn${displayCurrency === 'USD' ? ' usd' : ''}"
+        title="Toggle display currency${fxTitle}">
+        ${displayCurrency === 'EUR' ? '€ EUR' : '$ USD'}
+      </button>
+    </div>
+  </div>`;
 }
 
 function draw(ctx: AppContext): void {
@@ -444,16 +487,16 @@ function draw(ctx: AppContext): void {
     <div id="update-status" class="muted" style="margin-bottom:10px"></div>
 
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-      <div class="stat"><div class="k">Initial capital</div><div class="v">${money(toDisplay(st.account.initialCapital), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.initialcap')}</div><div class="v">${money(toDisplay(st.account.initialCapital), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.equity')}</div><div class="v">${money(toDisplay(m.equity), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.cash')}</div><div class="v">${money(toDisplay(m.cash), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.pnl')}</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(m.totalPnL), dispSymbol())} (${pct(m.totalPnLPct)})</div></div>
       <div class="stat"><div class="k">${t('pf.stat.risk')}</div><div class="v">${money(toDisplay(m.totalOpenRiskEur), dispSymbol())} (${pct(m.totalOpenRiskPct)})</div></div>
       <div class="stat"><div class="k">${t('pf.stat.realizedpnl')} / ${t('pf.stat.unrealpnl')}</div><div class="v">${money(toDisplay(m.realizedPnL), dispSymbol())} / ${money(toDisplay(m.unrealizedPnL), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.winrate')}</div><div class="v">${num(m.winRate * 100, 0)}%</div></div>
-      <div class="stat"><div class="k">Avg R / ${t('pf.stat.expectancy')}</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(toDisplay(m.expectancy), dispSymbol())}</div></div>
-      <div class="stat"><div class="k">Max drawdown</div><div class="v">${num(m.maxDrawdownPct, 1)}%</div></div>
-      <div class="stat"><div class="k">Avg holding period</div><div class="v">${avgHold.count ? num(avgHold.days, 0) + ' days' : '—'}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.avgr')} / ${t('pf.stat.expectancy')}</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(toDisplay(m.expectancy), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.maxdd')}</div><div class="v">${num(m.maxDrawdownPct, 1)}%</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.hold')}</div><div class="v">${avgHold.count ? num(avgHold.days, 0) + ' days' : '—'}</div></div>
     </div>
 
     <div class="card" style="margin-bottom:14px;padding:8px">
@@ -608,14 +651,20 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     });
   }
 
-  // account switch / new
+  // Overview button + account dropdown
   root.querySelectorAll<HTMLElement>('[data-acct]').forEach((b) =>
     b.addEventListener('click', () => {
       activeId = b.dataset.acct!;
       draw(ctx);
     }),
   );
-  $('#acct-new')!.addEventListener('click', async () => {
+  const acctSelectWire = root.querySelector<HTMLSelectElement>('#pf-acct-select');
+  if (acctSelectWire) {
+    acctSelectWire.addEventListener('change', () => {
+      if (acctSelectWire.value) { activeId = acctSelectWire.value; draw(ctx); }
+    });
+  }
+  root.querySelector('#acct-new')!.addEventListener('click', async () => {
     const res = await formDialog('New account', [
       { key: 'name', label: 'Account name', value: `Strategy ${String.fromCharCode(65 + accounts.length)}` },
       { key: 'cap', label: 'Initial capital (EUR)', type: 'number', value: '50000' },
@@ -1321,15 +1370,15 @@ function transactionHistoryHtml(st: AccountState): string {
     })
     .join('');
   return `${summaryLine}<table style="white-space:nowrap"><thead><tr>
-    <th>Status ${infoIcon('pf_tx_status')}</th>
-    <th>Ticker ${infoIcon('pf_ticker')}</th>
-    <th>Shares ${infoIcon('pf_tx_shares')}</th>
-    <th>Buy Price ${infoIcon('pf_tx_buyprice')}</th>
-    <th>Sell Price ${infoIcon('pf_tx_sellprice')}</th>
-    <th>Buy Date ${infoIcon('pf_tx_buydate')}</th>
-    <th>Sell Date ${infoIcon('pf_tx_selldate')}</th>
-    <th>Held ${infoIcon('pf_tx_held')}</th>
-    <th>Realized PnL ${infoIcon('pf_tx_pnl')}</th>
+    <th>${t('pf.col.status')} ${infoIcon('pf_tx_status')}</th>
+    <th>${t('pf.col.ticker')} ${infoIcon('pf_ticker')}</th>
+    <th>${t('pf.col.shares')} ${infoIcon('pf_tx_shares')}</th>
+    <th>${t('pf.col.buyprice')} ${infoIcon('pf_tx_buyprice')}</th>
+    <th>${t('pf.col.sellprice')} ${infoIcon('pf_tx_sellprice')}</th>
+    <th>${t('pf.col.buydate')} ${infoIcon('pf_tx_buydate')}</th>
+    <th>${t('pf.col.selldate')} ${infoIcon('pf_tx_selldate')}</th>
+    <th>${t('pf.col.held')} ${infoIcon('pf_tx_held')}</th>
+    <th>${t('pf.col.realizedpnl')} ${infoIcon('pf_tx_pnl')}</th>
     <th></th>
   </tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -1365,7 +1414,10 @@ function renderOrders(ctx: AppContext): void {
 
 async function update(ctx: AppContext): Promise<void> {
   const st = active();
-  const status = $('#update-status')!;
+  // #update-status only exists in the individual account view. When update() is
+  // called from the Overview "Update All" loop the element is absent — use a
+  // no-op stub so every subsequent status.innerHTML write is safe.
+  const status = $('#update-status') ?? { innerHTML: '' };
   const endDate = today();
 
   const tickers = [
@@ -1675,26 +1727,36 @@ function buildOverviewHtml(): string {
   }
   const avgHoldDays = holdShares > 0 ? holdSum / holdShares : 0;
 
-  const compareNote = accounts.length < 2
-    ? `<p class="muted" style="font-size:12px;margin:0 0 8px">Add another account (＋ New account) to compare strategies side by side.</p>`
-    : `<p class="muted" style="font-size:12px;margin:0 0 8px">Click an account name to open it.</p>`;
-
   return `
     <h1>${t('pf.title')}</h1>
     <p class="subtitle">${t('pf.sub.overview')}</p>
     ${toolbarHtml()}
+    <div id="overview-update-status" style="margin-bottom:10px"></div>
 
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-      <div class="stat"><div class="k">Total initial capital</div><div class="v">${money(toDisplay(totalInitialCap), dispSymbol())}</div></div>
-      <div class="stat"><div class="k">Total equity</div><div class="v">${money(toDisplay(totalEquity), dispSymbol())}</div></div>
-      <div class="stat"><div class="k">Total cash</div><div class="v">${money(toDisplay(totalCash), dispSymbol())}</div></div>
-      <div class="stat"><div class="k">Total PnL</div><div class="v" style="color:${totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(totalPnL), dispSymbol())} (${pct(totalPnLPct)})</div></div>
-      <div class="stat"><div class="k">Best account</div><div class="v">${best ? `${best.name} (${pct(best.totalReturnPct)})` : '—'}</div></div>
-      <div class="stat"><div class="k">Worst account</div><div class="v">${worst ? `${worst.name} (${pct(worst.totalReturnPct)})` : '—'}</div></div>
-      <div class="stat"><div class="k">Avg win rate</div><div class="v">${num(avgWinRate * 100, 0)}%</div></div>
-      <div class="stat"><div class="k">Total open positions</div><div class="v">${totalOpenPositions}</div></div>
-      <div class="stat"><div class="k">Total closed trades</div><div class="v">${totalClosedTrades}</div></div>
-      <div class="stat"><div class="k">Avg holding period</div><div class="v">${holdShares > 0 ? num(avgHoldDays, 0) + ' days' : '—'}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.totalcap')}</div><div class="v">${money(toDisplay(totalInitialCap), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.totalequity')}</div><div class="v">${money(toDisplay(totalEquity), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.totalcash')}</div><div class="v">${money(toDisplay(totalCash), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.totalpnl')}</div><div class="v" style="color:${totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(totalPnL), dispSymbol())} (${pct(totalPnLPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.best')}</div><div class="v" style="color:var(--accent)">${best ? `${best.name} · ${pct(best.totalReturnPct)}` : '—'}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.worst')}</div><div class="v" style="color:var(--danger)">${worst && worst.totalReturnPct < 0 ? `${worst.name} · ${pct(worst.totalReturnPct)}` : '—'}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.avgwinrate')}</div><div class="v">${num(avgWinRate * 100, 0)}%</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.openclosed')}</div><div class="v">${totalOpenPositions} / ${totalClosedTrades}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.avghold')}</div><div class="v">${holdShares > 0 ? num(avgHoldDays, 0) + ' days' : '—'}</div></div>
+    </div>
+
+    <div class="section-title">${t('pf.overview.compare')}</div>
+    ${accounts.length < 2
+      ? `<p class="muted" style="font-size:12px;margin:0 0 8px">${t('pf.addacct.hint')}</p>`
+      : `<p class="muted" style="font-size:12px;margin:0 0 8px">${t('pf.clickacct')}</p>`}
+    <div class="card" style="overflow-x:auto;margin-bottom:14px">
+      <table><thead><tr><th>${t('pf.col.account')}</th><th>${t('pf.col.return')}</th><th>${t('pf.col.equity2')}</th><th>${t('pf.col.winrate')}</th><th>${t('pf.stat.expectancy')}</th><th>${t('pf.col.avgr')}</th><th>${t('pf.col.maxdd')}</th><th>${t('pf.col.openrisk')}</th><th>${t('pf.col.open')}</th><th>${t('pf.col.closed')}</th></tr></thead>
+      <tbody>${compareRows
+        .map(
+          (r) =>
+            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
+        )
+        .join('')}</tbody></table>
     </div>
 
     <div class="card" style="margin-bottom:14px;padding:8px">
@@ -1721,18 +1783,6 @@ function buildOverviewHtml(): string {
         </div>
       </div>
       <div id="portfolio-chart" style="height:260px"></div>
-    </div>
-
-    <div class="section-title">${t('pf.overview.compare')}</div>
-    ${compareNote}
-    <div class="card" style="overflow-x:auto;margin-bottom:14px">
-      <table><thead><tr><th>Account</th><th>Return %</th><th>Equity</th><th>Win rate</th><th>Expectancy</th><th>Avg R</th><th>Max DD</th><th>Open risk %</th><th>Open</th><th>Closed</th></tr></thead>
-      <tbody>${compareRows
-        .map(
-          (r) =>
-            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
-        )
-        .join('')}</tbody></table>
     </div>`;
 }
 
@@ -1746,7 +1796,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     });
   }
 
-  // account switch buttons
+  // Overview button (always shown)
   root.querySelectorAll<HTMLElement>('[data-acct]').forEach((b) =>
     b.addEventListener('click', () => {
       activeId = b.dataset.acct!;
@@ -1754,8 +1804,16 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     }),
   );
 
+  // Account dropdown — replaces the old flat button row
+  const acctSelect = root.querySelector<HTMLSelectElement>('#pf-acct-select');
+  if (acctSelect) {
+    acctSelect.addEventListener('change', () => {
+      if (acctSelect.value) { activeId = acctSelect.value; draw(ctx); }
+    });
+  }
+
   // new account
-  $('#acct-new')!.addEventListener('click', async () => {
+  root.querySelector('#acct-new')!.addEventListener('click', async () => {
     const res = await formDialog('New account', [
       { key: 'name', label: 'Account name', value: `Strategy ${String.fromCharCode(65 + accounts.length)}` },
       { key: 'cap', label: 'Initial capital (EUR)', type: 'number', value: '50000' },
@@ -1768,15 +1826,36 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     draw(ctx);
   });
 
-  // open account links in compare table
+  // account cards — click to open
   root.querySelectorAll<HTMLElement>('[data-acct-open]').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
-      activeId = a.dataset.acctOpen!;
+      activeId = (a.dataset.acctOpen ?? a.closest<HTMLElement>('[data-acct-open]')?.dataset.acctOpen)!;
       draw(ctx);
       $('#tab-portfolio')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }),
   );
+
+  // Update All — runs update() for each account sequentially and shows progress
+  const updateAllBtn = root.querySelector<HTMLElement>('#acct-update-all');
+  if (updateAllBtn) {
+    updateAllBtn.addEventListener('click', async () => {
+      const statusEl = root.querySelector<HTMLElement>('#overview-update-status');
+      const savedActiveId = activeId;
+      (updateAllBtn as HTMLButtonElement).disabled = true;
+      const total = accounts.length;
+      for (let i = 0; i < accounts.length; i++) {
+        const acct = accounts[i]!;
+        if (statusEl) statusEl.innerHTML = `<span class="status-chip status-chip--loading"><span class="spinner"></span>${t('pf.updating')} ${acct.account.name} (${i + 1}/${total})…</span>`;
+        activeId = acct.account.id;
+        await update(ctx);
+      }
+      activeId = savedActiveId;
+      draw(ctx);
+      const s = root.querySelector<HTMLElement>('#overview-update-status');
+      if (s) s.innerHTML = `<span class="status-chip status-chip--ok"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>${total} ${t('pf.updated.all')}</span>`;
+    });
+  }
 
   // combined portfolio chart
   const byDate = new Map<string, number>();
