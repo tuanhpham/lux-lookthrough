@@ -424,6 +424,19 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
       }
     }),
   ]);
+
+  // Rebuild candle cache from persisted bars now that FX rates are loaded.
+  // The cache stored in localStorage may have been built without EUR normalization;
+  // rebuilding here ensures the candle close always matches the equity snapshot.
+  const rebuildDate = new Date().toISOString().slice(0, 10);
+  for (const acct of accounts) {
+    const bm = barMapByAccount.get(acct.account.id);
+    if (bm?.size) {
+      (acct as AccountState & { _candleCache?: ReturnType<typeof buildCandleSeries> })._candleCache =
+        buildCandleSeries(acct, bm, rebuildDate);
+    }
+  }
+
   draw(ctx);
 }
 
