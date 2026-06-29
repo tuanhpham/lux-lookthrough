@@ -146,6 +146,8 @@ let latestEurUsdRate: number | null = null;
 const eurUsdRateByDate = new Map<string, number>();
 /** Display currency chosen by the user (EUR by default). */
 let displayCurrency: 'EUR' | 'USD' = 'EUR';
+/** Whether portfolio/equity charts include cash. Persisted across redraws. */
+let pfShowCash = true;
 
 /**
  * Return the EURUSD rate for a given date, falling back to the latest known rate.
@@ -192,6 +194,17 @@ async function load(ctx: AppContext): Promise<void> {
     accounts = [a];
     await save(ctx);
   }
+  // Scrub any NaN stop/target values that may have been stored via comma-decimal
+  // input (e.g. "185,50" parsed by Number() → NaN). NaN is a valid JS value but
+  // causes riskEur / rMultiple to silently become NaN and display as "—".
+  let dirty = false;
+  for (const acct of accounts) {
+    for (const lot of acct.lots) {
+      if (lot.stop !== undefined && isNaN(lot.stop)) { lot.stop = undefined; dirty = true; }
+      if (lot.target !== undefined && isNaN(lot.target)) { lot.target = undefined; dirty = true; }
+    }
+  }
+  if (dirty) await save(ctx);
   if (activeId !== OVERVIEW_ID && !accounts.some((a) => a.account.id === activeId)) activeId = OVERVIEW_ID;
 }
 async function save(ctx: AppContext): Promise<void> {
@@ -522,6 +535,9 @@ function draw(ctx: AppContext): void {
           <button class="range-btn" data-pf-view="equity">${t('pf.chart.equity')}</button>
           <button class="range-btn active" data-pf-view="candle">${t('pf.chart.candle')}</button>
         </div>
+        <div class="toolbar" style="margin:0;gap:4px">
+          <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
+        </div>
         <div class="toolbar" style="margin:0;gap:4px" id="pf-range-bar">
           <button class="range-btn active" data-pf-range="all">All</button>
           <button class="range-btn" data-pf-range="5y">5Y</button>
@@ -735,25 +751,33 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     let pfCandleChart: ReturnType<typeof drawCandles> | null = null;
 
     const equityPoints = (() => {
-      const byDate = new Map<string, number>();
-      for (const s of stChart.snapshots) byDate.set(s.date, s.equity);
-      return [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([time, value]) => ({ time, value }));
+      const byDate = new Map<string, { equity: number; positionsValue: number }>();
+      for (const s of stChart.snapshots) byDate.set(s.date, { equity: s.equity, positionsValue: s.positionsValue });
+      return [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .map(([time, v]) => ({ time, equity: v.equity, positionsValue: v.positionsValue }));
     })();
 
     function renderPfChart() {
       if (pfCandleChart) { try { pfCandleChart.destroy(); } catch { /* ignore */ } pfCandleChart = null; }
       const dispCap = toDisplay(stChart.account.initialCapital);
       if (pfView === 'equity') {
-        const equityPointsDisplay = equityPoints.map((p) => ({ time: p.time, value: toDisplay(p.value, p.time) }));
-        const pts = slicePoints(equityPointsDisplay, pfRange);
+        const pts = slicePoints(
+          equityPoints.map((p) => ({
+            time: p.time,
+            value: toDisplay(pfShowCash ? p.equity : p.positionsValue, p.time),
+          })),
+          pfRange,
+        );
         if (pts.length) {
-          try { drawLine(pfEl, pts, { baseline: dispCap, money: true, currency: dispSymbol(), height: 260, maxLine: true, minLine: true, currentLine: true }); }
+          const baseline = pfShowCash ? dispCap : 0;
+          try { drawLine(pfEl, pts, { baseline, money: true, currency: dispSymbol(), height: 260, maxLine: true, minLine: true, currentLine: true }); }
           catch { pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>Chart unavailable.</div>`; }
         } else {
           pfEl.innerHTML = noDataHtml();
         }
       } else {
-        const bars = sliceBars(scaleBarsForDisplay(cache?.portfolio ?? [], stChart.account.currency), pfRange);
+        const rawBars = pfShowCash ? (cache?.portfolio ?? []) : (cache?.portfolioNoCash ?? []);
+        const bars = sliceBars(scaleBarsForDisplay(rawBars, stChart.account.currency), pfRange);
         if (bars.length) {
           try { pfCandleChart = drawCandles(pfEl, bars, null, pfEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
           catch { pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>Chart unavailable.</div>`; }
@@ -765,6 +789,13 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       if (emaBar) emaBar.style.display = pfView === 'candle' ? '' : 'none';
     }
     renderPfChart();
+
+    const cashToggleBtn = root.querySelector<HTMLElement>('#pf-cash-toggle');
+    cashToggleBtn?.addEventListener('click', () => {
+      pfShowCash = !pfShowCash;
+      cashToggleBtn.classList.toggle('active', pfShowCash);
+      renderPfChart();
+    });
 
     root.querySelectorAll<HTMLElement>('[data-pf-view]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -1635,6 +1666,7 @@ function buildCandleSeries(
 ): {
   positions: { ticker: string; bars: Bar[] }[];
   portfolio: Bar[];
+  portfolioNoCash: Bar[];
 } {
   const start = accountEarliestDate(st);
 
@@ -1645,7 +1677,7 @@ function buildCandleSeries(
     }
   }
   const dates = [...dateSet].sort();
-  if (!dates.length) return { positions: [], portfolio: [] };
+  if (!dates.length) return { positions: [], portfolio: [], portfolioNoCash: [] };
 
   const barByTickerDate = new Map<string, Map<string, Bar>>();
   for (const [sym, bars] of allBars.entries()) {
@@ -1697,7 +1729,8 @@ function buildCandleSeries(
   const openTickers = [...new Set(st.lots.map((l) => l.ticker))];
   const posBars = new Map<string, Bar[]>(openTickers.map((t) => [t, []]));
 
-  const portfolio: Bar[] = [];
+  const portfolio: Bar[] = [];        // cash + positions
+  const portfolioNoCash: Bar[] = [];  // positions only
 
   for (const date of dates) {
     while (evIdx < events.length && events[evIdx]!.date <= date) {
@@ -1706,6 +1739,7 @@ function buildCandleSeries(
     }
 
     let portO = cash, portH = cash, portL = cash, portC = cash;
+    let posO = 0, posH = 0, posL = 0, posC = 0;
 
     for (const ticker of openTickers) {
       let held = 0;
@@ -1735,16 +1769,22 @@ function buildCandleSeries(
       portH += posBar.high;
       portL += posBar.low;
       portC += posBar.close;
+      posO += posBar.open;
+      posH += posBar.high;
+      posL += posBar.low;
+      posC += posBar.close;
     }
 
     portfolio.push({ date, open: portO, high: portH, low: portL, close: portC, volume: 0 });
+    // Only emit a no-cash bar when at least one position is held
+    if (posC > 0) portfolioNoCash.push({ date, open: posO, high: posH, low: posL, close: posC, volume: 0 });
   }
 
   const positions = openTickers
     .map((ticker) => ({ ticker, bars: posBars.get(ticker)! }))
     .filter((p) => p.bars.length > 0);
 
-  return { positions, portfolio };
+  return { positions, portfolio, portfolioNoCash };
 }
 
 /**
@@ -1842,6 +1882,9 @@ function buildOverviewHtml(): string {
           <button class="range-btn" data-pf-view="equity">${t('pf.chart.equity')}</button>
           <button class="range-btn active" data-pf-view="candle">${t('pf.chart.candle')}</button>
         </div>
+        <div class="toolbar" style="margin:0;gap:4px">
+          <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
+        </div>
         <div class="toolbar" style="margin:0;gap:4px" id="pf-range-bar">
           <button class="range-btn active" data-pf-range="all">All</button>
           <button class="range-btn" data-pf-range="5y">5Y</button>
@@ -1934,16 +1977,23 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   }
 
   // combined portfolio chart
-  const byDate = new Map<string, number>();
+  const byDateEquity = new Map<string, { equity: number; positionsValue: number }>();
   for (const acct of accounts) {
     for (const s of acct.snapshots) {
-      byDate.set(s.date, (byDate.get(s.date) ?? 0) + s.equity);
+      const ex = byDateEquity.get(s.date) ?? { equity: 0, positionsValue: 0 };
+      ex.equity += s.equity;
+      ex.positionsValue += s.positionsValue;
+      byDateEquity.set(s.date, ex);
     }
   }
-  const combinedEquity = [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([time, value]) => ({ time, value }));
+  const combinedEquityPoints = [...byDateEquity.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([time, v]) => ({ time, equity: v.equity, positionsValue: v.positionsValue }));
   const totalInitialCap = accounts.reduce((s, a) => s + a.account.initialCapital, 0);
 
+  // Merge portfolio bars (with cash) and positions-only bars across all accounts
   const mergedPortfolio = new Map<string, Bar>();
+  const mergedPortfolioNoCash = new Map<string, Bar>();
   for (const acct of accounts) {
     const cache = (acct as AccountState & { _candleCache?: ReturnType<typeof buildCandleSeries> })._candleCache;
     for (const b of cache?.portfolio ?? []) {
@@ -1951,11 +2001,14 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
       if (ex) { ex.open += b.open; ex.high += b.high; ex.low += b.low; ex.close += b.close; }
       else mergedPortfolio.set(b.date, { ...b });
     }
+    for (const b of cache?.portfolioNoCash ?? []) {
+      const ex = mergedPortfolioNoCash.get(b.date);
+      if (ex) { ex.open += b.open; ex.high += b.high; ex.low += b.low; ex.close += b.close; }
+      else mergedPortfolioNoCash.set(b.date, { ...b });
+    }
   }
   const combinedPortfolioBars = [...mergedPortfolio.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
-
-  // Combined equity — pre-compute once (snapshots are in account base currency)
-  const combinedEquityRaw = combinedEquity; // raw EUR values
+  const combinedPortfolioNoCashBars = [...mergedPortfolioNoCash.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 
   const pfEl = root.querySelector<HTMLElement>('#portfolio-chart')!;
   let pfView: 'equity' | 'candle' = 'candle';
@@ -1980,17 +2033,23 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     if (pfCandleChart) { try { pfCandleChart.destroy(); } catch { /* ignore */ } pfCandleChart = null; }
     const dispCap = toDisplay(totalInitialCap);
     if (pfView === 'equity') {
-      const equityDisplay = combinedEquityRaw.map((p) => ({ time: p.time, value: toDisplay(p.value, p.time) }));
-      const pts = slicePoints(equityDisplay, pfRange);
+      const pts = slicePoints(
+        combinedEquityPoints.map((p) => ({
+          time: p.time,
+          value: toDisplay(pfShowCash ? p.equity : p.positionsValue, p.time),
+        })),
+        pfRange,
+      );
       if (pts.length) {
-        try { drawLine(pfEl, pts, { baseline: dispCap, money: true, currency: dispSymbol(), height: 260 }); }
+        const baseline = pfShowCash ? dispCap : 0;
+        try { drawLine(pfEl, pts, { baseline, money: true, currency: dispSymbol(), height: 260 }); }
         catch { pfEl.innerHTML = noDataHtml(t('pf.unavailable')); }
       } else {
         pfEl.innerHTML = noDataHtml(t('pf.nodata.overview'));
       }
     } else {
-      // combinedPortfolioBars are raw EUR — scale at render time so toggle works
-      const scaledCombined = scaleBarsForDisplay(combinedPortfolioBars, accounts[0]?.account.currency ?? 'EUR');
+      const rawBars = pfShowCash ? combinedPortfolioBars : combinedPortfolioNoCashBars;
+      const scaledCombined = scaleBarsForDisplay(rawBars, accounts[0]?.account.currency ?? 'EUR');
       const bars = sliceBars(scaledCombined, pfRange);
       if (bars.length) {
         try { pfCandleChart = drawCandles(pfEl, bars, null, pfEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
@@ -2003,6 +2062,13 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     if (emaBar) emaBar.style.display = pfView === 'candle' ? '' : 'none';
   }
   if (pfEl) renderPfChart();
+
+  const cashToggleBtn2 = root.querySelector<HTMLElement>('#pf-cash-toggle');
+  cashToggleBtn2?.addEventListener('click', () => {
+    pfShowCash = !pfShowCash;
+    cashToggleBtn2.classList.toggle('active', pfShowCash);
+    renderPfChart();
+  });
 
   root.querySelectorAll<HTMLElement>('[data-pf-view]').forEach((b) =>
     b.addEventListener('click', () => {
