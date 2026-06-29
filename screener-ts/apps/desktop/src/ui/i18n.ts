@@ -194,6 +194,8 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'pf.col.unrealpnl': { en: 'Unreal. P&L', vi: 'Lãi/lỗ chưa thực' },
   'pf.col.risk': { en: 'Risk', vi: 'Rủi ro' },
   'pf.col.rmult': { en: 'R-mult.', vi: 'Bội R' },
+  'pf.riskfree': { en: 'Free', vi: 'An toàn' },
+  'pf.kpi.invested': { en: 'Invested', vi: 'Đã đầu tư' },
   'pf.col.stop': { en: 'Stop', vi: 'Dừng lỗ' },
   'pf.col.target': { en: 'Target', vi: 'Mục tiêu' },
   'pf.col.days': { en: 'Days', vi: 'Ngày' },

@@ -32,11 +32,14 @@ export interface PriceMap {
  * Risk (only from open lots that HAVE a stop):
  *   riskEur = Σ (buyPrice - stop) * remainingShares   over stop-bearing lots
  *   If NO open lot has a stop → riskEur undefined (excluded from total risk).
+ *   If a stop exists but sits at/above entry (raised to lock in profit) →
+ *     riskEur = 0, riskFree = true, lockedInProfit = Σ (stop - buyPrice) * shares.
  *
  * R-multiple (only when risk is defined and > 0):
  *   perShareRisk = riskEur / sharesWithStop
  *   rMultiple    = unrealizedPnL_onStoppedShares / riskEur
  *   (we use the stopped-shares' share of unrealized PnL for honesty)
+ *   Undefined when risk-free (division by zero).
  *
  * stop/target shown = those of the OLDEST open lot carrying them (representative).
  * distanceToStopPct  = (lastPrice - stop)/lastPrice*100
@@ -109,9 +112,20 @@ export function buildPositions(
       concentrationPct: equity > 0 ? pyRound((marketValue / equity) * 100, 6) : 0,
     };
 
-    if (hasStop && riskEur > 0) {
-      pos.riskEur = pyRound(riskEur, 6);
-      pos.rMultiple = pyRound(unrealizedOnStopped / riskEur, 6);
+    if (hasStop) {
+      if (riskEur > 0) {
+        // Stop below entry — real capital at risk.
+        pos.riskEur = pyRound(riskEur, 6);
+        pos.rMultiple = pyRound(unrealizedOnStopped / riskEur, 6);
+      } else {
+        // Stop at/above entry — the trade is risk-free: the stop guarantees a
+        // non-negative outcome, so there is no capital left at risk (riskEur 0).
+        // lockedInProfit = Σ (stop - buyPrice) * shares on stop-bearing lots.
+        pos.riskEur = 0;
+        pos.riskFree = true;
+        pos.lockedInProfit = pyRound(-riskEur, 6);
+        // R-multiple is undefined when risk is zero (division by zero) — omit it.
+      }
     }
     if (stop !== undefined && lastPrice > 0) {
       pos.distanceToStopPct = pyRound(((lastPrice - stop) / lastPrice) * 100, 6);

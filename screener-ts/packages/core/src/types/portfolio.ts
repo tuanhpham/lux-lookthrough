@@ -82,7 +82,11 @@ export interface Position {
   realizedPnL: number;
   stop?: number;
   target?: number;
-  riskEur?: number; // undefined when no stop is set
+  riskEur?: number; // undefined when no stop is set; 0 when stop locks in profit (risk-free)
+  /** True when a stop exists but sits at/above entry — capital is no longer at risk. */
+  riskFree?: boolean;
+  /** Profit guaranteed by the stop when risk-free = Σ (stop - buyPrice) * shares. */
+  lockedInProfit?: number;
   distanceToStopPct?: number;
   distanceToTargetPct?: number;
   rMultiple?: number;

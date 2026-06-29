@@ -515,7 +515,12 @@ function draw(ctx: AppContext): void {
     ${toolbarHtml()}
     <div id="update-status" class="muted" style="margin-bottom:10px"></div>
 
-    <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+    <div class="kpi-row" style="margin-bottom:14px">
+      <div class="card kpi-donut-card">${kpiDonut({
+        equity: m.equity, cash: m.cash, invested: m.positionsValue,
+        pnl: m.totalPnL, pnlPct: m.totalPnLPct,
+      })}</div>
+      <div class="grid kpi-stat-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat"><div class="k">${t('pf.stat.initialcap')}</div><div class="v">${money(toDisplay(st.account.initialCapital), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.equity')}</div><div class="v">${money(toDisplay(m.equity), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.cash')}</div><div class="v">${money(toDisplay(m.cash), dispSymbol())}</div></div>
@@ -526,6 +531,7 @@ function draw(ctx: AppContext): void {
       <div class="stat"><div class="k">${t('pf.stat.avgr')} / ${t('pf.stat.expectancy')}</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(toDisplay(m.expectancy), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.maxdd')}</div><div class="v">${num(m.maxDrawdownPct, 1)}%</div></div>
       <div class="stat"><div class="k">${t('pf.stat.hold')}</div><div class="v">${avgHold.count ? num(avgHold.days, 0) + ' days' : '—'}</div></div>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:14px;padding:8px">
@@ -583,8 +589,16 @@ function draw(ctx: AppContext): void {
                 (pos) =>
                   `<tr><td><a href="#" class="link-ticker" data-open="${pos.ticker}"><strong>${pos.ticker}</strong></a></td><td>${pos.shares}</td><td>${dispSymbol()}${num(toDisplay(pos.avgCost))}</td><td>${dispSymbol()}${num(toDisplay(pos.lastPrice))}</td><td>${money(toDisplay(pos.marketValue), dispSymbol())}</td>
           <td style="color:${pos.unrealizedPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(pos.unrealizedPnL), dispSymbol())} (${pct(pos.unrealizedPnLPct)})</td>
-          <td>${pos.riskEur != null ? money(toDisplay(pos.riskEur), dispSymbol()) : '<span class="warn">—</span>'}</td>
-          <td>${pos.rMultiple != null ? num(pos.rMultiple, 2) + 'R' : '—'}</td>
+          <td>${
+            pos.riskFree
+              ? `<span class="risk-free" title="Stop is at or above entry — capital is no longer at risk. Locked-in profit: ${money(toDisplay(pos.lockedInProfit ?? 0), dispSymbol())}">🔒 ${t('pf.riskfree')}</span>`
+              : pos.riskEur != null ? money(toDisplay(pos.riskEur), dispSymbol()) : '<span class="warn">—</span>'
+          }</td>
+          <td>${
+            pos.riskFree
+              ? `<span class="risk-free" title="Locked-in profit: ${money(toDisplay(pos.lockedInProfit ?? 0), dispSymbol())}">+${money(toDisplay(pos.lockedInProfit ?? 0), dispSymbol())}</span>`
+              : pos.rMultiple != null ? num(pos.rMultiple, 2) + 'R' : '—'
+          }</td>
           <td>${pos.stop != null ? dispSymbol() + num(toDisplay(pos.stop)) : '<span class="warn">none</span>'}</td>
           <td>${pos.target != null ? dispSymbol() + num(toDisplay(pos.target)) : '—'}</td>
           <td>${pos.daysHeld}</td><td>${num(pos.concentrationPct, 0)}%</td>
@@ -1800,6 +1814,96 @@ function scaleBarsForDisplay(bars: Bar[], acctCurrency: string): Bar[] {
   });
 }
 
+/**
+ * Professional KPI donut. The ring splits total equity into its two real
+ * components — Cash and Invested (positions value) — and the hub carries the
+ * headline numbers (Total Equity + P&L abs/%). All amounts come in EUR base and
+ * are display-converted here. Pure SVG so it renders identically everywhere.
+ */
+function kpiDonut(opts: {
+  equity: number;
+  cash: number;
+  invested: number;
+  pnl: number;
+  pnlPct: number;
+  equityLabel?: string;
+}): string {
+  const equityLabel = opts.equityLabel ?? t('pf.stat.equity');
+  const d = (v: number) => toDisplay(v);
+  const sym = dispSymbol();
+  // Compact money: keeps the donut hub + legend on one line regardless of size.
+  // <10k → full (e.g. €8,450), else K/M with 1–2 sig decimals (€12.4K, €1.85M).
+  const cmoney = (v: number): string => {
+    const sign = v < 0 ? '-' : '';
+    const a = Math.abs(v);
+    if (a >= 1e6) return `${sign}${sym}${(a / 1e6).toFixed(2)}M`;
+    if (a >= 1e4) return `${sign}${sym}${(a / 1e3).toFixed(1)}K`;
+    return sign + money(a, sym);
+  };
+  const equity = Math.max(0, d(opts.equity));
+  const cash = Math.max(0, d(opts.cash));
+  const invested = Math.max(0, d(opts.invested));
+  const pnl = d(opts.pnl);
+  const total = cash + invested;
+  const cashPct = total > 0 ? (cash / total) * 100 : 0;
+  const investedPct = total > 0 ? (invested / total) * 100 : 0;
+  const pnlPos = opts.pnl >= 0;
+
+  // Ring geometry — stroke-dasharray over a circle of radius R, centered in a
+  // Ring centered in a 200×200 viewBox; the generous margin (CX/CY 100, R 62)
+  // leaves room for the outside percentage labels so they never clip the edge.
+  const CX = 100, CY = 100;
+  const R = 62;
+  const C = 2 * Math.PI * R;
+  const SW = 16; // stroke width
+  // Small gaps between the two arcs so the ring reads as segmented, not solid.
+  const GAP = total > 0 && cash > 0 && invested > 0 ? 3 : 0;
+  const investedLen = Math.max(0, (investedPct / 100) * C - GAP);
+  const cashLen = Math.max(0, (cashPct / 100) * C - GAP);
+  const pnlColor = pnlPos ? 'var(--accent)' : 'var(--danger)';
+
+  // Place a % label just outside the ring at the angular midpoint of a segment.
+  // fracStart/fracEnd are 0..1 around the circle, clockwise from top. Always
+  // middle-anchored so a 3-char "100%" stays inside the padded viewBox.
+  const labelR = R + SW / 2 + 12;
+  function outsideLabel(fracStart: number, fracEnd: number, value: number, color: string): string {
+    const mid = (fracStart + fracEnd) / 2;
+    const ang = mid * 2 * Math.PI - Math.PI / 2; // clockwise from 12 o'clock
+    const x = CX + labelR * Math.cos(ang);
+    const y = CY + labelR * Math.sin(ang);
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" class="kpi-donut-pctout" fill="${color}">${num(value, 0)}%</text>`;
+  }
+  const investedFrac = investedPct / 100;
+
+  return `
+    <div class="kpi-donut-wrap">
+      <svg viewBox="0 0 200 200" class="kpi-donut" role="img" aria-label="Equity composition">
+        <defs>
+          <linearGradient id="kpi-inv" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="var(--accent)"/>
+            <stop offset="100%" stop-color="var(--accent2)"/>
+          </linearGradient>
+        </defs>
+        <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--border)" stroke-width="${SW}" opacity="0.35"/>
+        ${invested > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="url(#kpi-inv)" stroke-width="${SW}"
+          stroke-linecap="round" stroke-dasharray="${investedLen} ${C - investedLen}"
+          stroke-dashoffset="0" transform="rotate(-90 ${CX} ${CY})"/>` : ''}
+        ${cash > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--warn)" stroke-width="${SW}"
+          stroke-linecap="round" stroke-dasharray="${cashLen} ${C - cashLen}"
+          stroke-dashoffset="${-(investedFrac * C) - GAP / 2}" transform="rotate(-90 ${CX} ${CY})"/>` : ''}
+        ${invested > 0 && investedPct >= 4 ? outsideLabel(0, investedFrac, investedPct, 'var(--accent)') : ''}
+        ${cash > 0 && cashPct >= 4 ? outsideLabel(investedFrac, 1, cashPct, 'var(--warn)') : ''}
+        <text x="${CX}" y="${CY - 16}" text-anchor="middle" class="kpi-donut-label">${equityLabel}</text>
+        <text x="${CX}" y="${CY + 4}" text-anchor="middle" class="kpi-donut-value">${cmoney(equity)}</text>
+        <text x="${CX}" y="${CY + 22}" text-anchor="middle" class="kpi-donut-pnl" fill="${pnlColor}">${(pnlPos ? '+' : '') + cmoney(pnl)} · ${pct(opts.pnlPct)}</text>
+      </svg>
+      <div class="kpi-donut-keys">
+        <span class="kpi-key"><span class="kpi-dot" style="background:linear-gradient(135deg,var(--accent),var(--accent2))"></span>${t('pf.kpi.invested')}</span>
+        <span class="kpi-key"><span class="kpi-dot" style="background:var(--warn)"></span>${t('pf.stat.cash')}</span>
+      </div>
+    </div>`;
+}
+
 function buildOverviewHtml(): string {
   const pricesByAccount = new Map(accounts.map((a) => [a.account.id, prices(a.account.id)]));
   const compareRows = compareAccounts(accounts, pricesByAccount);
@@ -1807,6 +1911,7 @@ function buildOverviewHtml(): string {
   const totalInitialCap = accounts.reduce((s, a) => s + a.account.initialCapital, 0);
   const totalEquity = accounts.reduce((s, a) => s + (computeAccountMetrics(a, prices(a.account.id)).equity), 0);
   const totalCash = accounts.reduce((s, a) => s + (computeAccountMetrics(a, prices(a.account.id)).cash), 0);
+  const totalInvested = accounts.reduce((s, a) => s + (computeAccountMetrics(a, prices(a.account.id)).positionsValue), 0);
   const totalPnL = totalEquity - totalInitialCap;
   const totalPnLPct = totalInitialCap > 0 ? (totalPnL / totalInitialCap) * 100 : 0;
 
@@ -1849,7 +1954,13 @@ function buildOverviewHtml(): string {
     ${toolbarHtml()}
     <div id="overview-update-status" style="margin-bottom:10px"></div>
 
-    <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+    <div class="kpi-row" style="margin-bottom:14px">
+      <div class="card kpi-donut-card">${kpiDonut({
+        equity: totalEquity, cash: totalCash, invested: totalInvested,
+        pnl: totalPnL, pnlPct: totalPnLPct,
+        equityLabel: t('pf.stat.totalequity'),
+      })}</div>
+      <div class="grid kpi-stat-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat"><div class="k">${t('pf.stat.totalcap')}</div><div class="v">${money(toDisplay(totalInitialCap), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.totalequity')}</div><div class="v">${money(toDisplay(totalEquity), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.totalcash')}</div><div class="v">${money(toDisplay(totalCash), dispSymbol())}</div></div>
@@ -1859,6 +1970,7 @@ function buildOverviewHtml(): string {
       <div class="stat"><div class="k">${t('pf.stat.avgwinrate')}</div><div class="v">${num(avgWinRate * 100, 0)}%</div></div>
       <div class="stat"><div class="k">${t('pf.stat.openclosed')}</div><div class="v">${totalOpenPositions} / ${totalClosedTrades}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.avghold')}</div><div class="v">${holdShares > 0 ? num(avgHoldDays, 0) + ' days' : '—'}</div></div>
+      </div>
     </div>
 
     <div class="section-title">${t('pf.overview.compare')}</div>

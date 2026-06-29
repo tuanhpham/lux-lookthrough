@@ -133,10 +133,24 @@ describe('position metrics: risk, R-multiple, distance, concentration', () => {
     const lot = buy(s, { ticker: 'AMD', buyDate: '2024-01-02', buyPrice: 100, shares: 100, stop: 90 }, ids);
     let [pos] = buildPositions(s, { AMD: 120 }, '2024-01-12');
     expect(pos!.riskEur).toBe(1000);
-    setStop(s, lot.id, 105); // trail above entry → "risk" now negative (locked-in gain)
+    setStop(s, lot.id, 105); // trail above entry → trade is now risk-free
     [pos] = buildPositions(s, { AMD: 120 }, '2024-01-12');
-    // (100-105)*100 = -500 → riskEur <= 0, so it's not counted as positive open risk
-    expect(pos!.riskEur).toBeUndefined();
+    // (100-105)*100 = -500 → stop at/above entry → riskEur 0, risk-free,
+    // locked-in profit = (105-100)*100 = 500. R-multiple undefined (no risk).
+    expect(pos!.riskEur).toBe(0);
+    expect(pos!.riskFree).toBe(true);
+    expect(pos!.lockedInProfit).toBe(500);
+    expect(pos!.rMultiple).toBeUndefined();
+  });
+
+  it('risk-free position adds 0 to total open risk and is not "without stop"', () => {
+    const ids = counterIds('x');
+    const s = freshAccount(100000);
+    const lot = buy(s, { ticker: 'AMD', buyDate: '2024-01-02', buyPrice: 100, shares: 100, stop: 90 }, ids);
+    setStop(s, lot.id, 110); // lock in profit
+    const m = computeAccountMetrics(s, { AMD: 120 });
+    expect(m.totalOpenRiskEur).toBe(0);
+    expect(m.openPositionsWithoutStop).toBe(0);
   });
 
   it('concentration = market value / equity', () => {
