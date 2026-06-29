@@ -59,53 +59,69 @@ function wirePriceHint(
   hintSel: string,
   priceSel: string,
   dateSel?: string,
+  ccySel?: string,
 ): void {
   const tickerEl = $(tickerSel) as HTMLInputElement | null;
   const hintEl = $(hintSel);
   const priceEl = $(priceSel) as HTMLInputElement | null;
   if (!tickerEl || !hintEl || !priceEl) return;
   const dateEl = dateSel ? ($(dateSel) as HTMLInputElement | null) : null;
+  const ccyEl = ccySel ? ($(ccySel) as HTMLSelectElement | null) : null;
 
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Holds the last fetched raw USD close and its date so we can re-convert
+  // instantly when the currency selector changes without re-fetching.
+  let lastRawClose: number | null = null;
+  let lastBarDate: string | null = null;
+
+  /** Convert raw USD close to the currently selected currency. */
+  function convertClose(rawUsd: number, barDate: string): number {
+    const ccy = ccyEl?.value ?? 'USD';
+    if (ccy === 'EUR') {
+      const fx = eurUsdForDate(barDate);
+      return fx > 0 ? rawUsd / fx : rawUsd;
+    }
+    return rawUsd;
+  }
+
+  function refreshHint() {
+    if (lastRawClose == null || lastBarDate == null || !hintEl || !priceEl) return;
+    const converted = convertClose(lastRawClose, lastBarDate);
+    const ccy = ccyEl?.value ?? 'USD';
+    const sym = ccy === 'EUR' ? '€' : '$';
+    const label = (dateEl?.value && dateEl.value < todayStr) ? 'close' : 'latest close';
+    hintEl.innerHTML = `${label} <b>${sym}${num(converted)}</b> (${lastBarDate}) · <a href="#" data-use>use</a>`;
+    hintEl.querySelector('[data-use]')!.addEventListener('click', (e) => {
+      e.preventDefault();
+      priceEl.value = String(num(converted));
+    });
+  }
 
   let token = 0;
   const fetchHint = async () => {
     const sym = tickerEl.value.trim().toUpperCase();
-    if (!sym) {
-      hintEl.innerHTML = '';
-      return;
-    }
-    // If a past date is chosen, fetch enough history to cover it and show the
-    // close ON (or the last trading day before) that date — so a back-dated
-    // buy/sell auto-fills the correct historical price.
+    if (!sym) { hintEl.innerHTML = ''; return; }
     const wantDate = dateEl?.value && dateEl.value < todayStr ? dateEl.value : null;
     const mine = ++token;
     hintEl.innerHTML = `<span class="spinner"></span> ${wantDate ? `close on ${wantDate}…` : 'latest close…'}`;
     const ohlcv = await ctx.data.getOHLCV(sym, wantDate ? '5y' : '1mo').catch(() => null);
-    if (mine !== token) return; // a newer lookup superseded this one
-    if (!ohlcv || !ohlcv.bars.length) {
-      hintEl.textContent = 'no price data';
-      return;
-    }
-    // Pick the bar at-or-before the wanted date (markets close on weekends/holidays).
+    if (mine !== token) return;
+    if (!ohlcv || !ohlcv.bars.length) { hintEl.textContent = 'no price data'; return; }
     const bar = wantDate
       ? [...ohlcv.bars].reverse().find((b) => b.date <= wantDate) ?? null
       : ohlcv.bars[ohlcv.bars.length - 1]!;
-    if (!bar) {
-      hintEl.textContent = `no price on/before ${wantDate}`;
-      return;
-    }
-    const label = wantDate ? 'close' : 'latest close';
-    hintEl.innerHTML = `${label} <b>$${num(bar.close)}</b> (${bar.date}) · <a href="#" data-use>use</a>`;
-    hintEl.querySelector('[data-use]')!.addEventListener('click', (e) => {
-      e.preventDefault();
-      priceEl.value = String(num(bar.close));
-    });
+    if (!bar) { hintEl.textContent = `no price on/before ${wantDate}`; return; }
+    lastRawClose = bar.close;
+    lastBarDate = bar.date;
+    refreshHint();
   };
+
   tickerEl.addEventListener('change', () => void fetchHint());
   tickerEl.addEventListener('blur', () => void fetchHint());
-  // Re-price when the date changes so the hint always matches the chosen day.
   dateEl?.addEventListener('change', () => void fetchHint());
+  // When currency selector changes, re-convert the already-fetched close instantly.
+  ccyEl?.addEventListener('change', refreshHint);
 }
 
 const ACCT_KEY = 'accounts';
@@ -116,6 +132,52 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 let accounts: AccountState[] = [];
 let activeId: string = OVERVIEW_ID;
+
+// ---------------------------------------------------------------------------
+// EUR/USD display toggle
+// ---------------------------------------------------------------------------
+
+/** Rate at which 1 EUR = N USD (e.g. 1.08). Latest fetched rate. */
+let latestEurUsdRate: number | null = null;
+/** Daily EURUSD rates keyed by ISO date — populated on Update. */
+const eurUsdRateByDate = new Map<string, number>();
+/** Display currency chosen by the user (EUR by default). */
+let displayCurrency: 'EUR' | 'USD' = 'EUR';
+
+/**
+ * Return the EURUSD rate for a given date, falling back to the latest known rate.
+ * 1 EUR = returned value USD.
+ */
+function eurUsdForDate(date: string): number {
+  return eurUsdRateByDate.get(date) ?? latestEurUsdRate ?? 1;
+}
+
+/**
+ * Convert an amount stored in `stored` currency to `displayCurrency`,
+ * using the rate for `date` (or latest if unset).
+ * All internal values are in the account's currency (EUR by default).
+ */
+function toDisplay(amount: number, date?: string): number {
+  if (displayCurrency === 'EUR') return amount;
+  const rate = date ? eurUsdForDate(date) : (latestEurUsdRate ?? 1);
+  return amount * rate;
+}
+
+/** The display symbol for the current display currency. */
+function dispSymbol(): string {
+  return displayCurrency === 'EUR' ? '€' : '$';
+}
+
+/**
+ * Normalize a lot's buy price to the account's base currency (EUR).
+ * If the lot was entered in USD, divide by the rate at buy time.
+ */
+function normalizeLotPrice(lot: { buyPrice: number; priceCurrency?: 'EUR' | 'USD'; fxRateAtBuy?: number }, acctCurrency: string): number {
+  if (acctCurrency === 'EUR' && lot.priceCurrency === 'USD' && lot.fxRateAtBuy) {
+    return lot.buyPrice / lot.fxRateAtBuy;
+  }
+  return lot.buyPrice;
+}
 
 async function load(ctx: AppContext): Promise<void> {
   accounts = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
@@ -159,6 +221,7 @@ function seedPrice(accId: string, ticker: string, price: number): void {
 type Period = '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y';
 type BarCache = Record<string, Bar[]>;
 const BAR_CACHE_PREFIX = 'pf_bars:';
+const EURUSD_CACHE_KEY = 'pf_eurusd_bars';
 
 function barCacheKey(accountId: string): string { return BAR_CACHE_PREFIX + accountId; }
 
@@ -175,6 +238,20 @@ function mergeBars(existing: Bar[], fresh: Bar[]): Bar[] {
   for (const b of existing) m.set(b.date, b);
   for (const b of fresh) m.set(b.date, b);
   return [...m.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+async function loadEurUsdCache(ctx: AppContext): Promise<Bar[]> {
+  return (await ctx.storage.get<Bar[]>(EURUSD_CACHE_KEY)) ?? [];
+}
+
+async function saveEurUsdCache(ctx: AppContext, bars: Bar[]): Promise<void> {
+  await ctx.storage.set(EURUSD_CACHE_KEY, bars);
+}
+
+/** Populate eurUsdRateByDate and latestEurUsdRate from cached EURUSD=X bars. */
+function applyEurUsdBars(bars: Bar[]): void {
+  for (const b of bars) eurUsdRateByDate.set(b.date, b.close);
+  if (bars.length) latestEurUsdRate = bars[bars.length - 1]!.close;
 }
 
 /** Shortest Yahoo period covering gapDays. Capped at 5y — Yahoo silently returns
@@ -295,13 +372,14 @@ function avgHoldingDays(st: AccountState): { days: number; count: number } {
 
 export async function renderPortfolio(ctx: AppContext): Promise<void> {
   await load(ctx);
-  // Pre-load bar caches for all accounts into memory so row charts are instant
-  await Promise.all(
-    accounts.map(async (acct) => {
+  // Pre-load bar caches for all accounts and EURUSD rates into memory
+  await Promise.all([
+    ...accounts.map(async (acct) => {
       const bc = await loadBarCache(ctx, acct.account.id);
       barMapByAccount.set(acct.account.id, new Map(Object.entries(bc)));
     }),
-  );
+    loadEurUsdCache(ctx).then(applyEurUsdBars),
+  ]);
   draw(ctx);
 }
 
@@ -320,6 +398,7 @@ function toolbarHtml(): string {
       ${activeId !== OVERVIEW_ID ? `
       <button id="acct-update" class="btn" style="margin-left:auto">${t('pf.update')}</button>
       <button id="acct-clear-cache" class="btn-outline" title="${t('pf.clearcache')}">${t('pf.clearcache')}</button>` : ''}
+      <button id="pf-ccy-toggle" class="pf-ccy-btn${displayCurrency === 'USD' ? ' usd' : ''}" style="margin-left:${activeId === OVERVIEW_ID ? 'auto' : '4px'}" title="Toggle display currency${latestEurUsdRate ? ' · EURUSD ' + latestEurUsdRate.toFixed(4) : ''}">${displayCurrency === 'EUR' ? '€ EUR' : '$ USD'}</button>
     </div>`;
 }
 
@@ -352,14 +431,14 @@ function draw(ctx: AppContext): void {
     <div id="update-status" class="muted" style="margin-bottom:10px"></div>
 
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-      <div class="stat"><div class="k">Initial capital</div><div class="v">${money(st.account.initialCapital)}</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.equity')}</div><div class="v">${money(m.equity)}</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.cash')}</div><div class="v">${money(m.cash)}</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.pnl')}</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(m.totalPnL)} (${pct(m.totalPnLPct)})</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.risk')}</div><div class="v">${money(m.totalOpenRiskEur)} (${pct(m.totalOpenRiskPct)})</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.realizedpnl')} / ${t('pf.stat.unrealpnl')}</div><div class="v">${money(m.realizedPnL)} / ${money(m.unrealizedPnL)}</div></div>
+      <div class="stat"><div class="k">Initial capital</div><div class="v">${money(toDisplay(st.account.initialCapital), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.equity')}</div><div class="v">${money(toDisplay(m.equity), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.cash')}</div><div class="v">${money(toDisplay(m.cash), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.pnl')}</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(m.totalPnL), dispSymbol())} (${pct(m.totalPnLPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.risk')}</div><div class="v">${money(toDisplay(m.totalOpenRiskEur), dispSymbol())} (${pct(m.totalOpenRiskPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.realizedpnl')} / ${t('pf.stat.unrealpnl')}</div><div class="v">${money(toDisplay(m.realizedPnL), dispSymbol())} / ${money(toDisplay(m.unrealizedPnL), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.winrate')}</div><div class="v">${num(m.winRate * 100, 0)}%</div></div>
-      <div class="stat"><div class="k">Avg R / ${t('pf.stat.expectancy')}</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(m.expectancy)}</div></div>
+      <div class="stat"><div class="k">Avg R / ${t('pf.stat.expectancy')}</div><div class="v">${num(m.avgRMultiple, 2)}R / ${money(toDisplay(m.expectancy), dispSymbol())}</div></div>
       <div class="stat"><div class="k">Max drawdown</div><div class="v">${num(m.maxDrawdownPct, 1)}%</div></div>
       <div class="stat"><div class="k">Avg holding period</div><div class="v">${avgHold.count ? num(avgHold.days, 0) + ' days' : '—'}</div></div>
     </div>
@@ -414,12 +493,12 @@ function draw(ctx: AppContext): void {
           ? positions
               .map(
                 (pos) =>
-                  `<tr><td><a href="#" class="link-ticker" data-open="${pos.ticker}"><strong>${pos.ticker}</strong></a></td><td>${pos.shares}</td><td>$${num(pos.avgCost)}</td><td>$${num(pos.lastPrice)}</td><td>${money(pos.marketValue)}</td>
-          <td style="color:${pos.unrealizedPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(pos.unrealizedPnL)} (${pct(pos.unrealizedPnLPct)})</td>
-          <td>${pos.riskEur != null ? money(pos.riskEur) : '<span class="warn">—</span>'}</td>
+                  `<tr><td><a href="#" class="link-ticker" data-open="${pos.ticker}"><strong>${pos.ticker}</strong></a></td><td>${pos.shares}</td><td>${dispSymbol()}${num(toDisplay(pos.avgCost))}</td><td>${dispSymbol()}${num(toDisplay(pos.lastPrice))}</td><td>${money(toDisplay(pos.marketValue), dispSymbol())}</td>
+          <td style="color:${pos.unrealizedPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(pos.unrealizedPnL), dispSymbol())} (${pct(pos.unrealizedPnLPct)})</td>
+          <td>${pos.riskEur != null ? money(toDisplay(pos.riskEur), dispSymbol()) : '<span class="warn">—</span>'}</td>
           <td>${pos.rMultiple != null ? num(pos.rMultiple, 2) + 'R' : '—'}</td>
-          <td>${pos.stop != null ? '$' + num(pos.stop) : '<span class="warn">none</span>'}</td>
-          <td>${pos.target != null ? '$' + num(pos.target) : '—'}</td>
+          <td>${pos.stop != null ? dispSymbol() + num(toDisplay(pos.stop)) : '<span class="warn">none</span>'}</td>
+          <td>${pos.target != null ? dispSymbol() + num(toDisplay(pos.target)) : '—'}</td>
           <td>${pos.daysHeld}</td><td>${num(pos.concentrationPct, 0)}%</td>
           <td class="row" style="gap:4px;flex-wrap:nowrap">
             <button class="action-btn action-btn--stop" data-stop="${pos.ticker}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v7m0 0 3-3M8 8 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="11" width="14" height="3" rx="1" fill="currentColor" opacity=".35"/></svg>${t('pf.btn.stop')}</button>
@@ -472,12 +551,17 @@ function draw(ctx: AppContext): void {
         <div class="row"><input id="b-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
           <input id="b-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
           <input id="b-price" class="field" type="number" step="any" placeholder="Price" style="width:90px" />
+          <select id="b-price-ccy" class="field" style="width:72px" title="Currency in which price is entered">
+            <option value="USD" ${displayCurrency === 'USD' ? 'selected' : ''}>$ USD</option>
+            <option value="EUR" ${displayCurrency === 'EUR' ? 'selected' : ''}>€ EUR</option>
+          </select>
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
         <div id="b-pricehint" class="price-hint"></div>
         <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="number" step="any" placeholder="Stop (optional)" style="width:130px" />
           <input id="b-target" class="field" type="number" step="any" placeholder="Target (optional)" style="width:130px" />
           <button id="b-go" class="btn">Buy</button>
           <button id="s-go" class="btn-outline">Sell</button></div>
+        <div id="b-riskhint" class="price-hint" style="margin-top:4px"></div>
       </div>
       <div class="card">
         <div class="section-title" style="margin-top:0">Pending BUY_STOP Order</div>
@@ -502,6 +586,15 @@ function draw(ctx: AppContext): void {
 
 /** All event wiring for the portfolio tab, isolated so a failure is contained. */
 function wire(ctx: AppContext, root: HTMLElement): void {
+  // EUR/USD display toggle
+  const ccyBtn = $('#pf-ccy-toggle');
+  if (ccyBtn) {
+    ccyBtn.addEventListener('click', () => {
+      displayCurrency = displayCurrency === 'EUR' ? 'USD' : 'EUR';
+      draw(ctx);
+    });
+  }
+
   // account switch / new
   root.querySelectorAll<HTMLElement>('[data-acct]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -571,16 +664,18 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
     function renderPfChart() {
       if (pfCandleChart) { try { pfCandleChart.destroy(); } catch { /* ignore */ } pfCandleChart = null; }
+      const dispCap = toDisplay(stChart.account.initialCapital);
       if (pfView === 'equity') {
-        const pts = slicePoints(equityPoints, pfRange);
+        const equityPointsDisplay = equityPoints.map((p) => ({ time: p.time, value: toDisplay(p.value, p.time) }));
+        const pts = slicePoints(equityPointsDisplay, pfRange);
         if (pts.length) {
-          try { drawLine(pfEl, pts, { baseline: stChart.account.initialCapital, money: true, currency: currSym, height: 260, maxLine: true, minLine: true, currentLine: true }); }
+          try { drawLine(pfEl, pts, { baseline: dispCap, money: true, currency: dispSymbol(), height: 260, maxLine: true, minLine: true, currentLine: true }); }
           catch { pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>Chart unavailable.</div>`; }
         } else {
           pfEl.innerHTML = noDataHtml();
         }
       } else {
-        const bars = sliceBars(cache?.portfolio ?? [], pfRange);
+        const bars = sliceBars(scaleBarsForDisplay(cache?.portfolio ?? [], stChart.account.currency), pfRange);
         if (bars.length) {
           try { pfCandleChart = drawCandles(pfEl, bars, null, pfEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
           catch { pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>Chart unavailable.</div>`; }
@@ -699,9 +794,19 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       rowPanel.style.display = '';
 
       function applyBars(raw: Bar[]) {
-        rowBars = raw
+        // raw bars are in USD (stock prices); scale by shares first, then convert
+        // to display currency. For EUR accounts showing USD: divide by EURUSD.
+        // For USD display: no conversion needed (stock already in USD).
+        const acctCcy = active().account.currency;
+        const sharesScaled = raw
           .filter((bar) => bar.date >= fromDate && bar.date <= endStr)
           .map((bar) => ({ ...bar, open: bar.open * shares, high: bar.high * shares, low: bar.low * shares, close: bar.close * shares }));
+        rowBars = (acctCcy === 'EUR' && displayCurrency === 'EUR')
+          ? sharesScaled.map((b) => {
+              const fx = eurUsdForDate(b.date);
+              return fx > 1 ? { ...b, open: b.open / fx, high: b.high / fx, low: b.low / fx, close: b.close / fx } : b;
+            })
+          : sharesScaled; // USD display or USD account: keep raw USD × shares
         renderRowChart();
       }
 
@@ -741,8 +846,34 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     const tickers = tickerList();
     attachCombobox({ input: $('#b-ticker') as HTMLInputElement, options: tickers });
     attachCombobox({ input: $('#o-ticker') as HTMLInputElement, options: tickers });
-    wirePriceHint(ctx, '#b-ticker', '#b-pricehint', '#b-price', '#b-date');
+    wirePriceHint(ctx, '#b-ticker', '#b-pricehint', '#b-price', '#b-date', '#b-price-ccy');
     wirePriceHint(ctx, '#o-ticker', '#o-pricehint', '#o-thresh');
+
+    // Live risk / R:R preview in the buy form.
+    const riskHintEl = $('#b-riskhint')!;
+    const updateRiskHint = () => {
+      const price = Number(($('#b-price') as HTMLInputElement).value);
+      const stopVal = Number(($('#b-stop') as HTMLInputElement).value);
+      const targetVal = Number(($('#b-target') as HTMLInputElement).value);
+      const sharesVal = Number(($('#b-shares') as HTMLInputElement).value);
+      const priceCcyEl = $('#b-price-ccy') as HTMLSelectElement | null;
+      const priceCcy = (priceCcyEl?.value ?? 'USD') as 'EUR' | 'USD';
+      const sym = priceCcy === 'EUR' ? '€' : '$';
+      if (!price || !stopVal || price <= stopVal) { riskHintEl.textContent = ''; return; }
+      const riskPerShare = price - stopVal;
+      const riskPct = (riskPerShare / price) * 100;
+      const totalRisk = sharesVal > 0 ? riskPerShare * sharesVal : null;
+      const rrStr = targetVal > price
+        ? ` · R:R <b>${((targetVal - price) / riskPerShare).toFixed(1)}:1</b>`
+        : '';
+      riskHintEl.innerHTML =
+        `Risk/share <b>${sym}${num(riskPerShare)}</b> (${riskPct.toFixed(1)}%)` +
+        (totalRisk != null ? ` · Total <b>${sym}${num(totalRisk)}</b>` : '') +
+        rrStr;
+    };
+    ['#b-price', '#b-stop', '#b-target', '#b-shares', '#b-price-ccy'].forEach((sel) =>
+      $(sel)?.addEventListener('input', updateRiskHint),
+    );
 
     // buy
     $('#b-go')!.addEventListener('click', async () => {
@@ -752,9 +883,20 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const date = ($('#b-date') as HTMLInputElement).value || today();
       const stop = Number(($('#b-stop') as HTMLInputElement).value) || undefined;
       const target = Number(($('#b-target') as HTMLInputElement).value) || undefined;
+      const priceCcy = (($('#b-price-ccy') as HTMLSelectElement | null)?.value ?? 'USD') as 'EUR' | 'USD';
       if (!t || shares <= 0 || price <= 0) return;
-      buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target }, uuid);
-      seedPrice(active().account.id, t, price);
+      const fxAtBuy = eurUsdForDate(date);
+      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target }, uuid);
+      lot.priceCurrency = priceCcy;
+      lot.fxRateAtBuy = fxAtBuy;
+      // If entered in EUR but account tracks in EUR-equivalent, normalize to EUR-denominated price
+      const normPrice = normalizeLotPrice(lot, active().account.currency);
+      if (normPrice !== price) {
+        lot.buyPrice = normPrice;
+        lot.stop = stop != null ? stop / fxAtBuy : undefined;
+        lot.target = target != null ? target / fxAtBuy : undefined;
+      }
+      seedPrice(active().account.id, t, normPrice);
       snapshotNow(active());
       await save(ctx);
       draw(ctx);
@@ -767,10 +909,15 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const shares = Number(($('#b-shares') as HTMLInputElement).value);
       const price = Number(($('#b-price') as HTMLInputElement).value);
       const date = ($('#b-date') as HTMLInputElement).value || today();
+      const priceCcy = (($('#b-price-ccy') as HTMLSelectElement | null)?.value ?? 'USD') as 'EUR' | 'USD';
       if (!t || shares <= 0 || price <= 0) return;
       try {
-        sell(active(), { ticker: t, sellDate: date, sellPrice: price, shares }, uuid);
-        seedPrice(active().account.id, t, price);
+        const fxAtSell = eurUsdForDate(date);
+        const normSellPrice = (active().account.currency === 'EUR' && priceCcy === 'USD' && fxAtSell > 1)
+          ? price / fxAtSell : price;
+        const recs = sell(active(), { ticker: t, sellDate: date, sellPrice: normSellPrice, shares }, uuid);
+        for (const r of recs) { r.priceCurrency = priceCcy; r.fxRateAtSell = fxAtSell; }
+        seedPrice(active().account.id, t, normSellPrice);
         snapshotNow(active());
         await save(ctx);
         draw(ctx);
@@ -810,19 +957,62 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           const n = Number(raw);
           return raw && !Number.isNaN(n) ? n.toFixed(2) : raw;
         }
-        const initPrice = roundPrice(priceForDate(today()));
+        // Convert raw USD close to the requested currency using the rate for the bar's date.
+        function closeInCcy(rawUsd: number, barDate: string, ccy: string): string {
+          if (ccy === 'EUR') {
+            const fx = eurUsdForDate(barDate);
+            return roundPrice(String(fx > 0 ? rawUsd / fx : rawUsd));
+          }
+          return roundPrice(String(rawUsd));
+        }
+        function priceForDateInCcy(date: string, ccy: string): string {
+          const raw = priceForDate(date); // raw USD string from bar cache
+          if (!raw || !Number(raw)) return '';
+          return closeInCcy(Number(raw), date, ccy);
+        }
+        const initCcy = displayCurrency;
+        const initPrice = priceForDateInCcy(today(), initCcy);
+        // Track the last currency so we can detect a ccy-only change vs a date change.
+        let prevCcy = initCcy;
         const res = await formDialog(`Sell ${t}`, [
+          { key: 'ccy', label: 'Currency', type: 'select', value: initCcy,
+            options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
           { key: 'shares', label: 'Shares to sell', type: 'number', value: openShares > 0 ? String(openShares) : '' },
           { key: 'price', label: 'Sell price', type: 'number', value: initPrice },
           { key: 'date', label: 'Date', type: 'date', value: today() },
-        ], { onChange: (vals) => ({ price: roundPrice(priceForDate(vals.date ?? today())) }) });
+        ], {
+          onChange: (vals) => {
+            const newCcy = (vals.ccy ?? 'USD') as 'EUR' | 'USD';
+            const date = vals.date ?? today();
+            if (newCcy !== prevCcy) {
+              // Currency changed — re-convert the current price field value.
+              prevCcy = newCcy;
+              const currentPrice = Number(vals.price);
+              if (currentPrice > 0) {
+                const fx = eurUsdForDate(date);
+                const converted = (newCcy === 'EUR' && fx > 0)
+                  ? currentPrice / fx           // USD → EUR
+                  : currentPrice * (eurUsdForDate(date) || 1); // EUR → USD
+                return { price: roundPrice(String(converted)) };
+              }
+              return {};
+            }
+            // Date changed — re-fetch the close in current currency.
+            return { price: priceForDateInCcy(date, newCcy) };
+          },
+        });
         if (!res) return;
         const shares = Number(res.shares);
-        const price = Number(res.price);
-        if (shares <= 0 || price <= 0) return;
+        const priceEntered = Number(res.price);
+        if (shares <= 0 || priceEntered <= 0) return;
         try {
-          sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: price, shares }, uuid);
-          seedPrice(active().account.id, t, price);
+          const fxAtSell = eurUsdForDate(res.date || today());
+          // Normalize entered price to account base currency (EUR)
+          const normSellPrice = (active().account.currency === 'EUR' && res.ccy === 'USD' && fxAtSell > 1)
+            ? priceEntered / fxAtSell : priceEntered;
+          const recs = sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: normSellPrice, shares }, uuid);
+          for (const r of recs) { r.priceCurrency = res.ccy as 'EUR' | 'USD'; r.fxRateAtSell = fxAtSell; }
+          seedPrice(active().account.id, t, normSellPrice);
           snapshotNow(active());
           await save(ctx);
           draw(ctx);
@@ -839,12 +1029,31 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const t = b.dataset.stop!;
         const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.stop;
         const latestPrice = prices(active().account.id)[t];
-        const suggestion = cur != null ? cur.toFixed(2) : latestPrice != null ? latestPrice.toFixed(2) : '';
+        // Show suggestion in display currency
+        const curDisp = cur != null ? toDisplay(cur).toFixed(2) : latestPrice != null ? toDisplay(latestPrice).toFixed(2) : '';
+        let prevStopCcy = displayCurrency;
         const res = await formDialog(`Stop-loss for ${t}`, [
-          { key: 'stop', label: 'Stop price (blank to clear)', type: 'number', value: suggestion },
-        ]);
+          { key: 'ccy', label: 'Currency', type: 'select', value: displayCurrency,
+            options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
+          { key: 'stop', label: 'Stop price (blank to clear)', type: 'number', value: curDisp },
+        ], {
+          onChange: (vals) => {
+            const newCcy = (vals.ccy ?? 'USD') as 'EUR' | 'USD';
+            if (newCcy === prevStopCcy) return {};
+            prevStopCcy = newCcy;
+            const currentVal = Number(vals.stop);
+            if (!currentVal) return {};
+            const fx = latestEurUsdRate ?? 1;
+            const converted = newCcy === 'EUR' ? currentVal / fx : currentVal * fx;
+            return { stop: converted.toFixed(2) };
+          },
+        });
         if (!res) return;
-        const stop = res.stop === '' ? undefined : Number(res.stop);
+        const stopRaw = res.stop === '' ? undefined : Number(res.stop);
+        // Normalize to account base currency (EUR)
+        const fxNow = latestEurUsdRate ?? 1;
+        const stop = (stopRaw != null && active().account.currency === 'EUR' && res.ccy === 'USD' && fxNow > 1)
+          ? stopRaw / fxNow : stopRaw;
         for (const l of active().lots) {
           if (l.ticker === t && l.remainingShares > 0) setStop(active(), l.id, stop);
         }
@@ -860,12 +1069,29 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const t = b.dataset.target!;
         const cur = active().lots.find((l) => l.ticker === t && l.remainingShares > 0)?.target;
         const latestPrice = prices(active().account.id)[t];
-        const suggestion = cur != null ? cur.toFixed(2) : latestPrice != null ? latestPrice.toFixed(2) : '';
+        const curDisp = cur != null ? toDisplay(cur).toFixed(2) : latestPrice != null ? toDisplay(latestPrice).toFixed(2) : '';
+        let prevTargetCcy = displayCurrency;
         const res = await formDialog(`Target for ${t}`, [
-          { key: 'target', label: 'Target price (blank to clear)', type: 'number', value: suggestion },
-        ]);
+          { key: 'ccy', label: 'Currency', type: 'select', value: displayCurrency,
+            options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
+          { key: 'target', label: 'Target price (blank to clear)', type: 'number', value: curDisp },
+        ], {
+          onChange: (vals) => {
+            const newCcy = (vals.ccy ?? 'USD') as 'EUR' | 'USD';
+            if (newCcy === prevTargetCcy) return {};
+            prevTargetCcy = newCcy;
+            const currentVal = Number(vals.target);
+            if (!currentVal) return {};
+            const fx = latestEurUsdRate ?? 1;
+            const converted = newCcy === 'EUR' ? currentVal / fx : currentVal * fx;
+            return { target: converted.toFixed(2) };
+          },
+        });
         if (!res) return;
-        const target = res.target === '' ? undefined : Number(res.target);
+        const targetRaw = res.target === '' ? undefined : Number(res.target);
+        const fxNow = latestEurUsdRate ?? 1;
+        const target = (targetRaw != null && active().account.currency === 'EUR' && res.ccy === 'USD' && fxNow > 1)
+          ? targetRaw / fxNow : targetRaw;
         for (const l of active().lots) {
           if (l.ticker === t && l.remainingShares > 0) l.target = target;
         }
@@ -1015,7 +1241,7 @@ function transactionHistoryHtml(st: AccountState): string {
   const body = rows
     .map((r) => {
       const c = r.status === 'CLOSED' ? 'var(--warn)' : 'var(--accent2)';
-      const pnl = r.pnl == null ? '—' : `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(r.pnl)}</span>`;
+      const pnl = r.pnl == null ? '—' : `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(r.pnl, r.sellDate ?? r.buyDate), dispSymbol())}</span>`;
       const heldDays = r.holdDays != null ? r.holdDays : daysBetween(r.buyDate, todayStr);
       const chartTo = r.status === 'CLOSED' ? (r.sellDate ?? '') : '';
       const chartBtn = `<button class="action-btn action-btn--chart" data-closed-chart="${r.ticker}" data-chart-from="${r.buyDate}" data-chart-to="${chartTo}" data-chart-shares="${r.shares}" title="Show price × shares chart"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M1 14 5 9l3 3 3-4 4-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Chart</button>`;
@@ -1023,8 +1249,8 @@ function transactionHistoryHtml(st: AccountState): string {
         <td><span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${r.status}</span></td>
         <td><a href="#" class="link-ticker" data-open="${r.ticker}"><strong>${r.ticker}</strong></a></td>
         <td>${r.shares}</td>
-        <td>$${num(r.buyPrice)}</td>
-        <td>${r.sellPrice != null ? '$' + num(r.sellPrice) : '—'}</td>
+        <td>${dispSymbol()}${num(toDisplay(r.buyPrice, r.buyDate))}</td>
+        <td>${r.sellPrice != null ? dispSymbol() + num(toDisplay(r.sellPrice, r.sellDate ?? r.buyDate)) : '—'}</td>
         <td>${r.buyDate}</td>
         <td>${r.sellDate ?? '—'}</td>
         <td>${heldDays}d</td>
@@ -1146,6 +1372,29 @@ async function update(ctx: AppContext): Promise<void> {
     await saveBarCache(ctx, st.account.id, barCache);
   }
 
+  // Fetch EURUSD=X rates (best-effort — don't block update on failure)
+  try {
+    const cachedFx = await loadEurUsdCache(ctx);
+    const lastFxDate = cachedFx.length ? cachedFx[cachedFx.length - 1]!.date : null;
+    const fxGapDays = lastFxDate
+      ? Math.ceil((Date.now() - Date.parse(lastFxDate)) / 86_400_000)
+      : 365 * 3;
+    if (fxGapDays > 0) {
+      const fxOhlcv = await ctx.data.getOHLCV('EURUSD=X', periodForGap(fxGapDays)).catch(() => null);
+      if (fxOhlcv?.bars.length) {
+        const merged = mergeBars(cachedFx, fxOhlcv.bars);
+        await saveEurUsdCache(ctx, merged);
+        applyEurUsdBars(merged);
+      } else {
+        applyEurUsdBars(cachedFx);
+      }
+    } else {
+      applyEurUsdBars(cachedFx);
+    }
+  } catch {
+    // EURUSD fetch failed — display stays in EUR or uses stale rate
+  }
+
   // Build price map from latest bar
   const priceMap: PriceMap = {};
   for (const sym of tickers) {
@@ -1199,6 +1448,8 @@ function accountEarliestDate(st: AccountState): string {
 /**
  * Build per-position candle bars (O/H/L/C × shares held on that day) and
  * portfolio candle bars (sum of all positions + cash).
+ * When displayCurrency is USD and the account is EUR, multiplies each bar's
+ * OHLC values by the EURUSD rate for that date so chart values match display.
  */
 function buildCandleSeries(
   st: AccountState,
@@ -1292,10 +1543,23 @@ function buildCandleSeries(
   }
 
   const positions = openTickers
-    .map((t) => ({ ticker: t, bars: posBars.get(t)! }))
+    .map((ticker) => ({ ticker, bars: posBars.get(ticker)! }))
     .filter((p) => p.bars.length > 0);
 
   return { positions, portfolio };
+}
+
+/**
+ * Scale candle bars from account base currency (EUR) to display currency.
+ * Applied at render time so toggling is instant without rebuilding the cache.
+ * No-op when displayCurrency matches the account currency.
+ */
+function scaleBarsForDisplay(bars: Bar[], acctCurrency: string): Bar[] {
+  if (displayCurrency === acctCurrency) return bars;
+  return bars.map((b) => {
+    const fx = eurUsdForDate(b.date);
+    return fx === 1 ? b : { ...b, open: b.open * fx, high: b.high * fx, low: b.low * fx, close: b.close * fx };
+  });
 }
 
 function buildOverviewHtml(): string {
@@ -1351,10 +1615,10 @@ function buildOverviewHtml(): string {
     ${toolbarHtml()}
 
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-      <div class="stat"><div class="k">Total initial capital</div><div class="v">${money(totalInitialCap)}</div></div>
-      <div class="stat"><div class="k">Total equity</div><div class="v">${money(totalEquity)}</div></div>
-      <div class="stat"><div class="k">Total cash</div><div class="v">${money(totalCash)}</div></div>
-      <div class="stat"><div class="k">Total PnL</div><div class="v" style="color:${totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(totalPnL)} (${pct(totalPnLPct)})</div></div>
+      <div class="stat"><div class="k">Total initial capital</div><div class="v">${money(toDisplay(totalInitialCap), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">Total equity</div><div class="v">${money(toDisplay(totalEquity), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">Total cash</div><div class="v">${money(toDisplay(totalCash), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">Total PnL</div><div class="v" style="color:${totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(totalPnL), dispSymbol())} (${pct(totalPnLPct)})</div></div>
       <div class="stat"><div class="k">Best account</div><div class="v">${best ? `${best.name} (${pct(best.totalReturnPct)})` : '—'}</div></div>
       <div class="stat"><div class="k">Worst account</div><div class="v">${worst ? `${worst.name} (${pct(worst.totalReturnPct)})` : '—'}</div></div>
       <div class="stat"><div class="k">Avg win rate</div><div class="v">${num(avgWinRate * 100, 0)}%</div></div>
@@ -1396,13 +1660,22 @@ function buildOverviewHtml(): string {
       <tbody>${compareRows
         .map(
           (r) =>
-            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td>${money(r.equity)}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(r.expectancy)}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
+            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
         )
         .join('')}</tbody></table>
     </div>`;
 }
 
 function wireOverview(ctx: AppContext, root: HTMLElement): void {
+  // EUR/USD display toggle
+  const ccyBtn = root.querySelector<HTMLElement>('#pf-ccy-toggle');
+  if (ccyBtn) {
+    ccyBtn.addEventListener('click', () => {
+      displayCurrency = displayCurrency === 'EUR' ? 'USD' : 'EUR';
+      draw(ctx);
+    });
+  }
+
   // account switch buttons
   root.querySelectorAll<HTMLElement>('[data-acct]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -1456,6 +1729,9 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   }
   const combinedPortfolioBars = [...mergedPortfolio.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 
+  // Combined equity — pre-compute once (snapshots are in account base currency)
+  const combinedEquityRaw = combinedEquity; // raw EUR values
+
   const pfEl = root.querySelector<HTMLElement>('#portfolio-chart')!;
   let pfView: 'equity' | 'candle' = 'candle';
   let pfRange = 'all';
@@ -1477,16 +1753,20 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
 
   function renderPfChart() {
     if (pfCandleChart) { try { pfCandleChart.destroy(); } catch { /* ignore */ } pfCandleChart = null; }
+    const dispCap = toDisplay(totalInitialCap);
     if (pfView === 'equity') {
-      const pts = slicePoints(combinedEquity, pfRange);
+      const equityDisplay = combinedEquityRaw.map((p) => ({ time: p.time, value: toDisplay(p.value, p.time) }));
+      const pts = slicePoints(equityDisplay, pfRange);
       if (pts.length) {
-        try { drawLine(pfEl, pts, { baseline: totalInitialCap, money: true, currency: '€', height: 260 }); }
+        try { drawLine(pfEl, pts, { baseline: dispCap, money: true, currency: dispSymbol(), height: 260 }); }
         catch { pfEl.innerHTML = noDataHtml(t('pf.unavailable')); }
       } else {
         pfEl.innerHTML = noDataHtml(t('pf.nodata.overview'));
       }
     } else {
-      const bars = sliceBars(combinedPortfolioBars, pfRange);
+      // combinedPortfolioBars are raw EUR — scale at render time so toggle works
+      const scaledCombined = scaleBarsForDisplay(combinedPortfolioBars, accounts[0]?.account.currency ?? 'EUR');
+      const bars = sliceBars(scaledCombined, pfRange);
       if (bars.length) {
         try { pfCandleChart = drawCandles(pfEl, bars, null, pfEma, { noVolume: true, height: 260, maxLine: true, minLine: true }); }
         catch { pfEl.innerHTML = noDataHtml(t('pf.unavailable')); }

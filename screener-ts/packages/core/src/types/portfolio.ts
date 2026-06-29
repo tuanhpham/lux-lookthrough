@@ -24,6 +24,8 @@ export interface BuyLot {
   signal?: SignalType;
   stop?: number; // OPTIONAL — when unset, risk is "undefined" and excluded from total risk
   target?: number;
+  priceCurrency?: 'EUR' | 'USD'; // currency in which buyPrice was entered; defaults to USD
+  fxRateAtBuy?: number;          // EURUSD rate at time of purchase (used for EUR account normalization)
 }
 
 /** A realized (partial or full) sale matched against a single lot. */
@@ -36,6 +38,8 @@ export interface SellRecord {
   sellPrice: number;
   shares: number;
   realizedPnL: number;
+  priceCurrency?: 'EUR' | 'USD';
+  fxRateAtSell?: number; // EURUSD rate at time of sale
 }
 
 export type OrderType = 'BUY_STOP' | 'STOP_LOSS' | 'TAKE_PROFIT';

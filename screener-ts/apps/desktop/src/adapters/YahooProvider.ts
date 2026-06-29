@@ -96,6 +96,7 @@ export class YahooProvider implements DataProvider {
   private ohlcvCache: TTLCache<OHLCV>;
   private fundCache: TTLCache<Fundamentals>;
   private finCache: TTLCache<Financials>;
+  private labelCache: TTLCache<{ sector: string | null; industry: string | null }>;
   private chartBase: string;
   private quoteBase: string;
   /** Symbols whose quoteSummary enrichment has run/started (avoids duplicate
@@ -108,6 +109,10 @@ export class YahooProvider implements DataProvider {
     this.ohlcvCache = new TTLCache<OHLCV>(ttl, clock);
     this.fundCache = new TTLCache<Fundamentals>(ttl, clock);
     this.finCache = new TTLCache<Financials>(ttl, clock);
+    // 24h TTL for sector labels — they almost never change.
+    this.labelCache = new TTLCache<{ sector: string | null; industry: string | null }>(
+      24 * 60 * 60 * 1000, clock,
+    );
     // On desktop hit Yahoo directly; on web go through the same-origin proxy.
     const direct = isTauri();
     this.chartBase =
@@ -312,6 +317,29 @@ export class YahooProvider implements DataProvider {
       void withTimeout(this.enrichFromQuoteSummary(symbol, f), 8000);
     }
     return f;
+  }
+
+  /** Lightweight sector+industry lookup using only the `assetProfile` module.
+   * Much cheaper than a full getFundamentals call. Results are cached for 24h. */
+  async getSectorLabel(symbol: string): Promise<{ sector: string | null; industry: string | null }> {
+    const cached = this.labelCache.get(symbol);
+    if (cached) return cached;
+    try {
+      const url = `${this.quoteBase}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=assetProfile`;
+      type QS = { quoteSummary?: { result?: Array<{ assetProfile?: { sector?: string; industry?: string } }> } };
+      const data = await http().getJson<QS>(url);
+      const profile = data.quoteSummary?.result?.[0]?.assetProfile;
+      const label = {
+        sector: profile?.sector ?? null,
+        industry: profile?.industry ?? null,
+      };
+      this.labelCache.set(symbol, label);
+      return label;
+    } catch {
+      const empty = { sector: null, industry: null };
+      this.labelCache.set(symbol, empty);
+      return empty;
+    }
   }
 
   private async enrichFromQuoteSummary(symbol: string, f: Fundamentals): Promise<void> {

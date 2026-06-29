@@ -72,5 +72,8 @@ export interface SectorRank {
   avgVolume3m: number;
   avgVolume6m: number;
   volumeChangePct: number;
+  /** Net signed-volume change (3m vs 6m). Positive = net accumulation (more up-day
+   * volume than down-day volume increased vs baseline); negative = distribution. */
+  netFlowChangePct: number;
   rank: number;
 }

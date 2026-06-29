@@ -193,4 +193,10 @@ export class VnDirectProvider implements DataProvider {
   ): Promise<SectorVolumeSeries> {
     return { sector, freq, period, points: [] };
   }
+
+  // VNDirect has no free sector/industry API — the VN_SECTOR_STOCKS static map
+  // is the only source for VN tickers.
+  async getSectorLabel(_symbol: string): Promise<{ sector: string | null; industry: string | null }> {
+    return { sector: null, industry: null };
+  }
 }

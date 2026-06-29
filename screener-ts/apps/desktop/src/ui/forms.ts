@@ -6,9 +6,10 @@
 export interface Field {
   key: string;
   label: string;
-  type?: 'text' | 'number' | 'date';
+  type?: 'text' | 'number' | 'date' | 'select';
   value?: string;
   placeholder?: string;
+  options?: { value: string; label: string }[];
 }
 
 export interface FormDialogOptions {
@@ -28,10 +29,18 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
         <div class="dialog-body">
           ${fields
             .map(
-              (f) => `
-            <label class="field-label">${f.label}</label>
-            <input class="field dialog-field" data-key="${f.key}" type="${f.type ?? 'text'}"
-              value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" ${f.type === 'number' ? 'step="any"' : ''} />`,
+              (f) => {
+                if (f.type === 'select' && f.options) {
+                  const opts = f.options.map((o) =>
+                    `<option value="${o.value}"${o.value === f.value ? ' selected' : ''}>${o.label}</option>`
+                  ).join('');
+                  return `<label class="field-label">${f.label}</label>
+                    <select class="field dialog-field" data-key="${f.key}">${opts}</select>`;
+                }
+                return `<label class="field-label">${f.label}</label>
+                  <input class="field dialog-field" data-key="${f.key}" type="${f.type ?? 'text'}"
+                    value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" ${f.type === 'number' ? 'step="any"' : ''} />`;
+              }
             )
             .join('')}
         </div>

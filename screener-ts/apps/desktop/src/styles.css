@@ -227,6 +227,14 @@ html[lang="vi"] #app-menu .sl-menu-item {
 .picks-regime-inline {
   font-size: 11.5px; margin-left: 4px;
 }
+.picks-regime-bar {
+  font-size: 11.5px;
+  padding: 6px 16px;
+  min-height: 0;
+  line-height: 1.5;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 
 /* ── Main column ─────────────────────────────────────────────────────────── */
 #main { max-width: 1240px; margin: 0 auto; width: 100%; padding: 76px 34px 96px; }
@@ -290,6 +298,37 @@ button.btn:active, button.btn-outline:active { transform: translateY(1px); }
 .range-btn:hover { color: var(--text); border-color: var(--faint); }
 .range-btn.active {
   background: var(--accent-wash); border-color: var(--accent-line); color: var(--accent);
+}
+
+/* Portfolio currency toggle — always visually prominent */
+.pf-ccy-btn {
+  background: var(--accent-wash);
+  border: 1.5px solid var(--accent-line);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.pf-ccy-btn:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--accent);
+}
+.pf-ccy-btn.usd {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+  color: var(--warn);
+}
+.pf-ccy-btn.usd:hover {
+  background: color-mix(in srgb, var(--warn) 22%, transparent);
+  border-color: var(--warn);
 }
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
@@ -1691,6 +1730,16 @@ html.light #app-menu {
   #tab-sectors .picks-config-actions { flex-wrap: wrap; }
   #load-sectors { width: 100%; }
 
+  /* ── Case Studies: mobile layout ── */
+  /* Detail: stats 4-up → 2-up */
+  #tab-casestudies .grid[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Detail: action buttons wrap */
+  #tab-casestudies .row[style*="justify-content:space-between"] { flex-wrap: wrap; gap: 8px; }
+  /* Editor: 3-col grid → 2-col */
+  #tab-casestudies .grid[style*="repeat(3"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Editor: span-2 title field takes full row */
+  #tab-casestudies [style*="grid-column:span 2"] { grid-column: 1 / -1 !important; }
+
   /* ── Watchlist: wrap action buttons to 2-up grid ── */
   #tab-watchlist .row {
     display: grid;
@@ -1772,6 +1821,11 @@ html.light #app-menu {
   #picks-results table th:nth-child(4),
   #picks-results table td:nth-child(6),
   #picks-results table th:nth-child(6) { display: none; }
+
+  /* Case Studies tight mobile: editor single-col, action bar stacks */
+  #tab-casestudies .grid[style*="repeat(3"] { grid-template-columns: 1fr !important; }
+  #tab-casestudies .grid[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
+  #tab-casestudies #cs-download { display: none; } /* hide Download on tiny screens; accessible via detail action */
 
   /* As-of controls: stack date input */
   .asof-row { flex-direction: column; align-items: flex-start; }

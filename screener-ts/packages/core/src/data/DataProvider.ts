@@ -20,6 +20,9 @@ export interface DataProvider {
     period: Period,
     freq: 'weekly' | 'monthly',
   ): Promise<SectorVolumeSeries>;
+  /** Lightweight sector+industry lookup for a symbol. Returns nulls if the
+   * provider cannot determine them (e.g. VN tickers, unknown symbols). */
+  getSectorLabel(symbol: string): Promise<{ sector: string | null; industry: string | null }>;
 }
 
 /** Fetch many symbols' OHLCV with bounded concurrency — provider-agnostic. */

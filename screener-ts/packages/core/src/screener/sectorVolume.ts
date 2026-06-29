@@ -10,6 +10,11 @@ import { SECTOR_STOCKS } from './sectors.js';
  * Per stock (needs >= 60 bars): avg_3m = mean(volume[-63:]),
  * avg_6m = mean(volume[-126:]). Sector averages are the mean across its stocks'
  * per-stock averages; change% = (sec3m - sec6m)/sec6m*100. Sorted desc, ranked.
+ *
+ * Also computes `netFlowChangePct`: the same 3m-vs-6m comparison but on
+ * *signed* volume (volume × +1 on up-days, -1 on down-days). A positive result
+ * means the recent 3-month window has more net accumulation (up-day volume) than
+ * the 6-month baseline — money flowing IN. Negative = net distribution / outflow.
  */
 export function computeSectorVolumeRank(
   dataBySymbol: Map<string, OHLCV>,
@@ -20,20 +25,31 @@ export function computeSectorVolumeRank(
   for (const [sector, symbols] of Object.entries(sectorStocks)) {
     const vols3m: number[] = [];
     const vols6m: number[] = [];
+    const flow3m: number[] = [];
+    const flow6m: number[] = [];
 
     for (const sym of symbols) {
       const ohlcv = dataBySymbol.get(sym);
       if (!ohlcv || ohlcv.bars.length < 60) continue;
-      const vol = ohlcv.bars.map((b) => b.volume);
-      const nDays = vol.length;
+      const bars = ohlcv.bars;
+      const nDays = bars.length;
       const cutoff3m = Math.max(0, nDays - 63);
       const cutoff6m = Math.max(0, nDays - 126);
+
+      const vol = bars.map((b) => b.volume);
       const avg3m = mean(vol.slice(cutoff3m));
       const avg6m = mean(vol.slice(cutoff6m));
       if (avg3m > 0 && avg6m > 0) {
         vols3m.push(avg3m);
         vols6m.push(avg6m);
       }
+
+      // Signed volume: positive on up-days (close >= open), negative on down-days.
+      const signed = bars.map((b) => b.volume * (b.close >= b.open ? 1 : -1));
+      const avgFlow3m = mean(signed.slice(cutoff3m));
+      const avgFlow6m = mean(signed.slice(cutoff6m));
+      flow3m.push(avgFlow3m);
+      flow6m.push(avgFlow6m);
     }
 
     if (vols3m.length === 0) continue;
@@ -41,11 +57,20 @@ export function computeSectorVolumeRank(
     const secAvg6m = mean(vols6m);
     const changePct = ((secAvg3m - secAvg6m) / secAvg6m) * 100;
 
+    // Net flow change: how much more (or less) net accumulation in 3m vs 6m.
+    // Use the mean of absolute 6m flow as the denominator so the % is comparable
+    // across sectors of different sizes.
+    const secFlow3m = mean(flow3m);
+    const secFlow6m = mean(flow6m);
+    const flowBase = Math.max(Math.abs(secFlow6m), 1);
+    const netFlowChangePct = ((secFlow3m - secFlow6m) / flowBase) * 100;
+
     rows.push({
       sector,
       avgVolume3m: pyRound(secAvg3m, 0),
       avgVolume6m: pyRound(secAvg6m, 0),
       volumeChangePct: pyRound(changePct, 2),
+      netFlowChangePct: pyRound(netFlowChangePct, 2),
     });
   }
 

@@ -16,6 +16,8 @@ export interface BuyInput {
   signal?: SignalType;
   stop?: number;
   target?: number;
+  priceCurrency?: 'EUR' | 'USD';
+  fxRateAtBuy?: number;
 }
 
 /** Record a manual buy as a new lot. Mutates and returns the state. */
@@ -34,6 +36,8 @@ export function buy(state: AccountState, input: BuyInput, nextId: IdFactory): Bu
     signal: input.signal,
     stop: input.stop,
     target: input.target,
+    priceCurrency: input.priceCurrency,
+    fxRateAtBuy: input.fxRateAtBuy,
   };
   state.lots.push(lot);
   return lot;

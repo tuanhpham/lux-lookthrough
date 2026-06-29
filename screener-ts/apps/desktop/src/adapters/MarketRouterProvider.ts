@@ -59,4 +59,8 @@ export class MarketRouterProvider implements DataProvider {
     // client-side from fetched bars. Route to the US provider for parity.
     return this.us.getSectorVolume(sector, period, freq);
   }
+
+  getSectorLabel(symbol: string): Promise<{ sector: string | null; industry: string | null }> {
+    return this.pick(symbol).getSectorLabel(symbol);
+  }
 }

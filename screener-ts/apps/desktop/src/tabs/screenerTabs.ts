@@ -63,9 +63,19 @@ import {
   asOfLabel,
   type AsOfScope,
 } from '../ui/asOf.js';
+import {
+  loadSectorLabels,
+  saveSectorLabels,
+  getCachedSectorLabel,
+  isCacheLoaded,
+} from '../adapters/sectorLabelCache.js';
 
 const PERIOD: Period = '1y';
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
+/** VN symbols that are in the static sector maps (already labelled). */
+const VN_CURATED = new Set(Object.values(VN_SECTOR_STOCKS).flat());
+/** US symbols that are in the static sector map. */
+const US_CURATED = new Set(CURATED);
 
 // ── Top Picks ─────────────────────────────────────────────────────────────────
 type Market = 'us' | 'vn';
@@ -109,6 +119,34 @@ const SECTOR_BY_SYMBOL: Record<string, string> = (() => {
   }
   return out;
 })();
+
+/** Look up sector for a symbol: static map first, then persistent enrichment cache. */
+function sectorForSymbol(symbol: string): string | null {
+  return SECTOR_BY_SYMBOL[symbol] ?? getCachedSectorLabel(symbol)?.sector ?? null;
+}
+
+/**
+ * Fire-and-forget: fetch sector/industry for any symbols missing from the static
+ * maps, save them to the persistent cache. Max 4 concurrent requests so this
+ * never throttles the provider during an active scan.
+ */
+async function enrichUnknownSymbols(ctx: AppContext, symbols: readonly string[]): Promise<void> {
+  if (!isCacheLoaded()) await loadSectorLabels(ctx.storage);
+  const unknown = symbols.filter((s) => !US_CURATED.has(s) && !VN_CURATED.has(s) && !getCachedSectorLabel(s));
+  if (!unknown.length) return;
+  const results: Record<string, { sector: string | null; industry: string | null }> = {};
+  const queue = [...unknown];
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const sym = queue.shift();
+      if (!sym) return;
+      const label = await ctx.data.getSectorLabel(sym).catch(() => ({ sector: null, industry: null }));
+      if (label.sector || label.industry) results[sym] = label;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, unknown.length) }, worker));
+  if (Object.keys(results).length) await saveSectorLabels(ctx.storage, results);
+}
 
 /** Momentum pre-filter toggle (F4). Default OFF — the QM/VCP scan runs on the
  * full universe; tick it to narrow to top-momentum names first. */
@@ -181,6 +219,9 @@ function renderScanBanner(at: number, scanned: number, onRefresh: () => void): v
 }
 
 export function renderPicks(ctx: AppContext): void {
+  // Load the persistent sector-label cache so cached scan results get sector
+  // annotations immediately, without waiting for a re-scan.
+  if (!isCacheLoaded()) void loadSectorLabels(ctx.storage);
   const root = $('#tab-picks')!;
   const markets: [Market, string][] = [
     ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
@@ -249,9 +290,9 @@ export function renderPicks(ctx: AppContext): void {
       <div class="picks-config-actions">
         <button id="picks-refresh" class="btn">${t('picks.run')}</button>
         <button id="picks-stop" class="btn-outline hidden">${t('picks.stop')}</button>
-        <div id="picks-regime" class="muted picks-regime-inline"></div>
       </div>
     </div>
+    <div id="picks-regime" class="muted picks-regime-bar"></div>
 
     <div id="picks-progress" class="picks-progress hidden"><div id="picks-bar"></div></div>
     <div id="picks-status" class="muted" style="margin:8px 0 12px"></div>
@@ -692,6 +733,7 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
   // re-run on every open.
   matches.sort((a, b) => b.qualityScore - a.qualityScore);
   void saveScan<QmRow>(ctx, picksCacheId(), matches.slice(0, 50), scanned);
+  void enrichUnknownSymbols(ctx, matches.map((r) => r.symbol));
   finish();
 }
 
@@ -812,7 +854,7 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
     });
   }
   const rows: MomentumRow[] = ranked.map((r) => {
-    const sector = SECTOR_BY_SYMBOL[r.symbol] ?? null;
+    const sector = sectorForSymbol(r.symbol);
     const sec = sector ? sectorRankByName.get(sector) ?? null : null;
     return momentumToRow(r, {
       sector,
@@ -850,6 +892,7 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
   // Persist today's ranked movers (top 50, as displayed) so the scan sticks all
   // day and syncs across devices.
   void saveScan<MomentumRow>(ctx, picksCacheId(), rows.slice(0, 50), fullMap.size);
+  void enrichUnknownSymbols(ctx, rows.map((r) => r.symbol));
   finish();
 }
 
@@ -1018,7 +1061,7 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
     if (!vs.isVolumeSurge) { filteredByRatio++; continue; }
     // Min peak vol filter: the spike itself must meet the liquidity threshold.
     if (minAvgVol > 0 && vs.peakVolume < minAvgVol) { filteredByPeakVol++; continue; }
-    const sector = SECTOR_BY_SYMBOL[sym] ?? null;
+    const sector = sectorForSymbol(sym);
     rows.push({
       symbol: sym,
       sector,
@@ -1063,6 +1106,7 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
   }
 
   void saveScan<VolumeRow>(ctx, picksCacheId(), rows.slice(0, 50), fullMap.size);
+  void enrichUnknownSymbols(ctx, rows.map((r) => r.symbol));
   finish();
 }
 
@@ -1103,6 +1147,7 @@ function renderSectorChips(): void {
 }
 
 export function renderScreener(ctx: AppContext): void {
+  if (!isCacheLoaded()) void loadSectorLabels(ctx.storage);
   const root = $('#tab-screener')!;
   const markets: [Market, string][] = [
     ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
@@ -1267,7 +1312,7 @@ async function runScreen(ctx: AppContext): Promise<void> {
     if (q.qualityScore < minQuality) continue;
     if (momentumFilter && classRank[m.classification] < classRank[momentumFilter]) continue;
     const vs = detectVolumeSurge(series.bars);
-    const sector = SECTOR_BY_SYMBOL[series.symbol] ?? null;
+    const sector = sectorForSymbol(series.symbol);
     rows.push(toScreenerRow(q, m, vs.ratio > 0 ? vs.ratio : undefined, sector ? screenerSectorVolByName.get(sector) : undefined));
   }
 
@@ -1297,6 +1342,7 @@ async function runScreen(ctx: AppContext): Promise<void> {
   );
   // Persist results so coming back (or switching from Sectors) is instant.
   await saveScan<ScreenerRow>(ctx, screenerCacheId(), top, scanned);
+  void enrichUnknownSymbols(ctx, top.map((r) => r.symbol));
   renderScanBannerInto('#screen-status', Date.now(), scanned, () => void runScreen(ctx), t('screener.run'));
 }
 
@@ -1448,6 +1494,8 @@ interface SectorSnapshotRow {
   avgVolume3m: number | null;
   avgVolume6m: number | null;
   volumeChangePct: number | null;
+  /** Signed-volume flow: positive = net accumulation (money IN), negative = distribution (money OUT). */
+  netFlowChangePct: number | null;
   hot: boolean;
   cold: boolean;
   weekly: { date: string; volume: number }[];
@@ -1526,6 +1574,7 @@ async function runSectors(ctx: AppContext): Promise<void> {
       avgVolume3m: r ? r.avgVolume3m : null,
       avgVolume6m: r ? r.avgVolume6m : null,
       volumeChangePct: r ? r.volumeChangePct : null,
+      netFlowChangePct: r ? r.netFlowChangePct : null,
       hot: hotSet.has(sector),
       cold: coldSet.has(sector),
       weekly: sectorVolumeSeries(syms, 'weekly'),
@@ -1556,8 +1605,17 @@ function renderSectorSnapshot(ctx: AppContext, rows: SectorSnapshotRow[]): void 
     const momRank = s.rank != null ? `#${s.rank}` : '—';
     const hot = s.hot ? ' 🔥' : '';
     const hasVol = s.avgVolume3m != null;
+    // Flow label: signed-volume change tells whether increased volume = buying or selling.
+    const flowVal = s.netFlowChangePct;
+    const flowLabel = flowVal == null
+      ? ''
+      : flowVal >= 5
+        ? `<span style="color:var(--accent)">▲ inflow ${pct(flowVal)}</span>`
+        : flowVal <= -5
+          ? `<span style="color:var(--danger)">▼ outflow ${pct(flowVal)}</span>`
+          : `<span style="color:var(--faint)">≈ neutral ${pct(flowVal)}</span>`;
     const volLine = hasVol
-      ? `3m ${fmtBig(s.avgVolume3m!)} · 6m ${fmtBig(s.avgVolume6m!)} avg vol · vol ${pct(s.volumeChangePct)}`
+      ? `vol ${pct(s.volumeChangePct)} · ${flowLabel}`
       : 'no volume data';
     const row = el(`
       <div class="sector-row">

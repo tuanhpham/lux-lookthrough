@@ -128,4 +128,10 @@ export class FinnhubProvider implements DataProvider {
       .map(([date, volume]) => ({ date, volume }));
     return { sector, freq, period, points };
   }
+
+  // Finnhub has a /stock/profile2 endpoint but it's behind a paid tier for
+  // most symbols. Return nulls — the Yahoo path covers the common case.
+  async getSectorLabel(_symbol: string): Promise<{ sector: string | null; industry: string | null }> {
+    return { sector: null, industry: null };
+  }
 }
