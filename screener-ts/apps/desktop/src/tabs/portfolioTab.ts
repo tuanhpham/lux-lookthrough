@@ -268,6 +268,8 @@ function periodForGap(gapDays: number): Period {
 /**
  * Build a dense daily equity series from the earliest buy date through endDate.
  * Replays buy/sell cash events and forward-fills close prices.
+ * For EUR accounts, raw USD bar closes are divided by the EURUSD rate for each
+ * date so that equity is always in the account's base currency.
  */
 function buildDailyEquity(
   st: AccountState,
@@ -289,10 +291,21 @@ function buildDailyEquity(
     barByTickerDate.set(sym, m);
   }
 
-  const prevClose = new Map<string, number>();
+  // Normalize a raw USD close to the account's base currency on a given date.
+  function normalizeClose(rawUsd: number, date: string): number {
+    if (st.account.currency !== 'EUR') return rawUsd;
+    const fx = eurUsdForDate(date);
+    return fx > 1 ? rawUsd / fx : rawUsd;
+  }
+
+  const prevClose = new Map<string, number>(); // stores already-normalized closes
   function getClose(sym: string, date: string): number | null {
     const b = barByTickerDate.get(sym)?.get(date);
-    if (b) { prevClose.set(sym, b.close); return b.close; }
+    if (b) {
+      const normalized = normalizeClose(b.close, date);
+      prevClose.set(sym, normalized);
+      return normalized;
+    }
     const pc = prevClose.get(sym);
     if (pc != null) return pc;
     return null;
@@ -1395,11 +1408,20 @@ async function update(ctx: AppContext): Promise<void> {
     // EURUSD fetch failed — display stays in EUR or uses stale rate
   }
 
-  // Build price map from latest bar
+  // Build price map from latest bar — normalize to account base currency.
+  // Yahoo always returns USD prices; EUR accounts need EUR prices so that
+  // lastPrice matches the EUR-denominated buyPrice/stop/target in every lot.
   const priceMap: PriceMap = {};
   for (const sym of tickers) {
     const bars = barCache[sym];
-    if (bars?.length) priceMap[sym] = bars[bars.length - 1]!.close;
+    if (!bars?.length) continue;
+    const rawClose = bars[bars.length - 1]!.close;
+    if (st.account.currency === 'EUR') {
+      const fx = eurUsdForDate(endDate);
+      priceMap[sym] = fx > 1 ? rawClose / fx : rawClose;
+    } else {
+      priceMap[sym] = rawClose;
+    }
   }
   priceCache.set(st.account.id, priceMap);
 
