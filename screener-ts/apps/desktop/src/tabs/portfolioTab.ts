@@ -1097,17 +1097,27 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const openLots = active().lots.filter((l) => l.ticker === t && l.remainingShares > 0);
         const totalShares = openLots.reduce((s, l) => s + l.remainingShares, 0);
         const cur = openLots[0]?.stop;
-        const latestPrice = prices(active().account.id)[t]; // EUR-normalized by priceCache fix
+        // Fall back to buy price if no market price is cached yet (before first Update)
+        const latestPriceEur = prices(active().account.id)[t] ?? openLots[0]?.buyPrice ?? null;
         const curDisp = cur != null ? toDisplay(cur).toFixed(2) : '';
-        const latestDisp = latestPrice != null ? toDisplay(latestPrice) : null;
+        const latestDisp = latestPriceEur != null ? toDisplay(latestPriceEur) : null;
         let prevStopCcy = displayCurrency;
+
+        // Compute reference price in the same currency as the entered stop so that
+        // the comparison and arithmetic are always in consistent units.
+        function refInCcy(ccy: string): number | null {
+          if (!latestPriceEur) return null;
+          return ccy === 'USD' ? latestPriceEur * (latestEurUsdRate ?? 1) : latestPriceEur;
+        }
 
         function stopRiskInfo(stopStr: string, ccyStr: string): string {
           const stopVal = Number(stopStr);
-          if (!stopVal || !latestDisp || latestDisp <= stopVal) return '';
+          if (!stopVal) return '';
+          const ref = refInCcy(ccyStr);
+          if (!ref || ref <= stopVal) return '';
           const sym = ccyStr === 'EUR' ? '€' : '$';
-          const risk = latestDisp - stopVal;
-          const riskPct = (risk / latestDisp) * 100;
+          const risk = ref - stopVal;
+          const riskPct = (risk / ref) * 100;
           const total = totalShares > 0 ? risk * totalShares : null;
           return `<span class="muted" style="font-size:11px">Risk/share <b>${sym}${num(risk)}</b> (${riskPct.toFixed(1)}%)` +
             (total != null ? ` · Total <b>${sym}${num(total)}</b>` : '') + `</span>`;
@@ -1158,21 +1168,34 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const openLots = active().lots.filter((l) => l.ticker === t && l.remainingShares > 0);
         const totalShares = openLots.reduce((s, l) => s + l.remainingShares, 0);
         const cur = openLots[0]?.target;
-        const latestPrice = prices(active().account.id)[t]; // EUR-normalized
+        // Fall back to buy price if no market price is cached yet (before first Update)
+        const latestPriceEur = prices(active().account.id)[t] ?? openLots[0]?.buyPrice ?? null;
         const curDisp = cur != null ? toDisplay(cur).toFixed(2) : '';
-        const latestDisp = latestPrice != null ? toDisplay(latestPrice) : null;
-        const stopDisp = openLots[0]?.stop != null ? toDisplay(openLots[0]!.stop) : null;
+        const latestDisp = latestPriceEur != null ? toDisplay(latestPriceEur) : null;
+        const stopEur = openLots[0]?.stop ?? null;
         let prevTargetCcy = displayCurrency;
+
+        function refInCcy2(ccy: string): number | null {
+          if (!latestPriceEur) return null;
+          return ccy === 'USD' ? latestPriceEur * (latestEurUsdRate ?? 1) : latestPriceEur;
+        }
+        function stopInCcy(ccy: string): number | null {
+          if (!stopEur) return null;
+          return ccy === 'USD' ? stopEur * (latestEurUsdRate ?? 1) : stopEur;
+        }
 
         function targetRRInfo(targetStr: string, ccyStr: string): string {
           const targetVal = Number(targetStr);
-          if (!targetVal || !latestDisp || targetVal <= latestDisp || !stopDisp) return '';
+          if (!targetVal) return '';
+          const ref = refInCcy2(ccyStr);
+          const stopVal = stopInCcy(ccyStr);
+          if (!ref || targetVal <= ref || !stopVal) return '';
           const sym = ccyStr === 'EUR' ? '€' : '$';
-          const reward = targetVal - latestDisp;
-          const risk = latestDisp - stopDisp;
+          const reward = targetVal - ref;
+          const risk = ref - stopVal;
           if (risk <= 0) return '';
           const rr = reward / risk;
-          const rewardPct = (reward / latestDisp) * 100;
+          const rewardPct = (reward / ref) * 100;
           const totalReward = totalShares > 0 ? reward * totalShares : null;
           return `<span class="muted" style="font-size:11px">Upside <b>${sym}${num(reward)}</b> (${rewardPct.toFixed(1)}%)` +
             (totalReward != null ? ` · Total <b>${sym}${num(totalReward)}</b>` : '') +
