@@ -144,40 +144,17 @@ export class YahooProvider implements DataProvider {
     if (result?.timestamp) {
       const q = result.indicators.quote[0]!;
 
-      // Build a split-only cumulative factor per bar so historical prices are
-      // comparable to today (same as TradingView's default "Adjusted data").
-      // We deliberately IGNORE dividends: dividend-adjusted prices pull older
-      // bars far below market reality for high-yield stocks (e.g. REITs like DLR),
-      // making the chart look completely wrong vs every mainstream charting tool.
+      // Yahoo's `quote` OHLC is ALREADY split-adjusted (but not dividend-adjusted)
+      // — the same basis TradingView shows by default. Verified against NVDA's
+      // 2021 4:1 and 2024 10:1 splits: bars on either side of each split date are
+      // continuous (no price jump), so the series is normalised to today's scale.
       //
-      // Algorithm: collect all split events sorted newest-first, then walk bars
-      // from oldest to newest accumulating the forward split factor for each bar.
-      // A 4:1 split (numerator=4, denominator=1) on date T means bars BEFORE T
-      // must be divided by 4 to be comparable to post-split prices.
-      const splitEvents = Object.values(result.events?.splits ?? {}).sort(
-        (a, b) => b.date - a.date,
-      );
-
-      // Precompute per-bar split factor walking newest→oldest.
-      // The most-recent bar always has factor=1 (already at post-split prices).
-      // Each split encountered while stepping back multiplies the running factor
-      // by (denominator/numerator): a 4:1 split means pre-split prices are 4×
-      // higher, so we divide by 4 (multiply by 1/4) to normalise to today's scale.
+      // We therefore use these values directly. A previous version re-applied a
+      // cumulative split factor on top, which DOUBLE-adjusted any symbol with a
+      // split inside the fetched window (e.g. NVDA Jan-2024 showed ~$5 instead of
+      // ~$52). Dividends are intentionally left unadjusted so high-yield names
+      // (e.g. REITs) don't sink far below market reality.
       const n = result.timestamp.length;
-      const splitFactors = new Float64Array(n).fill(1);
-      let cumFactor = 1;
-      let splitIdx = 0; // points into splitEvents (sorted newest-first)
-      for (let i = n - 1; i >= 0; i--) {
-        const ts = result.timestamp[i]!;
-        // Absorb all splits that fall strictly after this bar's timestamp.
-        while (splitIdx < splitEvents.length && splitEvents[splitIdx]!.date > ts) {
-          const s = splitEvents[splitIdx]!;
-          cumFactor *= s.denominator / s.numerator; // e.g. ×(1/4) for a 4:1 split
-          splitIdx++;
-        }
-        splitFactors[i] = cumFactor;
-      }
-
       for (let i = 0; i < n; i++) {
         const o = q.open?.[i];
         const h = q.high?.[i];
@@ -186,14 +163,13 @@ export class YahooProvider implements DataProvider {
         const v = q.volume?.[i];
         if (o == null || h == null || l == null || rawClose == null) continue;
 
-        const f = splitFactors[i]!;
         const d = new Date(result.timestamp[i]! * 1000);
         bars.push({
           date: d.toISOString().slice(0, 10),
-          open: o * f,
-          high: h * f,
-          low: l * f,
-          close: rawClose * f,
+          open: o,
+          high: h,
+          low: l,
+          close: rawClose,
           volume: v ?? 0,
         });
       }
