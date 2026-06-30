@@ -28,18 +28,12 @@
   --up: var(--accent);
   --down: var(--danger);
 
-  /* KPI donut palette — on-brand gradients: invested sweeps green→teal→cyan,
-     cash sweeps blue→indigo→violet. Three stops each for a vivid, arty flow. */
-  /* Aurora gradients (dark): invested = emerald→green→teal→cyan,
-     cash = royal blue→indigo→violet→pink. Four stops for a fluid, arty flow. */
-  --donut-invested: #04936a;
-  --donut-invested2: #18d89a;
-  --donut-invested3: #2ff0c8;
-  --donut-invested4: #5af2ff;
-  --donut-cash: #003781;   /* Allianz blue */
-  --donut-cash2: #4f6be0;
-  --donut-cash3: #9a5cf0;
-  --donut-cash4: #e85cc4;
+  /* KPI donut — two-color transitions (ring + legend use stop1 → stop4):
+     invested = emerald green → bright cyan, cash = Allianz blue → orchid/lila. */
+  --donut-invested: #00c389;   /* emerald green */
+  --donut-invested4: #19d3e8;  /* cyan */
+  --donut-cash: #003781;       /* Allianz blue */
+  --donut-cash4: #d65cf0;      /* orchid / lila */
   --donut-track: color-mix(in srgb, var(--border) 70%, transparent);
 
   /* Soft accent washes used throughout (kept in one place). */
@@ -71,15 +65,11 @@ html.light {
   --faint: #97a0af;
   --accent: #07b886;
   --accent-ink: #ffffff;
-  /* Aurora gradients (light): deeper, more saturated to read on cream. */
-  --donut-invested: #03835f;
-  --donut-invested2: #07b886;
-  --donut-invested3: #11cdaa;
-  --donut-invested4: #1fc6d8;
-  --donut-cash: #003781;   /* Allianz blue */
-  --donut-cash2: #4356c4;
-  --donut-cash3: #8a3fc8;
-  --donut-cash4: #cf3f96;
+  /* Donut transitions (light): deeper, more saturated to read on cream. */
+  --donut-invested: #03a06f;   /* emerald green */
+  --donut-invested4: #12b6cf;  /* cyan */
+  --donut-cash: #003781;       /* Allianz blue */
+  --donut-cash4: #b94fd8;      /* orchid / lila */
   --donut-track: color-mix(in srgb, var(--border) 90%, transparent);
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 12px 32px -16px rgba(16, 24, 40, .18);
   --shadow-lg: 0 1px 2px rgba(16, 24, 40, .06), 0 32px 64px -24px rgba(16, 24, 40, .22);

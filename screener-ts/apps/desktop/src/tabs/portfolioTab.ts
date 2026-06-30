@@ -1876,39 +1876,65 @@ function kpiDonut(opts: {
   }
   const investedFrac = investedPct / 100;
 
+  // True angular (conic-style) gradient along an arc. A linearGradient is a
+  // straight-line projection, so on an arc wider than 180° its color reaches the
+  // far end mid-arc then REVERSES (the "green→cyan→green" artifact). Instead we
+  // draw the arc as many tiny sub-segments whose color interpolates start→end as
+  // the angle sweeps, so the transition follows the curve exactly.
+  const css = (n: string, fallback: string) =>
+    (getComputedStyle(document.documentElement).getPropertyValue(n).trim() || fallback);
+  function hexToRgb(h: string): [number, number, number] {
+    const m = h.replace('#', '');
+    const v = m.length === 3 ? m.split('').map((c) => c + c).join('') : m;
+    return [parseInt(v.slice(0, 2), 16), parseInt(v.slice(2, 4), 16), parseInt(v.slice(4, 6), 16)];
+  }
+  const mix = (a: [number, number, number], b: [number, number, number], t: number) =>
+    `rgb(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)})`;
+  const pt = (frac: number): [number, number] => {
+    const ang = frac * 2 * Math.PI - Math.PI / 2; // clockwise from 12 o'clock
+    return [CX + R * Math.cos(ang), CY + R * Math.sin(ang)];
+  };
+  // Build one colour-swept arc band from frac0→frac1 (0..1 around the circle).
+  function conicArc(frac0: number, frac1: number, cFrom: string, cTo: string): string {
+    const from = hexToRgb(cFrom), to = hexToRgb(cTo);
+    const span = frac1 - frac0;
+    if (span <= 0) return '';
+    const N = Math.max(6, Math.round(span * 160)); // ~160 segs for a full ring
+    const overlap = span / N * 0.55; // extend each seg slightly to hide seams
+    let paths = '';
+    for (let i = 0; i < N; i++) {
+      const f0 = frac0 + (span * i) / N;
+      const f1 = Math.min(frac1, frac0 + (span * (i + 1)) / N + overlap);
+      const [x0, y0] = pt(f0), [x1, y1] = pt(f1);
+      const color = mix(from, to, (i + 0.5) / N);
+      const cap = i === 0 ? 'round' : (i === N - 1 ? 'round' : 'butt');
+      paths += `<path d="M${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}" fill="none" stroke="${color}" stroke-width="${SW}" stroke-linecap="${cap}"/>`;
+    }
+    // Rounded end caps coloured to match the gradient extremes.
+    const [sx, sy] = pt(frac0), [ex, ey] = pt(frac1);
+    paths = `<circle cx="${sx.toFixed(2)}" cy="${sy.toFixed(2)}" r="${SW / 2}" fill="${cFrom}"/>` + paths +
+      `<circle cx="${ex.toFixed(2)}" cy="${ey.toFixed(2)}" r="${SW / 2}" fill="${cTo}"/>`;
+    return paths;
+  }
+  const gapFrac = total > 0 && cash > 0 && invested > 0 ? GAP / C : 0;
+  const invColor = [css('--donut-invested', '#00c389'), css('--donut-invested4', '#19d3e8')] as const;
+  const cashColor = [css('--donut-cash', '#003781'), css('--donut-cash4', '#d65cf0')] as const;
+  const invArc = invested > 0
+    ? conicArc(gapFrac / 2, Math.max(gapFrac / 2, investedFrac - gapFrac / 2), invColor[0], invColor[1]) : '';
+  const cashArc = cash > 0
+    ? conicArc(investedFrac + gapFrac / 2, 1 - gapFrac / 2, cashColor[0], cashColor[1]) : '';
+
   return `
     <div class="kpi-donut-wrap">
       <svg viewBox="0 0 200 200" class="kpi-donut" role="img" aria-label="Equity composition">
         <defs>
-          <!-- userSpaceOnUse + explicit diagonal coords so the gradient reliably
-               spans the ring in every renderer (WebKit collapses rotated
-               objectBoundingBox gradients on thin strokes). -->
-          <linearGradient id="kpi-inv" gradientUnits="userSpaceOnUse" x1="24" y1="20" x2="176" y2="180">
-            <stop offset="0%" style="stop-color:var(--donut-invested)"/>
-            <stop offset="40%" style="stop-color:var(--donut-invested2)"/>
-            <stop offset="72%" style="stop-color:var(--donut-invested3)"/>
-            <stop offset="100%" style="stop-color:var(--donut-invested4)"/>
-          </linearGradient>
-          <linearGradient id="kpi-cash" gradientUnits="userSpaceOnUse" x1="180" y1="28" x2="28" y2="172">
-            <stop offset="0%" style="stop-color:var(--donut-cash)"/>
-            <stop offset="38%" style="stop-color:var(--donut-cash2)"/>
-            <stop offset="70%" style="stop-color:var(--donut-cash3)"/>
-            <stop offset="100%" style="stop-color:var(--donut-cash4)"/>
-          </linearGradient>
           <filter id="kpi-glow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="2.4" result="b"/>
             <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
         <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--donut-track)" stroke-width="${SW}"/>
-        <g filter="url(#kpi-glow)">
-        ${invested > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="url(#kpi-inv)" stroke-width="${SW}"
-          stroke-linecap="round" stroke-dasharray="${investedLen} ${C - investedLen}"
-          stroke-dashoffset="0" transform="rotate(-90 ${CX} ${CY})"/>` : ''}
-        ${cash > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="url(#kpi-cash)" stroke-width="${SW}"
-          stroke-linecap="round" stroke-dasharray="${cashLen} ${C - cashLen}"
-          stroke-dashoffset="${-(investedFrac * C) - GAP / 2}" transform="rotate(-90 ${CX} ${CY})"/>` : ''}
-        </g>
+        <g filter="url(#kpi-glow)">${invArc}${cashArc}</g>
         ${invested > 0 && investedPct >= 9 ? arcLabel(0, investedFrac, investedPct) : ''}
         ${cash > 0 && cashPct >= 9 ? arcLabel(investedFrac, 1, cashPct) : ''}
         <text x="${CX}" y="${CY - 16}" text-anchor="middle" class="kpi-donut-label">${equityLabel}</text>
