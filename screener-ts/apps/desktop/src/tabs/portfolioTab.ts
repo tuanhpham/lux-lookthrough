@@ -1850,28 +1850,29 @@ function kpiDonut(opts: {
   const pnlPos = opts.pnl >= 0;
 
   // Ring geometry — stroke-dasharray over a circle of radius R, centered in a
-  // Ring centered in a 200×200 viewBox; the generous margin (CX/CY 100, R 62)
-  // leaves room for the outside percentage labels so they never clip the edge.
+  // Ring centered in a 200×200 viewBox. R is sized so the ring nearly fills the
+  // box; the ~16px margin (200/2 − R − SW/2 − labelR slack) just fits the
+  // outside percentage labels without clipping.
   const CX = 100, CY = 100;
-  const R = 62;
+  const R = 76;
   const C = 2 * Math.PI * R;
-  const SW = 16; // stroke width
+  const SW = 20; // stroke width
   // Small gaps between the two arcs so the ring reads as segmented, not solid.
   const GAP = total > 0 && cash > 0 && invested > 0 ? 3 : 0;
   const investedLen = Math.max(0, (investedPct / 100) * C - GAP);
   const cashLen = Math.max(0, (cashPct / 100) * C - GAP);
   const pnlColor = pnlPos ? 'var(--accent)' : 'var(--danger)';
 
-  // Place a % label just outside the ring at the angular midpoint of a segment.
-  // fracStart/fracEnd are 0..1 around the circle, clockwise from top. Always
-  // middle-anchored so a 3-char "100%" stays inside the padded viewBox.
-  const labelR = R + SW / 2 + 12;
-  function outsideLabel(fracStart: number, fracEnd: number, value: number, color: string): string {
+  // Place a % label centered ON the arc band at the segment's angular midpoint,
+  // so the ring can fill the viewBox without outside labels clipping the edge.
+  // fracStart/fracEnd are 0..1 around the circle, clockwise from top.
+  const labelR = R; // center of the stroke band
+  function arcLabel(fracStart: number, fracEnd: number, value: number): string {
     const mid = (fracStart + fracEnd) / 2;
     const ang = mid * 2 * Math.PI - Math.PI / 2; // clockwise from 12 o'clock
     const x = CX + labelR * Math.cos(ang);
     const y = CY + labelR * Math.sin(ang);
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" class="kpi-donut-pctout" fill="${color}">${num(value, 0)}%</text>`;
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" class="kpi-donut-pctout">${num(value, 0)}%</text>`;
   }
   const investedFrac = investedPct / 100;
 
@@ -1879,27 +1880,44 @@ function kpiDonut(opts: {
     <div class="kpi-donut-wrap">
       <svg viewBox="0 0 200 200" class="kpi-donut" role="img" aria-label="Equity composition">
         <defs>
-          <linearGradient id="kpi-inv" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="var(--accent)"/>
-            <stop offset="100%" stop-color="var(--accent2)"/>
+          <!-- userSpaceOnUse + explicit diagonal coords so the gradient reliably
+               spans the ring in every renderer (WebKit collapses rotated
+               objectBoundingBox gradients on thin strokes). -->
+          <linearGradient id="kpi-inv" gradientUnits="userSpaceOnUse" x1="24" y1="20" x2="176" y2="180">
+            <stop offset="0%" style="stop-color:var(--donut-invested)"/>
+            <stop offset="40%" style="stop-color:var(--donut-invested2)"/>
+            <stop offset="72%" style="stop-color:var(--donut-invested3)"/>
+            <stop offset="100%" style="stop-color:var(--donut-invested4)"/>
           </linearGradient>
+          <linearGradient id="kpi-cash" gradientUnits="userSpaceOnUse" x1="180" y1="28" x2="28" y2="172">
+            <stop offset="0%" style="stop-color:var(--donut-cash)"/>
+            <stop offset="38%" style="stop-color:var(--donut-cash2)"/>
+            <stop offset="70%" style="stop-color:var(--donut-cash3)"/>
+            <stop offset="100%" style="stop-color:var(--donut-cash4)"/>
+          </linearGradient>
+          <filter id="kpi-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2.4" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
         </defs>
-        <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--border)" stroke-width="${SW}" opacity="0.35"/>
+        <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--donut-track)" stroke-width="${SW}"/>
+        <g filter="url(#kpi-glow)">
         ${invested > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="url(#kpi-inv)" stroke-width="${SW}"
           stroke-linecap="round" stroke-dasharray="${investedLen} ${C - investedLen}"
           stroke-dashoffset="0" transform="rotate(-90 ${CX} ${CY})"/>` : ''}
-        ${cash > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--warn)" stroke-width="${SW}"
+        ${cash > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="url(#kpi-cash)" stroke-width="${SW}"
           stroke-linecap="round" stroke-dasharray="${cashLen} ${C - cashLen}"
           stroke-dashoffset="${-(investedFrac * C) - GAP / 2}" transform="rotate(-90 ${CX} ${CY})"/>` : ''}
-        ${invested > 0 && investedPct >= 4 ? outsideLabel(0, investedFrac, investedPct, 'var(--accent)') : ''}
-        ${cash > 0 && cashPct >= 4 ? outsideLabel(investedFrac, 1, cashPct, 'var(--warn)') : ''}
+        </g>
+        ${invested > 0 && investedPct >= 9 ? arcLabel(0, investedFrac, investedPct) : ''}
+        ${cash > 0 && cashPct >= 9 ? arcLabel(investedFrac, 1, cashPct) : ''}
         <text x="${CX}" y="${CY - 16}" text-anchor="middle" class="kpi-donut-label">${equityLabel}</text>
         <text x="${CX}" y="${CY + 4}" text-anchor="middle" class="kpi-donut-value">${cmoney(equity)}</text>
         <text x="${CX}" y="${CY + 22}" text-anchor="middle" class="kpi-donut-pnl" fill="${pnlColor}">${(pnlPos ? '+' : '') + cmoney(pnl)} · ${pct(opts.pnlPct)}</text>
       </svg>
       <div class="kpi-donut-keys">
-        <span class="kpi-key"><span class="kpi-dot" style="background:linear-gradient(135deg,var(--accent),var(--accent2))"></span>${t('pf.kpi.invested')}</span>
-        <span class="kpi-key"><span class="kpi-dot" style="background:var(--warn)"></span>${t('pf.stat.cash')}</span>
+        <span class="kpi-key"><span class="kpi-dot" style="background:linear-gradient(135deg,var(--donut-invested),var(--donut-invested4))"></span>${t('pf.kpi.invested')}</span>
+        <span class="kpi-key"><span class="kpi-dot" style="background:linear-gradient(135deg,var(--donut-cash),var(--donut-cash4))"></span>${t('pf.stat.cash')}</span>
       </div>
     </div>`;
 }

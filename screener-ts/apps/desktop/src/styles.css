@@ -28,6 +28,20 @@
   --up: var(--accent);
   --down: var(--danger);
 
+  /* KPI donut palette — on-brand gradients: invested sweeps green→teal→cyan,
+     cash sweeps blue→indigo→violet. Three stops each for a vivid, arty flow. */
+  /* Aurora gradients (dark): invested = emerald→green→teal→cyan,
+     cash = royal blue→indigo→violet→pink. Four stops for a fluid, arty flow. */
+  --donut-invested: #04936a;
+  --donut-invested2: #18d89a;
+  --donut-invested3: #2ff0c8;
+  --donut-invested4: #5af2ff;
+  --donut-cash: #003781;   /* Allianz blue */
+  --donut-cash2: #4f6be0;
+  --donut-cash3: #9a5cf0;
+  --donut-cash4: #e85cc4;
+  --donut-track: color-mix(in srgb, var(--border) 70%, transparent);
+
   /* Soft accent washes used throughout (kept in one place). */
   --accent-wash: color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 42%, transparent);
@@ -57,6 +71,16 @@ html.light {
   --faint: #97a0af;
   --accent: #07b886;
   --accent-ink: #ffffff;
+  /* Aurora gradients (light): deeper, more saturated to read on cream. */
+  --donut-invested: #03835f;
+  --donut-invested2: #07b886;
+  --donut-invested3: #11cdaa;
+  --donut-invested4: #1fc6d8;
+  --donut-cash: #003781;   /* Allianz blue */
+  --donut-cash2: #4356c4;
+  --donut-cash3: #8a3fc8;
+  --donut-cash4: #cf3f96;
+  --donut-track: color-mix(in srgb, var(--border) 90%, transparent);
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 12px 32px -16px rgba(16, 24, 40, .18);
   --shadow-lg: 0 1px 2px rgba(16, 24, 40, .06), 0 32px 64px -24px rgba(16, 24, 40, .22);
 }
@@ -589,11 +613,11 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .kpi-row { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 14px; align-items: stretch; }
 .kpi-donut-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px 14px; }
 .kpi-donut-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-.kpi-donut { width: 100%; max-width: 230px; height: auto; aspect-ratio: 1; }
+.kpi-donut { width: 100%; max-width: 260px; height: auto; aspect-ratio: 1; }
 .kpi-donut-label { fill: var(--subtext); font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .kpi-donut-value { fill: var(--text); font-size: 22px; font-weight: 700; }
 .kpi-donut-pnl { font-size: 10px; font-weight: 600; }
-.kpi-donut-pctout { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi-donut-pctout { font-size: 8.5px; font-weight: 700; font-variant-numeric: tabular-nums; fill: #fff; letter-spacing: .02em; }
 .kpi-donut-keys { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 .kpi-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--subtext); }
 .kpi-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
