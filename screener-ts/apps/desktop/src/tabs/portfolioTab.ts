@@ -538,8 +538,8 @@ function draw(ctx: AppContext): void {
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
         <span class="section-title" style="margin:0">${t('pf.title')}</span>
         <div class="toolbar" style="margin:0;gap:4px">
-          <button class="range-btn" data-pf-view="equity">${t('pf.chart.equity')}</button>
-          <button class="range-btn active" data-pf-view="candle">${t('pf.chart.candle')}</button>
+          <button class="range-btn active" data-pf-view="equity">${t('pf.chart.equity')}</button>
+          <button class="range-btn" data-pf-view="candle">${t('pf.chart.candle')}</button>
         </div>
         <div class="toolbar" style="margin:0;gap:4px">
           <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
@@ -759,7 +759,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
     // ── Portfolio chart ─────────────────────────────────────────────────────────
     const pfEl = $('#portfolio-chart')!;
-    let pfView: 'equity' | 'candle' = 'candle';
+    let pfView: 'equity' | 'candle' = 'equity';
     let pfRange = 'all';
     let pfEma: Record<number, boolean> = { 5: false, 10: false, 21: false, 50: false, 150: false, 200: false };
     let pfCandleChart: ReturnType<typeof drawCandles> | null = null;
@@ -2035,8 +2035,8 @@ function buildOverviewHtml(): string {
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
         <span class="section-title" style="margin:0">${t('pf.overview.combined')}</span>
         <div class="toolbar" style="margin:0;gap:4px">
-          <button class="range-btn" data-pf-view="equity">${t('pf.chart.equity')}</button>
-          <button class="range-btn active" data-pf-view="candle">${t('pf.chart.candle')}</button>
+          <button class="range-btn active" data-pf-view="equity">${t('pf.chart.equity')}</button>
+          <button class="range-btn" data-pf-view="candle">${t('pf.chart.candle')}</button>
         </div>
         <div class="toolbar" style="margin:0;gap:4px">
           <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
@@ -2167,7 +2167,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   const combinedPortfolioNoCashBars = [...mergedPortfolioNoCash.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 
   const pfEl = root.querySelector<HTMLElement>('#portfolio-chart')!;
-  let pfView: 'equity' | 'candle' = 'candle';
+  let pfView: 'equity' | 'candle' = 'equity';
   let pfRange = 'all';
   let pfEma: Record<number, boolean> = { 5: false, 10: false, 21: false, 50: false, 150: false, 200: false };
   let pfCandleChart: ReturnType<typeof drawCandles> | null = null;
