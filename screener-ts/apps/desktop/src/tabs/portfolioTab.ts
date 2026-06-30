@@ -2017,10 +2017,12 @@ function buildOverviewHtml(): string {
       </div>
     </div>
 
-    <div class="section-title">${t('pf.overview.compare')}</div>
-    ${accounts.length < 2
-      ? `<p class="muted" style="font-size:12px;margin:0 0 8px">${t('pf.addacct.hint')}</p>`
-      : `<p class="muted" style="font-size:12px;margin:0 0 8px">${t('pf.clickacct')}</p>`}
+    <div class="section-title-row">
+      <span class="section-title" style="margin:0">${t('pf.overview.compare')}</span>
+      ${accounts.length < 2
+        ? `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>${t('pf.addacct.hint')}</span>`
+        : `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2l3.5 11 1.8-4.4L12.7 7 3 2z" fill="currentColor"/></svg>${t('pf.clickacct')}</span>`}
+    </div>
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       <table><thead><tr><th>${t('pf.col.account')}</th><th>${t('pf.col.return')}</th><th>${t('pf.col.equity2')}</th><th>${t('pf.col.winrate')}</th><th>${t('pf.stat.expectancy')}</th><th>${t('pf.col.avgr')}</th><th>${t('pf.col.maxdd')}</th><th>${t('pf.col.openrisk')}</th><th>${t('pf.col.open')}</th><th>${t('pf.col.closed')}</th></tr></thead>
       <tbody>${compareRows

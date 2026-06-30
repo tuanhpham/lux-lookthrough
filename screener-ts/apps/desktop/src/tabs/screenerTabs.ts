@@ -438,12 +438,12 @@ function renderUniverseRow(ctx: AppContext): void {
           )}</button>`,
       )
       .join('') +
-    `<span id="picks-uni-hint" class="muted" style="font-size:11px">${universeHint()}</span>`;
+    `<span id="picks-uni-hint" class="scan-note-slot">${universeHintHtml()}</span>`;
   row.querySelectorAll<HTMLElement>('[data-universe]').forEach((b) =>
     b.addEventListener('click', () => {
       picksUniverse = b.dataset.universe as UniverseMode;
       row.querySelectorAll('[data-universe]').forEach((x) => x.classList.toggle('active', x === b));
-      $('#picks-uni-hint')!.textContent = universeHint();
+      $('#picks-uni-hint')!.innerHTML = universeHintHtml();
       void showPicks(ctx);
     }),
   );
@@ -470,6 +470,19 @@ function universeHint(): string {
   if (picksUniverse === 'all') return t('picks.uni.all.hint');
   if (BIG_UNIVERSES.has(picksUniverse)) return t('picks.uni.vnall.hint');
   return '';
+}
+
+/** Render the long-scan hint as an artistic info callout (empty when none). */
+function universeHintHtml(): string {
+  const text = universeHint();
+  if (!text) return '';
+  return `<div class="scan-note">
+    <svg class="scan-note__icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="6.4" stroke="currentColor" stroke-width="1.4"/>
+      <path d="M8 4.6V8l2.4 1.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="scan-note__text">${text}</span>
+  </div>`;
 }
 
 /** Resolve the symbol list for the active universe mode. */

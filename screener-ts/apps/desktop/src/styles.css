@@ -224,6 +224,22 @@ html[lang="vi"] #app-menu .sl-menu-item {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   padding: 10px 16px;
 }
+
+/* Long-scan info callout under the universe pills. */
+.scan-note-slot { flex-basis: 100%; }
+.scan-note-slot:empty { display: none; }
+.scan-note {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin-top: 4px; padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent2) 26%, transparent);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent2) 11%, transparent),
+    color-mix(in srgb, var(--accent) 7%, transparent));
+  color: var(--subtext); font-size: 11.5px; line-height: 1.45;
+}
+.scan-note__icon { flex-shrink: 0; margin-top: 1px; color: var(--accent2); }
+.scan-note__text { flex: 1; }
 .picks-config-extras {
   align-items: center; gap: 12px;
 }
@@ -598,6 +614,19 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .accent { color: var(--accent); }
 .warn { color: var(--warn); }
 .risk-free { color: var(--accent); font-weight: 600; white-space: nowrap; }
+
+/* Section title with an inline hint chip on the right. */
+.section-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 18px 0 8px; }
+.section-title-row .section-title { margin: 0; }
+.hint-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 500; line-height: 1;
+  padding: 4px 10px; border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.hint-chip svg { flex-shrink: 0; opacity: .9; }
 
 /* ── KPI donut ───────────────────────────────────────────────────────────── */
 .kpi-row { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 14px; align-items: stretch; }
