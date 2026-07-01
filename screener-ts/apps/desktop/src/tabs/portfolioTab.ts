@@ -187,12 +187,20 @@ function normalizeLotPrice(lot: { buyPrice: number; priceCurrency?: 'EUR' | 'USD
 async function load(ctx: AppContext): Promise<void> {
   accounts = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
   if (!accounts.length) {
+    // Auto-create a starter account for DISPLAY ONLY — do NOT save() it.
+    //
+    // Saving here would stamp the `accounts` key with a fresh "now" timestamp
+    // and (when sync is on) push this empty default to the server. If local
+    // storage was cleared before a sync pull completed, that empty default
+    // would win last-write-wins and WIPE the real synced portfolio. By keeping
+    // it in memory only, tsOf('accounts') stays 0, so a later pullAndMerge
+    // always treats the server copy as newer and restores it. The account is
+    // persisted the first time the user actually acts (buy / add account).
     const a = createAccount(
       { name: 'Strategy A', initialCapital: 50000, currency: 'EUR', createdAt: today() },
       uuid,
     );
     accounts = [a];
-    await save(ctx);
   }
   // Scrub any NaN stop/target values that may have been stored via comma-decimal
   // input (e.g. "185,50" parsed by Number() → NaN). NaN is a valid JS value but
