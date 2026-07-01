@@ -1,3 +1,112 @@
+========================================================================
+ SYNC DATA RECOVERY — Cloudflare D1 "Time Travel"  (written 2026-07-01)
+========================================================================
+
+WHAT HAPPENED
+-------------
+The web app stores paper-trading accounts under the sync key `accounts`.
+A bug made the app auto-create an empty default "Strategy A" and PUSH it
+to the server when local browser storage was cleared. That empty default
+had a newer timestamp, so it overwrote the real `accounts` key on the
+Cloudflare D1 server (last-write-wins) — wiping the 4 real accounts.
+
+Everything else survived (case studies, watchlists, scans, posts, and the
+per-account price bars `pf_bars:<uuid>`). Only the `accounts` key was lost.
+
+TIMING (IMPORTANT — times below are UTC; German summer time = UTC+2)
+--------------------------------------------------------------------
+- The 4 accounts' price bars were freshly written at 04:39 UTC (06:39 DE)
+  today  -> PROOF the 4 accounts still existed that morning.
+- The `accounts` key's bad empty write is stamped 20:44 UTC (22:44 DE) —
+  that is only the LAST re-push of the empty default, not the first wipe.
+- SAFEST RESTORE TARGET: 2026-07-01T04:45:00Z  (= 06:45 German time),
+  i.e. just AFTER the 04:39 bar write that proves 4 accounts were alive.
+
+NO RUSH: Cloudflare D1 Time Travel keeps a full 30-day history, so this
+restore point stays available for ~30 days. Do it whenever the network
+allows.
+
+BEFORE YOU RESTORE
+------------------
+1. Do NOT add new real trades / accounts in the app until recovery is done.
+   A restore rolls the WHOLE database back to the chosen time, so anything
+   genuinely new created after that time would be lost by the restore.
+2. Do NOT keep opening / syncing the web app repeatedly — each sync can
+   re-push the empty default. (The code fix below prevents this once the
+   app is redeployed.)
+
+METHOD A — wrangler CLI  (most reliable; needs network to Cloudflare)
+---------------------------------------------------------------------
+The office firewall blocks wrangler's calls to api.cloudflare.com. Use a
+PHONE HOTSPOT (tether the laptop to your phone) to bypass it, then:
+
+    cd screener-ts/apps/desktop
+
+    # 1. See the restorable window + current bookmark
+    npx wrangler d1 time-travel info screener-sync
+
+    # 2. Restore to just after the morning bar write (4 accounts alive)
+    npx wrangler d1 time-travel restore screener-sync --timestamp=2026-07-01T04:45:00Z
+
+METHOD B — Cloudflare dashboard  (if it opens in your browser)
+--------------------------------------------------------------
+D1 is NOT under "Workers & Pages" anymore. Find it via the left sidebar:
+  Storage & Databases -> D1 SQL Database
+Or open directly:
+  https://dash.cloudflare.com/?to=/:account/workers/d1
+Open the `screener-sync` database. If a "Time Travel" / "Restore" control
+is present, restore to 2026-07-01T04:45:00Z. (Note: Time Travel has been
+CLI-only in the past — the dashboard may not offer it, in which case use
+Method A via phone hotspot.)
+
+IF THE FIRST RESTORE STILL SHOWS EMPTY ACCOUNTS
+-----------------------------------------------
+Then the wipe happened even earlier. Restore to an earlier time and re-check.
+You can restore repeatedly within the 30-day window. Binary-search between a
+known-good early time and 20:44Z:
+    npx wrangler d1 time-travel restore screener-sync --timestamp=2026-06-30T23:59:00Z
+(losing at most today's regenerable scan caches).
+
+HOW TO VERIFY (READ-ONLY — never writes anything)
+-------------------------------------------------
+Replace <YOUR-SYNC-CODE> with your code (do NOT commit it anywhere public):
+
+    curl -s -X POST "https://the-professional.pages.dev/api/sync/kv/accounts" \
+      -H "x-sync-code: <YOUR-SYNC-CODE>"
+    # or list everything:
+    curl -s -X POST "https://the-professional.pages.dev/api/sync/pull" \
+      -H "x-sync-code: <YOUR-SYNC-CODE>" -H "content-type: application/json" \
+      -d '{"since":0}'
+The `accounts` value should show your 4 accounts (names + lots), not a lone
+empty "Strategy A".
+
+"WHAT IF SOMEONE ADDS NEW TRADES AFTER THE PROBLEM?"
+---------------------------------------------------
+A Time Travel restore rolls the whole DB back to the chosen timestamp, so
+any genuine new trades entered AFTER that timestamp are lost by the restore.
+So:
+  - If new real trades were added after the restore point, first RECORD them
+    (screenshot / note the ticker, shares, price, date, stop, target) using
+    the read-only curl above or from the app, THEN restore, THEN re-enter
+    those few trades by hand in the app.
+  - If nothing important was added since, just restore.
+The rule of thumb: restore loses everything newer than the chosen time, so
+pick the LATEST time that still contains your good accounts, and manually
+re-key anything created after it.
+
+PERMANENT FIX (deploy so this never recurs)
+-------------------------------------------
+Code already fixed: the auto-created default "Strategy A" is now DISPLAY-ONLY
+(kept in memory, never saved/pushed), so an empty placeholder can no longer
+overwrite real synced accounts. Redeploy the web build to activate it:
+
+    (cd ../.. && npm run build --workspace @screener/core \
+                 && npm run build --workspace @screener/desktop)
+    npx wrangler pages deploy dist --project-name the-professional
+
+========================================================================
+
+
   ---
   Page structure
 
