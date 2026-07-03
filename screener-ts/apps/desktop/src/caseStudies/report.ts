@@ -7,6 +7,7 @@
 import type { Bar } from '@screener/core';
 import type { CaseStudy } from './store.js';
 import { caseSvgChart, windowBars } from './svgChart.js';
+import { sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 
 function esc(s: string): string {
   return s
@@ -48,12 +49,12 @@ export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
     ? study.catalysts
         .slice()
         .sort((a, b) => (a.date < b.date ? -1 : 1))
-        .map((c) => `<tr><td class="cat-date">${esc(c.date)}</td><td>${esc(c.text)}</td></tr>`)
+        .map((c) => `<tr><td class="cat-date">${esc(c.date)}</td><td>${sanitizeNoteHtml(c.text)}</td></tr>`)
         .join('')
     : `<tr><td colspan="2" class="muted">No catalysts recorded.</td></tr>`;
 
-  const notesHtml = study.notes.trim()
-    ? esc(study.notes).replace(/\n/g, '<br>')
+  const notesHtml = !isNoteEmpty(study.notes)
+    ? sanitizeNoteHtml(study.notes)
     : '<span class="muted">No notes.</span>';
 
   return `<!doctype html>

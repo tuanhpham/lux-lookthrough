@@ -673,6 +673,13 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
   .tp-fields { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ── Case-study rich inputs ──────────────────────────────────────────────── */
+.cs-cat-input { line-height: 1.5; overflow-y: auto; max-height: 120px; }
+.cs-cat-input:empty::before { content: attr(data-placeholder); color: var(--faint); }
+.cs-cat-input:focus { outline: none; border-color: var(--accent); }
+.cs-notes-view { min-height: 90px; padding: 12px 14px; line-height: 1.7; }
+.cs-cat-edit { background: 0; border: 0; cursor: pointer; }
+
 /* ── Ticker combobox ─────────────────────────────────────────────────────── */
 .combo { position: relative; display: inline-block; }
 .combo-panel {

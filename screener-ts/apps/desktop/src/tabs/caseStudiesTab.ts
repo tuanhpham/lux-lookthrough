@@ -21,8 +21,31 @@ import {
 } from '../caseStudies/store.js';
 import { caseSvgChart, windowBars } from '../caseStudies/svgChart.js';
 import { caseStudyHtml } from '../caseStudies/report.js';
+import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
+
+/** Selectable setup types. `value` is stored; `label` shown; `phrase` used to
+ * build the auto title (e.g. "Feb 2024 VCP Breakout"). */
+const SETUP_TYPES: { value: string; en: string; vi: string; phrase: string }[] = [
+  { value: 'VCP', en: 'VCP', vi: 'VCP', phrase: 'VCP Breakout' },
+  { value: 'EP', en: 'Episodic Pivot', vi: 'Điểm xoay đột biến', phrase: 'Episodic Pivot' },
+  { value: 'Mean Reversion', en: 'Mean Reversion', vi: 'Hồi quy trung bình', phrase: 'Mean Reversion' },
+  { value: 'Breakout', en: 'Breakout', vi: 'Bứt phá', phrase: 'Breakout' },
+  { value: 'Pullback', en: 'Pullback', vi: 'Điều chỉnh', phrase: 'Pullback' },
+  { value: 'Surge', en: 'Surge', vi: 'Tăng vọt', phrase: 'Surge' },
+  { value: 'Other', en: 'Other', vi: 'Khác', phrase: 'Setup' },
+];
+
+/** Build "Feb 2024 VCP Breakout" from symbol + key date + setup type. */
+function autoTitle(symbol: string, keyDate: string, setupType: string): string {
+  const phrase = SETUP_TYPES.find((s) => s.value === setupType)?.phrase ?? setupType ?? 'Setup';
+  const d = keyDate ? new Date(keyDate + 'T00:00:00') : null;
+  const mon = d ? d.toLocaleString('en-US', { month: 'short' }) : '';
+  const yr = d ? d.getFullYear() : '';
+  const sym = symbol ? symbol.toUpperCase() + ' ' : '';
+  return `${sym}${mon} ${yr} ${phrase}`.replace(/\s+/g, ' ').trim();
+}
 
 // Cache the fetched bars per symbol so editing/redrawing doesn't refetch.
 const barCache = new Map<string, Bar[]>();
@@ -137,7 +160,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     <div class="section-title">${vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news'}</div>
     <div class="card" style="margin-bottom:14px">${catalystListHtml(study, vi)}</div>
     <div class="section-title">${vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons'}</div>
-    <div class="card" style="line-height:1.7;white-space:pre-wrap">${study.notes.trim() ? escapeAttr(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>`;
+    <div class="card note-html" style="line-height:1.7">${!isNoteEmpty(study.notes) ? sanitizeNoteHtml(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>`;
 
   $('#cs-back')!.addEventListener('click', () => void renderList(ctx));
   $('#cs-edit')!.addEventListener('click', () => openEditor(ctx, study));
@@ -190,9 +213,13 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
     <div class="card" style="margin-bottom:14px">
       <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
         <div><label class="field-label">${vi ? 'Mã' : 'Symbol'}</label><input id="f-symbol" class="field" value="${escapeAttr(study.symbol)}" placeholder="NVDA" /></div>
-        <div style="grid-column:span 2"><label class="field-label">${vi ? 'Tiêu đề' : 'Title'}</label><input id="f-title" class="field" value="${escapeAttr(study.title)}" placeholder="${vi ? 'VCP bứt phá tháng 2/2024' : 'Feb 2024 VCP breakout'}" /></div>
         <div><label class="field-label">${vi ? 'Ngày then chốt' : 'Key date'}</label><input id="f-keydate" class="field" type="date" max="${todayIso()}" value="${study.keyDate}" /></div>
-        <div><label class="field-label">${vi ? 'Loại thiết lập' : 'Setup type'}</label><input id="f-setup" class="field" value="${escapeAttr(study.setupType)}" placeholder="VCP / EP / Surge" /></div>
+        <div><label class="field-label">${vi ? 'Loại thiết lập' : 'Setup type'}</label><select id="f-setup" class="field pf-acct-select">${
+          SETUP_TYPES.map((s) => `<option value="${s.value}" ${s.value === study.setupType ? 'selected' : ''}>${vi ? s.vi : s.en}</option>`).join('')
+        }${SETUP_TYPES.some((s) => s.value === study.setupType) ? '' : `<option value="${escapeAttr(study.setupType)}" selected>${escapeAttr(study.setupType)}</option>`}</select></div>
+        <div style="grid-column:span 3"><label class="field-label">${vi ? 'Tiêu đề' : 'Title'} <span class="muted" style="font-weight:400">${vi ? '(tự động — có thể sửa)' : '(auto — editable)'}</span></label>
+          <div class="row" style="gap:8px"><input id="f-title" class="field" style="flex:1" value="${escapeAttr(study.title)}" placeholder="${vi ? 'VD: NVDA Feb 2024 VCP Breakout' : 'e.g. NVDA Feb 2024 VCP Breakout'}" />
+          <button id="f-title-auto" type="button" class="btn-outline" title="${vi ? 'Tạo tiêu đề tự động' : 'Generate title'}">↻</button></div></div>
         <div><label class="field-label">${vi ? 'Kết quả' : 'Outcome'}</label><select id="f-outcome" class="field">${OUTCOMES.map((o) => `<option value="${o}" ${o === study.outcome ? 'selected' : ''}>${outcomeLabel(o, vi)}</option>`).join('')}</select></div>
         <div><label class="field-label">${vi ? 'Mua' : 'Entry'}</label><input id="f-entry" class="field" type="number" step="any" value="${study.entry ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Cắt lỗ' : 'Stop'}</label><input id="f-stop" class="field" type="number" step="any" value="${study.stop ?? ''}" /></div>
@@ -206,15 +233,21 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
     <div class="section-title">${vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news'}</div>
     <div class="card" style="margin-bottom:14px">
       <div id="cs-cat-rows"></div>
-      <div class="row" style="margin-top:8px;gap:8px">
+      <div class="row" style="margin-top:8px;gap:8px;align-items:flex-start">
         <input id="cs-cat-date" class="field" type="date" max="${todayIso()}" style="width:160px" />
-        <input id="cs-cat-text" class="field" placeholder="${vi ? 'Tin tức / lợi nhuận / chất xúc tác…' : 'News / earnings / catalyst…'}" style="flex:1" />
+        <div class="cs-cat-input note-html field" id="cs-cat-text" contenteditable="true" data-placeholder="${vi ? 'Tin tức / lợi nhuận / chất xúc tác… (định dạng được)' : 'News / earnings / catalyst… (formatting supported)'}" style="flex:1;min-height:38px"></div>
         <button id="cs-cat-add" class="btn-outline">${vi ? '＋ Thêm' : '＋ Add'}</button>
       </div>
     </div>
 
     <div class="section-title">${vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons'}</div>
-    <textarea id="f-notes" class="field" style="width:100%;min-height:180px;font-family:inherit;line-height:1.6;resize:vertical" placeholder="${vi ? 'Điều gì đã hiệu quả, điều gì không, bài học rút ra…' : 'What worked, what did not, lessons learned…'}">${escapeAttr(study.notes)}</textarea>`;
+    <div class="card" style="margin-bottom:14px">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span class="muted" style="font-size:12px">${vi ? 'Hỗ trợ định dạng (đậm, danh sách, màu…)' : 'Rich text (bold, lists, color…)'}</span>
+        <button id="f-notes-edit" type="button" class="note-btn has-note" title="${vi ? 'Sửa ghi chú' : 'Edit note'}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div id="f-notes" class="note-html cs-notes-view">${isNoteEmpty(study.notes) ? `<span class="muted">${vi ? 'Chưa có ghi chú — bấm ✎ để thêm.' : 'No notes — click ✎ to add.'}</span>` : sanitizeNoteHtml(study.notes)}</div>
+    </div>`;
 
   const catRowsEl = $('#cs-cat-rows')!;
   const renderCatRows = () => {
@@ -230,12 +263,19 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         const row = el(`
           <div class="row" style="gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft);align-items:flex-start">
             <span style="font-family:var(--font-mono);color:var(--accent2,#c084fc);white-space:nowrap">${cat.date}</span>
-            <span style="flex:1">${escapeAttr(cat.text)}</span>
-            <button class="link-btn" style="color:var(--danger)">✕</button>
+            <span class="note-html" style="flex:1">${sanitizeNoteHtml(cat.text)}</span>
+            <button class="link-btn cs-cat-edit" style="color:var(--accent2)" title="${vi ? 'Sửa' : 'Edit'}">✎</button>
+            <button class="link-btn cs-cat-del" style="color:var(--danger)">✕</button>
           </div>`);
-        row.querySelector('button')!.addEventListener('click', () => {
+        row.querySelector('.cs-cat-del')!.addEventListener('click', () => {
           const i = catalysts.indexOf(cat);
           if (i >= 0) catalysts.splice(i, 1);
+          renderCatRows();
+        });
+        row.querySelector('.cs-cat-edit')!.addEventListener('click', async () => {
+          const res = await richNoteDialog(vi ? 'Chất xúc tác' : 'Catalyst', cat.text, { lang: vi ? 'vi' : 'en' });
+          if (res === null) return;
+          cat.text = res;
           renderCatRows();
         });
         catRowsEl.appendChild(row);
@@ -245,12 +285,43 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
 
   $('#cs-cat-add')!.addEventListener('click', () => {
     const date = ($('#cs-cat-date') as HTMLInputElement).value;
-    const text = ($('#cs-cat-text') as HTMLInputElement).value.trim();
-    if (!date || !text) return;
+    const text = sanitizeNoteHtml(($('#cs-cat-text') as HTMLElement).innerHTML);
+    if (!date || isNoteEmpty(text)) return;
     catalysts.push({ date, text });
-    ($('#cs-cat-text') as HTMLInputElement).value = '';
+    ($('#cs-cat-text') as HTMLElement).innerHTML = '';
     renderCatRows();
   });
+
+  // Rich-text notes editor + live view.
+  let notesHtml = study.notes;
+  $('#f-notes-edit')!.addEventListener('click', async () => {
+    const res = await richNoteDialog(vi ? 'Ghi chú & bài học' : 'Notes & lessons', notesHtml, { lang: vi ? 'vi' : 'en' });
+    if (res === null) return;
+    notesHtml = res;
+    const view = $('#f-notes')!;
+    view.innerHTML = isNoteEmpty(res)
+      ? `<span class="muted">${vi ? 'Chưa có ghi chú — bấm ✎ để thêm.' : 'No notes — click ✎ to add.'}</span>`
+      : sanitizeNoteHtml(res);
+  });
+
+  // Auto-title: (re)generate from symbol + key date + setup type.
+  const titleInput = $('#f-title') as HTMLInputElement;
+  const symInput = $('#f-symbol') as HTMLInputElement;
+  const dateInput = $('#f-keydate') as HTMLInputElement;
+  const setupSel = $('#f-setup') as HTMLSelectElement;
+  // Track whether the title was auto-filled so we don't clobber manual edits.
+  let titleAuto = !study.title.trim();
+  const regenTitle = () => {
+    titleInput.value = autoTitle(symInput.value, dateInput.value, setupSel.value);
+    titleAuto = true;
+  };
+  if (titleAuto) regenTitle();
+  [symInput, dateInput, setupSel].forEach((elm) =>
+    elm.addEventListener('input', () => { if (titleAuto) regenTitle(); }),
+  );
+  setupSel.addEventListener('change', () => { if (titleAuto) regenTitle(); });
+  titleInput.addEventListener('input', () => { titleAuto = false; });
+  $('#f-title-auto')!.addEventListener('click', regenTitle);
 
   $('#cs-cancel')!.addEventListener('click', () => void renderList(ctx));
   $('#cs-save')!.addEventListener('click', async () => {
@@ -274,12 +345,15 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         : entry != null && stop != null && exitPrice != null && entry !== stop
           ? parseFloat(((exitPrice - entry) / (entry - stop)).toFixed(2))
           : null;
+    const keyDate = ($('#f-keydate') as HTMLInputElement).value || todayIso();
+    const setupType = ($('#f-setup') as HTMLSelectElement).value.trim() || 'Setup';
+    const title = ($('#f-title') as HTMLInputElement).value.trim() || autoTitle(symbol, keyDate, setupType);
     const updated: CaseStudy = {
       ...study,
       symbol,
-      title: ($('#f-title') as HTMLInputElement).value.trim(),
-      keyDate: ($('#f-keydate') as HTMLInputElement).value || todayIso(),
-      setupType: ($('#f-setup') as HTMLInputElement).value.trim() || 'Setup',
+      title,
+      keyDate,
+      setupType,
       outcome: ($('#f-outcome') as HTMLSelectElement).value as CaseOutcome,
       entry,
       stop,
@@ -288,7 +362,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       exitPrice,
       rMultiple,
       catalysts,
-      notes: ($('#f-notes') as HTMLTextAreaElement).value,
+      notes: sanitizeNoteHtml(notesHtml),
       updatedAt: todayIso(),
     };
     // If the symbol changed, drop the cached bars so the chart refetches.
@@ -316,7 +390,7 @@ function catalystListHtml(study: CaseStudy, vi: boolean): string {
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .map(
       (c) =>
-        `<div class="row" style="gap:10px;padding:5px 0;align-items:flex-start"><span style="font-family:var(--font-mono);color:#c084fc;white-space:nowrap">${c.date}</span><span style="flex:1">${escapeAttr(c.text)}</span></div>`,
+        `<div class="row" style="gap:10px;padding:5px 0;align-items:flex-start"><span style="font-family:var(--font-mono);color:#c084fc;white-space:nowrap">${c.date}</span><span class="note-html" style="flex:1">${sanitizeNoteHtml(c.text)}</span></div>`,
     )
     .join('');
 }
