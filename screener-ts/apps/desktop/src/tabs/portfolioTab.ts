@@ -5,6 +5,9 @@ import {
   setStop,
   deleteSell,
   deleteLot,
+  addCashFlow,
+  deleteCashFlow,
+  capitalAsOf,
   createOrder,
   runUpdate,
   buildPositions,
@@ -670,7 +673,8 @@ function draw(ctx: AppContext): void {
         <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Stop (optional)" style="width:130px" />
           <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" />
           <button id="b-go" class="btn">Buy</button>
-          <button id="s-go" class="btn-outline">Sell</button></div>
+          <button id="s-go" class="btn-outline">Sell</button>
+          <button id="cash-go" class="btn-outline" title="${t('pf.cash.adjusttitle')}">${t('pf.cash.adjust')}</button></div>
         <div id="b-riskhint" class="price-hint" style="margin-top:4px"></div>
       </div>
       <div class="card">
@@ -1060,6 +1064,38 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }
     });
 
+    // adjust cash (dated deposit / withdrawal)
+    $('#cash-go')!.addEventListener('click', async () => {
+      const res = await formDialog(t('pf.cash.adjust'), [
+        { key: 'kind', label: t('pf.cash.type'), type: 'select', value: 'deposit',
+          options: [
+            { value: 'deposit', label: t('pf.cash.deposit') },
+            { value: 'withdraw', label: t('pf.cash.withdraw') },
+          ] },
+        { key: 'amount', label: `${t('pf.cash.amount')} (${dispSymbol()})`, type: 'number', value: '' },
+        { key: 'date', label: t('pf.cash.date'), type: 'date', value: today() },
+        { key: 'note', label: t('pf.cash.note'), type: 'text', value: '' },
+      ]);
+      if (!res) return;
+      const raw = Number((res.amount ?? '').replace(',', '.'));
+      if (!raw || isNaN(raw) || raw <= 0) {
+        alert(t('pf.cash.invalid'));
+        return;
+      }
+      // Amount entered in display currency → normalize to account base (EUR).
+      const date = res.date || today();
+      let amount = raw;
+      if (active().account.currency === 'EUR' && displayCurrency === 'USD') {
+        const fx = eurUsdForDate(date);
+        if (fx > 1) amount = raw / fx;
+      }
+      const signedAmt = res.kind === 'withdraw' ? -amount : amount;
+      addCashFlow(active(), { date, amount: signedAmt, note: (res.note ?? '').trim() || undefined }, uuid);
+      snapshotNow(active());
+      await save(ctx);
+      draw(ctx);
+    });
+
     // open a position's stock detail by clicking its ticker
     root.querySelectorAll<HTMLElement>('[data-open]').forEach((a) =>
       a.addEventListener('click', (e) => {
@@ -1343,6 +1379,17 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }),
     );
 
+    // delete a cash deposit / withdrawal
+    root.querySelectorAll<HTMLElement>('[data-del-cash]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        if (!confirm('Delete this cash adjustment? Cash and capital figures will update.')) return;
+        deleteCashFlow(active(), b.dataset.delCash!);
+        snapshotNow(active());
+        await save(ctx);
+        draw(ctx);
+      }),
+    );
+
     // place order
     $('#o-go')!.addEventListener('click', async () => {
       const t = ($('#o-ticker') as HTMLInputElement).value.trim().toUpperCase();
@@ -1398,12 +1445,22 @@ function daysBetween(a: string, b: string): number {
  * So a 100-share buy with 40 sold shows: one 40-share closed row and one
  * 60-share open row — never a duplicate "buy" line.
  */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+}
+
 function transactionHistoryHtml(st: AccountState): string {
   interface Row {
-    status: 'CLOSED' | 'OPEN';
+    status: 'CLOSED' | 'OPEN' | 'CASH';
     ticker: string; shares: number; buyPrice: number; sellPrice: number | null;
     buyDate: string; sellDate: string | null; holdDays: number | null; pnl: number | null;
-    sortDate: string; delKind: 'sell' | 'lot'; delId: string;
+    /** Position cost basis (buyPrice × shares) for this row, in account currency. */
+    cost: number;
+    /** Capital available as of this row's opening date (initial + deposits + prior realized). */
+    capitalAtOpen: number;
+    sortDate: string; delKind: 'sell' | 'lot' | 'cash'; delId: string;
+    /** For CASH rows only: the signed amount (+ deposit, − withdrawal). */
+    cashAmount?: number; note?: string;
   }
   const sellsByLot = new Map<string, typeof st.sells>();
   for (const s of st.sells) {
@@ -1414,20 +1471,33 @@ function transactionHistoryHtml(st: AccountState): string {
 
   const rows: Row[] = [];
   for (const l of st.lots) {
+    const capAtBuy = capitalAsOf(st, l.buyDate);
     for (const s of sellsByLot.get(l.id) ?? []) {
+      const cost = l.buyPrice * s.shares;
       rows.push({
         status: 'CLOSED', ticker: l.ticker, shares: s.shares, buyPrice: l.buyPrice, sellPrice: s.sellPrice,
         buyDate: l.buyDate, sellDate: s.sellDate, holdDays: daysBetween(l.buyDate, s.sellDate),
-        pnl: s.realizedPnL, sortDate: s.sellDate, delKind: 'sell', delId: s.id,
+        pnl: s.realizedPnL, cost, capitalAtOpen: capAtBuy,
+        sortDate: s.sellDate, delKind: 'sell', delId: s.id,
       });
     }
     if (l.remainingShares > 0) {
       rows.push({
         status: 'OPEN', ticker: l.ticker, shares: l.remainingShares, buyPrice: l.buyPrice, sellPrice: null,
         buyDate: l.buyDate, sellDate: null, holdDays: null, pnl: null,
+        cost: l.buyPrice * l.remainingShares, capitalAtOpen: capAtBuy,
         sortDate: l.buyDate, delKind: 'lot', delId: l.id,
       });
     }
+  }
+  // Cash deposits / withdrawals as their own rows.
+  for (const f of st.cashFlows ?? []) {
+    rows.push({
+      status: 'CASH', ticker: '', shares: 0, buyPrice: 0, sellPrice: null,
+      buyDate: f.date, sellDate: null, holdDays: null, pnl: null,
+      cost: 0, capitalAtOpen: 0, sortDate: f.date, delKind: 'cash', delId: f.id,
+      cashAmount: f.amount, note: f.note,
+    });
   }
   if (!rows.length) {
     return `<div class="muted" style="text-align:center;padding:20px">No transactions yet.</div>`;
@@ -1456,10 +1526,43 @@ function transactionHistoryHtml(st: AccountState): string {
   const summaryLine = chips.length ? `<div class="hold-chips">${chips.join('')}</div>` : '';
 
   rows.sort((a, b) => (a.sortDate < b.sortDate ? 1 : a.sortDate > b.sortDate ? -1 : 0));
+  const delBtn = (kind: string, id: string): string =>
+    `<button class="del-btn" title="Delete this transaction" data-del-${kind}="${id}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>`;
+  const signed = (v: number, dateForFx: string): string =>
+    `<span style="color:${v >= 0 ? 'var(--accent)' : 'var(--danger)'}">${v >= 0 ? '+' : ''}${money(toDisplay(v, dateForFx), dispSymbol())}</span>`;
+
   const body = rows
     .map((r) => {
+      // Cash deposit / withdrawal row — spans the trade columns with its amount.
+      if (r.status === 'CASH') {
+        const amt = r.cashAmount ?? 0;
+        const label = amt >= 0 ? (t('pf.cash.deposit') || 'Deposit') : (t('pf.cash.withdraw') || 'Withdrawal');
+        return `<tr class="tx-cash-row">
+          <td><span class="badge" style="background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)">CASH</span></td>
+          <td colspan="4"><strong>${label}</strong>${r.note ? ` <span class="muted" style="font-weight:400">— ${escapeHtml(r.note)}</span>` : ''}</td>
+          <td>${r.buyDate}</td>
+          <td>—</td>
+          <td>—</td>
+          <td>${signed(amt, r.buyDate)}</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td style="display:flex;gap:4px;align-items:center">${delBtn('cash', r.delId)}</td>
+        </tr>`;
+      }
+
       const c = r.status === 'CLOSED' ? 'var(--warn)' : 'var(--accent2)';
       const pnl = r.pnl == null ? '—' : `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(r.pnl, r.sellDate ?? r.buyDate), dispSymbol())}</span>`;
+      // PnL % of the position's own cost basis (return-on-trade).
+      const pnlPctCost = r.pnl != null && r.cost > 0
+        ? `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct((r.pnl / r.cost) * 100)}</span>`
+        : '—';
+      // Weight: position cost vs the capital held when it was opened.
+      const weight = r.capitalAtOpen > 0 ? pct((r.cost / r.capitalAtOpen) * 100) : '—';
+      // PnL % of that capital base (impact on the whole account).
+      const pnlPctCap = r.pnl != null && r.capitalAtOpen > 0
+        ? `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct((r.pnl / r.capitalAtOpen) * 100)}</span>`
+        : '—';
       const heldDays = r.holdDays != null ? r.holdDays : daysBetween(r.buyDate, todayStr);
       const chartTo = r.status === 'CLOSED' ? (r.sellDate ?? '') : '';
       const chartBtn = `<button class="action-btn action-btn--chart" data-closed-chart="${r.ticker}" data-chart-from="${r.buyDate}" data-chart-to="${chartTo}" data-chart-shares="${r.shares}" title="Show price × shares chart"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M1 14 5 9l3 3 3-4 4-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Chart</button>`;
@@ -1473,7 +1576,10 @@ function transactionHistoryHtml(st: AccountState): string {
         <td>${r.sellDate ?? '—'}</td>
         <td>${heldDays}d</td>
         <td>${pnl}</td>
-        <td style="display:flex;gap:4px;align-items:center">${chartBtn}<button class="del-btn" title="Delete this transaction" data-del-${r.delKind}="${r.delId}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></td>
+        <td>${pnlPctCost}</td>
+        <td>${weight}</td>
+        <td>${pnlPctCap}</td>
+        <td style="display:flex;gap:4px;align-items:center">${chartBtn}${delBtn(r.delKind, r.delId)}</td>
       </tr>`;
     })
     .join('');
@@ -1487,6 +1593,9 @@ function transactionHistoryHtml(st: AccountState): string {
     <th>${t('pf.col.selldate')} ${infoIcon('pf_tx_selldate')}</th>
     <th>${t('pf.col.held')} ${infoIcon('pf_tx_held')}</th>
     <th>${t('pf.col.realizedpnl')} ${infoIcon('pf_tx_pnl')}</th>
+    <th>${t('pf.col.pnlpct')} ${infoIcon('pf_tx_pnlpct')}</th>
+    <th>${t('pf.col.weight')} ${infoIcon('pf_tx_weight')}</th>
+    <th>${t('pf.col.pnlpctcap')} ${infoIcon('pf_tx_pnlpctcap')}</th>
     <th></th>
   </tr></thead><tbody>${body}</tbody></table>`;
 }

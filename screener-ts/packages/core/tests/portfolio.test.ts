@@ -2,11 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   createAccount,
   computeCash,
+  netCashFlow,
+  capitalAsOf,
   buy,
   sell,
   setStop,
   deleteSell,
   deleteLot,
+  addCashFlow,
+  deleteCashFlow,
   buildPositions,
   computeAccountMetrics,
   computeEquity,
@@ -52,6 +56,41 @@ describe('delete transactions', () => {
     expect(s.lots.length).toBe(0);
     expect(s.sells.length).toBe(0);
     expect(computeCash(s)).toBe(100000); // back to initial
+  });
+});
+
+describe('cash flows (deposits / withdrawals)', () => {
+  it('deposits and withdrawals adjust cash and net flow; delete reverses', () => {
+    const ids = counterIds('x');
+    const s = freshAccount(50000);
+    addCashFlow(s, { date: '2024-02-01', amount: 10000, note: 'top up' }, ids);
+    const wd = addCashFlow(s, { date: '2024-03-01', amount: -4000 }, ids);
+    expect(netCashFlow(s)).toBe(6000);
+    expect(computeCash(s)).toBe(56000); // 50000 + 10000 - 4000
+
+    deleteCashFlow(s, wd.id);
+    expect(netCashFlow(s)).toBe(10000);
+    expect(computeCash(s)).toBe(60000);
+  });
+
+  it('capitalAsOf = initial + deposits(≤date) + realized PnL(before date)', () => {
+    const ids = counterIds('x');
+    const s = freshAccount(50000);
+    // Deposit before, one on the date, one after.
+    addCashFlow(s, { date: '2024-01-15', amount: 10000 }, ids); // ≤ date → counts
+    addCashFlow(s, { date: '2024-06-01', amount: 5000 }, ids);  // after → excluded
+    // A closed trade booked BEFORE the buy date contributes its realized PnL.
+    buy(s, { ticker: 'AAA', buyDate: '2024-01-02', buyPrice: 10, shares: 100 }, ids);
+    sell(s, { ticker: 'AAA', sellDate: '2024-01-20', sellPrice: 15, shares: 100 }, ids); // +500, before 2024-02-01
+    // capital as of 2024-02-01: 50000 + 10000 (Jan15) + 500 (realized before) = 60500
+    expect(capitalAsOf(s, '2024-02-01')).toBe(60500);
+  });
+
+  it('legacy account with no cashFlows behaves as empty', () => {
+    const s = freshAccount(50000);
+    expect(s.cashFlows).toBeUndefined();
+    expect(netCashFlow(s)).toBe(0);
+    expect(capitalAsOf(s, '2024-05-01')).toBe(50000);
   });
 });
 

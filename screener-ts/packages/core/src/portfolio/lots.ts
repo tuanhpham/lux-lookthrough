@@ -1,6 +1,7 @@
 import type {
   AccountState,
   BuyLot,
+  CashFlow,
   SellRecord,
   SignalType,
 } from '../types/index.js';
@@ -131,4 +132,30 @@ export function deleteSell(state: AccountState, sellId: string): void {
 export function deleteLot(state: AccountState, lotId: string): void {
   state.sells = state.sells.filter((s) => s.lotId !== lotId);
   state.lots = state.lots.filter((l) => l.id !== lotId);
+}
+
+export interface CashFlowInput {
+  date: string;
+  amount: number; // + deposit, − withdrawal
+  note?: string;
+}
+
+/** Record a dated cash deposit (+) or withdrawal (−). Cash recomputes downstream. */
+export function addCashFlow(state: AccountState, input: CashFlowInput, nextId: IdFactory): CashFlow {
+  if (!input.amount) throw new Error('addCashFlow: amount must be non-zero');
+  const flow: CashFlow = {
+    id: nextId(),
+    accountId: state.account.id,
+    date: input.date,
+    amount: input.amount,
+    note: input.note,
+  };
+  (state.cashFlows ??= []).push(flow);
+  return flow;
+}
+
+/** Delete a cash flow by id. No-op if absent. */
+export function deleteCashFlow(state: AccountState, flowId: string): void {
+  if (!state.cashFlows) return;
+  state.cashFlows = state.cashFlows.filter((f) => f.id !== flowId);
 }

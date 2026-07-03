@@ -337,6 +337,27 @@ export const GLOSSARY: Record<string, Entry> = {
     term: { en: 'Realized PnL', vi: 'Realized PnL' },
     long: { en: 'Profit or loss locked in at the time of sale: (sell − buy) × shares.', vi: 'Profit or loss locked in at the time of sale: (sell − buy) × shares.' },
   },
+  pf_tx_pnlpct: {
+    term: { en: 'PnL %', vi: 'PnL %' },
+    long: {
+      en: "Return on the position's own cost: realized PnL ÷ (buy price × shares).",
+      vi: "Return on the position's own cost: realized PnL ÷ (buy price × shares).",
+    },
+  },
+  pf_tx_weight: {
+    term: { en: 'Weight', vi: 'Weight' },
+    long: {
+      en: 'Position size vs the capital the account held when it was opened: cost ÷ (initial capital + deposits up to that date + realized PnL booked before it).',
+      vi: 'Position size vs the capital the account held when it was opened: cost ÷ (initial capital + deposits up to that date + realized PnL booked before it).',
+    },
+  },
+  pf_tx_pnlpctcap: {
+    term: { en: 'PnL % of capital', vi: 'PnL % of capital' },
+    long: {
+      en: 'Impact on the whole account: realized PnL ÷ capital held when the position was opened. Equals PnL % × Weight.',
+      vi: 'Impact on the whole account: realized PnL ÷ capital held when the position was opened. Equals PnL % × Weight.',
+    },
+  },
 };
 
 export const GLOSSARY_GROUPS: { title: { en: string; vi: string }; keys: string[] }[] = [

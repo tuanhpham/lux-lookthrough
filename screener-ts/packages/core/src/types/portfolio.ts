@@ -62,6 +62,15 @@ export interface Order {
   lotId?: string;
 }
 
+/** A dated cash deposit (+) or withdrawal (−) in the account currency. */
+export interface CashFlow {
+  id: string;
+  accountId: string;
+  date: string;   // ISO YYYY-MM-DD
+  amount: number; // + deposit, − withdrawal
+  note?: string;
+}
+
 export interface EquitySnapshot {
   date: string;
   equity: number;
@@ -123,4 +132,7 @@ export interface AccountState {
   sells: SellRecord[];
   orders: Order[];
   snapshots: EquitySnapshot[];
+  /** Dated cash deposits/withdrawals after opening. Optional for back-compat:
+   * legacy/synced accounts without this field behave as if it were empty. */
+  cashFlows?: CashFlow[];
 }

@@ -106,19 +106,26 @@ export function caseSvgChart(
   const y = (p: number): number => padT + priceH - ((p - minP) / span) * priceH;
   const volY = (v: number): number => padT + priceH - (v / maxVol) * volH;
 
-  // Index of the bar at/just before the key date (the centering target).
-  const keyIdx = (() => {
-    let idx = -1;
-    for (let i = 0; i < n; i++) if (bars[i]!.date <= study.keyDate) idx = i;
-    return idx;
-  })();
-  const exitIdx = study.exitDate
-    ? (() => {
-        let idx = -1;
-        for (let i = 0; i < n; i++) if (bars[i]!.date <= study.exitDate!) idx = i;
-        return idx;
-      })()
-    : -1;
+  // Index of the trading day NEAREST a given date. Using "at/just before" alone
+  // silently drifts a marker to an earlier candle when the entered date falls on
+  // a weekend/holiday (e.g. Sun 2024-01-28 → shown on Fri 2024-01-26). Snapping to
+  // the closest actual bar keeps the Entry/Exit markers on the day the user meant.
+  const nearestIdx = (date: string): number => {
+    if (!bars.length) return -1;
+    let best = 0;
+    let bestDiff = Infinity;
+    const target = Date.parse(date + 'T00:00:00');
+    for (let i = 0; i < n; i++) {
+      const diff = Math.abs(Date.parse(bars[i]!.date + 'T00:00:00') - target);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = i;
+      }
+    }
+    return best;
+  };
+  const keyIdx = nearestIdx(study.keyDate);
+  const exitIdx = study.exitDate ? nearestIdx(study.exitDate) : -1;
 
   // ── Layers ──────────────────────────────────────────────────────────────
   const parts: string[] = [];
@@ -231,10 +238,9 @@ export function caseSvgChart(
   marker(keyIdx, '▲', c.entry, 'ENTRY');
   if (exitIdx >= 0) marker(exitIdx, '✕', study.outcome === 'loss' ? c.stop : c.target, 'EXIT');
 
-  // Catalyst flags along the top of the plot.
+  // Catalyst flags along the top of the plot (snapped to the nearest trading day).
   for (const cat of study.catalysts) {
-    let idx = -1;
-    for (let i = 0; i < n; i++) if (bars[i]!.date <= cat.date) idx = i;
+    const idx = nearestIdx(cat.date);
     if (idx < 0) continue;
     const cx = x(idx);
     parts.push(

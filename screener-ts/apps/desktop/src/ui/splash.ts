@@ -7,8 +7,8 @@
  */
 
 const RING_MS  = window.innerWidth <= 700 ? 1000 : 2000; // ring fill duration
-const HOLD_MS  = 700;   // pause at 100% before wipe
-const WIPE_MS  = 16000; // radial wipe duration
+const HOLD_MS  = 400;   // pause at 100% before wipe
+const WIPE_MS  = 1400;  // radial wipe duration — matches the button pageTransition
 const DIGIT_MS = 180;   // per-digit flip animation duration (ms)
 
 export function runSplash(): Promise<void> {
