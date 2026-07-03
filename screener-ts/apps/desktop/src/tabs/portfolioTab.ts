@@ -345,6 +345,8 @@ function buildDailyEquity(
   const events: TxEvent[] = [];
   for (const lot of st.lots) events.push({ date: lot.buyDate, delta: -(lot.buyPrice * lot.shares) });
   for (const s of st.sells) events.push({ date: s.sellDate, delta: s.sellPrice * s.shares });
+  // Dated cash deposits (+) / withdrawals (−) move the cash line too.
+  for (const f of st.cashFlows ?? []) events.push({ date: f.date, delta: f.amount });
   events.sort((a, b) => (a.date < b.date ? -1 : 1));
 
   let cash = st.account.initialCapital;
@@ -1900,6 +1902,8 @@ function buildCandleSeries(
   const events: TxEvent[] = [];
   for (const lot of st.lots) events.push({ date: lot.buyDate, delta: -(lot.buyPrice * lot.shares) });
   for (const s of st.sells) events.push({ date: s.sellDate, delta: s.sellPrice * s.shares });
+  // Dated cash deposits (+) / withdrawals (−) move the cash line too.
+  for (const f of st.cashFlows ?? []) events.push({ date: f.date, delta: f.amount });
   events.sort((a, b) => (a.date < b.date ? -1 : 1));
 
   let cash = st.account.initialCapital;
