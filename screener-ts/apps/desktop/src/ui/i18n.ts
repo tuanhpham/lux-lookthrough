@@ -168,6 +168,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'wl.plan.custom': { en: 'Custom', vi: 'Tùy chỉnh' },
   'wl.plan.useacct': { en: 'Use account cash', vi: 'Dùng tiền tài khoản' },
   'wl.plan.manualeq': { en: 'Manual equity', vi: 'Vốn thủ công' },
+  'wl.plan.nocash': {
+    en: 'Not enough cash: needs {need} but only {have} available (short {over}). Reduce the position size or shares.',
+    vi: 'Không đủ tiền: cần {need} nhưng chỉ có {have} (thiếu {over}). Giảm cỡ vị thế hoặc số cổ phiếu.',
+  },
   'wl.plan.riskpos': { en: 'Risk $ (of pos.)', vi: 'Rủi ro $ (theo vị thế)' },
   'wl.plan.riskeq': { en: 'Risk % of equity', vi: 'Rủi ro % vốn' },
   'wl.plan.note': { en: 'Note', vi: 'Ghi chú' },

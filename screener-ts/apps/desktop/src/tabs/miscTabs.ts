@@ -505,13 +505,21 @@ function recalcPlan(symbol: string, equity: number): void {
     ? (e.target - entry) / riskPerShare : null;
 
   const sym = planSym();
+  // Warn when the intended position costs more cash than the account has.
+  const overBy = positionValue - equity;
+  const warn = overBy > 0
+    ? `<div class="tp-cash-warn">⚠ ${t('wl.plan.nocash')
+        .replace('{need}', `${sym}${num(planConv(positionValue), 0)}`)
+        .replace('{have}', `${sym}${num(planConv(equity), 0)}`)
+        .replace('{over}', `${sym}${num(planConv(overBy), 0)}`)}</div>`
+    : '';
   box.innerHTML = `
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
-      <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v">${sym}${num(planConv(positionValue), 0)} <span class="muted" style="font-size:11px">(${num(positionPct, 1)}%)</span></div></div>
+      <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v"${overBy > 0 ? ' style="color:var(--danger)"' : ''}>${sym}${num(planConv(positionValue), 0)} <span class="muted" style="font-size:11px">(${num(positionPct, 1)}%)</span></div></div>
       <div class="stat"><div class="k">${t('wl.plan.riskpos')}</div><div class="v" style="color:var(--warn)">${sym}${num(planConv(riskAmount), 0)} <span class="muted" style="font-size:11px">(${num(riskPctOfPos, 1)}%)</span></div></div>
       <div class="stat"><div class="k">${t('wl.plan.riskeq')}</div><div class="v" style="color:var(--warn)">${num(riskPctOfEq, 2)}%</div></div>
       <div class="stat"><div class="k">R:R</div><div class="v">${rr != null ? num(rr, 2) + ':1' : '—'}</div></div>
-    </div>`;
+    </div>${warn}`;
 }
 
 /** Wire input/blur/click handlers for every editable planner card. */

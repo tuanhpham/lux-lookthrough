@@ -216,6 +216,10 @@ export function caseSvgChart(
   levelLine(study.target, c.target, 'TGT');
   levelLine(study.entry, c.entry, 'ENT');
   levelLine(study.stop, c.stop, 'STP');
+  // Exit price line — coloured by outcome (green win / red loss), so the actual
+  // fill level is visible alongside the planned entry/stop/target.
+  const exitColor = study.outcome === 'loss' ? c.stop : c.target;
+  levelLine(study.exitPrice, exitColor, 'EXIT');
 
   // Vertical key-date guide.
   if (keyIdx >= 0) {
@@ -225,7 +229,7 @@ export function caseSvgChart(
     );
   }
 
-  // Markers: Entry ▲ (key date), Exit ✕ (exit date), catalysts ◆ on their dates.
+  // Entry ▲ marker — below the key-date candle's low.
   const marker = (idx: number, glyph: string, color: string, label: string) => {
     if (idx < 0) return;
     const mx = x(idx);
@@ -236,7 +240,18 @@ export function caseSvgChart(
     );
   };
   marker(keyIdx, '▲', c.entry, 'ENTRY');
-  if (exitIdx >= 0) marker(exitIdx, '✕', study.outcome === 'loss' ? c.stop : c.target, 'EXIT');
+
+  // Exit ✕ marker — placed EXACTLY at (exit date × exit price). When no exit
+  // price is recorded, fall back to the exit-day candle low (old behaviour).
+  if (exitIdx >= 0) {
+    const ex = x(exitIdx);
+    const ey = study.exitPrice != null ? y(study.exitPrice) : y(bars[exitIdx]!.low) + 14;
+    parts.push(
+      `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4.5" fill="none" stroke="${exitColor}" stroke-width="1.6"/>`,
+      `<text x="${ex.toFixed(1)}" y="${(ey + 3).toFixed(1)}" text-anchor="middle" fill="${exitColor}" font-family="monospace" font-size="9" font-weight="700">✕</text>`,
+      `<text x="${ex.toFixed(1)}" y="${(ey - 8).toFixed(1)}" text-anchor="middle" fill="${exitColor}" font-family="monospace" font-size="8">EXIT</text>`,
+    );
+  }
 
   // Catalyst flags along the top of the plot (snapped to the nearest trading day).
   for (const cat of study.catalysts) {
