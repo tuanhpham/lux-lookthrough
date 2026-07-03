@@ -2,7 +2,7 @@ export { counterIds } from './ids.js';
 export type { IdFactory } from './ids.js';
 export { createAccount, computeCash, netCashFlow, capitalAsOf, realizedPnL } from './account.js';
 export type { CreateAccountInput } from './account.js';
-export { buy, sell, setStop, deleteSell, deleteLot, addCashFlow, deleteCashFlow } from './lots.js';
+export { buy, sell, setStop, setLotNote, setSellNote, deleteSell, deleteLot, addCashFlow, deleteCashFlow } from './lots.js';
 export type { BuyInput, SellInput } from './lots.js';
 export {
   buildPositions,

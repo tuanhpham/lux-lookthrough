@@ -13,6 +13,14 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // Override with SYNC_ORIGIN if the Pages URL ever changes.
 const SYNC_ORIGIN = process.env.SYNC_ORIGIN ?? 'https://the-professional.pages.dev';
 
+// Corporate networks that do TLS inspection re-sign upstream certs with a root
+// CA Node doesn't trust → the dev proxy dies with "unable to get local issuer
+// certificate" and sync fails locally with a false "invalid code". Setting
+// SYNC_INSECURE=1 (or any truthy value) tells the DEV proxy to skip upstream
+// cert validation. Dev-only, never affects the production build. Default keeps
+// strict verification on for clean networks.
+const SYNC_SECURE = !process.env.SYNC_INSECURE;
+
 /**
  * Yahoo's quoteSummary endpoint (sector, beta, dividend yield, ROE, company
  * summary) requires a cookie + rotating "crumb". We do that handshake here in
@@ -134,7 +142,7 @@ export default defineConfig({
       '/api/sync': {
         target: SYNC_ORIGIN,
         changeOrigin: true,
-        secure: true,
+        secure: SYNC_SECURE,
       },
     },
   },

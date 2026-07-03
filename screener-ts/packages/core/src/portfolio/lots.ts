@@ -111,6 +111,20 @@ export function setStop(state: AccountState, lotId: string, stop: number | undef
   lot.stop = stop;
 }
 
+/** Set (or clear) a buy lot's rich-text note. Empty string clears it. */
+export function setLotNote(state: AccountState, lotId: string, note: string | undefined): void {
+  const lot = state.lots.find((l) => l.id === lotId);
+  if (!lot) throw new Error(`setLotNote: lot ${lotId} not found`);
+  lot.reason = note && note.trim() ? note : undefined;
+}
+
+/** Set (or clear) a sell record's rich-text note. Empty string clears it. */
+export function setSellNote(state: AccountState, sellId: string, note: string | undefined): void {
+  const rec = state.sells.find((s) => s.id === sellId);
+  if (!rec) throw new Error(`setSellNote: sell ${sellId} not found`);
+  rec.note = note && note.trim() ? note : undefined;
+}
+
 /**
  * Delete a single sell record and return its shares to the matched lot's
  * remainingShares (so cash, positions, and PnL recompute as if it never

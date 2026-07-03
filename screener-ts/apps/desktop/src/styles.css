@@ -579,6 +579,56 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .dialog-info { min-height: 18px; margin-bottom: 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
+/* ── Rich-text note editor ───────────────────────────────────────────────── */
+.rn-dialog { width: min(560px, 94vw); }
+.rn-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 3px;
+  padding: 6px; margin-bottom: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+}
+.rn-tool {
+  min-width: 28px; height: 28px; padding: 0 7px;
+  border: 1px solid transparent; border-radius: var(--radius-xs);
+  background: transparent; color: var(--text); cursor: pointer;
+  font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+}
+.rn-tool:hover { background: var(--cardhover); border-color: var(--border); }
+.rn-color { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; }
+.rn-color:hover { transform: scale(1.12); }
+.rn-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--border); }
+.rn-editor {
+  min-height: 160px; max-height: 46vh; overflow-y: auto;
+  padding: 10px 12px; line-height: 1.6; text-align: left;
+  white-space: normal; margin-bottom: 12px;
+}
+.rn-editor:focus { outline: none; border-color: var(--accent); }
+.rn-editor h3 { font-size: 15px; font-weight: 700; margin: 6px 0; }
+.rn-editor h4 { font-size: 13px; font-weight: 700; margin: 6px 0; }
+.rn-editor ul, .rn-editor ol { margin: 6px 0; padding-left: 22px; }
+.rn-editor a { color: var(--accent); }
+/* Note cell in transaction history */
+.tx-note-cell { max-width: 220px; }
+.note-btn {
+  width: 24px; height: 24px; flex-shrink: 0; padding: 0; vertical-align: middle;
+  border: 1px solid var(--border); border-radius: var(--radius-xs);
+  background: transparent; color: var(--faint); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.note-btn:hover { color: var(--accent); border-color: var(--accent); }
+.note-btn.has-note { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.tx-note-preview {
+  display: inline-block; max-width: 170px; margin-left: 6px; vertical-align: middle;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; color: var(--subtext);
+}
+.tx-note-preview * { display: inline; font-size: inherit; margin: 0; }
+
+/* Read-only rendered note (table cell / detail) */
+.note-html { text-align: left; line-height: 1.5; }
+.note-html ul, .note-html ol { margin: 4px 0; padding-left: 20px; }
+.note-html h3, .note-html h4 { margin: 4px 0; }
+.note-html a { color: var(--accent); }
+
 /* ── Ticker combobox ─────────────────────────────────────────────────────── */
 .combo { position: relative; display: inline-block; }
 .combo-panel {

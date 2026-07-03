@@ -20,6 +20,7 @@ export interface BuyLot {
   buyPrice: number;
   shares: number;
   remainingShares: number;
+  /** Free-form rich-text (HTML) note about this purchase. */
   reason?: string;
   signal?: SignalType;
   stop?: number; // OPTIONAL — when unset, risk is "undefined" and excluded from total risk
@@ -40,6 +41,8 @@ export interface SellRecord {
   realizedPnL: number;
   priceCurrency?: 'EUR' | 'USD';
   fxRateAtSell?: number; // EURUSD rate at time of sale
+  /** Free-form rich-text (HTML) note about this sale. */
+  note?: string;
 }
 
 export type OrderType = 'BUY_STOP' | 'STOP_LOSS' | 'TAKE_PROFIT';

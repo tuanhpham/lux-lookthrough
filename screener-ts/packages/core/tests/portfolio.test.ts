@@ -7,6 +7,8 @@ import {
   buy,
   sell,
   setStop,
+  setLotNote,
+  setSellNote,
   deleteSell,
   deleteLot,
   addCashFlow,
@@ -91,6 +93,32 @@ describe('cash flows (deposits / withdrawals)', () => {
     expect(s.cashFlows).toBeUndefined();
     expect(netCashFlow(s)).toBe(0);
     expect(capitalAsOf(s, '2024-05-01')).toBe(50000);
+  });
+});
+
+describe('transaction notes', () => {
+  it('setLotNote / setSellNote set and clear notes', () => {
+    const ids = counterIds('x');
+    const s = freshAccount(50000);
+    const lot = buy(s, { ticker: 'AAA', buyDate: '2024-01-02', buyPrice: 10, shares: 100 }, ids);
+    const [rec] = sell(s, { ticker: 'AAA', sellDate: '2024-02-01', sellPrice: 12, shares: 50 }, ids);
+
+    setLotNote(s, lot.id, '<b>strong entry</b>');
+    expect(lot.reason).toBe('<b>strong entry</b>');
+    setSellNote(s, rec!.id, 'took partial profit');
+    expect(rec!.note).toBe('took partial profit');
+
+    // Empty / whitespace clears back to undefined.
+    setLotNote(s, lot.id, '   ');
+    expect(lot.reason).toBeUndefined();
+    setSellNote(s, rec!.id, '');
+    expect(rec!.note).toBeUndefined();
+  });
+
+  it('throws for unknown ids', () => {
+    const s = freshAccount(50000);
+    expect(() => setLotNote(s, 'nope', 'x')).toThrow();
+    expect(() => setSellNote(s, 'nope', 'x')).toThrow();
   });
 });
 

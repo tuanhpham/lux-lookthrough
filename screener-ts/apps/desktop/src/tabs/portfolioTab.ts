@@ -3,6 +3,8 @@ import {
   buy,
   sell,
   setStop,
+  setLotNote,
+  setSellNote,
   deleteSell,
   deleteLot,
   addCashFlow,
@@ -27,10 +29,11 @@ import type { AppContext } from '../context.js';
 import { $, num, money, pct } from '../ui/dom.js';
 import { drawLine, drawCandles } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
+import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { attachCombobox } from '../ui/combobox.js';
 import { openStock } from '../ui/stockModal.js';
 import { infoIcon, attachTooltips } from '../ui/tooltip.js';
-import { t } from '../ui/i18n.js';
+import { t, getLang } from '../ui/i18n.js';
 
 function noDataHtml(msg?: string): string {
   const text = msg ?? t('pf.nodata');
@@ -670,6 +673,7 @@ function draw(ctx: AppContext): void {
           </select>
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
         <div id="b-pricehint" class="price-hint"></div>
+        <div class="row" style="margin-top:8px"><input id="b-note" class="field" type="text" autocomplete="off" placeholder="${t('pf.note.placeholder')}" style="flex:1;min-width:160px" /></div>
         <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Stop (optional)" style="width:130px" />
           <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" />
           <button id="b-go" class="btn">Buy</button>
@@ -1021,9 +1025,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const stop = Number(($('#b-stop') as HTMLInputElement).value.replace(',', '.')) || undefined;
       const target = Number(($('#b-target') as HTMLInputElement).value.replace(',', '.')) || undefined;
       const priceCcy = (($('#b-price-ccy') as HTMLSelectElement | null)?.value ?? 'USD') as 'EUR' | 'USD';
+      const note = ($('#b-note') as HTMLInputElement).value.trim();
       if (!t || shares <= 0 || price <= 0) return;
       const fxAtBuy = eurUsdForDate(date);
-      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target }, uuid);
+      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note || undefined }, uuid);
       lot.priceCurrency = priceCcy;
       lot.fxRateAtBuy = fxAtBuy;
       // If entered in EUR but account tracks in EUR-equivalent, normalize to EUR-denominated price
@@ -1152,6 +1157,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           { key: 'shares', label: 'Shares to sell', type: 'number', value: openShares > 0 ? String(openShares) : '' },
           { key: 'price', label: 'Sell price', type: 'number', value: initPrice },
           { key: 'date', label: 'Date', type: 'date', value: today() },
+          { key: 'note', label: 'Note (optional)', type: 'text', value: '' },
         ], {
           onChange: (vals) => {
             const newCcy = (vals.ccy ?? 'USD') as 'EUR' | 'USD';
@@ -1187,8 +1193,9 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           // Normalize entered price to account base currency (EUR)
           const normSellPrice = (active().account.currency === 'EUR' && res.ccy === 'USD' && fxAtSell > 1)
             ? priceEntered / fxAtSell : priceEntered;
+          const sellNote = (res.note ?? '').trim();
           const recs = sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: normSellPrice, shares }, uuid);
-          for (const r of recs) { r.priceCurrency = res.ccy as 'EUR' | 'USD'; r.fxRateAtSell = fxAtSell; }
+          for (const r of recs) { r.priceCurrency = res.ccy as 'EUR' | 'USD'; r.fxRateAtSell = fxAtSell; if (sellNote) r.note = sellNote; }
           seedPrice(active().account.id, t, normSellPrice);
           snapshotNow(active());
           await save(ctx);
@@ -1398,6 +1405,24 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }),
     );
 
+    // edit a transaction's rich-text note (buy lot or sell record)
+    root.querySelectorAll<HTMLElement>('[data-note-kind]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const kind = b.dataset.noteKind as 'lot' | 'sell';
+        const id = b.dataset.noteId!;
+        const st = active();
+        const current = kind === 'lot'
+          ? (st.lots.find((l) => l.id === id)?.reason ?? '')
+          : (st.sells.find((s) => s.id === id)?.note ?? '');
+        const res = await richNoteDialog(t('pf.note.title'), current, { lang: getLang() === 'vi' ? 'vi' : 'en' });
+        if (res === null) return; // cancelled
+        if (kind === 'lot') setLotNote(st, id, res);
+        else setSellNote(st, id, res);
+        await save(ctx);
+        draw(ctx);
+      }),
+    );
+
     // place order
     $('#o-go')!.addEventListener('click', async () => {
       const t = ($('#o-ticker') as HTMLInputElement).value.trim().toUpperCase();
@@ -1469,6 +1494,8 @@ function transactionHistoryHtml(st: AccountState): string {
     sortDate: string; delKind: 'sell' | 'lot' | 'cash'; delId: string;
     /** For CASH rows only: the signed amount (+ deposit, − withdrawal). */
     cashAmount?: number; note?: string;
+    /** Which entity a note edits: a buy lot's `reason` or a sell record's `note`. */
+    noteKind?: 'lot' | 'sell'; noteId?: string;
   }
   const sellsByLot = new Map<string, typeof st.sells>();
   for (const s of st.sells) {
@@ -1487,6 +1514,7 @@ function transactionHistoryHtml(st: AccountState): string {
         buyDate: l.buyDate, sellDate: s.sellDate, holdDays: daysBetween(l.buyDate, s.sellDate),
         pnl: s.realizedPnL, cost, capitalAtOpen: capAtBuy,
         sortDate: s.sellDate, delKind: 'sell', delId: s.id,
+        note: s.note, noteKind: 'sell', noteId: s.id,
       });
     }
     if (l.remainingShares > 0) {
@@ -1495,6 +1523,7 @@ function transactionHistoryHtml(st: AccountState): string {
         buyDate: l.buyDate, sellDate: null, holdDays: null, pnl: null,
         cost: l.buyPrice * l.remainingShares, capitalAtOpen: capAtBuy,
         sortDate: l.buyDate, delKind: 'lot', delId: l.id,
+        note: l.reason, noteKind: 'lot', noteId: l.id,
       });
     }
   }
@@ -1538,6 +1567,14 @@ function transactionHistoryHtml(st: AccountState): string {
     `<button class="del-btn" title="Delete this transaction" data-del-${kind}="${id}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>`;
   const signed = (v: number, dateForFx: string): string =>
     `<span style="color:${v >= 0 ? 'var(--accent)' : 'var(--danger)'}">${v >= 0 ? '+' : ''}${money(toDisplay(v, dateForFx), dispSymbol())}</span>`;
+  // Note cell: a preview of the rich note (if any) + a pencil to open the editor.
+  const noteCell = (kind: 'lot' | 'sell', id: string, html: string | undefined): string => {
+    const has = !isNoteEmpty(html);
+    const preview = has
+      ? `<span class="tx-note-preview note-html" title="${t('pf.note.edit')}">${sanitizeNoteHtml(html!)}</span>`
+      : '';
+    return `<td class="tx-note-cell"><button class="note-btn${has ? ' has-note' : ''}" data-note-kind="${kind}" data-note-id="${id}" title="${has ? t('pf.note.edit') : t('pf.note.add')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${preview}</td>`;
+  };
 
   const body = rows
     .map((r) => {
@@ -1552,6 +1589,7 @@ function transactionHistoryHtml(st: AccountState): string {
           <td>—</td>
           <td>—</td>
           <td>${signed(amt, r.buyDate)}</td>
+          <td>—</td>
           <td>—</td>
           <td>—</td>
           <td>—</td>
@@ -1587,6 +1625,7 @@ function transactionHistoryHtml(st: AccountState): string {
         <td>${pnlPctCost}</td>
         <td>${weight}</td>
         <td>${pnlPctCap}</td>
+        ${noteCell(r.noteKind!, r.noteId!, r.note)}
         <td style="display:flex;gap:4px;align-items:center">${chartBtn}${delBtn(r.delKind, r.delId)}</td>
       </tr>`;
     })
@@ -1604,6 +1643,7 @@ function transactionHistoryHtml(st: AccountState): string {
     <th>${t('pf.col.pnlpct')} ${infoIcon('pf_tx_pnlpct')}</th>
     <th>${t('pf.col.weight')} ${infoIcon('pf_tx_weight')}</th>
     <th>${t('pf.col.pnlpctcap')} ${infoIcon('pf_tx_pnlpctcap')}</th>
+    <th>${t('pf.col.note')}</th>
     <th></th>
   </tr></thead><tbody>${body}</tbody></table>`;
 }
