@@ -164,6 +164,14 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'wl.plan.shares': { en: 'Shares', vi: 'Số cổ phiếu' },
   'wl.plan.posval': { en: 'Position $', vi: 'Giá trị vị thế' },
   'wl.plan.riskamt': { en: 'Risk $ (pct)', vi: 'Rủi ro $ (%)' },
+  'wl.plan.possize': { en: 'Position size', vi: 'Cỡ vị thế' },
+  'wl.plan.custom': { en: 'Custom', vi: 'Tùy chỉnh' },
+  'wl.plan.useacct': { en: 'Use account cash', vi: 'Dùng tiền tài khoản' },
+  'wl.plan.manualeq': { en: 'Manual equity', vi: 'Vốn thủ công' },
+  'wl.plan.riskpos': { en: 'Risk $ (of pos.)', vi: 'Rủi ro $ (theo vị thế)' },
+  'wl.plan.riskeq': { en: 'Risk % of equity', vi: 'Rủi ro % vốn' },
+  'wl.plan.note': { en: 'Note', vi: 'Ghi chú' },
+  'wl.plan.noteph': { en: 'Plan notes — trigger, invalidation, context…', vi: 'Ghi chú kế hoạch — điều kiện, ngưỡng hủy, bối cảnh…' },
 
   // Portfolio
   'pf.title': { en: 'Portfolio', vi: 'Danh Mục' },

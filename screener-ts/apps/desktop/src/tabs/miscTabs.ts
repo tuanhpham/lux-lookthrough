@@ -1,6 +1,6 @@
 import {
-  scanQm, qmToRow, fetchMany, buildTradePlan, explainPlan,
-  type QmRow, type QmScanResult,
+  scanQm, qmToRow, fetchMany, buildTradePlan, explainPlan, computeCash,
+  type QmRow, type QmScanResult, type AccountState, type Bar,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num } from '../ui/dom.js';
@@ -9,6 +9,7 @@ import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
+import { sanitizeNoteHtml, richNoteDialog, isNoteEmpty } from '../ui/richNote.js';
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
 
 let activeId: string | null = null;
@@ -272,32 +273,70 @@ async function renderTradePlanner(ctx: AppContext): Promise<void> {
   const panel = $('#wl-plan-panel')!;
   if (!activeId) { panel.innerHTML = ''; return; }
 
-  // Account settings: read from inputs if rendered, else use sensible defaults.
-  const equityInput = document.getElementById('tp-equity') as HTMLInputElement | null;
-  const riskInput = document.getElementById('tp-risk') as HTMLInputElement | null;
-  const equity = equityInput ? Number(equityInput.value) || 100_000 : 100_000;
-  const riskPct = riskInput ? Number(riskInput.value) || 1 : 1;
+  // Latest EURUSD rate (shared with the Portfolio tab's cache) so we can convert
+  // EUR account cash → USD for sizing and offer a €/$ display toggle.
+  const fxBars = (await ctx.storage.get<Bar[]>('pf_eurusd_bars')) ?? [];
+  if (fxBars.length) planEurUsd = fxBars[fxBars.length - 1]!.close || 1;
+
+  // Portfolio accounts → pick one to size against (uses its live cash). Account
+  // cash is in the account currency; convert EUR → USD so sizing matches the
+  // USD stock prices. Falls back to a manual figure when no account is chosen.
+  const pfAccounts = (await ctx.storage.get<AccountState[]>('accounts')) ?? [];
+  const prevEquity = Number((document.getElementById('tp-equity') as HTMLInputElement | null)?.value);
+  const equity = Number.isFinite(prevEquity) && prevEquity > 0 ? prevEquity : 100_000;
+
+  const acctOpts = pfAccounts
+    .map((a) => {
+      const cashBase = computeCash(a);
+      const cashUsd = Math.round(a.account.currency === 'EUR' && planEurUsd > 1 ? cashBase * planEurUsd : cashBase);
+      const label = a.account.currency === 'EUR'
+        ? `${a.account.name} — €${Math.round(cashBase).toLocaleString()}`
+        : `${a.account.name} — $${cashUsd.toLocaleString()}`;
+      return `<option value="${a.account.id}" data-cash="${cashUsd}">${label}</option>`;
+    })
+    .join('');
 
   panel.innerHTML = `
     <div class="card" style="margin-bottom:14px;position:relative">
       <button id="tp-close" style="position:absolute;top:10px;right:12px;background:0;border:0;color:var(--faint);font-size:18px;cursor:pointer">×</button>
       <div class="section-title" style="margin-top:0">📋 ${t('wl.plan.title')}</div>
-      <div class="row" style="margin-bottom:12px">
-        <div style="flex:0 0 auto">
-          <label class="field-label">${t('wl.plan.equity')}</label>
-          <input id="tp-equity" class="field" style="width:130px" type="number" value="${equity}" step="10000" />
+      <div class="tp-controls">
+        ${acctOpts ? `<div class="tp-ctl">
+          <label class="field-label">${t('wl.plan.useacct')}</label>
+          <select id="tp-acct" class="field pf-acct-select tp-acct-select">
+            <option value="">${t('wl.plan.manualeq')}</option>
+            ${acctOpts}
+          </select>
+        </div>` : ''}
+        <div class="tp-ctl">
+          <label class="field-label">${t('wl.plan.equity')} (USD)</label>
+          <input id="tp-equity" class="field" type="number" value="${equity}" step="10000" />
         </div>
-        <div style="flex:0 0 auto">
-          <label class="field-label">${t('wl.plan.risk')}</label>
-          <input id="tp-risk" class="field" style="width:90px" type="number" value="${riskPct}" step="0.25" />
-        </div>
-        <button id="tp-refresh" class="btn-outline" style="align-self:flex-end">${t('wl.plan.run')}</button>
+        <button id="tp-ccy" class="btn-outline tp-ctl-btn" title="Toggle display currency">${planSym()} ${planCcy}</button>
+        <button id="tp-refresh" class="btn-outline tp-ctl-btn">${t('wl.plan.run')}</button>
       </div>
       <div id="tp-results"><div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div></div>
     </div>`;
 
   document.getElementById('tp-close')!.addEventListener('click', () => { panel.innerHTML = ''; });
   document.getElementById('tp-refresh')!.addEventListener('click', () => void computePlans(ctx));
+
+  // Currency toggle — display-only; recompute derived blocks in the new currency.
+  document.getElementById('tp-ccy')!.addEventListener('click', () => {
+    planCcy = planCcy === 'USD' ? 'EUR' : 'USD';
+    void computePlans(ctx);
+  });
+
+  // Selecting an account fills the equity box with its (USD) cash and re-plans.
+  const acctSel = document.getElementById('tp-acct') as HTMLSelectElement | null;
+  acctSel?.addEventListener('change', () => {
+    const opt = acctSel.selectedOptions[0];
+    const cash = Number(opt?.dataset.cash);
+    if (cash > 0) {
+      (document.getElementById('tp-equity') as HTMLInputElement).value = String(cash);
+      void computePlans(ctx);
+    }
+  });
 
   await computePlans(ctx);
 }
@@ -308,7 +347,6 @@ async function computePlans(ctx: AppContext): Promise<void> {
   if (!activeId || !out) return;
 
   const eq = Number((document.getElementById('tp-equity') as HTMLInputElement | null)?.value) || 100_000;
-  const rp = Number((document.getElementById('tp-risk') as HTMLInputElement | null)?.value) || 1;
 
   out.innerHTML = `<div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div>`;
   const syms = await loadItems(ctx, activeId);
@@ -321,43 +359,222 @@ async function computePlans(ctx: AppContext): Promise<void> {
     if (d && d.bars.length >= 60) scans.push(scanQm(sym, d.bars));
   }
 
+  // Levels/quality come from buildTradePlan; sizing defaults to DEFAULT_SIZE_PCT
+  // of equity (shares recomputed per-card in recalcPlan).
   const plans = scans
-    .map((s) => ({ scan: s, plan: buildTradePlan(s, { equity: eq, riskPctPerTrade: rp }) }))
+    .map((s) => ({ scan: s, plan: buildTradePlan(s, { equity: eq, riskPctPerTrade: 1 }) }))
     .sort((a, b) => b.plan.qualityScore - a.plan.qualityScore);
 
   if (!plans.length) { out.innerHTML = `<p class="muted">${t('wl.empty')}</p>`; return; }
 
+  // Drop edit state for symbols no longer in the plan (keep edits for the rest).
+  const liveSyms = new Set(plans.map((p) => p.plan.symbol));
+  for (const key of [...planEdits.keys()]) if (!liveSyms.has(key)) planEdits.delete(key);
+
   const lang = getLang();
   const rows = plans.map(({ scan, plan }) => {
     const explanation = explainPlan(scan);
-    const passedHtml = explanation.passed.map((p) => `<li>${p[lang]}</li>`).join('');
-    const failedHtml = explanation.failed.map((f) => `<li style="color:var(--danger)">${f[lang]}</li>`).join('');
+
+    // Default note = the planner's own narrative as FORMATTED HTML (bold
+    // headline + green "passed" bullets + red "failed" bullets), so the note
+    // keeps the explanation block's formatting and stays richly editable.
+    const esc = (s: string): string => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
+    const passedLis = explanation.passed.map((p) => `<li>${esc(p[lang])}</li>`).join('');
+    const failedLis = explanation.failed.map((f) => `<li><span style="color:#ff5266">${esc(f[lang])}</span></li>`).join('');
+    const defaultNote = sanitizeNoteHtml(
+      `<h3>${esc(explanation.headline[lang])}</h3><ul>${passedLis}${failedLis}</ul>`,
+    );
+
+    // Seed the editable state once per symbol; keep any prior user edits.
+    const prev = planEdits.get(plan.symbol);
+    const edit: PlanEdit = prev ?? {
+      entry: plan.entry ?? null,
+      stop: plan.stop ?? null,
+      target: plan.target ?? null,
+      shares: plan.shares || 0,
+      sizeMode: 'pct',           // default: size by % of equity
+      sizePct: DEFAULT_SIZE_PCT,
+      note: defaultNote,
+    };
+    planEdits.set(plan.symbol, edit);
     const actionColor = plan.actionable ? 'var(--accent)' : 'var(--faint)';
+    const S = plan.symbol;
+    const activePreset = edit.sizeMode === 'pct' ? edit.sizePct : null;
+    const sizeChips = SIZE_PRESETS.map((p) =>
+      `<button type="button" class="tp-size-chip${p === activePreset ? ' active' : ''}" data-tp-size="${S}" data-pct="${p}">${p}%</button>`,
+    ).join('');
+    // Show a non-preset % (e.g. custom) in the custom box.
+    const customVal = edit.sizeMode === 'pct' && edit.sizePct != null && !SIZE_PRESETS.includes(edit.sizePct)
+      ? edit.sizePct : '';
     return `
-      <div class="card" style="margin-bottom:10px;border-color:${plan.actionable ? 'var(--accent-line)' : 'var(--border)'}">
+      <div class="card tp-card" data-tp-card="${S}" style="margin-bottom:10px;border-color:${plan.actionable ? 'var(--accent-line)' : 'var(--border)'}">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
-          <strong style="font-size:15px">${plan.symbol}</strong>
+          <strong style="font-size:15px">${S}</strong>
           <span class="badge" style="background:var(--surface);border-color:${actionColor};color:${actionColor}">
             ${plan.actionable ? t('wl.plan.actionable') : t('wl.plan.nosetup')} · Q ${plan.qualityScore.toFixed(0)}/100
           </span>
         </div>
-        ${plan.actionable ? `
-        <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
-          <div class="stat"><div class="k">${t('wl.plan.entry')}</div><div class="v">$${num(plan.entry!, 2)}</div></div>
-          <div class="stat"><div class="k">${t('wl.plan.stop')}</div><div class="v" style="color:var(--danger)">$${num(plan.stop!, 2)}</div></div>
-          <div class="stat"><div class="k">${t('wl.plan.target')}</div><div class="v" style="color:var(--accent)">$${plan.target != null ? num(plan.target, 2) : '—'}</div></div>
-          <div class="stat"><div class="k">${t('wl.plan.shares')}</div><div class="v">${plan.shares}</div></div>
-          <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v">$${num(plan.positionValue, 0)} <span class="muted" style="font-size:11px">(${num(plan.positionPct, 1)}%)</span></div></div>
-          <div class="stat"><div class="k">${t('wl.plan.riskamt')}</div><div class="v" style="color:var(--warn)">$${num(plan.riskAmount, 0)} <span class="muted" style="font-size:11px">(${eq > 0 ? num((plan.riskAmount / eq) * 100, 2) : '0.00'}%)</span></div></div>
-        </div>` : ''}
-        <div style="font-size:12px;line-height:1.6">
-          <p style="margin:2px 0;font-weight:700">${explanation.headline[lang]}</p>
-          <ul style="margin:4px 0;padding-left:16px">${passedHtml}${failedHtml}</ul>
+
+        <div class="tp-fields">
+          <label class="tp-field"><span>${t('wl.plan.entry')}</span>
+            <input class="field" type="number" step="any" inputmode="decimal" data-tp="entry" data-sym="${S}" value="${edit.entry ?? ''}" /></label>
+          <label class="tp-field"><span style="color:var(--danger)">${t('wl.plan.stop')}</span>
+            <input class="field" type="number" step="any" inputmode="decimal" data-tp="stop" data-sym="${S}" value="${edit.stop ?? ''}" /></label>
+          <label class="tp-field"><span style="color:var(--accent)">${t('wl.plan.target')}</span>
+            <input class="field" type="number" step="any" inputmode="decimal" data-tp="target" data-sym="${S}" value="${edit.target ?? ''}" /></label>
+          <label class="tp-field"><span>${t('wl.plan.shares')}</span>
+            <input class="field" type="number" step="1" inputmode="numeric" data-tp="shares" data-sym="${S}" value="${edit.shares || ''}" /></label>
         </div>
+
+        <div class="tp-size-row">
+          <span class="tp-size-label">${t('wl.plan.possize')}</span>
+          ${sizeChips}
+          <span class="tp-size-custom">
+            <span class="tp-size-customlabel">${t('wl.plan.custom')}:</span>
+            <input class="field" type="number" step="any" inputmode="decimal" data-tp-sizeinput="${S}" placeholder="%" style="width:64px" value="${customVal}" /><span>%</span>
+          </span>
+        </div>
+
+        <div class="tp-derived" data-tp-derived="${S}"><!-- filled by recalcPlan --></div>
+
+        <div class="tp-note-head">
+          <span class="tp-note-label">${t('wl.plan.note')}</span>
+          <button type="button" class="note-btn has-note" data-tp-noteedit="${S}" title="${t('pf.note.edit')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="tp-note note-html" data-tp-note="${S}">${edit.note ?? ''}</div>
       </div>`;
   });
 
   out.innerHTML = rows.join('');
+
+  // Recompute every card's derived stats from its current edit state.
+  for (const { plan } of plans) recalcPlan(plan.symbol, eq);
+  wirePlanEdits(out, eq);
+}
+
+/** Editable per-symbol planner state (ephemeral — lives while the panel is open). */
+interface PlanEdit {
+  entry: number | null;
+  stop: number | null;
+  target: number | null;
+  shares: number;
+  /** 'risk' sizes shares from risk %/trade; 'pct' sizes from a % of equity. */
+  sizeMode: 'risk' | 'pct';
+  sizePct: number | null;
+  note: string;
+}
+const planEdits = new Map<string, PlanEdit>();
+const SIZE_PRESETS = [3.5, 5, 7.5, 10, 12.5, 15, 17.25, 20];
+const DEFAULT_SIZE_PCT = 3.5;
+
+// Trade-planner display currency. Stock levels are in USD; toggling to EUR only
+// converts the displayed dollar amounts (equity, position $, risk $) via the
+// latest EURUSD rate. Percentages are currency-agnostic.
+let planCcy: 'USD' | 'EUR' = 'USD';
+let planEurUsd = 1; // 1 EUR = planEurUsd USD (latest cached rate)
+const planSym = (): string => (planCcy === 'EUR' ? '€' : '$');
+/** Convert a USD amount to the current display currency. */
+const planConv = (usd: number): number => (planCcy === 'EUR' && planEurUsd > 1 ? usd / planEurUsd : usd);
+
+/** Recompute shares (when sizing by %) and all derived risk/position stats,
+ * then repaint just this card's derived block. Pure DOM update — no re-scan. */
+function recalcPlan(symbol: string, equity: number): void {
+  const e = planEdits.get(symbol);
+  const box = document.querySelector<HTMLElement>(`[data-tp-derived="${CSS.escape(symbol)}"]`);
+  if (!e || !box) return;
+
+  const entry = e.entry ?? 0;
+  const stop = e.stop ?? 0;
+  const riskPerShare = entry > 0 && stop > 0 ? entry - stop : 0;
+
+  // When sizing by % of equity, derive shares from that; else keep the shares
+  // field (which itself was seeded from risk-based sizing).
+  if (e.sizeMode === 'pct' && e.sizePct != null && entry > 0) {
+    e.shares = Math.round((equity * e.sizePct) / 100 / entry);
+    const sharesInput = document.querySelector<HTMLInputElement>(`input[data-tp="shares"][data-sym="${CSS.escape(symbol)}"]`);
+    if (sharesInput && document.activeElement !== sharesInput) sharesInput.value = String(e.shares || '');
+  }
+
+  const shares = Math.max(0, Math.round(e.shares || 0));
+  const positionValue = shares * entry;
+  const positionPct = equity > 0 ? (positionValue / equity) * 100 : 0;
+  const riskAmount = shares * Math.max(0, riskPerShare);
+  const riskPctOfPos = positionValue > 0 ? (riskAmount / positionValue) * 100 : 0;
+  const riskPctOfEq = equity > 0 ? (riskAmount / equity) * 100 : 0;
+  const rr = riskPerShare > 0 && e.target != null && e.target > entry
+    ? (e.target - entry) / riskPerShare : null;
+
+  const sym = planSym();
+  box.innerHTML = `
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
+      <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v">${sym}${num(planConv(positionValue), 0)} <span class="muted" style="font-size:11px">(${num(positionPct, 1)}%)</span></div></div>
+      <div class="stat"><div class="k">${t('wl.plan.riskpos')}</div><div class="v" style="color:var(--warn)">${sym}${num(planConv(riskAmount), 0)} <span class="muted" style="font-size:11px">(${num(riskPctOfPos, 1)}%)</span></div></div>
+      <div class="stat"><div class="k">${t('wl.plan.riskeq')}</div><div class="v" style="color:var(--warn)">${num(riskPctOfEq, 2)}%</div></div>
+      <div class="stat"><div class="k">R:R</div><div class="v">${rr != null ? num(rr, 2) + ':1' : '—'}</div></div>
+    </div>`;
+}
+
+/** Wire input/blur/click handlers for every editable planner card. */
+function wirePlanEdits(root: HTMLElement, equity: number): void {
+  // Field inputs (entry/stop/target/shares).
+  root.querySelectorAll<HTMLInputElement>('input[data-tp][data-sym]').forEach((el2) => {
+    el2.addEventListener('input', () => {
+      const sym = el2.dataset.sym!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      const key = el2.dataset.tp as keyof PlanEdit;
+      if (key === 'shares') { e.shares = Number(el2.value) || 0; e.sizeMode = 'risk'; recalcPlan(sym, equity); return; }
+      // entry / stop / target — numeric, blank → null.
+      const v = el2.value.trim();
+      (e as unknown as Record<string, number | null>)[key] = v === '' ? null : Number(v.replace(',', '.'));
+      recalcPlan(sym, equity);
+    });
+  });
+
+  // Rich-text note — open the formatting editor; save back the HTML.
+  root.querySelectorAll<HTMLElement>('[data-tp-noteedit]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const sym = b.dataset.tpNoteedit!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      const res = await richNoteDialog(`${sym} · ${t('wl.plan.note')}`, e.note ?? '', { lang: getLang() === 'vi' ? 'vi' : 'en' });
+      if (res === null) return;
+      e.note = res;
+      const box = root.querySelector<HTMLElement>(`[data-tp-note="${CSS.escape(sym)}"]`);
+      if (box) box.innerHTML = isNoteEmpty(res) ? `<span class="muted">${t('wl.plan.noteph')}</span>` : sanitizeNoteHtml(res);
+    });
+  });
+
+  // Preset size chips.
+  root.querySelectorAll<HTMLElement>('[data-tp-size]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const sym = b.dataset.tpSize!;
+      const pct = Number(b.dataset.pct);
+      const e = planEdits.get(sym);
+      if (!e) return;
+      e.sizeMode = 'pct'; e.sizePct = pct;
+      // Reflect selection: highlight the active chip, clear the custom box.
+      const card = b.closest('.tp-card')!;
+      card.querySelectorAll('[data-tp-size]').forEach((x) => x.classList.toggle('active', x === b));
+      const custom = card.querySelector<HTMLInputElement>('[data-tp-sizeinput]');
+      if (custom) custom.value = '';
+      recalcPlan(sym, equity);
+    });
+  });
+
+  // Custom size % input.
+  root.querySelectorAll<HTMLInputElement>('[data-tp-sizeinput]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const sym = inp.dataset.tpSizeinput!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      const v = inp.value.trim();
+      if (v === '') { return; }
+      e.sizeMode = 'pct'; e.sizePct = Number(v.replace(',', '.')) || 0;
+      inp.closest('.tp-card')!.querySelectorAll('[data-tp-size]').forEach((x) => x.classList.remove('active'));
+      recalcPlan(sym, equity);
+    });
+  });
 }
 
 // ── Learn (full bilingual glossary, grouped) ────────────────────────────────────
