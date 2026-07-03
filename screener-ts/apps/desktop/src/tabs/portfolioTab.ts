@@ -1141,8 +1141,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         }
         const initCcy = displayCurrency;
         const initPrice = priceForDateInCcy(today(), initCcy);
-        // Track the last currency so we can detect a ccy-only change vs a date change.
+        // Track the last currency AND date so we only auto-fill the price on a
+        // ccy switch or a date change — NOT on every keystroke in the price
+        // field (which previously overwrote what the user was typing).
         let prevCcy = initCcy;
+        let prevDate = today();
         const res = await formDialog(`Sell ${t}`, [
           { key: 'ccy', label: 'Currency', type: 'select', value: initCcy,
             options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
@@ -1166,8 +1169,13 @@ function wire(ctx: AppContext, root: HTMLElement): void {
               }
               return {};
             }
-            // Date changed — re-fetch the close in current currency.
-            return { price: priceForDateInCcy(date, newCcy) };
+            if (date !== prevDate) {
+              // Date changed — re-fetch the close in current currency.
+              prevDate = date;
+              return { price: priceForDateInCcy(date, newCcy) };
+            }
+            // Anything else (e.g. typing in the price/shares field) — leave as-is.
+            return {};
           },
         });
         if (!res) return;
