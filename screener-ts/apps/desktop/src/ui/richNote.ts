@@ -40,14 +40,25 @@ export function sanitizeNoteHtml(html: string): string {
           node.removeChild(elChild);
           continue;
         }
-        // Scrub attributes: keep safe color styling and http(s) links only.
-        // Colour may come from a style property OR a legacy `color` attribute.
-        const keepStyle = elChild.style.color
-          ? `color:${elChild.style.color}`
-          : (elChild.getAttribute('color') ? `color:${elChild.getAttribute('color')}` : '');
+        // Scrub attributes but PRESERVE safe inline formatting. execCommand with
+        // styleWithCSS emits italic/underline/bold as inline styles (font-style,
+        // text-decoration, font-weight) rather than tags, so we must keep those
+        // — plus colour (from style or a legacy `color` attribute).
+        const styleParts: string[] = [];
+        const color = elChild.style.color || elChild.getAttribute('color');
+        if (color) styleParts.push(`color:${color}`);
+        if (/italic/i.test(elChild.style.fontStyle)) styleParts.push('font-style:italic');
+        if (/underline|line-through/i.test(elChild.style.textDecoration || elChild.style.textDecorationLine)) {
+          const decos: string[] = [];
+          const src = `${elChild.style.textDecoration} ${elChild.style.textDecorationLine}`;
+          if (/underline/i.test(src)) decos.push('underline');
+          if (/line-through/i.test(src)) decos.push('line-through');
+          if (decos.length) styleParts.push(`text-decoration:${decos.join(' ')}`);
+        }
+        if (/^(bold|[6-9]00)$/i.test(elChild.style.fontWeight)) styleParts.push('font-weight:bold');
         const href = tag === 'A' ? elChild.getAttribute('href') ?? '' : '';
         for (const attr of Array.from(elChild.attributes)) elChild.removeAttribute(attr.name);
-        if (keepStyle) elChild.setAttribute('style', keepStyle);
+        if (styleParts.length) elChild.setAttribute('style', styleParts.join(';'));
         if (tag === 'A' && /^https?:\/\//i.test(href)) {
           elChild.setAttribute('href', href);
           elChild.setAttribute('target', '_blank');
