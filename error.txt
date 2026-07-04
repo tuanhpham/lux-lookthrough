@@ -137,3 +137,29 @@ overwrite real synced accounts. Redeploy the web build to activate it:
   [INEFFECTIVE_DYNAMIC_IMPORT] src/ui/theme.ts is dynamically imported by src/main.ts but also statically imported by src/main.ts, src/ui/landing.ts, src/ui/toolLanding.ts, dynamic import will not move module into another chunk.
 
 [INEFFECTIVE_DYNAMIC_IMPORT] src/ui/transition.ts is dynamically imported by src/ui/theme.ts but also statically imported by src/main.ts, src/ui/landing.ts, src/ui/toolLanding.ts, dynamic import will not move module into another chunk.
+huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 screener-ts % npm run build --workspace @screener/desktop
+
+> @screener/desktop@0.1.0 build
+> tsc -p tsconfig.json --noEmit && vite build
+
+src/tabs/portfolioTab.ts:2372:13 - error TS2741: Property 'volume' is missing in type '{ date: string; open: number; high: number; low: number; close: number; }' but required in type 'Bar'.
+
+2372       const agg: Bar = { date, open: 0, high: 0, low: 0, close: 0 };
+                 ~~~
+
+  ../../packages/core/dist/types/market.d.ts:9:5
+    9     volume: number;
+          ~~~~~~
+    'volume' is declared here.
+
+
+Found 1 error in src/tabs/portfolioTab.ts:2372
+
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
+npm error workspace @screener/desktop@0.1.0
+npm error location /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
+npm error command failed
+npm error command sh -c tsc -p tsconfig.json --noEmit && vite build
+huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 screener-ts % 
