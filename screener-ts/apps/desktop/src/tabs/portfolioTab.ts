@@ -2369,7 +2369,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     const dates = [...new Set(perAcct.flatMap((m) => [...m.keys()]))].sort((a, b) => (a < b ? -1 : 1));
     const carried: (Bar | null)[] = new Array(accounts.length).fill(null);
     return dates.map((date) => {
-      const agg: Bar = { date, open: 0, high: 0, low: 0, close: 0 };
+      const agg: Bar = { date, open: 0, high: 0, low: 0, close: 0, volume: 0 };
       for (let i = 0; i < perAcct.length; i++) {
         const cur = perAcct[i]!.get(date);
         if (cur) carried[i] = cur;
