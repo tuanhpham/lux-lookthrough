@@ -2321,39 +2321,66 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     });
   }
 
-  // combined portfolio chart
-  const byDateEquity = new Map<string, { equity: number; positionsValue: number }>();
-  for (const acct of accounts) {
-    for (const s of acct.snapshots) {
-      const ex = byDateEquity.get(s.date) ?? { equity: 0, positionsValue: 0 };
-      ex.equity += s.equity;
-      ex.positionsValue += s.positionsValue;
-      byDateEquity.set(s.date, ex);
+  // Combined portfolio chart. Each account's snapshot series is built over its
+  // own date set (union of its tickers' bar dates from its earliest buy date),
+  // so accounts don't share a common date axis. Summing by exact date would drop
+  // any account lacking a snapshot on that day (later start, missing bar, data
+  // gap), understating the total. Instead sum on the UNION of all dates and
+  // forward-fill each account's last-known equity so every account contributes
+  // on every date.
+  const allDates = [...new Set(accounts.flatMap((a) => a.snapshots.map((s) => s.date)))]
+    .sort((a, b) => (a < b ? -1 : 1));
+  const snapByAcctDate = accounts.map((a) => {
+    const m = new Map<string, { equity: number; positionsValue: number }>();
+    for (const s of a.snapshots) m.set(s.date, { equity: s.equity, positionsValue: s.positionsValue });
+    return m;
+  });
+  const carriedEquity: number[] = new Array(accounts.length).fill(0);
+  const carriedPositions: number[] = new Array(accounts.length).fill(0);
+  const combinedEquityPoints = allDates.map((time) => {
+    let equity = 0;
+    let positionsValue = 0;
+    for (let i = 0; i < accounts.length; i++) {
+      const cur = snapByAcctDate[i]!.get(time);
+      if (cur) {
+        // Forward-fill: overwrite this account's carried value on its own dates.
+        carriedEquity[i] = cur.equity;
+        carriedPositions[i] = cur.positionsValue;
+      }
+      equity += carriedEquity[i] ?? 0;
+      positionsValue += carriedPositions[i] ?? 0;
     }
-  }
-  const combinedEquityPoints = [...byDateEquity.entries()]
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([time, v]) => ({ time, equity: v.equity, positionsValue: v.positionsValue }));
+    return { time, equity, positionsValue };
+  });
   const totalInitialCap = accounts.reduce((s, a) => s + a.account.initialCapital, 0);
 
-  // Merge portfolio bars (with cash) and positions-only bars across all accounts
-  const mergedPortfolio = new Map<string, Bar>();
-  const mergedPortfolioNoCash = new Map<string, Bar>();
-  for (const acct of accounts) {
-    const cache = (acct as AccountState & { _candleCache?: ReturnType<typeof buildCandleSeries> })._candleCache;
-    for (const b of cache?.portfolio ?? []) {
-      const ex = mergedPortfolio.get(b.date);
-      if (ex) { ex.open += b.open; ex.high += b.high; ex.low += b.low; ex.close += b.close; }
-      else mergedPortfolio.set(b.date, { ...b });
-    }
-    for (const b of cache?.portfolioNoCash ?? []) {
-      const ex = mergedPortfolioNoCash.get(b.date);
-      if (ex) { ex.open += b.open; ex.high += b.high; ex.low += b.low; ex.close += b.close; }
-      else mergedPortfolioNoCash.set(b.date, { ...b });
-    }
+  // Merge portfolio bars (with cash) and positions-only bars across all accounts.
+  // Like the equity series above, each account's candle bars live on their own
+  // date axis, so we sum on the UNION of dates and forward-fill each account's
+  // last-known bar — otherwise a date where some account has no bar would sum
+  // only the accounts present and dip the combined candle.
+  function mergeCandleSeries(pick: (c: ReturnType<typeof buildCandleSeries>) => Bar[]): Bar[] {
+    const perAcct = accounts.map((acct) => {
+      const cache = (acct as AccountState & { _candleCache?: ReturnType<typeof buildCandleSeries> })._candleCache;
+      const m = new Map<string, Bar>();
+      for (const b of cache ? pick(cache) : []) m.set(b.date, b);
+      return m;
+    });
+    const dates = [...new Set(perAcct.flatMap((m) => [...m.keys()]))].sort((a, b) => (a < b ? -1 : 1));
+    const carried: (Bar | null)[] = new Array(accounts.length).fill(null);
+    return dates.map((date) => {
+      const agg: Bar = { date, open: 0, high: 0, low: 0, close: 0 };
+      for (let i = 0; i < perAcct.length; i++) {
+        const cur = perAcct[i]!.get(date);
+        if (cur) carried[i] = cur;
+        const b = carried[i];
+        if (b) { agg.open += b.open; agg.high += b.high; agg.low += b.low; agg.close += b.close; }
+      }
+      return agg;
+    });
   }
-  const combinedPortfolioBars = [...mergedPortfolio.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
-  const combinedPortfolioNoCashBars = [...mergedPortfolioNoCash.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const combinedPortfolioBars = mergeCandleSeries((c) => c.portfolio);
+  const combinedPortfolioNoCashBars = mergeCandleSeries((c) => c.portfolioNoCash);
 
   const pfEl = root.querySelector<HTMLElement>('#portfolio-chart')!;
   let pfView: 'equity' | 'candle' = 'equity';
