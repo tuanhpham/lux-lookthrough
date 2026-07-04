@@ -29,7 +29,7 @@ import type { AppContext } from '../context.js';
 import { $, num, money, pct } from '../ui/dom.js';
 import { drawLine, drawCandles } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
-import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
+import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { attachCombobox } from '../ui/combobox.js';
 import { openStock } from '../ui/stockModal.js';
 import { infoIcon, attachTooltips } from '../ui/tooltip.js';
@@ -154,6 +154,8 @@ const eurUsdRateByDate = new Map<string, number>();
 let displayCurrency: 'EUR' | 'USD' = 'EUR';
 /** Whether portfolio/equity charts include cash. Persisted across redraws. */
 let pfShowCash = true;
+/** Draft rich-text note for the next Buy (HTML). Cleared after a buy. */
+let buyNoteDraft = '';
 
 /**
  * Return the EURUSD rate for a given date, falling back to the latest known rate.
@@ -675,7 +677,10 @@ function draw(ctx: AppContext): void {
           </select>
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
         <div id="b-pricehint" class="price-hint"></div>
-        <div class="row" style="margin-top:8px"><input id="b-note" class="field" type="text" autocomplete="off" placeholder="${t('pf.note.placeholder')}" style="flex:1;min-width:160px" /></div>
+        <div style="margin-top:8px">
+          <label class="field-label" style="margin-bottom:4px">${t('pf.col.note')}</label>
+          ${richEditorHtml('buy-note', buyNoteDraft, { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 })}
+        </div>
         <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Stop (optional)" style="width:130px" />
           <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" />
           <button id="b-go" class="btn">Buy</button>
@@ -1018,6 +1023,9 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       el?.addEventListener('change', updateRiskHint); // fallback for iOS WKWebView
     });
 
+    // Buy note — always-visible inline rich editor (wired before the buy click).
+    const buyNoteGet = wireRichEditor(root, 'buy-note');
+
     // buy
     $('#b-go')!.addEventListener('click', async () => {
       const t = ($('#b-ticker') as HTMLInputElement).value.trim().toUpperCase();
@@ -1027,10 +1035,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const stop = Number(($('#b-stop') as HTMLInputElement).value.replace(',', '.')) || undefined;
       const target = Number(($('#b-target') as HTMLInputElement).value.replace(',', '.')) || undefined;
       const priceCcy = (($('#b-price-ccy') as HTMLSelectElement | null)?.value ?? 'USD') as 'EUR' | 'USD';
-      const note = ($('#b-note') as HTMLInputElement).value.trim();
+      const noteHtml = buyNoteGet();
+      const note = isNoteEmpty(noteHtml) ? undefined : noteHtml;
       if (!t || shares <= 0 || price <= 0) return;
       const fxAtBuy = eurUsdForDate(date);
-      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note || undefined }, uuid);
+      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note }, uuid);
       lot.priceCurrency = priceCcy;
       lot.fxRateAtBuy = fxAtBuy;
       // If entered in EUR but account tracks in EUR-equivalent, normalize to EUR-denominated price
@@ -1042,6 +1051,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }
       seedPrice(active().account.id, t, normPrice);
       snapshotNow(active());
+      buyNoteDraft = ''; // consumed
       await save(ctx);
       draw(ctx);
       void update(ctx);
@@ -1153,13 +1163,20 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         // field (which previously overwrote what the user was typing).
         let prevCcy = initCcy;
         let prevDate = today();
+        // Always-visible inline rich editor inside the dialog. Wire it once the
+        // dialog DOM mounts (next frame), and read its HTML on save.
+        const noteRef: { get: (() => string) | null } = { get: null };
+        requestAnimationFrame(() => {
+          const host = document.querySelector('.dialog-host');
+          if (host) noteRef.get = wireRichEditor(host, 'sell-note');
+        });
         const res = await formDialog(`Sell ${t}`, [
           { key: 'ccy', label: 'Currency', type: 'select', value: initCcy,
             options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
           { key: 'shares', label: 'Shares to sell', type: 'number', value: openShares > 0 ? String(openShares) : '' },
           { key: 'price', label: 'Sell price', type: 'number', value: initPrice },
           { key: 'date', label: 'Date', type: 'date', value: today() },
-          { key: 'note', label: 'Note (optional)', type: 'text', value: '' },
+          { key: '_note', label: 'Note (optional)', type: 'info', value: richEditorHtml('sell-note', '', { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 }) },
         ], {
           onChange: (vals) => {
             const newCcy = (vals.ccy ?? 'USD') as 'EUR' | 'USD';
@@ -1186,6 +1203,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
             return {};
           },
         });
+        const sellNoteHtml = noteRef.get ? noteRef.get() : '';
         if (!res) return;
         const shares = Number(res.shares);
         const priceEntered = Number(res.price);
@@ -1195,7 +1213,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           // Normalize entered price to account base currency (EUR)
           const normSellPrice = (active().account.currency === 'EUR' && res.ccy === 'USD' && fxAtSell > 1)
             ? priceEntered / fxAtSell : priceEntered;
-          const sellNote = (res.note ?? '').trim();
+          const sellNote = isNoteEmpty(sellNoteHtml) ? '' : sellNoteHtml;
           const recs = sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: normSellPrice, shares }, uuid);
           for (const r of recs) { r.priceCurrency = res.ccy as 'EUR' | 'USD'; r.fxRateAtSell = fxAtSell; if (sellNote) r.note = sellNote; }
           seedPrice(active().account.id, t, normSellPrice);

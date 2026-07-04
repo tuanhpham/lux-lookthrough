@@ -72,6 +72,54 @@ export function isNoteEmpty(html: string | undefined | null): boolean {
 
 const COLORS = ['#e9edf4', '#18d89a', '#ff5266', '#ffb648', '#5b8cff', '#c084fc'];
 
+/** Toolbar + contenteditable HTML for an inline rich editor. `idPrefix` keeps
+ * multiple editors on one page independent. Wire it with `wireRichEditor`. */
+export function richEditorHtml(idPrefix: string, initialHtml: string, opts: { lang?: 'en' | 'vi'; minHeight?: number } = {}): string {
+  const vi = opts.lang === 'vi';
+  const mh = opts.minHeight ?? 90;
+  const btn = (cmd: string, arg: string, label: string, tip: string): string =>
+    `<button type="button" class="rn-tool" data-cmd="${cmd}"${arg ? ` data-arg="${arg}"` : ''} title="${tip}">${label}</button>`;
+  return `<div class="rn-inline" data-rn="${idPrefix}">
+    <div class="rn-toolbar">
+      ${btn('bold', '', '<b>B</b>', vi ? 'Đậm' : 'Bold')}
+      ${btn('italic', '', '<i>I</i>', vi ? 'Nghiêng' : 'Italic')}
+      ${btn('underline', '', '<u>U</u>', vi ? 'Gạch dưới' : 'Underline')}
+      ${btn('strikeThrough', '', '<s>S</s>', vi ? 'Gạch ngang' : 'Strikethrough')}
+      <span class="rn-sep"></span>
+      ${btn('formatBlock', 'H3', 'H', vi ? 'Tiêu đề' : 'Heading')}
+      ${btn('insertUnorderedList', '', '• ', vi ? 'Danh sách' : 'Bullet list')}
+      ${btn('insertOrderedList', '', '1.', vi ? 'Danh sách số' : 'Numbered list')}
+      <span class="rn-sep"></span>
+      ${COLORS.map((c) => `<button type="button" class="rn-color" data-cmd="foreColor" data-arg="${c}" style="background:${c}" title="${c}"></button>`).join('')}
+      <span class="rn-sep"></span>
+      ${btn('removeFormat', '', '⌫', vi ? 'Xóa định dạng' : 'Clear formatting')}
+    </div>
+    <div class="rn-editor field" data-rn-editor="${idPrefix}" contenteditable="true" spellcheck="false" style="min-height:${mh}px">${sanitizeNoteHtml(initialHtml || '')}</div>
+  </div>`;
+}
+
+/** Wire an inline rich editor's toolbar. Returns a getter for its sanitized HTML. */
+export function wireRichEditor(root: ParentNode, idPrefix: string): () => string {
+  const editor = root.querySelector<HTMLElement>(`[data-rn-editor="${idPrefix}"]`)!;
+  const wrap = root.querySelector<HTMLElement>(`[data-rn="${idPrefix}"]`)!;
+  wrap.querySelectorAll<HTMLElement>('.rn-tool, .rn-color').forEach((b) => {
+    b.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      editor.focus();
+      try { document.execCommand('styleWithCSS', false, 'true'); } catch { /* older engines */ }
+      const cmd = b.dataset.cmd!;
+      const arg = b.dataset.arg;
+      if (cmd === 'formatBlock') {
+        const isH = document.queryCommandValue('formatBlock').toUpperCase() === 'H3';
+        document.execCommand('formatBlock', false, isH ? 'P' : 'H3');
+      } else {
+        document.execCommand(cmd, false, arg);
+      }
+    });
+  });
+  return () => sanitizeNoteHtml(editor.innerHTML);
+}
+
 export function richNoteDialog(
   title: string,
   initialHtml: string,

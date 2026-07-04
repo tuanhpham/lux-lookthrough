@@ -409,7 +409,7 @@ async function computePlans(ctx: AppContext): Promise<void> {
     return `
       <div class="card tp-card" data-tp-card="${S}" style="margin-bottom:10px;border-color:${plan.actionable ? 'var(--accent-line)' : 'var(--border)'}">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
-          <strong style="font-size:15px">${S}</strong>
+          <a href="#" class="link-ticker" data-tp-open="${S}"><strong style="font-size:15px">${S}</strong></a>
           <span class="badge" style="background:var(--surface);border-color:${actionColor};color:${actionColor}">
             ${plan.actionable ? t('wl.plan.actionable') : t('wl.plan.nosetup')} · Q ${plan.qualityScore.toFixed(0)}/100
           </span>
@@ -450,6 +450,14 @@ async function computePlans(ctx: AppContext): Promise<void> {
   // Recompute every card's derived stats from its current edit state.
   for (const { plan } of plans) recalcPlan(plan.symbol, eq);
   wirePlanEdits(out, eq);
+
+  // Clicking a symbol opens its stock detail.
+  out.querySelectorAll<HTMLElement>('[data-tp-open]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      void openStock(ctx, a.dataset.tpOpen!);
+    }),
+  );
 }
 
 /** Editable per-symbol planner state (ephemeral — lives while the panel is open). */

@@ -606,6 +606,9 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .rn-editor h4 { font-size: 13px; font-weight: 700; margin: 6px 0; }
 .rn-editor ul, .rn-editor ol { margin: 6px 0; padding-left: 22px; }
 .rn-editor a { color: var(--accent); }
+/* Inline (always-visible) editor variant — used in Buy form & Sell dialog. */
+.rn-inline .rn-editor { min-height: 0; max-height: 200px; margin-bottom: 0; }
+.rn-inline .rn-toolbar { margin-bottom: 6px; }
 /* Note cell in transaction history */
 .tx-note-cell { max-width: 220px; }
 .note-btn {
