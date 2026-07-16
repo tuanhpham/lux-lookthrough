@@ -10,9 +10,32 @@
  */
 
 const ALLOWED_TAGS = new Set([
-  'B', 'STRONG', 'I', 'EM', 'U', 'S', 'BR', 'P', 'DIV', 'SPAN',
+  'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'BR', 'P', 'DIV', 'SPAN',
   'UL', 'OL', 'LI', 'H3', 'H4', 'A',
 ]);
+
+/**
+ * Apply a formatting command to the current selection inside `editor`.
+ *
+ * Bold / italic / underline / strikethrough are emitted as SEMANTIC TAGS
+ * (`<b> <i> <u> <s>`) by turning `styleWithCSS` OFF — those tags render
+ * natively and always survive sanitizeNoteHtml. Only colour needs inline CSS
+ * (`<span style="color:…">`), so `styleWithCSS` is enabled just for foreColor.
+ * This avoids the fragile round-trip where inline `font-style`/`text-decoration`
+ * had to be re-parsed by the sanitizer (which silently dropped some engines'
+ * output, so Italic/Underline appeared to "do nothing").
+ */
+function execFormat(editor: HTMLElement, cmd: string, arg?: string): void {
+  editor.focus();
+  const useCss = cmd === 'foreColor';
+  try { document.execCommand('styleWithCSS', false, useCss ? 'true' : 'false'); } catch { /* older engines */ }
+  if (cmd === 'formatBlock') {
+    const isH = document.queryCommandValue('formatBlock').toUpperCase() === 'H3';
+    document.execCommand('formatBlock', false, isH ? 'P' : 'H3');
+  } else {
+    document.execCommand(cmd, false, arg);
+  }
+}
 
 /** Strip everything except a safe formatting subset; keep inline color + links. */
 export function sanitizeNoteHtml(html: string): string {
@@ -116,16 +139,7 @@ export function wireRichEditor(root: ParentNode, idPrefix: string): () => string
   wrap.querySelectorAll<HTMLElement>('.rn-tool, .rn-color').forEach((b) => {
     b.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      editor.focus();
-      try { document.execCommand('styleWithCSS', false, 'true'); } catch { /* older engines */ }
-      const cmd = b.dataset.cmd!;
-      const arg = b.dataset.arg;
-      if (cmd === 'formatBlock') {
-        const isH = document.queryCommandValue('formatBlock').toUpperCase() === 'H3';
-        document.execCommand('formatBlock', false, isH ? 'P' : 'H3');
-      } else {
-        document.execCommand(cmd, false, arg);
-      }
+      execFormat(editor, b.dataset.cmd!, b.dataset.arg);
     });
   });
   return () => sanitizeNoteHtml(editor.innerHTML);
@@ -176,18 +190,7 @@ export function richNoteDialog(
       // mousedown (not click) so the editor keeps its selection/focus.
       b.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        editor.focus();
-        // Emit inline CSS (<span style="color:…">) instead of legacy <font> tags.
-        try { document.execCommand('styleWithCSS', false, 'true'); } catch { /* older engines */ }
-        const cmd = b.dataset.cmd!;
-        const arg = b.dataset.arg;
-        // formatBlock toggles: if already a heading, revert to paragraph.
-        if (cmd === 'formatBlock') {
-          const isH = document.queryCommandValue('formatBlock').toUpperCase() === 'H3';
-          document.execCommand('formatBlock', false, isH ? 'P' : 'H3');
-        } else {
-          document.execCommand(cmd, false, arg);
-        }
+        execFormat(editor, b.dataset.cmd!, b.dataset.arg);
       });
     });
 

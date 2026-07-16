@@ -31,6 +31,7 @@ const OUTCOME_COLOR: Record<CaseStudy['outcome'], string> = {
   open: '#5b8cff',
   scratch: '#99a2b2',
 };
+const RATING_COLOR: Record<string, string> = { A: '#18d89a', B: '#5b8cff', C: '#ffb648', D: '#ff5266' };
 
 /** Render the full standalone HTML document for a case study. */
 export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
@@ -85,7 +86,7 @@ export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
 <body>
   <div class="toolbar"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
 
-  <h1>${esc(study.symbol)} <span class="pill" style="color:${OUTCOME_COLOR[study.outcome]};border-color:${OUTCOME_COLOR[study.outcome]}">${OUTCOME_LABEL[study.outcome]}</span></h1>
+  <h1>${esc(study.symbol)} <span class="pill" style="color:${OUTCOME_COLOR[study.outcome]};border-color:${OUTCOME_COLOR[study.outcome]}">${OUTCOME_LABEL[study.outcome]}</span>${study.rating ? ` <span class="pill" style="color:${RATING_COLOR[study.rating] ?? '#99a2b2'};border-color:${RATING_COLOR[study.rating] ?? '#99a2b2'}">Grade ${esc(study.rating)}</span>` : ''}</h1>
   <p class="sub">${esc(study.title || '')}</p>
   <p class="sub">${esc(study.setupType)} · key date <b>${esc(study.keyDate)}</b> · ±${study.windowMonths} month window</p>
 
@@ -100,6 +101,7 @@ export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
     ${stat('Exit price', money(study.exitPrice))}
     ${stat('Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? '#18d89a' : '#ff5266') : undefined)}
     ${stat('Outcome', OUTCOME_LABEL[study.outcome], OUTCOME_COLOR[study.outcome])}
+    ${stat('Rating', study.rating || '—', study.rating ? (RATING_COLOR[study.rating] ?? undefined) : undefined)}
   </div>
 
   <h2>Catalysts &amp; news</h2>

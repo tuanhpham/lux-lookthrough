@@ -16,6 +16,9 @@ export interface Catalyst {
 
 export type CaseOutcome = 'win' | 'loss' | 'open' | 'scratch';
 
+/** Subjective quality grade for the setup. '' = ungraded. */
+export type CaseRating = '' | 'A' | 'B' | 'C' | 'D';
+
 export interface CaseStudy {
   id: string;
   symbol: string;
@@ -26,6 +29,8 @@ export interface CaseStudy {
   windowMonths: number;
   setupType: string; // free text: "VCP", "Episodic Pivot", "Surge", custom…
   outcome: CaseOutcome;
+  /** Subjective A–D grade of the setup quality. Optional for back-compat. */
+  rating?: CaseRating;
   entry: number | null;
   stop: number | null;
   target: number | null;
@@ -46,6 +51,7 @@ export interface CaseStudyMeta {
   title: string;
   keyDate: string;
   outcome: CaseOutcome;
+  rating?: CaseRating;
 }
 
 const INDEX_KEY = 'casestudies:index';
@@ -73,6 +79,7 @@ export async function saveCase(ctx: AppContext, study: CaseStudy): Promise<void>
     title: study.title,
     keyDate: study.keyDate,
     outcome: study.outcome,
+    rating: study.rating,
   };
   const i = idx.findIndex((m) => m.id === study.id);
   if (i >= 0) idx[i] = meta;
@@ -98,6 +105,7 @@ export function blankCase(todayIso: string): CaseStudy {
     windowMonths: 3,
     setupType: 'VCP',
     outcome: 'open',
+    rating: '',
     entry: null,
     stop: null,
     target: null,

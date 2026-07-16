@@ -23,6 +23,10 @@ export interface BuyLot {
   /** Free-form rich-text (HTML) note about this purchase. */
   reason?: string;
   signal?: SignalType;
+  /** Subjective A–D grade of the setup quality. Optional. */
+  rating?: 'A' | 'B' | 'C' | 'D';
+  /** Setup type this buy was taken on (e.g. "VCP", "Episodic Pivot"). Optional. */
+  setupType?: string;
   stop?: number; // OPTIONAL — when unset, risk is "undefined" and excluded from total risk
   target?: number;
   priceCurrency?: 'EUR' | 'USD'; // currency in which buyPrice was entered; defaults to USD

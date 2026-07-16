@@ -17,6 +17,7 @@ import {
   saveCase,
   type CaseStudy,
   type CaseOutcome,
+  type CaseRating,
   type Catalyst,
 } from '../caseStudies/store.js';
 import { caseSvgChart, windowBars } from '../caseStudies/svgChart.js';
@@ -71,6 +72,21 @@ function outcomeLabel(o: CaseOutcome, vi: boolean): string {
   return { open: 'Open', win: 'Win', loss: 'Loss', scratch: 'Scratch' }[o];
 }
 
+const RATINGS: CaseRating[] = ['', 'A', 'B', 'C', 'D'];
+/** Grade → colour: A green, B blue, C amber, D red. */
+const RATING_COLOR: Record<string, string> = {
+  A: 'var(--accent)',
+  B: '#5b8cff',
+  C: 'var(--warn, #ffb648)',
+  D: 'var(--danger)',
+};
+/** A small "Rating A" badge, or '' when ungraded. */
+function ratingBadge(r: CaseRating | undefined, vi: boolean): string {
+  if (!r) return '';
+  const col = RATING_COLOR[r] ?? 'var(--faint)';
+  return `<span class="badge" style="border-color:${col};color:${col}" title="${vi ? 'Xếp hạng' : 'Rating'}">${vi ? 'Hạng' : 'Grade'} ${r}</span>`;
+}
+
 export function renderCaseStudies(ctx: AppContext): void {
   void renderList(ctx);
 }
@@ -112,6 +128,7 @@ async function renderList(ctx: AppContext): Promise<void> {
             <span class="muted" style="margin-left:8px">${m.title ? escapeAttr(m.title) : ''}</span>
           </div>
           <div class="row" style="gap:8px">
+            ${ratingBadge(m.rating, vi)}
             <span class="badge" style="border-color:${OUTCOME_COLOR[m.outcome]};color:${OUTCOME_COLOR[m.outcome]}">${outcomeLabel(m.outcome, vi)}</span>
             <span class="muted" style="font-size:12px">${m.keyDate}</span>
           </div>
@@ -138,7 +155,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
         <button id="cs-delete" class="btn-outline" style="color:var(--danger)">🗑</button>
       </div>
     </div>
-    <h1 style="margin-bottom:2px">${study.symbol} <span class="badge" style="border-color:${OUTCOME_COLOR[study.outcome]};color:${OUTCOME_COLOR[study.outcome]};vertical-align:middle">${outcomeLabel(study.outcome, vi)}</span></h1>
+    <h1 style="margin-bottom:2px">${study.symbol} <span class="badge" style="border-color:${OUTCOME_COLOR[study.outcome]};color:${OUTCOME_COLOR[study.outcome]};vertical-align:middle">${outcomeLabel(study.outcome, vi)}</span>${study.rating ? ` <span style="vertical-align:middle">${ratingBadge(study.rating, vi)}</span>` : ''}</h1>
     <p class="subtitle">${escapeAttr(study.title || '')} ${study.title ? '·' : ''} ${escapeAttr(study.setupType)} · ${vi ? 'ngày then chốt' : 'key date'} <b>${study.keyDate}</b></p>
     <div class="card" style="padding:10px;margin-bottom:14px">
       <div class="row" style="gap:6px;margin-bottom:8px">
@@ -156,6 +173,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
       ${detailStat(vi ? 'Giá thoát' : 'Exit price', money(study.exitPrice))}
       ${detailStat(vi ? 'Kết quả R' : 'Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? 'var(--accent)' : 'var(--danger)') : undefined)}
       ${detailStat(vi ? 'Loại' : 'Setup', escapeAttr(study.setupType))}
+      ${detailStat(vi ? 'Xếp hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
     </div>
     <div class="section-title">${vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news'}</div>
     <div class="card" style="margin-bottom:14px">${catalystListHtml(study, vi)}</div>
@@ -221,6 +239,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
           <div class="row" style="gap:8px"><input id="f-title" class="field" style="flex:1" value="${escapeAttr(study.title)}" placeholder="${vi ? 'VD: NVDA Feb 2024 VCP Breakout' : 'e.g. NVDA Feb 2024 VCP Breakout'}" />
           <button id="f-title-auto" type="button" class="btn-outline" title="${vi ? 'Tạo tiêu đề tự động' : 'Generate title'}">↻</button></div></div>
         <div><label class="field-label">${vi ? 'Kết quả' : 'Outcome'}</label><select id="f-outcome" class="field">${OUTCOMES.map((o) => `<option value="${o}" ${o === study.outcome ? 'selected' : ''}>${outcomeLabel(o, vi)}</option>`).join('')}</select></div>
+        <div><label class="field-label">${vi ? 'Xếp hạng' : 'Rating'}</label><select id="f-rating" class="field">${RATINGS.map((r) => `<option value="${r}" ${r === (study.rating ?? '') ? 'selected' : ''}>${r === '' ? (vi ? '— Chưa xếp' : '— Ungraded') : r}</option>`).join('')}</select></div>
         <div><label class="field-label">${vi ? 'Mua' : 'Entry'}</label><input id="f-entry" class="field" type="number" step="any" value="${study.entry ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Cắt lỗ' : 'Stop'}</label><input id="f-stop" class="field" type="number" step="any" value="${study.stop ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Mục tiêu' : 'Target'}</label><input id="f-target" class="field" type="number" step="any" value="${study.target ?? ''}" /></div>
@@ -355,6 +374,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       keyDate,
       setupType,
       outcome: ($('#f-outcome') as HTMLSelectElement).value as CaseOutcome,
+      rating: ($('#f-rating') as HTMLSelectElement).value as CaseRating,
       entry,
       stop,
       target: numOrNull('#f-target'),

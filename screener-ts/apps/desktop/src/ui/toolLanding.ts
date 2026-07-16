@@ -76,6 +76,10 @@ export function renderToolLanding(host: HTMLElement, onEnter: (trigger?: Element
           ${featCard(t('landing.f4.t'), t('landing.f4.d'), fSectors())}
           ${featCard(t('landing.f5.t'), t('landing.f5.d'), fBacktest())}
           ${featCard(t('landing.f6.t'), t('landing.f6.d'), fPlanner())}
+          ${featCard(t('landing.f7.t'), t('landing.f7.d'), fPortfolio())}
+          ${featCard(t('landing.f8.t'), t('landing.f8.d'), fCaseStudy())}
+          ${featCard(t('landing.f9.t'), t('landing.f9.d'), fTimeMachine())}
+          ${featCard(t('landing.f10.t'), t('landing.f10.d'), fSync())}
         </div>
 
         <p class="muted tl-foot">${t('foot.disclaimer')}</p>
@@ -244,3 +248,7 @@ function fRegime()   { return `<svg viewBox="0 0 24 24" fill="none" stroke="curr
 function fSectors()  { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`; }
 function fBacktest() { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>`; }
 function fPlanner()  { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`; }
+function fPortfolio(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="2" y1="13" x2="22" y2="13"/></svg>`; }
+function fCaseStudy(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/></svg>`; }
+function fTimeMachine(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>`; }
+function fSync()     { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>`; }

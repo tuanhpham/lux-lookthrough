@@ -15,6 +15,8 @@ export interface BuyInput {
   shares: number;
   reason?: string;
   signal?: SignalType;
+  rating?: 'A' | 'B' | 'C' | 'D';
+  setupType?: string;
   stop?: number;
   target?: number;
   priceCurrency?: 'EUR' | 'USD';
@@ -35,6 +37,8 @@ export function buy(state: AccountState, input: BuyInput, nextId: IdFactory): Bu
     remainingShares: input.shares,
     reason: input.reason,
     signal: input.signal,
+    rating: input.rating,
+    setupType: input.setupType,
     stop: input.stop,
     target: input.target,
     priceCurrency: input.priceCurrency,
@@ -116,6 +120,20 @@ export function setLotNote(state: AccountState, lotId: string, note: string | un
   const lot = state.lots.find((l) => l.id === lotId);
   if (!lot) throw new Error(`setLotNote: lot ${lotId} not found`);
   lot.reason = note && note.trim() ? note : undefined;
+}
+
+/** Set (or clear) a buy lot's A–D rating. Empty/undefined clears it. */
+export function setLotRating(state: AccountState, lotId: string, rating: 'A' | 'B' | 'C' | 'D' | undefined): void {
+  const lot = state.lots.find((l) => l.id === lotId);
+  if (!lot) throw new Error(`setLotRating: lot ${lotId} not found`);
+  lot.rating = rating;
+}
+
+/** Set (or clear) a buy lot's setup type. Empty string clears it. */
+export function setLotSetup(state: AccountState, lotId: string, setupType: string | undefined): void {
+  const lot = state.lots.find((l) => l.id === lotId);
+  if (!lot) throw new Error(`setLotSetup: lot ${lotId} not found`);
+  lot.setupType = setupType && setupType.trim() ? setupType : undefined;
 }
 
 /** Set (or clear) a sell record's rich-text note. Empty string clears it. */

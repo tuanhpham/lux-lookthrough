@@ -4,6 +4,8 @@ import {
   sell,
   setStop,
   setLotNote,
+  setLotRating,
+  setLotSetup,
   setSellNote,
   deleteSell,
   deleteLot,
@@ -141,6 +143,37 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 let accounts: AccountState[] = [];
 let activeId: string = OVERVIEW_ID;
+
+// ---------------------------------------------------------------------------
+// Setup type + A–D rating for buy lots (matches the Case Studies setup list).
+// ---------------------------------------------------------------------------
+type Rating = 'A' | 'B' | 'C' | 'D';
+const SETUP_TYPES: { value: string; en: string; vi: string }[] = [
+  { value: '', en: '— None', vi: '— Không' },
+  { value: 'VCP', en: 'VCP', vi: 'VCP' },
+  { value: 'EP', en: 'Episodic Pivot', vi: 'Điểm xoay đột biến' },
+  { value: 'Mean Reversion', en: 'Mean Reversion', vi: 'Hồi quy trung bình' },
+  { value: 'Breakout', en: 'Breakout', vi: 'Bứt phá' },
+  { value: 'Pullback', en: 'Pullback', vi: 'Điều chỉnh' },
+  { value: 'Surge', en: 'Surge', vi: 'Tăng vọt' },
+  { value: 'Other', en: 'Other', vi: 'Khác' },
+];
+const RATINGS: ('' | Rating)[] = ['', 'A', 'B', 'C', 'D'];
+const RATING_COLOR: Record<string, string> = {
+  A: 'var(--accent)', B: '#5b8cff', C: 'var(--warn, #ffb648)', D: 'var(--danger)',
+};
+/** Label a setup value in the active language (falls back to the raw value). */
+function setupLabel(v: string | undefined, vi: boolean): string {
+  if (!v) return '';
+  const s = SETUP_TYPES.find((x) => x.value === v);
+  return s ? (vi ? s.vi : s.en) : v;
+}
+/** A small coloured "A"/"B"… rating badge, or '' when ungraded. */
+function ratingBadgeHtml(r: string | undefined): string {
+  if (!r) return '';
+  const col = RATING_COLOR[r] ?? 'var(--faint)';
+  return `<span class="badge" style="border-color:${col};color:${col}">${r}</span>`;
+}
 
 // ---------------------------------------------------------------------------
 // EUR/USD display toggle
@@ -677,6 +710,12 @@ function draw(ctx: AppContext): void {
           </select>
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
         <div id="b-pricehint" class="price-hint"></div>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1"><label class="field-label" style="margin-bottom:4px">${getLang() === 'vi' ? 'Loại thiết lập' : 'Setup'}</label>
+            <select id="b-setup" class="field" style="width:100%">${SETUP_TYPES.map((s) => `<option value="${s.value}">${getLang() === 'vi' ? s.vi : s.en}</option>`).join('')}</select></div>
+          <div style="width:120px"><label class="field-label" style="margin-bottom:4px">${getLang() === 'vi' ? 'Xếp hạng' : 'Rating'}</label>
+            <select id="b-rating" class="field" style="width:100%">${RATINGS.map((r) => `<option value="${r}">${r === '' ? (getLang() === 'vi' ? '— Chưa' : '— None') : r}</option>`).join('')}</select></div>
+        </div>
         <div style="margin-top:8px">
           <label class="field-label" style="margin-bottom:4px">${t('pf.col.note')}</label>
           ${richEditorHtml('buy-note', buyNoteDraft, { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 })}
@@ -1037,9 +1076,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const priceCcy = (($('#b-price-ccy') as HTMLSelectElement | null)?.value ?? 'USD') as 'EUR' | 'USD';
       const noteHtml = buyNoteGet();
       const note = isNoteEmpty(noteHtml) ? undefined : noteHtml;
+      const setupType = (($('#b-setup') as HTMLSelectElement | null)?.value) || undefined;
+      const rating = ((($('#b-rating') as HTMLSelectElement | null)?.value) || undefined) as Rating | undefined;
       if (!t || shares <= 0 || price <= 0) return;
       const fxAtBuy = eurUsdForDate(date);
-      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note }, uuid);
+      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note, setupType, rating }, uuid);
       lot.priceCurrency = priceCcy;
       lot.fxRateAtBuy = fxAtBuy;
       // If entered in EUR but account tracks in EUR-equivalent, normalize to EUR-denominated price
@@ -1425,6 +1466,28 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }),
     );
 
+    // edit a buy lot's setup type + A–D rating
+    root.querySelectorAll<HTMLElement>('[data-setup-lot]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const lotId = b.dataset.setupLot!;
+        const st = active();
+        const lot = st.lots.find((l) => l.id === lotId);
+        if (!lot) return;
+        const vi = getLang() === 'vi';
+        const res = await formDialog(t('pf.setup.title'), [
+          { key: 'setup', label: t('pf.setup.type'), type: 'select', value: lot.setupType ?? '',
+            options: SETUP_TYPES.map((s) => ({ value: s.value, label: vi ? s.vi : s.en })) },
+          { key: 'rating', label: t('pf.setup.rating'), type: 'select', value: lot.rating ?? '',
+            options: RATINGS.map((r) => ({ value: r, label: r === '' ? (vi ? '— Chưa' : '— None') : r })) },
+        ]);
+        if (!res) return;
+        setLotSetup(st, lotId, res.setup || undefined);
+        setLotRating(st, lotId, (res.rating || undefined) as Rating | undefined);
+        await save(ctx);
+        draw(ctx);
+      }),
+    );
+
     // edit a transaction's rich-text note (buy lot or sell record)
     root.querySelectorAll<HTMLElement>('[data-note-kind]').forEach((b) =>
       b.addEventListener('click', async () => {
@@ -1516,6 +1579,8 @@ function transactionHistoryHtml(st: AccountState): string {
     cashAmount?: number; note?: string;
     /** Which entity a note edits: a buy lot's `reason` or a sell record's `note`. */
     noteKind?: 'lot' | 'sell'; noteId?: string;
+    /** Setup type + rating from the underlying buy lot (for display + editing). */
+    setupType?: string; rating?: string; lotId?: string;
   }
   const sellsByLot = new Map<string, typeof st.sells>();
   for (const s of st.sells) {
@@ -1535,6 +1600,7 @@ function transactionHistoryHtml(st: AccountState): string {
         pnl: s.realizedPnL, cost, capitalAtOpen: capAtBuy,
         sortDate: s.sellDate, delKind: 'sell', delId: s.id,
         note: s.note, noteKind: 'sell', noteId: s.id,
+        setupType: l.setupType, rating: l.rating, lotId: l.id,
       });
     }
     if (l.remainingShares > 0) {
@@ -1544,6 +1610,7 @@ function transactionHistoryHtml(st: AccountState): string {
         cost: l.buyPrice * l.remainingShares, capitalAtOpen: capAtBuy,
         sortDate: l.buyDate, delKind: 'lot', delId: l.id,
         note: l.reason, noteKind: 'lot', noteId: l.id,
+        setupType: l.setupType, rating: l.rating, lotId: l.id,
       });
     }
   }
@@ -1587,6 +1654,15 @@ function transactionHistoryHtml(st: AccountState): string {
     `<button class="del-btn" title="Delete this transaction" data-del-${kind}="${id}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>`;
   const signed = (v: number, dateForFx: string): string =>
     `<span style="color:${v >= 0 ? 'var(--accent)' : 'var(--danger)'}">${v >= 0 ? '+' : ''}${money(toDisplay(v, dateForFx), dispSymbol())}</span>`;
+  const vi = getLang() === 'vi';
+  // Setup / rating cell: shows the setup label + A–D badge with a pencil to edit
+  // (editing writes to the underlying buy lot). Only rows tied to a lot are editable.
+  const setupCell = (r: Row): string => {
+    if (!r.lotId) return `<td>—</td>`;
+    const label = r.setupType ? escapeHtml(setupLabel(r.setupType, vi)) : `<span class="muted">—</span>`;
+    return `<td style="white-space:nowrap">${label} ${ratingBadgeHtml(r.rating)}
+      <button class="note-btn${r.setupType || r.rating ? ' has-note' : ''}" data-setup-lot="${r.lotId}" title="${vi ? 'Sửa thiết lập & xếp hạng' : 'Edit setup & rating'}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></td>`;
+  };
   // Note cell: a preview of the rich note (if any) + a pencil to open the editor.
   const noteCell = (kind: 'lot' | 'sell', id: string, html: string | undefined): string => {
     const has = !isNoteEmpty(html);
@@ -1609,6 +1685,7 @@ function transactionHistoryHtml(st: AccountState): string {
           <td>—</td>
           <td>—</td>
           <td>${signed(amt, r.buyDate)}</td>
+          <td>—</td>
           <td>—</td>
           <td>—</td>
           <td>—</td>
@@ -1645,6 +1722,7 @@ function transactionHistoryHtml(st: AccountState): string {
         <td>${pnlPctCost}</td>
         <td>${weight}</td>
         <td>${pnlPctCap}</td>
+        ${setupCell(r)}
         ${noteCell(r.noteKind!, r.noteId!, r.note)}
         <td style="display:flex;gap:4px;align-items:center">${chartBtn}${delBtn(r.delKind, r.delId)}</td>
       </tr>`;
@@ -1663,6 +1741,7 @@ function transactionHistoryHtml(st: AccountState): string {
     <th>${t('pf.col.pnlpct')} ${infoIcon('pf_tx_pnlpct')}</th>
     <th>${t('pf.col.weight')} ${infoIcon('pf_tx_weight')}</th>
     <th>${t('pf.col.pnlpctcap')} ${infoIcon('pf_tx_pnlpctcap')}</th>
+    <th>${t('pf.col.setup')}</th>
     <th>${t('pf.col.note')}</th>
     <th></th>
   </tr></thead><tbody>${body}</tbody></table>`;
