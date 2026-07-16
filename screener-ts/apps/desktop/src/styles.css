@@ -299,6 +299,17 @@ label.field-label {
   font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
 }
 
+/* Native <select> option popups render with OS defaults unless color-scheme is
+   set — otherwise dark-mode dropdowns show white-on-white text. Force the theme
+   and explicitly colour the options so every dropdown (Setup, Rating, currency,
+   form dialogs) is legible in both themes.                                     */
+select.field { color-scheme: dark; }
+html.light select.field { color-scheme: light; }
+select.field option {
+  background: var(--surface);
+  color: var(--text);
+}
+
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 button.btn {
   background: var(--accent); color: var(--accent-ink); border: 0; border-radius: var(--radius-sm);
