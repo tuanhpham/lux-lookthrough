@@ -1,197 +1,212 @@
-========================================================================
- SYNC DATA RECOVERY — Cloudflare D1 "Time Travel"  (written 2026-07-01)
-========================================================================
+huongnguyen105@Huongs-MacBook-Air desktop % bash scripts/diagnose-loss.sh                                                       
+════ 1. Every live row: when it was last written, and how big ════
+Look at the DATES. Rows all stamped within minutes of each other = the moment
+the new device overwrote them. 'accounts' at a few hundred bytes is an empty
+starter account; a real portfolio is tens of KB.
+[
+  {
+    "results": [
+      {
+        "key": "watchlists:items:ca4858d9-22ef-4a02-8e2b-5a677ce273cd",
+        "written_utc": "2026-08-05 07:37:32",
+        "raw_ms": 1785915452413,
+        "bytes": 116
+      },
+      {
+        "key": "accounts",
+        "written_utc": "2026-08-04 19:12:33",
+        "raw_ms": 1785870753286,
+        "bytes": 912104
+      },
+      {
+        "key": "casestudies:index",
+        "written_utc": "2026-07-17 18:02:29",
+        "raw_ms": 1784311349567,
+        "bytes": 857
+      },
+      {
+        "key": "casestudy:2d709513-907d-45b2-9bbf-a9806082b294",
+        "written_utc": "2026-07-17 18:02:29",
+        "raw_ms": 1784311349566,
+        "bytes": 4205
+      },
+      {
+        "key": "casestudy:09bacaa2-8a46-4536-83f7-5edfeb8e7df4",
+        "written_utc": "2026-07-17 18:00:57",
+        "raw_ms": 1784311257031,
+        "bytes": 4540
+      },
+      {
+        "key": "casestudy:ccbfd61e-24f5-4d4b-9e2f-fcf07fcba29e",
+        "written_utc": "2026-07-17 18:00:05",
+        "raw_ms": 1784311205531,
+        "bytes": 5095
+      },
+      {
+        "key": "sectorlabels",
+        "written_utc": "2026-07-14 16:36:23",
+        "raw_ms": 1784046983970,
+        "bytes": 168626
+      },
+      {
+        "key": "watchlists:items:default",
+        "written_utc": "2026-07-05 12:47:10",
+        "raw_ms": 1783255630057,
+        "bytes": 69
+      },
+      {
+        "key": "casestudy:b16ebe0a-d1a9-4e16-af67-b46c481b39a2",
+        "written_utc": "2026-07-04 15:43:01",
+        "raw_ms": 1783179781086,
+        "bytes": 346
+      },
+      {
+        "key": "casestudy:0a85e1ff-00a9-4411-b278-c146df6a92d8",
+        "written_utc": "2026-07-04 15:32:22",
+        "raw_ms": 1783179142949,
+        "bytes": 2256
+      },
+      {
+        "key": "casestudy:e9dd0e5a-6cfe-444f-a8aa-8010111d8bfc",
+        "written_utc": "2026-07-04 06:36:00",
+        "raw_ms": 1783146960228,
+        "bytes": 1858
+      },
+      {
+        "key": "watchlists:index",
+        "written_utc": "2026-06-29 07:09:06",
+        "raw_ms": 1782716946777,
+        "bytes": 99
+      },
+      {
+        "key": "watchlists:items:b970335f-f263-4431-bc9d-4ea7aed10f64",
+        "written_utc": "2026-06-29 06:59:46",
+        "raw_ms": 1782716386081,
+        "bytes": 15
+      },
+      {
+        "key": "posts:index",
+        "written_utc": "2026-06-28 20:13:32",
+        "raw_ms": 1782677612757,
+        "bytes": 2
+      },
+      {
+        "key": "watchlist:default",
+        "written_utc": "2026-06-24 21:53:05",
+        "raw_ms": 1782337985616,
+        "bytes": 20
+      },
+      {
+        "key": "post:2026-06-14-nh-n-nh-th-tr-ng-06-2026",
+        "written_utc": "2026-06-24 21:53:05",
+        "raw_ms": 1782337985264,
+        "bytes": 4549
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "AMS",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 27.5161
+      },
+      "duration": 27.5161,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 2498560,
+      "rows_read": 103,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
 
-WHAT HAPPENED
--------------
-The web app stores paper-trading accounts under the sync key `accounts`.
-A bug made the app auto-create an empty default "Strategy A" and PUSH it
-to the server when local browser storage was cleared. That empty default
-had a newer timestamp, so it overwrote the real `accounts` key on the
-Cloudflare D1 server (last-write-wins) — wiping the 4 real accounts.
+════ 2. The overwrite window ════
+earliest_utc is the answer: Time Travel must target JUST BEFORE it.
+[
+  {
+    "results": [
+      {
+        "earliest_utc": "2026-06-24 21:53:05",
+        "latest_utc": "2026-08-05 07:37:32",
+        "rows": 16
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "AMS",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 1.0606
+      },
+      "duration": 1.0606,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 2498560,
+      "rows_read": 87,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
 
-Everything else survived (case studies, watchlists, scans, posts, and the
-per-account price bars `pf_bars:<uuid>`). Only the `accounts` key was lost.
+════ 3. Is the app-level history table present yet? ════
+Empty/absent is EXPECTED if the fix has not been deployed — it only records
+from deploy onward and is not the recovery path for this incident.
+[
+  {
+    "results": [
+      {
+        "name": "kv_history"
+      },
+      {
+        "name": "kv_trash"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "AMS",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.3095
+      },
+      "duration": 0.3095,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 2498560,
+      "rows_read": 13,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
 
-TIMING (IMPORTANT — times below are UTC; German summer time = UTC+2)
---------------------------------------------------------------------
-- The 4 accounts' price bars were freshly written at 04:39 UTC (06:39 DE)
-  today  -> PROOF the 4 accounts still existed that morning.
-- The `accounts` key's bad empty write is stamped 20:44 UTC (22:44 DE) —
-  that is only the LAST re-push of the empty default, not the first wipe.
-- SAFEST RESTORE TARGET: 2026-07-01T04:45:00Z  (= 06:45 German time),
-  i.e. just AFTER the 04:39 bar write that proves 4 accounts were alive.
+════ 4. Oldest point Time Travel can still reach (30-day limit) ════
 
-NO RUSH: Cloudflare D1 Time Travel keeps a full 30-day history, so this
-restore point stays available for ~30 days. Do it whenever the network
-allows.
+ ⛅️ wrangler 4.120.0
+────────────────────
+Resource location: remote 
 
-BEFORE YOU RESTORE
-------------------
-1. Do NOT add new real trades / accounts in the app until recovery is done.
-   A restore rolls the WHOLE database back to the chosen time, so anything
-   genuinely new created after that time would be lost by the restore.
-2. Do NOT keep opening / syncing the web app repeatedly — each sync can
-   re-push the empty default. (The code fix below prevents this once the
-   app is redeployed.)
+🚧 Time Traveling...
+⚠️ The current bookmark is '00000223-00000002-000050c0-039c539ebea690b8f78a4a9fd5c3c3e6'
+⚡️ To restore to this specific bookmark, run:
+ `wrangler d1 time-travel restore screener-sync --bookmark=00000223-00000002-000050c0-039c539ebea690b8f78a4a9fd5c3c3e6`
+      
 
-METHOD A — wrangler CLI  (most reliable; needs network to Cloudflare)
----------------------------------------------------------------------
-The office firewall blocks wrangler's calls to api.cloudflare.com. Use a
-PHONE HOTSPOT (tether the laptop to your phone) to bypass it, then:
+════ NEXT ════
+Take earliest_utc from section 2, subtract ~10 minutes, and probe THAT instant.
+Probe into a COPY first — never restore blind:
 
-    cd screener-ts/apps/desktop
+  npx wrangler d1 export screener-sync --remote --output ./kv-now.sql   # safety copy
+  npx wrangler d1 time-travel info screener-sync --timestamp <earliest_utc minus 10min>
 
-    # 1. See the restorable window + current bookmark
-    npx wrangler d1 time-travel info screener-sync
-
-    # 2. Restore to just after the morning bar write (4 accounts alive)
-    npx wrangler d1 time-travel restore screener-sync --timestamp=2026-07-01T04:45:00Z
-
-METHOD B — Cloudflare dashboard  (if it opens in your browser)
---------------------------------------------------------------
-D1 is NOT under "Workers & Pages" anymore. Find it via the left sidebar:
-  Storage & Databases -> D1 SQL Database
-Or open directly:
-  https://dash.cloudflare.com/?to=/:account/workers/d1
-Open the `screener-sync` database. If a "Time Travel" / "Restore" control
-is present, restore to 2026-07-01T04:45:00Z. (Note: Time Travel has been
-CLI-only in the past — the dashboard may not offer it, in which case use
-Method A via phone hotspot.)
-
-IF THE FIRST RESTORE STILL SHOWS EMPTY ACCOUNTS
------------------------------------------------
-Then the wipe happened even earlier. Restore to an earlier time and re-check.
-You can restore repeatedly within the 30-day window. Binary-search between a
-known-good early time and 20:44Z:
-    npx wrangler d1 time-travel restore screener-sync --timestamp=2026-06-30T23:59:00Z
-(losing at most today's regenerable scan caches).
-
-HOW TO VERIFY (READ-ONLY — never writes anything)
--------------------------------------------------
-Replace <YOUR-SYNC-CODE> with your code (do NOT commit it anywhere public):
-
-    curl -s -X POST "https://the-professional.pages.dev/api/sync/kv/accounts" \
-      -H "x-sync-code: <YOUR-SYNC-CODE>"
-    # or list everything:
-    curl -s -X POST "https://the-professional.pages.dev/api/sync/pull" \
-      -H "x-sync-code: <YOUR-SYNC-CODE>" -H "content-type: application/json" \
-      -d '{"since":0}'
-The `accounts` value should show your 4 accounts (names + lots), not a lone
-empty "Strategy A".
-
-"WHAT IF SOMEONE ADDS NEW TRADES AFTER THE PROBLEM?"
----------------------------------------------------
-A Time Travel restore rolls the whole DB back to the chosen timestamp, so
-any genuine new trades entered AFTER that timestamp are lost by the restore.
-So:
-  - If new real trades were added after the restore point, first RECORD them
-    (screenshot / note the ticker, shares, price, date, stop, target) using
-    the read-only curl above or from the app, THEN restore, THEN re-enter
-    those few trades by hand in the app.
-  - If nothing important was added since, just restore.
-The rule of thumb: restore loses everything newer than the chosen time, so
-pick the LATEST time that still contains your good accounts, and manually
-re-key anything created after it.
-
-PERMANENT FIX (deploy so this never recurs)
--------------------------------------------
-Code already fixed: the auto-created default "Strategy A" is now DISPLAY-ONLY
-(kept in memory, never saved/pushed), so an empty placeholder can no longer
-overwrite real synced accounts. Redeploy the web build to activate it:
-
-    (cd ../.. && npm run build --workspace @screener/core \
-                 && npm run build --workspace @screener/desktop)
-    npx wrangler pages deploy dist --project-name the-professional
-
-========================================================================
-
-
-  ---
-  Page structure
-
-  ▎ "A full-screen cinematic landing page divided into snap sections — each chapter fills at least one viewport. Scrolling jumps chapter by chapter (no partial views), with a custom JS-driven 
-  ▎ scroll animation (~1 s easeInOutCubic) instead of native browser snap."
-
-  Between-chapter transition
-
-  ▎ "On chapter change, a full-screen blur veil fades in fast (~0.7 s) over the content — dark semi-transparent overlay with backdrop-filter: blur — then fades out slowly (~3 s) after landing,
-  ▎ revealing the new chapter underneath."
-
-  Content reveal inside a chapter
-
-  ▎ "Text and images are hidden with clip-path: inset(0 0 100% 0) (fully clipped from below). When a chapter becomes active, the clip wipes upward like a rising curtain, staggered per paragraph
-  ▎ (~0.18 s apart). Images follow the same direction. Scrolling back up reverses the clip quickly."
-
-  Counter / splash
-
-  ▎ "A boot splash with a circular progress ring (SVG stroke-dashoffset) counting 0–100% over ~20 s. Each digit animates in an iOS picker-wheel slot machine — new digit drops in from above, old
-  ▎ digit exits downward, via clip-path overflow:hidden columns with translateY transitions. After 100%, a radial wipe (mask-image: radial-gradient) expands from the center outward, revealing the
-  ▎ page underneath."
-
-  Scroll-up behaviour
-
-  ▎ "Chapters already scrolled past stay revealed. Only the chapter currently visible collapses when scrolling back up through it."
-
-  ---
-  [INEFFECTIVE_DYNAMIC_IMPORT] src/ui/theme.ts is dynamically imported by src/main.ts but also statically imported by src/main.ts, src/ui/landing.ts, src/ui/toolLanding.ts, dynamic import will not move module into another chunk.
-
-[INEFFECTIVE_DYNAMIC_IMPORT] src/ui/transition.ts is dynamically imported by src/ui/theme.ts but also statically imported by src/main.ts, src/ui/landing.ts, src/ui/toolLanding.ts, dynamic import will not move module into another chunk.
-huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 screener-ts % npm run build --workspace @screener/desktop
-
-> @screener/desktop@0.1.0 build
-> tsc -p tsconfig.json --noEmit && vite build
-
-src/tabs/portfolioTab.ts:2372:13 - error TS2741: Property 'volume' is missing in type '{ date: string; open: number; high: number; low: number; close: number; }' but required in type 'Bar'.
-
-2372       const agg: Bar = { date, open: 0, high: 0, low: 0, close: 0 };
-                 ~~~
-
-  ../../packages/core/dist/types/market.d.ts:9:5
-    9     volume: number;
-          ~~~~~~
-    'volume' is declared here.
-
-
-Found 1 error in src/tabs/portfolioTab.ts:2372
-
-npm error Lifecycle script `build` failed with error:
-npm error code 2
-npm error path /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
-npm error workspace @screener/desktop@0.1.0
-npm error location /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
-npm error command failed
-npm error command sh -c tsc -p tsconfig.json --noEmit && vite build
-huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 screener-ts % 
-
-huongnguyen105@Huongs-MacBook-Air desktop % npm run build
-
-> @screener/desktop@0.1.0 build
-> tsc -p tsconfig.json --noEmit && vite build
-
-src/adapters/storage.ts:1:24 - error TS2305: Module '"@screener/core"' has no exported member 'decidePull'.
-
-1 import { type Storage, decidePull, decidePush, UNSTAMPED_PUSH_TS } from '@screener/core';
-                         ~~~~~~~~~~
-
-src/adapters/storage.ts:1:36 - error TS2305: Module '"@screener/core"' has no exported member 'decidePush'.
-
-1 import { type Storage, decidePull, decidePush, UNSTAMPED_PUSH_TS } from '@screener/core';
-                                     ~~~~~~~~~~
-
-src/adapters/storage.ts:1:48 - error TS2305: Module '"@screener/core"' has no exported member 'UNSTAMPED_PUSH_TS'.
-
-1 import { type Storage, decidePull, decidePush, UNSTAMPED_PUSH_TS } from '@screener/core';
-                                                 ~~~~~~~~~~~~~~~~~
-
-
-Found 3 errors in the same file, starting at: src/adapters/storage.ts:1
-
-npm error Lifecycle script `build` failed with error:
-npm error code 2
-npm error path /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
-npm error workspace @screener/desktop@0.1.0
-npm error location /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
-npm error command failed
-npm error command sh -c tsc -p tsconfig.json --noEmit && vite build
-huongnguyen105@Huongs-MacBook-Air desktop % 
+Paste both outputs back before running any 'time-travel restore'.
