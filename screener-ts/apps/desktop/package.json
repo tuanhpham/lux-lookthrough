@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:desktop": "vite",
-    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "dev": "npm run build:core && vite",
+    "dev:desktop": "npm run dev",
+    "build": "npm run build:core && tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm run build:core && tsc -p tsconfig.json --noEmit",
+    "//build:core": "@screener/core resolves to its dist/, which is gitignored — so a fresh clone has none, and adding a core file leaves it stale. Both surface here as bogus 'has no exported member' errors. Building it first makes that impossible to hit.",
+    "build:core": "npm --prefix ../../packages/core run build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
