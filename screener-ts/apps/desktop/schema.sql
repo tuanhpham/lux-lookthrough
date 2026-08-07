@@ -27,3 +27,31 @@ CREATE TABLE IF NOT EXISTS kv (
 
 -- List/prefix scans (RemoteStorage.list) hit this; keep it indexed.
 CREATE INDEX IF NOT EXISTS idx_kv_user ON kv (user_id, key);
+
+-- ── Undo history ────────────────────────────────────────────────────────────
+-- Sync resolves conflicts by last-write-wins on a CLIENT clock, so a device
+-- installed today always outranks real data written months ago. The client has
+-- guards against pushing first-boot defaults, but the server genuinely cannot
+-- tell a real new edit from a default — so it never discards the old value.
+-- Every overwrite lands here, every delete lands in kv_trash, and
+-- GET /api/sync/history + POST /api/sync/restore expose both.
+-- Append-only, so `key` repeats: the PK is (user_id, key, archived_at).
+CREATE TABLE IF NOT EXISTS kv_history (
+  user_id     TEXT NOT NULL,
+  key         TEXT NOT NULL,
+  value       TEXT NOT NULL,              -- the value as it was BEFORE the write
+  updated_at  INTEGER NOT NULL,           -- its own last-write stamp
+  archived_at INTEGER NOT NULL,           -- when it was superseded (epoch ms)
+  PRIMARY KEY (user_id, key, archived_at)
+);
+CREATE INDEX IF NOT EXISTS idx_kv_history_user ON kv_history (user_id, archived_at DESC);
+
+CREATE TABLE IF NOT EXISTS kv_trash (
+  user_id    TEXT NOT NULL,
+  key        TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, key, deleted_at)
+);
+CREATE INDEX IF NOT EXISTS idx_kv_trash_user ON kv_trash (user_id, deleted_at DESC);

@@ -105,6 +105,43 @@ export async function remoteList(prefix = ''): Promise<string[]> {
   return body.keys ?? [];
 }
 
+/** One archived version of a key: an overwritten value or a deleted row. */
+export interface SyncVersion {
+  key: string;
+  value: unknown;
+  /** The value's own last-write stamp. */
+  updatedAt: number;
+  /** When it was superseded — the id used to restore it. */
+  archivedAt: number;
+  how: 'overwrite' | 'delete';
+  bytes: number;
+}
+
+/**
+ * Every archived version the server still holds, newest first. This is the
+ * recovery surface for a bad last-write-wins merge: the live `kv` row may be an
+ * empty default, but the real value it replaced is here.
+ */
+export async function remoteHistory(key?: string): Promise<SyncVersion[]> {
+  if (!isSyncEnabled()) return [];
+  const qs = key ? `?key=${encodeURIComponent(key)}` : '';
+  const res = await fetch(`${BASE}/history${qs}`, { headers: headers() });
+  if (!res.ok) throw new Error(`sync history: HTTP ${res.status}`);
+  const body = (await res.json()) as { versions: SyncVersion[] };
+  return body.versions ?? [];
+}
+
+/** Promote an archived version back to live, stamped now so it syncs everywhere. */
+export async function remoteRestore(key: string, archivedAt: number): Promise<void> {
+  if (!isSyncEnabled()) return;
+  const res = await fetch(`${BASE}/restore`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ key, archivedAt }),
+  });
+  if (!res.ok) throw new Error(`sync restore ${key}: HTTP ${res.status}`);
+}
+
 /** Bulk download every entry (optionally only those newer than `since`). */
 export async function remotePull(since = 0): Promise<SyncEntry[]> {
   if (!isSyncEnabled()) return [];

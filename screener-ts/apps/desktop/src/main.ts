@@ -20,7 +20,7 @@ import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange, applyTheme } from './ui/theme.js';
 import { openSyncSettings, onSynced } from './ui/syncSettings.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
-import { pullAndMerge } from './adapters/storage.js';
+import { pullAndMerge, openSyncGate } from './adapters/storage.js';
 
 // Surface a FATAL init failure visibly (a blank screen hides the cause). This is
 // only used for the synchronous init below — we deliberately do NOT trap every
@@ -321,12 +321,21 @@ reflectSyncState();
 // On boot: if a code is already stored, pull+merge in the background, then
 // refresh the open tab so the latest cross-device data appears without a manual
 // sync. Best-effort — offline just leaves the local copy in place.
+//
+// Until this pull lands, SyncedStorage holds every push back (see the hydration
+// gate in storage.ts): tabs render immediately and may seed local defaults, but
+// those defaults must not be uploaded, or last-write-wins hands victory to an
+// empty new device over the real remote data.
 if (isSyncEnabled()) {
   void pullAndMerge(ctx.synced)
     .then((n) => {
       if (n > 0 && entered) renderTab(currentTab);
     })
     .catch(() => {});
+} else {
+  // No code: nothing to wait for, so open the gate (a code entered later runs
+  // its own pullAndMerge, which re-shuts and re-opens it around that merge).
+  openSyncGate();
 }
 
 // Boot splash → then show landing.

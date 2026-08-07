@@ -4,7 +4,13 @@
  * then re-render the open tab so synced watchlists/posts/accounts appear.
  */
 import type { AppContext } from '../context.js';
-import { getSyncCode, setSyncCode, verifyCode } from '../adapters/syncClient.js';
+import {
+  getSyncCode,
+  setSyncCode,
+  verifyCode,
+  remoteHistory,
+  remoteRestore,
+} from '../adapters/syncClient.js';
 import { pullAndMerge } from '../adapters/storage.js';
 import { getLang } from './i18n.js';
 
@@ -118,6 +124,18 @@ export function openSyncSettings(ctx: AppContext): void {
             <input id="data-import-file" type="file" accept="application/json,.json" style="display:none" />
           </div>
         </div>
+        <div style="border-top:1px solid var(--border, #2a2a2a);margin-top:16px;padding-top:14px">
+          <div class="field-label" style="margin-bottom:6px">${vi ? 'Phục hồi phiên bản cũ' : 'Recover an older version'}</div>
+          <p class="muted" style="font-size:12px;line-height:1.5;margin:0 0 10px">
+            ${
+              vi
+                ? 'Mỗi lần một mục bị ghi đè hoặc xoá, giá trị cũ được lưu lại trên server. Nếu dữ liệu bị mất sau khi đồng bộ, tìm ở đây và bấm Phục hồi.'
+                : 'Whenever an item is overwritten or deleted, the server keeps the old value. If data vanished after a sync, find it here and press Restore.'
+            }
+          </p>
+          <button id="data-history" class="btn-outline">${vi ? '🕘 Xem phiên bản cũ' : '🕘 Browse versions'}</button>
+          <div id="history-list" style="margin-top:10px;max-height:230px;overflow:auto"></div>
+        </div>
       </div>
     </div>`;
 
@@ -154,7 +172,10 @@ export function openSyncSettings(ctx: AppContext): void {
     setSyncCode(code);
     msg.style.color = 'var(--faint)';
     msg.textContent = vi ? 'Đang tải dữ liệu…' : 'Pulling your data…';
-    const n = await pullAndMerge(ctx.synced);
+    // `freshCode` matters: this device has been running WITHOUT a code, so its
+    // local defaults carry "now" timestamps that would beat the account's real
+    // data under last-write-wins. Signing in must download, never overwrite.
+    const n = await pullAndMerge(ctx.synced, { freshCode: true });
     msg.style.color = 'var(--accent)';
     msg.textContent =
       (res.name ? `${vi ? 'Xin chào' : 'Hi'} ${res.name}. ` : '') +
@@ -206,6 +227,143 @@ export function openSyncSettings(ctx: AppContext): void {
       fileInput.value = '';
     }
   });
+
+  // ── Recover an older version (the last-write-wins safety net) ───────────────
+  const historyList = host.querySelector('#history-list') as HTMLElement;
+
+  /** Short human label for a value, so a row is identifiable without opening it. */
+  function describe(key: string, value: unknown): string {
+    if (Array.isArray(value)) {
+      // `accounts` is the one that hurts most when lost — name the accounts and
+      // count open lots, so the right version is obvious at a glance.
+      if (key === 'accounts') {
+        const names = value
+          .map((a) => {
+            const acct = a as { account?: { name?: string }; lots?: unknown[] };
+            const lots = (acct.lots ?? []).length;
+            return `${acct.account?.name ?? '?'} (${lots} ${vi ? 'lô' : 'lots'})`;
+          })
+          .join(', ');
+        return names || (vi ? 'rỗng' : 'empty');
+      }
+      return `${value.length} ${vi ? 'mục' : 'items'}`;
+    }
+    if (value && typeof value === 'object') {
+      return `${Object.keys(value as object).length} ${vi ? 'khoá' : 'keys'}`;
+    }
+    return String(value).slice(0, 40);
+  }
+
+  const stamp = (ms: number): string => new Date(ms).toLocaleString();
+
+  async function showHistory(): Promise<void> {
+    if (!getSyncCode()) {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = vi ? 'Cần nhập mã truy cập trước.' : 'Enter your access code first.';
+      return;
+    }
+    historyList.innerHTML = `<div class="muted" style="font-size:12px">${vi ? 'Đang tải…' : 'Loading…'}</div>`;
+    let versions;
+    try {
+      versions = await remoteHistory();
+    } catch (e) {
+      historyList.innerHTML = `<div class="muted" style="font-size:12px;color:var(--danger)">${String(
+        (e as Error)?.message ?? e,
+      )}</div>`;
+      return;
+    }
+    // Hide throwaway caches so the list shows data worth recovering.
+    const worth = versions.filter((v) => !/^(scan:|calendar:|pf_bars:|pf_eurusd|sectorlabels)/.test(v.key));
+    if (!worth.length) {
+      // Server history only starts recording from this fix onward, so on the
+      // device that lost data it is expected to be empty. The local pre-merge
+      // snapshot is the other chance — offer it explicitly.
+      const snap = await ctx.synced.preMergeSnapshot();
+      historyList.innerHTML = snap
+        ? `<div class="muted" style="font-size:12px;line-height:1.6">
+             ${
+               vi
+                 ? `Server chưa có phiên bản cũ nào (lịch sử chỉ ghi từ bản sửa này). Nhưng thiết bị này có một bản chụp cục bộ lúc <b>${stamp(
+                     snap.at,
+                   )}</b> gồm ${Object.keys(snap.data).length} mục.`
+                 : `The server has no older versions yet (history records from this fix onward). This device does have a local snapshot from <b>${stamp(
+                     snap.at,
+                   )}</b> with ${Object.keys(snap.data).length} item(s).`
+             }
+           </div>
+           <button id="snap-restore" class="btn-outline" style="margin-top:8px;font-size:11px;padding:5px 10px">
+             ${vi ? 'Phục hồi bản chụp cục bộ' : 'Restore local snapshot'}
+           </button>`
+        : `<div class="muted" style="font-size:12px">${
+            vi
+              ? 'Chưa có phiên bản nào được lưu. Lịch sử chỉ ghi từ khi bản sửa này được triển khai.'
+              : 'No versions stored yet. History only records from this fix onward.'
+          }</div>`;
+      historyList.querySelector('#snap-restore')?.addEventListener('click', async () => {
+        if (
+          !snap ||
+          !confirm(
+            vi
+              ? `Ghi ${Object.keys(snap.data).length} mục từ bản chụp lúc ${stamp(snap.at)} lên dữ liệu hiện tại?`
+              : `Write ${Object.keys(snap.data).length} item(s) from the ${stamp(snap.at)} snapshot over the current data?`,
+          )
+        ) {
+          return;
+        }
+        // Routed through storage.set, so each value is re-stamped "now" and wins
+        // last-write-wins — the same path the file import uses.
+        for (const [key, value] of Object.entries(snap.data)) await ctx.storage.set(key, value);
+        msg.style.color = 'var(--accent)';
+        msg.textContent = vi ? 'Đã phục hồi bản chụp. Đang tải lại…' : 'Snapshot restored. Reloading…';
+        setTimeout(() => location.reload(), 900);
+      });
+      return;
+    }
+    historyList.innerHTML = worth
+      .map(
+        (v) => `<div class="row" style="justify-content:space-between;gap:8px;align-items:center;
+             padding:7px 0;border-bottom:1px solid var(--border,#2a2a2a)">
+          <div style="min-width:0">
+            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis">${v.key}</div>
+            <div class="muted" style="font-size:11px">
+              ${describe(v.key, v.value)} · ${v.how === 'delete' ? (vi ? 'đã xoá' : 'deleted') : (vi ? 'bị ghi đè' : 'overwritten')} ${stamp(v.archivedAt)}
+            </div>
+          </div>
+          <button class="btn-outline" style="font-size:11px;padding:4px 9px;flex:0 0 auto"
+            data-restore="${v.key}" data-at="${v.archivedAt}">${vi ? 'Phục hồi' : 'Restore'}</button>
+        </div>`,
+      )
+      .join('');
+
+    historyList.querySelectorAll('[data-restore]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const key = (btn as HTMLElement).dataset.restore!;
+        const at = Number((btn as HTMLElement).dataset.at);
+        if (
+          !confirm(
+            vi
+              ? `Phục hồi "${key}" về phiên bản lúc ${stamp(at)}? Giá trị hiện tại cũng được lưu lại nên có thể hoàn tác.`
+              : `Restore "${key}" to its version from ${stamp(at)}? The current value is archived too, so this is undoable.`,
+          )
+        ) {
+          return;
+        }
+        try {
+          await remoteRestore(key, at);
+          // Pull it back down so the local copy matches before the reload.
+          await pullAndMerge(ctx.synced);
+          msg.style.color = 'var(--accent)';
+          msg.textContent = vi ? `Đã phục hồi "${key}". Đang tải lại…` : `Restored "${key}". Reloading…`;
+          setTimeout(() => location.reload(), 900);
+        } catch (e) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = (vi ? 'Phục hồi thất bại: ' : 'Restore failed: ') + String((e as Error)?.message ?? e);
+        }
+      });
+    });
+  }
+
+  host.querySelector('#data-history')!.addEventListener('click', () => void showHistory());
 
   setTimeout(() => input.focus(), 30);
 }

@@ -21,15 +21,29 @@ export function watchlistsVersion(): number {
   return _version;
 }
 
+/**
+ * The list index, seeding a default list when there is none.
+ *
+ * The seed is returned but NOT persisted unless there is genuinely something to
+ * carry over (legacy single-list data). Persisting an empty default here stamps
+ * `watchlists:index` with a fresh "now" and, with sync on, pushes it up — where
+ * last-write-wins makes it beat the real synced index and the lists vanish. This
+ * fires on any read, including the very first render on a new device. Leaving it
+ * unsaved keeps `tsOf()` at 0, so the merge treats the server copy as newer and
+ * restores it; the index persists the moment the user actually creates or edits
+ * a list. Same reasoning as portfolioTab's starter account.
+ */
 export async function loadIndex(ctx: AppContext): Promise<WatchlistMeta[]> {
-  let idx = (await ctx.storage.get<WatchlistMeta[]>(INDEX_KEY)) ?? [];
-  if (!idx.length) {
-    const legacy = (await ctx.storage.get<string[]>('watchlist:default')) ?? [];
-    idx = [{ id: 'default', name: 'My Watchlist' }];
-    await ctx.storage.set(INDEX_KEY, idx);
-    if (legacy.length) await ctx.storage.set(itemsKey('default'), legacy);
+  const idx = (await ctx.storage.get<WatchlistMeta[]>(INDEX_KEY)) ?? [];
+  if (idx.length) return idx;
+  const seeded = [{ id: 'default', name: 'My Watchlist' }];
+  const legacy = (await ctx.storage.get<string[]>('watchlist:default')) ?? [];
+  if (legacy.length) {
+    // Real user data from the pre-multi-list era — migrating it is worth a write.
+    await ctx.storage.set(INDEX_KEY, seeded);
+    await ctx.storage.set(itemsKey('default'), legacy);
   }
-  return idx;
+  return seeded;
 }
 
 export async function saveIndex(ctx: AppContext, idx: WatchlistMeta[]): Promise<void> {
