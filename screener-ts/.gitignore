@@ -9,3 +9,14 @@ apps/*/.wrangler/
 .env
 .DS_Store
 *.log
+
+# D1 dumps and recovery artefacts — NEVER commit these.
+# `wrangler d1 export` dumps EVERY table, including `users`, whose `code` column
+# is the secret access code in plaintext. Committing one publishes the account.
+# They also hold the full portfolio. Keep them outside the repo; these patterns
+# are a backstop for when one is written here by mistake.
+*.sql
+!apps/*/schema.sql
+kv-*.sql
+recovery-tickets/
+screener-backup-*.json

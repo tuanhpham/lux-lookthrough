@@ -1,25 +1,44 @@
-Làm theo đúng thứ tự này
+❌ Đừng xoá — và có một việc phải làm ngay
 
-1. Sao lưu server ngay (làm đầu tiên, quan trọng nhất):
+kv-safe-2026-08-07.sql là bản bảo hiểm duy nhất không phụ thuộc Cloudflare. Giữ nó.
+
+Nhưng khi kiểm tra, tôi phát hiện chuyện nghiêm trọng hơn:
+
+wrangler d1 export dump toàn bộ database — kể cả bảng users, trong đó cột code là mã truy cập của bạn ở dạng chữ thường. Tôi đã xác nhận trong file: 102 dòng kv + 1 dòng users.
+
+Và một file dump cũ, kv-before-restore.sql, đã bị commit và đẩy lên GitHub — commit 3cd96b15 "error", đang nằm trên origin/main. .gitignore không chặn *.sql.
+
+Việc cần làm, theo thứ tự
+
+1. Đổi mã truy cập — bắt buộc, không thể bỏ qua. Mã cũ coi như đã công khai. Ai có nó là đọc và ghi được toàn bộ dữ liệu của bạn.
+
+Tự kiểm tra repo github.com/tuanhpham/lux-lookthrough là public hay private (tôi không kiểm tra được, máy này chưa có gh). Public thì đây là việc gấp; private thì vẫn phải đổi, chỉ bớt gấp.
+
 cd screener-ts/apps/desktop
-npx wrangler d1 export screener-sync --remote --output ./kv-safe-2026-08-07.sql
-ls -la kv-safe-2026-08-07.sql     # phải thấy ~1 MB, không phải vài KB
-Copy file này ra chỗ khác (ngoài repo). Đây là bản bảo hiểm không phụ thuộc Cloudflare.
+# Tao ma moi (dat MA_MOI la mot chuoi dai, ngau nhien - dung dat de doan)
+npx wrangler d1 execute screener-sync --remote \
+  --command "UPDATE users SET code = 'MA_MOI_CUA_BAN' WHERE code = 'ma_cu'"
+Sau đó trên từng thiết bị: ☰ → Sync → Đăng xuất → nhập mã mới. Đổi mã không ảnh hưởng dữ liệu — kv gắn với user_id, không gắn với code.
 
-2. Deploy bản đã sửa (kv_history/kv_trash đã có sẵn trên DB rồi — bạn đã chạy schema.sql):
-npm run build
-npx wrangler pages deploy dist --project-name the-professional
+2. Chuyển các file dump ra ngoài repo:
+mkdir -p ~/screener-backups
+mv screener-ts/apps/desktop/kv-safe-2026-08-07.sql ~/screener-backups/
+mv screener-ts/apps/desktop/kv-before-restore.sql ~/screener-backups/
 
-3. Chỉ sau khi deploy xong, trên máy Mac: mở app → ☰ → Sync → Đăng xuất → nhập lại mã → Lưu & đồng bộ.
+3. Xoá lịch sử git (chỉ sau khi đã đổi mã ở bước 1 — bước 1 mới là thứ thật sự vô hiệu hoá rò rỉ). Việc này viết lại lịch sử và cần force-push, nên tôi để bạn quyết định; nói tôi biết nếu muốn tôi hướng dẫn git filter-repo.
 
-Bản mới đi đường freshCode: true: đăng nhập nghĩa là tải xuống, server thắng mọi khoá nó có, bất kể đồng hồ local. 16 dòng sẽ về máy.
+Tôi đã sửa trong code
 
-4. Ngay khi thấy dữ liệu: ☰ → Sync → ⬇ Export data, lưu file screener-backup-*.json. Từ giờ giữ thói quen này.
+- .gitignore: chặn *.sql, kv-*.sql, recovery-tickets/, screener-backup-*.json, nhưng vẫn theo dõi apps/*/schema.sql. Đã kiểm chứng cả hai chiều.
+- Bỏ kv-before-restore.sql khỏi git (git rm --cached, file vẫn còn trên đĩa).
+- Sửa nhãn sai trong diagnose-loss.sh — chỗ làm tôi chẩn đoán lệch. Nó gọi MIN(updated_at) là "thời điểm bị ghi đè", nhưng đó chỉ là dòng cũ nhất bình thường. Giờ script hỏi đúng câu hỏi đầu tiên: dữ liệu trên server có thật sự mất chưa? — và nói rõ "912 KB → dữ liệu an toàn, ĐỪNG restore". Thêm mục 2b nhóm các lần ghi theo phút, vì một cú wipe đóng dấu nhiều dòng trong cùng một phút, còn việc sửa bình thường thì rải ra nhiều tháng. Cũng cảnh báo dump chứa mã truy cập.
 
-Hai điều tôi cần nói thẳng
+Việc nên làm đều đặn
 
-Có thể gặp lỗi quota ở bước 3. Tổng dữ liệu ~1,1 MB, cộng bản snapshot trước khi merge là ~2,2 MB, cộng cache pf_bars:* đã có sẵn trong localStorage. Giới hạn localStorage thường ~5 MB. Nếu bước 3 báo lỗi, nói tôi biết — cách xử lý là xoá cache pf_bars:* trước khi pull, và tôi sẽ cần sửa code để làm việc đó tự động chứ không phải bằng tay.
+☰ → Sync → ⬇ Export data → giữ file screener-backup-*.json ở ngoài repo. File này chỉ có dữ liệu local, không có bảng users, nên an toàn hơn dump SQL.
 
-912 KB cho accounts là bất thường. Một portfolio bình thường nặng vài chục KB. Nghi ngờ trong đó có dữ liệu nhúng thừa (bars giá, hoặc lot bị nhân bản qua nhiều lần lưu). Chuyện này không cấp bách và không ảnh hưởng việc phục hồi — nhưng sau khi dữ liệu về máy an toàn, tôi nên xem lại, vì nó cũng chính là thứ đẩy bạn tới sát giới hạn quota ở trên.
+Còn một việc chưa xong
 
-Chạy bước 1 rồi gửi tôi kích thước file dump — tôi xác nhận trước khi bạn deploy.
+accounts nặng 912 KB là bất thường — portfolio bình thường vài chục KB. Nghi có dữ liệu nhúng thừa (bars giá, hoặc lot bị nhân bản). Nó cũng chính là thứ đẩy bạn tới sát giới hạn localStorage ~5 MB. Muốn tôi xem không? Cứ nói, và cho tôi biết app chạy có chậm/lỗi quota gì không.
+
+Toàn bộ thay đổi đang ở working tree trên main, chưa commit. Đừng commit trước khi các file dump đã ra khỏi repo.
