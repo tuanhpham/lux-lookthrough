@@ -1,212 +1,25 @@
-huongnguyen105@Huongs-MacBook-Air desktop % bash scripts/diagnose-loss.sh                                                       
-════ 1. Every live row: when it was last written, and how big ════
-Look at the DATES. Rows all stamped within minutes of each other = the moment
-the new device overwrote them. 'accounts' at a few hundred bytes is an empty
-starter account; a real portfolio is tens of KB.
-[
-  {
-    "results": [
-      {
-        "key": "watchlists:items:ca4858d9-22ef-4a02-8e2b-5a677ce273cd",
-        "written_utc": "2026-08-05 07:37:32",
-        "raw_ms": 1785915452413,
-        "bytes": 116
-      },
-      {
-        "key": "accounts",
-        "written_utc": "2026-08-04 19:12:33",
-        "raw_ms": 1785870753286,
-        "bytes": 912104
-      },
-      {
-        "key": "casestudies:index",
-        "written_utc": "2026-07-17 18:02:29",
-        "raw_ms": 1784311349567,
-        "bytes": 857
-      },
-      {
-        "key": "casestudy:2d709513-907d-45b2-9bbf-a9806082b294",
-        "written_utc": "2026-07-17 18:02:29",
-        "raw_ms": 1784311349566,
-        "bytes": 4205
-      },
-      {
-        "key": "casestudy:09bacaa2-8a46-4536-83f7-5edfeb8e7df4",
-        "written_utc": "2026-07-17 18:00:57",
-        "raw_ms": 1784311257031,
-        "bytes": 4540
-      },
-      {
-        "key": "casestudy:ccbfd61e-24f5-4d4b-9e2f-fcf07fcba29e",
-        "written_utc": "2026-07-17 18:00:05",
-        "raw_ms": 1784311205531,
-        "bytes": 5095
-      },
-      {
-        "key": "sectorlabels",
-        "written_utc": "2026-07-14 16:36:23",
-        "raw_ms": 1784046983970,
-        "bytes": 168626
-      },
-      {
-        "key": "watchlists:items:default",
-        "written_utc": "2026-07-05 12:47:10",
-        "raw_ms": 1783255630057,
-        "bytes": 69
-      },
-      {
-        "key": "casestudy:b16ebe0a-d1a9-4e16-af67-b46c481b39a2",
-        "written_utc": "2026-07-04 15:43:01",
-        "raw_ms": 1783179781086,
-        "bytes": 346
-      },
-      {
-        "key": "casestudy:0a85e1ff-00a9-4411-b278-c146df6a92d8",
-        "written_utc": "2026-07-04 15:32:22",
-        "raw_ms": 1783179142949,
-        "bytes": 2256
-      },
-      {
-        "key": "casestudy:e9dd0e5a-6cfe-444f-a8aa-8010111d8bfc",
-        "written_utc": "2026-07-04 06:36:00",
-        "raw_ms": 1783146960228,
-        "bytes": 1858
-      },
-      {
-        "key": "watchlists:index",
-        "written_utc": "2026-06-29 07:09:06",
-        "raw_ms": 1782716946777,
-        "bytes": 99
-      },
-      {
-        "key": "watchlists:items:b970335f-f263-4431-bc9d-4ea7aed10f64",
-        "written_utc": "2026-06-29 06:59:46",
-        "raw_ms": 1782716386081,
-        "bytes": 15
-      },
-      {
-        "key": "posts:index",
-        "written_utc": "2026-06-28 20:13:32",
-        "raw_ms": 1782677612757,
-        "bytes": 2
-      },
-      {
-        "key": "watchlist:default",
-        "written_utc": "2026-06-24 21:53:05",
-        "raw_ms": 1782337985616,
-        "bytes": 20
-      },
-      {
-        "key": "post:2026-06-14-nh-n-nh-th-tr-ng-06-2026",
-        "written_utc": "2026-06-24 21:53:05",
-        "raw_ms": 1782337985264,
-        "bytes": 4549
-      }
-    ],
-    "success": true,
-    "meta": {
-      "served_by": "v3-prod",
-      "served_by_region": "WEUR",
-      "served_by_colo": "AMS",
-      "served_by_primary": true,
-      "timings": {
-        "sql_duration_ms": 27.5161
-      },
-      "duration": 27.5161,
-      "changes": 0,
-      "last_row_id": 0,
-      "changed_db": false,
-      "size_after": 2498560,
-      "rows_read": 103,
-      "rows_written": 0,
-      "total_attempts": 1
-    }
-  }
-]
+Làm theo đúng thứ tự này
 
-════ 2. The overwrite window ════
-earliest_utc is the answer: Time Travel must target JUST BEFORE it.
-[
-  {
-    "results": [
-      {
-        "earliest_utc": "2026-06-24 21:53:05",
-        "latest_utc": "2026-08-05 07:37:32",
-        "rows": 16
-      }
-    ],
-    "success": true,
-    "meta": {
-      "served_by": "v3-prod",
-      "served_by_region": "WEUR",
-      "served_by_colo": "AMS",
-      "served_by_primary": true,
-      "timings": {
-        "sql_duration_ms": 1.0606
-      },
-      "duration": 1.0606,
-      "changes": 0,
-      "last_row_id": 0,
-      "changed_db": false,
-      "size_after": 2498560,
-      "rows_read": 87,
-      "rows_written": 0,
-      "total_attempts": 1
-    }
-  }
-]
+1. Sao lưu server ngay (làm đầu tiên, quan trọng nhất):
+cd screener-ts/apps/desktop
+npx wrangler d1 export screener-sync --remote --output ./kv-safe-2026-08-07.sql
+ls -la kv-safe-2026-08-07.sql     # phải thấy ~1 MB, không phải vài KB
+Copy file này ra chỗ khác (ngoài repo). Đây là bản bảo hiểm không phụ thuộc Cloudflare.
 
-════ 3. Is the app-level history table present yet? ════
-Empty/absent is EXPECTED if the fix has not been deployed — it only records
-from deploy onward and is not the recovery path for this incident.
-[
-  {
-    "results": [
-      {
-        "name": "kv_history"
-      },
-      {
-        "name": "kv_trash"
-      }
-    ],
-    "success": true,
-    "meta": {
-      "served_by": "v3-prod",
-      "served_by_region": "WEUR",
-      "served_by_colo": "AMS",
-      "served_by_primary": true,
-      "timings": {
-        "sql_duration_ms": 0.3095
-      },
-      "duration": 0.3095,
-      "changes": 0,
-      "last_row_id": 0,
-      "changed_db": false,
-      "size_after": 2498560,
-      "rows_read": 13,
-      "rows_written": 0,
-      "total_attempts": 1
-    }
-  }
-]
+2. Deploy bản đã sửa (kv_history/kv_trash đã có sẵn trên DB rồi — bạn đã chạy schema.sql):
+npm run build
+npx wrangler pages deploy dist --project-name the-professional
 
-════ 4. Oldest point Time Travel can still reach (30-day limit) ════
+3. Chỉ sau khi deploy xong, trên máy Mac: mở app → ☰ → Sync → Đăng xuất → nhập lại mã → Lưu & đồng bộ.
 
- ⛅️ wrangler 4.120.0
-────────────────────
-Resource location: remote 
+Bản mới đi đường freshCode: true: đăng nhập nghĩa là tải xuống, server thắng mọi khoá nó có, bất kể đồng hồ local. 16 dòng sẽ về máy.
 
-🚧 Time Traveling...
-⚠️ The current bookmark is '00000223-00000002-000050c0-039c539ebea690b8f78a4a9fd5c3c3e6'
-⚡️ To restore to this specific bookmark, run:
- `wrangler d1 time-travel restore screener-sync --bookmark=00000223-00000002-000050c0-039c539ebea690b8f78a4a9fd5c3c3e6`
-      
+4. Ngay khi thấy dữ liệu: ☰ → Sync → ⬇ Export data, lưu file screener-backup-*.json. Từ giờ giữ thói quen này.
 
-════ NEXT ════
-Take earliest_utc from section 2, subtract ~10 minutes, and probe THAT instant.
-Probe into a COPY first — never restore blind:
+Hai điều tôi cần nói thẳng
 
-  npx wrangler d1 export screener-sync --remote --output ./kv-now.sql   # safety copy
-  npx wrangler d1 time-travel info screener-sync --timestamp <earliest_utc minus 10min>
+Có thể gặp lỗi quota ở bước 3. Tổng dữ liệu ~1,1 MB, cộng bản snapshot trước khi merge là ~2,2 MB, cộng cache pf_bars:* đã có sẵn trong localStorage. Giới hạn localStorage thường ~5 MB. Nếu bước 3 báo lỗi, nói tôi biết — cách xử lý là xoá cache pf_bars:* trước khi pull, và tôi sẽ cần sửa code để làm việc đó tự động chứ không phải bằng tay.
 
-Paste both outputs back before running any 'time-travel restore'.
+912 KB cho accounts là bất thường. Một portfolio bình thường nặng vài chục KB. Nghi ngờ trong đó có dữ liệu nhúng thừa (bars giá, hoặc lot bị nhân bản qua nhiều lần lưu). Chuyện này không cấp bách và không ảnh hưởng việc phục hồi — nhưng sau khi dữ liệu về máy an toàn, tôi nên xem lại, vì nó cũng chính là thứ đẩy bạn tới sát giới hạn quota ở trên.
+
+Chạy bước 1 rồi gửi tôi kích thước file dump — tôi xác nhận trước khi bạn deploy.
