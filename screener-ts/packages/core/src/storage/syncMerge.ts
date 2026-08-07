@@ -101,3 +101,48 @@ export function decidePush(
  * what let a new device's defaults beat months-old data.
  */
 export const UNSTAMPED_PUSH_TS = 1;
+
+/**
+ * A write must survive a size sanity check before it may replace stored data:
+ * anything that discards this fraction or more of the old value is treated as a
+ * wipe rather than an edit.
+ *
+ * 0.5 is deliberately loose. Ordinary editing — closing a position, deleting a
+ * watchlist entry — trims a few percent, nowhere near half. Halving a row means
+ * something structural happened, and the only structural events in practice are a
+ * deliberate mass delete (which passes an explicit override) and the bug.
+ */
+export const COLLAPSE_RATIO = 0.5;
+
+/** Values below this are too small for a ratio to mean anything. */
+const COLLAPSE_MIN_BYTES = 200;
+
+/**
+ * Why a write should be refused, or `null` if it is fine. `prev`/`next` are the
+ * SERIALISED values, so the check needs no knowledge of any particular schema and
+ * covers every key uniformly.
+ *
+ * Timestamps cannot decide this. Last-write-wins trusts a clock the client
+ * supplies, and a freshly-installed device genuinely reports a newer one — so
+ * ranking by clock hands victory to first-boot defaults over months-old real data.
+ * This looks at the payload instead, which the client cannot misreport.
+ *
+ * The incident that motivated it: a ~40 KB `accounts` row replaced by a ~300-byte
+ * starter account. Note an "is it empty?" test would have MISSED it — the starter
+ * account is `[{account:…, lots:[]}]`, a one-element array. Size ratio catches
+ * both that and a literal `[]`.
+ */
+export function collapseVerdict(prev: string, next: string): string | null {
+  // Nothing stored yet, or an identical write: never a collapse.
+  if (!prev || prev === next) return null;
+  // Growth and small changes are always fine.
+  if (next.length >= prev.length) return null;
+  // Below the floor, a "90% drop" is a handful of bytes and means nothing.
+  if (prev.length < COLLAPSE_MIN_BYTES) return null;
+
+  const kept = next.length / prev.length;
+  if (kept > 1 - COLLAPSE_RATIO) return null;
+
+  const dropped = Math.round((1 - kept) * 100);
+  return `this write discards ${dropped}% of the stored value (${prev.length} → ${next.length} bytes)`;
+}

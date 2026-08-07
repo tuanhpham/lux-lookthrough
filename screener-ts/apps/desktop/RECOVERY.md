@@ -51,6 +51,21 @@ pull and push halves never both act on one key.
 
 **Server** (`functions/api/sync/[[path]].ts`, `schema.sql`):
 
+- **Collapse guard** — `PUT` refuses (409) a write that discards ≥50% of a stored
+  value of ≥200 bytes. This is the one guard that does not trust timestamps, and
+  that matters because *the untrustworthy input is the timestamp*: a fresh install
+  honestly reports a newer clock than months-old data, so no clock-based rule can
+  tell the two apart. This one looks at the payload, which a client cannot
+  misreport. Shared spec: `collapseVerdict` in core (unit-tested), mirrored into
+  the Pages Function because Functions cannot import workspace packages.
+  - An "is it empty?" check would have **missed this incident** — the starter
+    account is `[{account:…, lots:[]}]`, a one-element array, not `[]`.
+  - Deliberate mass deletes still work: a user write on a hydrated store retries
+    with `?allowShrink=1` (`remotePut(..., { deliberate: true })`). First-boot
+    defaults and the merge's push-up half never set it, so for them a 409 is the
+    correct outcome — the server keeps its value and the next pull brings it down.
+  - **This is what makes a Time Travel restore survive** a device still running the
+    old build, which is what defeated the first recovery attempt.
 - Overwrites archive the previous value to `kv_history`; deletes archive to
   `kv_trash`. LWW on a client clock cannot be made safe on the server alone, so
   the server stops discarding old values.
@@ -62,13 +77,42 @@ persisting it unless there is legacy data to migrate.
 
 ## Recovery — run in this order
 
-The order matters: steps 1–2 are read-only and preserve evidence. Do not open the
-app on a device that still has data until step 2 is done.
+### 0. STOP THE BLEEDING FIRST — before any restore
 
-### 0. Preserve what still exists
+**A restored database is overwritten again within seconds if any device is still
+running the old build with a stored access code.** Signing in is not required:
+`enterApp()` opens Portfolio on every app entry, which seeds defaults, stamps them
+`Date.now()`, and pushes. The restore succeeds, then vanishes — looking exactly
+like "Time Travel didn't work".
+
+This bit the first recovery attempt. Do this before anything else:
+
+- On **every** device with the app open: **☰ → Sync → Sign out**. That clears only
+  the access code (`sync:code`); local data is kept, and with no code every push
+  is a no-op. Or just close every tab running the app.
+- **Better: deploy the fixed build (step 4) before restoring.** The server-side
+  collapse guard then rejects the wiping write outright, so even a device on the
+  old build cannot flatten a restored row. Deploying first turns recovery from
+  "race the clients" into a safe operation, so prefer it whenever possible.
+
+Ordering rule: **quiesce → measure → deploy → restore → sign back in.** (Deploy
+before restore: only the deployed guard makes the restored data stick. If for some
+reason you must restore first, keep every client closed until the deploy lands.)
+
+### 0b. Preserve what still exists
 
 On any device that still shows the real data, open **☰ → Sync → ⬇ Export data**
 *before* touching the code field. Keep that file.
+
+### 0c. Measure the overwrite time — do not guess it
+
+`scripts/diagnose-loss.sh` prints `kv.updated_at` for every live row. That column
+IS the moment the overwrite happened. Aim Time Travel ~10 minutes before it.
+
+Restoring to a guessed instant that is *after* the overwrite silently returns an
+already-empty snapshot. And note Time Travel keeps **every** point in the last 30
+days: restoring does not consume bookmarks, so a wrong probe costs nothing and is
+undoable. The only hard boundary is the 30-day limit.
 
 ### 1. Authenticate wrangler (read-only steps follow)
 
@@ -80,46 +124,32 @@ npx wrangler login
 ### 2. See what the server holds now, and what it held before
 
 ```bash
-# Current live rows
-npx wrangler d1 execute screener-sync --remote \
-  --command "SELECT key, updated_at, length(value) AS bytes FROM kv ORDER BY updated_at DESC LIMIT 40"
-
-# D1 keeps 30 days of point-in-time history — this is the real recovery path,
-# and it covers the loss regardless of the app-level history added above.
-npx wrangler d1 time-travel info screener-sync --timestamp 2026-08-01T00:00:00Z
+bash scripts/diagnose-loss.sh     # read-only: live rows + the overwrite window
 ```
 
-`time-travel info` returns a **bookmark** for that instant. Pick a timestamp from
-*before* you signed in on the new device.
-
-### 3. Recover without overwriting anything (preferred)
-
-Restore into a copy first, read the rows out, and only then decide:
+Then resolve a bookmark for ~10 minutes before the `earliest_utc` it reports. The
+timestamp below is a PLACEHOLDER — substitute the measured one:
 
 ```bash
-# Full dump of the CURRENT database, as a safety net before any restore
-npx wrangler d1 export screener-sync --remote --output ./kv-before-restore.sql
+npx wrangler d1 time-travel info screener-sync --timestamp <measured-minus-10min>
 ```
 
-Then either:
+D1 keeps 30 days of point-in-time history. This is the real recovery path and it
+covers the loss regardless of the app-level history tables, which only record from
+deploy onward.
 
-**(a) Point-in-time restore** — puts the whole DB back as it was:
+To search when the exact instant is unclear, `scripts/probe-timestamp.sh <ts>`
+restores to one instant, reports the size of `accounts` at that point (a few
+hundred bytes = still the empty starter account; tens of KB = the real portfolio),
+dumps it to `recovery-tickets/`, and saves a return bookmark on first run.
 
-```bash
-npx wrangler d1 time-travel restore screener-sync --timestamp 2026-08-01T00:00:00Z
-```
+### 3. Deploy the fix — BEFORE the restore, not after
 
-This is the cleanest fix if nothing worth keeping was written since. It is
-undoable via another bookmark, and `kv-before-restore.sql` is the belt-and-braces
-copy.
-
-**(b) Surgical** — read the old value out of the dump and PUT just that key back
-through the app (Sync dialog → history), leaving newer rows alone.
-
-### 4. Deploy the fix BEFORE signing in again
-
-Restoring while the old build is still live invites a repeat: any device running
-the old code can push its defaults over the restored rows again.
+This ordering is the whole lesson of the failed first attempt. Restoring while the
+old build is live invites an immediate repeat: any device running the old code
+pushes its defaults over the restored rows on mere app open. Once the fixed build
+is deployed, the server's collapse guard rejects that write, so the restored data
+holds even if a stale client is still running.
 
 ```bash
 cd screener-ts/apps/desktop
@@ -131,7 +161,38 @@ npx wrangler pages deploy dist --project-name the-professional        # MUST run
 `schema.sql` is `CREATE TABLE IF NOT EXISTS` throughout, so re-applying it is safe
 and touches no existing data.
 
+### 4. Restore, keeping a way back
+
+```bash
+# Full dump of the CURRENT database, as a safety net before any restore
+npx wrangler d1 export screener-sync --remote --output ./kv-before-restore.sql
+```
+
+Then either:
+
+**(a) Point-in-time restore** — puts the whole DB back as it was. Substitute the
+timestamp measured in step 0c; the one below is only a shape example:
+
+```bash
+npx wrangler d1 time-travel restore screener-sync --timestamp <measured-minus-10min>
+```
+
+This is the cleanest fix if nothing worth keeping was written since. It is
+undoable via another bookmark, and `kv-before-restore.sql` is the belt-and-braces
+copy.
+
+**(b) Surgical** — read the old value out of the dump and PUT just that key back
+through the app (Sync dialog → history), leaving newer rows alone.
+
 ### 5. Verify
 
 Sign in on a spare device/profile and confirm the real data appears rather than an
 empty starter account. Then check **Sync → 🕘 Browse versions** lists entries.
+
+Confirm the guard is live too — a wiping write should now be refused:
+
+```bash
+# Should print the row's real size, and keep printing it after any device opens.
+npx wrangler d1 execute screener-sync --remote \
+  --command "SELECT key, length(value) AS bytes FROM kv WHERE key = 'accounts'"
+```

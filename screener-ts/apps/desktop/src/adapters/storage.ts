@@ -216,8 +216,13 @@ export class SyncedStorage implements Storage {
       pendingPushes.set(key, { value, ts });
       return;
     }
+    // Past hydration this device has seen the account's data, so a write that
+    // shrinks a key is a real change (closing positions, clearing a watchlist),
+    // not a first-boot default. Mark it deliberate so the server's collapse guard
+    // does not silently reject it and then push the old value back down. The
+    // previous value is still archived to kv_history, so it stays recoverable.
     // Best-effort: a failed push must not break the local write.
-    void remotePut(key, value, ts).catch(() => {
+    void remotePut(key, value, ts, { deliberate: true }).catch(() => {
       /* offline / transient — local copy is the source of truth until next sync */
     });
   }
@@ -365,6 +370,9 @@ export async function pullAndMerge(
   }
 
   // 2) Local → remote.
+  // NOTE: these pushes deliberately do NOT set `deliberate` — none of them came
+  // from a user action, so if one would collapse a server row the server's 409 is
+  // the right answer. The value stays safe remotely and arrives on the next pull.
   try {
     for (const { key, value, ts } of await storage.localEntries()) {
       const remote = remoteByKey.get(key);

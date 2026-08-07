@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { decidePull, decidePush, UNSTAMPED_PUSH_TS } from '../../src/storage/syncMerge.js';
+import {
+  decidePull,
+  decidePush,
+  collapseVerdict,
+  UNSTAMPED_PUSH_TS,
+  COLLAPSE_RATIO,
+} from '../../src/storage/syncMerge.js';
 import type { MergeContext } from '../../src/storage/syncMerge.js';
 
 /** Steady state: a device that has been synced for a while. */
@@ -136,5 +142,70 @@ describe('full-scenario replays', () => {
     // The original design goal — do not wipe a device that has genuine work but
     // has never synced.
     expect(decidePush(REAL_DATA_TS, null, signingIn)).toBe('push');
+  });
+});
+
+describe('collapseVerdict — the payload-shaped backstop', () => {
+  /** A stand-in for a real `accounts` row: big enough to matter. */
+  const realPortfolio = JSON.stringify(
+    Array.from({ length: 40 }, (_, i) => ({
+      ticker: `SYM${i}`,
+      buyPrice: 100 + i,
+      remainingShares: 10,
+      stop: 90,
+      target: 130,
+    })),
+  );
+  /** What a fresh device seeds: ONE account with NO lots. */
+  const starterAccount = JSON.stringify([
+    { account: { name: 'Strategy A', initialCapital: 50000, currency: 'EUR' }, lots: [] },
+  ]);
+
+  it('refuses the exact write that caused the incident', () => {
+    // ~4KB of positions replaced by a ~100-byte starter account.
+    const verdict = collapseVerdict(realPortfolio, starterAccount);
+    expect(verdict).toMatch(/discards \d+% of the stored value/);
+  });
+
+  it('catches a one-element starter account, which an emptiness test would miss', () => {
+    // The starter account is `[{account:…, lots:[]}]` — a NON-empty array. This is
+    // why the guard measures size instead of asking "is it empty?".
+    expect(JSON.parse(starterAccount)).toHaveLength(1);
+    expect(collapseVerdict(realPortfolio, starterAccount)).not.toBeNull();
+  });
+
+  it('refuses a literal empty array over real data too', () => {
+    expect(collapseVerdict(realPortfolio, '[]')).not.toBeNull();
+  });
+
+  it('allows ordinary editing — closing one of many positions', () => {
+    // Must not cry wolf: normal edits trim a few percent, and a false refusal
+    // would silently stop real changes from syncing.
+    const oneFewer = JSON.stringify(JSON.parse(realPortfolio).slice(0, 39));
+    expect(collapseVerdict(realPortfolio, oneFewer)).toBeNull();
+  });
+
+  it('allows growth and identical rewrites', () => {
+    const bigger = JSON.stringify([...JSON.parse(realPortfolio), { ticker: 'NEW' }]);
+    expect(collapseVerdict(realPortfolio, bigger)).toBeNull();
+    expect(collapseVerdict(realPortfolio, realPortfolio)).toBeNull();
+  });
+
+  it('ignores tiny values, where a ratio is meaningless', () => {
+    // '{"a":1}' → '{}' is a 71% drop but only 5 bytes; blocking it would break
+    // legitimate small keys like a UI preference being reset.
+    expect(collapseVerdict('{"a":1}', '{}')).toBeNull();
+  });
+
+  it('has nothing to say when the server holds no value yet', () => {
+    expect(collapseVerdict('', realPortfolio)).toBeNull();
+  });
+
+  it('sits exactly at the documented threshold', () => {
+    const prev = 'x'.repeat(1000);
+    // Just inside the allowance (keeps 51%) vs just past it (keeps 49%).
+    expect(collapseVerdict(prev, 'x'.repeat(510))).toBeNull();
+    expect(collapseVerdict(prev, 'x'.repeat(490))).not.toBeNull();
+    expect(COLLAPSE_RATIO).toBe(0.5);
   });
 });

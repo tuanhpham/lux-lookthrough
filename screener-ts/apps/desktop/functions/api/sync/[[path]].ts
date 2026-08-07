@@ -59,6 +59,26 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
+// ── Collapse detection ───────────────────────────────────────────────────────
+// MIRROR of `collapseVerdict` in packages/core/src/storage/syncMerge.ts, where it
+// is unit-tested. Duplicated rather than imported because Pages Functions are
+// bundled separately from the app and cannot resolve the workspace package. Keep
+// the two in step; the core copy is the spec.
+const COLLAPSE_RATIO = 0.5;
+const COLLAPSE_MIN_BYTES = 200;
+
+/** Why a write should be refused, or null if it is fine. Operates on the
+ * SERIALISED values, so it is schema-agnostic and applies to every key. */
+function collapseVerdict(prev: string, next: string): string | null {
+  if (!prev || prev === next) return null;
+  if (next.length >= prev.length) return null;
+  if (prev.length < COLLAPSE_MIN_BYTES) return null;
+  const kept = next.length / prev.length;
+  if (kept > 1 - COLLAPSE_RATIO) return null;
+  const dropped = Math.round((1 - kept) * 100);
+  return `this write discards ${dropped}% of the stored value (${prev.length} → ${next.length} bytes)`;
+}
+
 async function resolveUser(env: Env, request: Request): Promise<{ id: string; name: string | null } | null> {
   const code = request.headers.get('x-sync-code')?.trim();
   if (!code) return null;
@@ -201,6 +221,46 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
         if (!body || !('value' in body)) return json({ error: 'missing value' }, 400);
         const updatedAt = typeof body.updatedAt === 'number' ? body.updatedAt : 0;
         const nextValue = JSON.stringify(body.value);
+
+        // ── Collapse guard: the last line of defence ─────────────────────────
+        // Refuse a write that DESTROYS most of a row's content, unless the client
+        // says it means to (`?allowShrink=1`).
+        //
+        // Timestamp-based rules cannot catch this, because the untrustworthy input
+        // IS the timestamp — a fresh device honestly reports a newer clock. So this
+        // guard ignores clocks and looks at the data: replacing 40 KB of portfolio
+        // with a 300-byte starter account is not an edit, it is a wipe.
+        //
+        // Note an emptiness-only check would MISS the real incident: the starter
+        // account is `[{account:…, lots:[]}]` — a one-element array, not `[]`.
+        // Hence the size ratio, which catches both shapes.
+        //
+        // This is also what protects a Time Travel restore from being clobbered by
+        // a device still running an old build before the fix is deployed.
+        {
+          const url = new URL(request.url);
+          if (url.searchParams.get('allowShrink') !== '1') {
+            const cur = await env.DB.prepare('SELECT value FROM kv WHERE user_id = ? AND key = ?')
+              .bind(user.id, key)
+              .first<{ value: string }>();
+            const verdict = cur ? collapseVerdict(cur.value, nextValue) : null;
+            if (verdict) {
+              // 409, not 500: the client is wrong, not broken. Pushes are
+              // best-effort and swallow errors, so this is silent and harmless —
+              // and the local copy is untouched, so nothing is lost either way.
+              return json(
+                {
+                  error: `refusing to overwrite: ${verdict}`,
+                  key,
+                  wasBytes: cur!.value.length,
+                  nowBytes: nextValue.length,
+                  hint: 'add ?allowShrink=1 if this deletion is deliberate',
+                },
+                409,
+              );
+            }
+          }
+        }
 
         // Archive the CURRENT value before overwriting it, but only when the write
         // actually changes something. Last-write-wins on a client clock cannot be

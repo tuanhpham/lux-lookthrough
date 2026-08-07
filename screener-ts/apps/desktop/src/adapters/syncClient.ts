@@ -80,14 +80,36 @@ export async function remoteGet<T>(key: string): Promise<{ value: T; updatedAt: 
   return (await res.json()) as { value: T; updatedAt: number };
 }
 
-/** Upsert one key with a last-write-wins timestamp. */
-export async function remotePut<T>(key: string, value: T, updatedAt: number): Promise<void> {
+/**
+ * Upsert one key with a last-write-wins timestamp.
+ *
+ * The server refuses (409) a write that discards most of the stored value — its
+ * collapse guard, the backstop against a fresh device wiping real data. That guard
+ * cannot tell a wipe from a deliberate mass delete, so the CLIENT resolves it:
+ * pass `deliberate: true` for a write that came from a user action on a hydrated
+ * store, and the retry carries `?allowShrink=1`.
+ *
+ * Never pass it for first-boot defaults or for the merge's push-up half — those
+ * are exactly the writes the guard exists to stop, and a 409 there is the correct
+ * outcome (the server keeps its value, and the next pull brings it down).
+ */
+export async function remotePut<T>(
+  key: string,
+  value: T,
+  updatedAt: number,
+  opts: { deliberate?: boolean } = {},
+): Promise<void> {
   if (!isSyncEnabled()) return;
-  const res = await fetch(`${BASE}/kv/${encodeURI(key)}`, {
-    method: 'PUT',
-    headers: headers(),
-    body: JSON.stringify({ value, updatedAt }),
-  });
+  const body = JSON.stringify({ value, updatedAt });
+  const put = (qs = '') =>
+    fetch(`${BASE}/kv/${encodeURI(key)}${qs}`, { method: 'PUT', headers: headers(), body });
+
+  let res = await put();
+  if (res.status === 409 && opts.deliberate) {
+    // The user really did shrink this key. Re-send with the override; the server
+    // still archives the previous value to kv_history, so it stays undoable.
+    res = await put('?allowShrink=1');
+  }
   if (!res.ok) throw new Error(`sync put ${key}: HTTP ${res.status}`);
 }
 
