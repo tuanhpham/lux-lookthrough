@@ -163,3 +163,35 @@ npm error location /Users/huongnguyen105/Documents/Github/lux-lookthrough/screen
 npm error command failed
 npm error command sh -c tsc -p tsconfig.json --noEmit && vite build
 huongnguyen105@ca33c9e1-fd07-4d33-928b-d48e182c2a85 screener-ts % 
+
+huongnguyen105@Huongs-MacBook-Air desktop % npm run build
+
+> @screener/desktop@0.1.0 build
+> tsc -p tsconfig.json --noEmit && vite build
+
+src/adapters/storage.ts:1:24 - error TS2305: Module '"@screener/core"' has no exported member 'decidePull'.
+
+1 import { type Storage, decidePull, decidePush, UNSTAMPED_PUSH_TS } from '@screener/core';
+                         ~~~~~~~~~~
+
+src/adapters/storage.ts:1:36 - error TS2305: Module '"@screener/core"' has no exported member 'decidePush'.
+
+1 import { type Storage, decidePull, decidePush, UNSTAMPED_PUSH_TS } from '@screener/core';
+                                     ~~~~~~~~~~
+
+src/adapters/storage.ts:1:48 - error TS2305: Module '"@screener/core"' has no exported member 'UNSTAMPED_PUSH_TS'.
+
+1 import { type Storage, decidePull, decidePush, UNSTAMPED_PUSH_TS } from '@screener/core';
+                                                 ~~~~~~~~~~~~~~~~~
+
+
+Found 3 errors in the same file, starting at: src/adapters/storage.ts:1
+
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
+npm error workspace @screener/desktop@0.1.0
+npm error location /Users/huongnguyen105/Documents/Github/lux-lookthrough/screener-ts/apps/desktop
+npm error command failed
+npm error command sh -c tsc -p tsconfig.json --noEmit && vite build
+huongnguyen105@Huongs-MacBook-Air desktop % 
