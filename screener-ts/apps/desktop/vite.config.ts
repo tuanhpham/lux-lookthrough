@@ -129,6 +129,21 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/nasdaqtrader/, ''),
       },
+      // NASDAQ calendar API (earnings / dividends / splits / IPOs / econ events)
+      // for the Calendar tab. Needs a browser UA + Accept or it 403s, and it
+      // rejects the default `Origin: localhost` — so both are forced here to
+      // match what the Cloudflare function sends.
+      '/api/nasdaqcal': {
+        target: 'https://api.nasdaq.com/api',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/nasdaqcal/, ''),
+        headers: {
+          'User-Agent': UA,
+          accept: 'application/json, text/plain, */*',
+          referer: 'https://www.nasdaq.com/',
+          origin: 'https://www.nasdaq.com',
+        },
+      },
       // VNDirect dchart — Vietnam OHLCV (HOSE + HNX + UPCoM).
       '/api/vndirect': {
         target: 'https://dchart-api.vndirect.com.vn/dchart',

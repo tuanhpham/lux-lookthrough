@@ -146,7 +146,7 @@ table td,
 
 /* Shared brand: serif, no icon */
 .app-brand {
-  display: flex; align-items: center; cursor: pointer; user-select: none;
+  display: flex; align-items: center; cursor: pointer; -webkit-user-select: none; user-select: none;
 }
 .app-brand-name {
   font-family: 'Source Serif 4', Georgia, serif;
@@ -166,15 +166,21 @@ html.light .app-brand-name { color: rgba(10,10,10,.75); }
 html.light .app-menu-btn { color: rgba(10,10,10,.65); }
 .app-menu-btn svg { width: 22px; height: 22px; }
 
-/* App menu — single centered column, matching reference */
+/* App menu — single centered column, matching reference.
+   min-height:0 + overflow-y let the 12-item list scroll instead of overflowing
+   the panel on short viewports (e.g. iPhone SE), where the last items would
+   otherwise be clipped and unreachable.                                       */
 .app-menu-nav {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   flex: 1; gap: 10px;
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  width: 100%; padding: 8px 18px;
 }
 .app-menu-col { display: contents; }
 .app-menu-footer {
   flex-direction: row !important; gap: 24px !important;
-  padding: 16px 24px 40px; flex: unset !important;
+  padding: 16px 24px 40px; flex: unset !important; flex-shrink: 0;
 }
 
 @media (max-height: 820px) {
@@ -183,7 +189,19 @@ html.light .app-menu-btn { color: rgba(10,10,10,.65); }
   .app-menu-footer { padding-bottom: 24px; }
 }
 
-/* App menu items — smaller than landing (11 items vs 1) */
+/* Short phones (iPhone SE and similar): tighten enough that all 12 items fit
+   without scrolling, and keep the footer clear of the home indicator.         */
+@media (max-height: 700px) {
+  #app-menu .sl-menu-item { font-size: clamp(13px, 4.1vw, 17px); padding-bottom: 1px; }
+  .app-menu-nav { gap: 1px; padding: 2px 18px; }
+  #app-menu .sl-menu-header { height: 44px; }
+  .app-menu-footer {
+    padding: 6px 24px calc(10px + env(safe-area-inset-bottom));
+    gap: 18px !important;
+  }
+}
+
+/* App menu items — smaller than landing (13 items vs 1) */
 #app-menu .sl-menu-item {
   font-size: clamp(18px, 2.4vw, 26px);
   font-weight: 300;
@@ -401,8 +419,8 @@ button.btn:active, button.btn-outline:active { transform: translateY(1px); }
 /* Account dropdown — color-scheme tells the browser to use the right OS theme
    for the native option popup (fixes white-on-white in dark mode)             */
 .pf-acct-select {
-  appearance: none;
   -webkit-appearance: none;
+  appearance: none;
   padding: 0 26px 0 10px;
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 7px center;
   border: 1px solid var(--border);
@@ -505,7 +523,7 @@ th {
   letter-spacing: .07em; font-family: var(--font-ui);
   position: sticky; top: 0; background: var(--card); z-index: 1;
 }
-th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable { cursor: pointer; -webkit-user-select: none; user-select: none; white-space: nowrap; }
 th.sortable:hover { color: var(--text); }
 th.sorted { color: var(--accent); }
 tbody tr { cursor: pointer; transition: background .12s ease; }
@@ -579,7 +597,7 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 
 /* ── In-app dialog ───────────────────────────────────────────────────────── */
 .dialog-host { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; }
-.dialog-backdrop { position: absolute; inset: 0; background: rgba(3, 5, 9, .6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.dialog-backdrop { position: absolute; inset: 0; background: rgba(3, 5, 9, .6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .dialog {
   position: relative; width: min(380px, 92vw); background: var(--card);
   border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg);
@@ -768,7 +786,7 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 
 /* ── Stock detail modal ──────────────────────────────────────────────────── */
 .modal { position: fixed; inset: 0; z-index: 50; }
-.modal-backdrop { position: absolute; inset: 0; background: rgba(3, 5, 9, .6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(3, 5, 9, .6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); cursor: pointer; }
 .modal-panel {
   position: absolute; inset: 3% 50% auto auto; transform: translateX(50%);
   width: min(860px, 94vw); max-height: 92vh; overflow-y: auto;
@@ -781,7 +799,7 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .modal-head {
   position: sticky; top: 0; z-index: 2;
   background: color-mix(in srgb, var(--card) 82%, transparent);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   display: flex; justify-content: space-between; align-items: center;
   padding: 15px 20px; border-bottom: 1px solid var(--border);
 }
@@ -1047,8 +1065,8 @@ html.light .sl-hero .sl-hero-cta:hover {
       rgba(14,14,14,.35) 55%,
       rgba(14,14,14,.55) 100%),
     rgba(14,14,14,.78);
-  backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
 }
 html.light #sl-menu {
   background:
@@ -1223,7 +1241,7 @@ html.light .sl-hero-quote {
   background: rgba(10,10,10,.08); border: 1px solid rgba(10,10,10,.28);
   color: rgba(10,10,10,.88); font-size: 14px; font-weight: 600; letter-spacing: .04em;
   padding: 12px 28px; border-radius: 999px; cursor: pointer;
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   transition: background .2s, border-color .2s, color .2s;
 }
 .sl-hero-cta:hover {
@@ -1330,7 +1348,7 @@ html.light .sl-story .story-final { color: rgba(10,10,10,.72); }
 .sl-break span {
   font-size: 16px; letter-spacing: .55em;
   color: rgba(255,255,255,.18);
-  font-family: var(--font-ui); user-select: none;
+  font-family: var(--font-ui); -webkit-user-select: none; user-select: none;
 }
 html.light .sl-break span {
   color: rgba(0,0,0,.18);
@@ -1342,8 +1360,8 @@ html.light .sl-break span {
   position: fixed; inset: 0; z-index: 50;
   pointer-events: none;
   background: rgba(14,14,14,.55);
-  backdrop-filter: blur(28px) saturate(0.8);
   -webkit-backdrop-filter: blur(28px) saturate(0.8);
+  backdrop-filter: blur(28px) saturate(0.8);
   will-change: opacity;
   opacity: 0;
   transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
@@ -1515,8 +1533,8 @@ html.light #sl-exit-overlay::before {
 #sl-exit-overlay::after {
   content: '';
   position: absolute; inset: 0;
-  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   /* mask: transparent center → opaque edges */
   -webkit-mask-image: radial-gradient(ellipse at center,
     transparent 0%, transparent 28%, black 62%);
@@ -1542,8 +1560,8 @@ html.light #sl-exit-overlay::before {
   outline: 1.5px dashed rgba(255,255,255,.45);
   outline-offset: 8px;
   background: rgba(255,255,255,.04);
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   color: rgba(255,255,255,.88);
   font-family: var(--font-ui);
   font-size: 11px; font-weight: 400;
@@ -1629,8 +1647,8 @@ html.light .sl-hero-figure { opacity: .78; }
       rgba(14,14,14,.35) 55%,
       rgba(14,14,14,.55) 100%),
     rgba(14,14,14,.78);
-  backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
 }
 html.light #tl-menu {
   background:
@@ -1871,6 +1889,7 @@ html.light #tl-menu {
   padding: 12px 15px;
   box-shadow: 0 8px 32px rgba(0,0,0,.28), 0 1px 4px rgba(0,0,0,.18);
   pointer-events: none;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 .tooltip .tt-term {
@@ -1956,7 +1975,9 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
 
 /* ── App cinematic menu overlay ── */
 #app-menu {
-  position: fixed; top: 0; left: 0; right: 0; height: 90vh; z-index: 200;
+  /* dvh (not vh): on iOS Safari, vh is the URL-bar-collapsed height, so 90vh
+     renders taller than the visible area and clips the bottom of the menu.    */
+  position: fixed; top: 0; left: 0; right: 0; height: 90vh; height: 90dvh; z-index: 200;
   display: flex; flex-direction: column;
   opacity: 0; pointer-events: none;
   transition: opacity 0.6s ease;
@@ -1966,8 +1987,8 @@ input[type="date"].field::-webkit-calendar-picker-indicator:hover { opacity: 1; 
       rgba(14,14,14,.35) 55%,
       rgba(14,14,14,.55) 100%),
     rgba(14,14,14,.78);
-  backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
 }
 html.light #app-menu {
   background:
@@ -1992,7 +2013,7 @@ html.light #app-menu {
   .card { padding: 14px; border-radius: var(--radius); }
   .landing-h1 { font-size: 38px; }
   .landing-sub { font-size: 16px; }
-  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
   th { position: static; }
   .grid-cards { grid-template-columns: 1fr; }
 
@@ -2630,4 +2651,133 @@ html[lang="vi"] .tl-h1 { letter-spacing: .01em; }
 .status-chip--muted {
   background: color-mix(in srgb, var(--subtext) 8%, transparent);
   border-color: var(--border-soft); color: var(--faint);
+}
+
+/* ── Calendar tab ───────────────────────────────────────────────────────────
+   Three layers, same data: the "next 7 days" strip (what to prepare for), the
+   month view (shape of the month), and the day detail panel.
+
+   The month view is a 7-column grid on wide screens and a flat day LIST on
+   phones — a 7-column grid on an iPhone SE gives ~45px cells, which can't hold
+   a date plus event chips. Only one of the two is ever displayed.            */
+
+/* Kind filter chips. `--chip` is set inline per kind. */
+.cal-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; border: 1px solid var(--border); color: var(--subtext);
+  border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: var(--font-ui);
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.cal-chip:hover { color: var(--text); border-color: var(--faint); }
+.cal-chip.on {
+  color: var(--chip); border-color: color-mix(in srgb, var(--chip) 45%, transparent);
+  background: color-mix(in srgb, var(--chip) 10%, transparent);
+}
+.cal-glyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 4px; flex: none;
+  background: color-mix(in srgb, var(--chip) 22%, transparent);
+  color: var(--chip); font-size: 9px; font-weight: 800; line-height: 1;
+}
+
+/* Event cards — used by both the 7-day strip and the day panel. */
+.cal-strip {
+  display: grid; gap: 10px; margin-bottom: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+}
+.cal-card {
+  border: 1px solid var(--border-soft); border-left: 3px solid var(--chip);
+  border-radius: 10px; padding: 10px 12px; background: var(--card);
+  display: flex; flex-direction: column; gap: 5px;
+}
+.cal-card-head { display: flex; align-items: center; gap: 7px; }
+.cal-card-date { font-size: 11px; margin-left: auto; flex: none; }
+.cal-sym {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--accent); font: 700 14px var(--font-ui); letter-spacing: -.01em;
+}
+.cal-sym:hover { text-decoration: underline; }
+.cal-sym-none { font-size: 11px; font-weight: 700; color: var(--chip);
+  text-transform: uppercase; letter-spacing: .05em; }
+.cal-card-title { font-size: 13px; line-height: 1.35; color: var(--text); }
+.cal-card-detail { font-size: 11.5px; color: var(--subtext); line-height: 1.4; }
+.cal-card-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.cal-card-badges:empty { display: none; }
+
+/* Month grid (desktop). */
+.cal-monthgrid { margin-top: 4px; }
+.cal-dow {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+  margin-bottom: 6px;
+}
+.cal-dow span {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--faint); text-align: center;
+}
+.cal-cells { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-cell {
+  min-height: 78px; border: 1px solid var(--border-soft); border-radius: 9px;
+  background: var(--card); padding: 6px 7px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: border-color .15s ease, background .15s ease;
+}
+.cal-cell:hover { background: var(--cardhover); border-color: var(--faint); }
+.cal-cell--pad { visibility: hidden; pointer-events: none; }
+.cal-cell--weekend { background: var(--surface); opacity: .55; }
+.cal-cell--today { border-color: var(--accent-line); }
+.cal-cell--today .cal-cell-date { color: var(--accent); }
+.cal-cell--sel {
+  border-color: var(--accent); background: var(--accent-wash);
+}
+/* Hatched = the source has NO DATA for this day, which is NOT the same as
+   "nothing is scheduled". Leaving it plain would be a false all-clear.       */
+.cal-cell--nodata {
+  cursor: help;
+  background:
+    repeating-linear-gradient(-45deg,
+      transparent 0 5px,
+      color-mix(in srgb, var(--faint) 13%, transparent) 5px 10px);
+}
+/* Has events, but at least one active kind has no data for this day — the counts
+   shown are a floor, not the total. Corner dot rather than a hatch, so the chips
+   stay readable.                                                              */
+.cal-cell--partial { position: relative; cursor: help; }
+.cal-cell--partial::after {
+  content: ''; position: absolute; top: 5px; right: 5px;
+  width: 5px; height: 5px; border-radius: 50%; background: #ffb648;
+}
+.cal-cell-date { font: 700 12px var(--font-mono, monospace); color: var(--subtext); }
+.cal-cell-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.cal-daychip {
+  display: inline-flex; align-items: center; gap: 2px;
+  border-radius: 4px; padding: 1px 4px; font-size: 9.5px; font-weight: 800;
+  background: color-mix(in srgb, var(--chip) 18%, transparent); color: var(--chip);
+  line-height: 1.5;
+}
+.cal-daychip b { font-weight: 800; opacity: .8; }
+.cal-peek {
+  margin-top: auto; font-size: 10px; color: var(--faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Mobile day list — hidden on desktop, replaces the grid on phones. */
+.cal-daylist { display: none; }
+.cal-listrow {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: var(--card); border: 1px solid var(--border-soft);
+  border-radius: 9px; padding: 9px 11px; margin-bottom: 6px; cursor: pointer;
+  font-family: var(--font-ui); text-align: left;
+}
+.cal-listrow.on { border-color: var(--accent); background: var(--accent-wash); }
+.cal-listdate { font-size: 12px; font-weight: 700; color: var(--text); flex: none; }
+.cal-listchips {
+  display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end;
+  margin-left: auto; font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .cal-monthgrid { display: none; }
+  .cal-daylist { display: block; }
+  .cal-strip { grid-template-columns: 1fr; }
 }
