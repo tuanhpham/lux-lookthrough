@@ -9,6 +9,7 @@ import {
   RESEARCH_PROMPT_IDS,
   DEFAULT_CHATGPT_URL,
   MAX_URL_PROMPT_LENGTH,
+  AUTORUN_MARKER,
 } from '../../src/analysis/researchPrompts.js';
 import type { StockPromptContext } from '../../src/analysis/researchPrompts.js';
 
@@ -350,6 +351,40 @@ describe('chatGptAskUrl', () => {
     const { url } = chatGptAskUrl('hi', 'javascript:alert(1)');
     expect(url).toBe(`${DEFAULT_CHATGPT_URL}?q=hi`);
     expect(chatGptAskUrl('hi', 'https://evil.io/g/g-x').url).toBe(`${DEFAULT_CHATGPT_URL}?q=hi`);
+  });
+
+  it('omits the autorun marker unless asked', () => {
+    // Opt-in matters: the extension keys off this marker, and a URL that carries it
+    // by default would let any ordinary link submit a message on the user's behalf.
+    expect(chatGptAskUrl('hi').url).not.toContain(AUTORUN_MARKER);
+    expect(chatGptAskUrl('hi', null, { autorun: false }).url).not.toContain(AUTORUN_MARKER);
+  });
+
+  it('appends the autorun marker as a fragment, after the query', () => {
+    // A FRAGMENT specifically: fragments never appear in the HTTP request line, so
+    // the marker stays between this app and the extension and is not logged upstream.
+    const { url } = chatGptAskUrl('hi', 'https://chatgpt.com/g/g-abc', { autorun: true });
+    expect(url).toBe(`https://chatgpt.com/g/g-abc?q=hi#${AUTORUN_MARKER}`);
+    // The prompt must remain in the query, not slide into the fragment.
+    expect(url.split('#')[0]).toContain('q=hi');
+  });
+
+  it('omits the marker when the prompt was too long to embed', () => {
+    // Nothing to run. Marking this URL would have the extension fill a composer
+    // from a `q` that isn't there, while the UI is telling the user to paste.
+    const huge = 'x'.repeat(MAX_URL_PROMPT_LENGTH + 1);
+    const { url, embedded } = chatGptAskUrl(huge, null, { autorun: true });
+    expect(embedded).toBe(false);
+    expect(url).not.toContain(AUTORUN_MARKER);
+    expect(url).toBe(DEFAULT_CHATGPT_URL);
+  });
+
+  it('keeps the query ahead of a fragment on an already-fragmented base', () => {
+    // `base + '?q=' + …` on a URL that already ends in a fragment would bury the
+    // parameter inside the fragment, which the server never receives — so the
+    // composer would open empty with no sign anything was lost.
+    const { url } = chatGptAskUrl('hi', 'https://chatgpt.com/g/g-abc#frag');
+    expect(url).toBe('https://chatgpt.com/g/g-abc?q=hi');
   });
 });
 

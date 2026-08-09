@@ -228,40 +228,71 @@ function normalizeLotPrice(lot: { buyPrice: number; priceCurrency?: 'EUR' | 'USD
   return lot.buyPrice;
 }
 
+/** Set once the slimming callback has been registered, so it registers once. */
+let slimmingScheduled = false;
+/**
+ * True once a blob carrying `_candleCache` has been seen locally at any point.
+ *
+ * Needed because a pre-hydration `save()` (the NaN scrub in `load()`) can slim the
+ * LOCAL copy while its queued, unflagged push is 409'd by the server's collapse
+ * guard — leaving local clean and the server still holding the fat row. Once this
+ * is set, the post-hydration write goes ahead even though the re-read looks slim,
+ * because that write is the only thing that fixes the server.
+ */
+let fatBlobSeen = false;
+
+/**
+ * Queue the one-time slimming of a fat `accounts` blob.
+ *
+ * Blobs written by an older build (or pulled from a server that still holds one)
+ * carry `_candleCache` — full OHLCV bars per position — which is why this key
+ * reached 912 KB and starved the rest of localStorage.
+ *
+ * The decision is deferred to hydration rather than made inline, for two reasons:
+ *
+ *  1. The slim value is >90% smaller, so the server's collapse guard refuses it
+ *     unless the push is flagged `deliberate`, and only post-hydration writes are.
+ *     Writing inline on a synced boot would eat a silent 409 and leave the 912 KB
+ *     row on the server for the next device to download.
+ *  2. THE CHECK ITSELF has to happen after the merge. At boot, local can be slim
+ *     while the server still holds the fat row; deciding from the local copy alone
+ *     would skip the migration, and then the merge would pull the fat blob back in
+ *     with nothing left to notice. Reading inside the callback tests whichever copy
+ *     actually won.
+ *
+ * `kv_history` keeps the fat version either way.
+ *
+ * EXPORTED and called at boot (see `main.ts`) rather than only from `load()`,
+ * because the default tab is no longer Portfolio. Leaving it tab-scoped meant a
+ * user who never opened Portfolio kept paying the 912 KB on every sync,
+ * indefinitely.
+ */
+export function migrateAccountsBlob(ctx: AppContext): void {
+  if (slimmingScheduled) return;
+  slimmingScheduled = true;
+  onHydrated(() => {
+    void (async () => {
+      const now = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
+      if (!now.length) return;
+      if (!fatBlobSeen && !hasTransientFields(now)) return;
+      // This push carries `deliberate`, so the collapse guard lets the small value in.
+      await ctx.storage.set(ACCT_KEY, toPersistable(now));
+    })().catch(() => {});
+  });
+}
+
 async function load(ctx: AppContext): Promise<void> {
   const stored = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
 
-  // One-time slimming of a blob written by an older build (or just pulled from a
-  // server that still holds one). Those carry `_candleCache` — full OHLCV bars
-  // per position — which is why this key reached 912 KB and starved the rest of
-  // localStorage.
-  //
-  // The rewrite is deferred to hydration rather than done inline, and the reason
-  // is specific: the slim value is >90% smaller, so the server's collapse guard
-  // refuses it unless the push is flagged `deliberate`, and only post-hydration
-  // writes are. Writing inline on a synced boot would queue an unflagged push,
-  // eat a silent 409, and leave the 912 KB row on the server for the next device
-  // to download. Waiting also lets the merge finish first, so we slim whichever
-  // copy wins. `kv_history` keeps the fat version either way.
+  // Strip the cache from the in-memory copy: `accounts` must never hold
+  // `_candleCache` read back from storage, or the next save() would write it
+  // straight out again.
   const fat = hasTransientFields(stored);
+  if (fat) fatBlobSeen = true;
   accounts = fat ? toPersistable(stored) : stored;
-  if (fat) {
-    onHydrated(() => {
-      void (async () => {
-        // Re-read rather than reuse `accounts`: the merge may have replaced the
-        // stored blob since load(), and whichever copy won is the one to slim.
-        const now = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
-        if (!now.length) return;
-        // Write UNCONDITIONALLY, even when the re-read is already slim. A
-        // pre-hydration save() (the NaN scrub below) can have slimmed the LOCAL
-        // copy while its queued, unflagged push was 409'd by the collapse guard —
-        // so local looks clean while the server still holds the 912 KB row. Gating
-        // this on hasTransientFields() would then skip the one write that fixes
-        // the server. This push carries `deliberate`, so the guard lets it in.
-        await ctx.storage.set(ACCT_KEY, toPersistable(now));
-      })().catch(() => {});
-    });
-  }
+  // No-op after boot registered it; kept so the migration still runs if Portfolio
+  // is somehow reached before enterApp() has (e.g. a future deep link).
+  migrateAccountsBlob(ctx);
 
   let dirty = false;
   if (!accounts.length) {

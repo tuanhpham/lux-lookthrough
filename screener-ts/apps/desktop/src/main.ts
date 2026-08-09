@@ -4,7 +4,7 @@ import { $, $$ } from './ui/dom.js';
 import { initModal, onModalClose } from './ui/stockModal.js';
 import { renderPicks, renderScreener, renderSectors } from './tabs/screenerTabs.js';
 import { renderWatchlist, renderLearn } from './tabs/miscTabs.js';
-import { renderPortfolio } from './tabs/portfolioTab.js';
+import { renderPortfolio, migrateAccountsBlob } from './tabs/portfolioTab.js';
 import { renderCalendar } from './tabs/calendarTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
 import { renderBlog } from './tabs/blogTab.js';
@@ -47,7 +47,18 @@ const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfoli
 type Tab = (typeof TABS)[number];
 
 let entered = false;
-let currentTab: Tab = 'portfolio';
+/**
+ * The tab shown on entering the app.
+ *
+ * Calendar, not Portfolio: the dated events in the next 30 days are the thing that
+ * is time-sensitive and changes without you doing anything, so it is what is worth
+ * seeing first. Portfolio is a lookup you go to deliberately.
+ *
+ * One consequence had to be handled: the `accounts` slimming migration used to run
+ * only when Portfolio rendered. It is now queued at boot — see
+ * `migrateAccountsBlob`.
+ */
+let currentTab: Tab = 'calendar';
 
 /** Apply translations to every [data-i18n] node and sync the language toggle. */
 function applyStaticI18n(): void {
@@ -117,13 +128,23 @@ function show(tab: Tab): void {
 }
 
 
-function enterApp(): void {
+/**
+ * `tab` is the tab the caller is about to open, when it knows. The menu passes it
+ * so the default tab is not rendered first and thrown away — with Calendar as the
+ * default that throwaway render costs an upstream fetch, not just DOM work.
+ */
+function enterApp(tab?: Tab): void {
   $('#tool-landing')!.classList.add('hidden');
   $('#app')!.classList.remove('hidden');
   applyStaticI18n();
   if (entered) return;
   entered = true;
-  show('portfolio');
+  // Queue the `accounts` slimming rewrite regardless of which tab opens. This used
+  // to happen inside Portfolio's load(); with Calendar as the default tab, leaving
+  // it there would mean a user who never opens Portfolio keeps a 912 KB row
+  // syncing forever. It only acts on a blob that still carries the chart cache.
+  void migrateAccountsBlob(ctx);
+  show(tab ?? currentTab);
 }
 
 function showToolLanding(): void {
@@ -233,7 +254,9 @@ function wireAppMenu(): void {
     b.addEventListener('click', (e) => {
       const tab = b.dataset.amtab as Tab;
       closeAppMenu();
-      pageTransition(e.currentTarget as Element, () => { enterApp(); show(tab); });
+      // Pass the tab in: enterApp would otherwise render the default tab first and
+      // discard it, which for Calendar means a wasted upstream fetch.
+      pageTransition(e.currentTarget as Element, () => { enterApp(tab); show(tab); });
     });
   });
   menu.querySelectorAll<HTMLElement>('[data-aml]').forEach((b) =>

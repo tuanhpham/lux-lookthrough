@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "The Professional — Ask ChatGPT",
+  "version": "1.0.0",
+  "description": "Fills and submits a research prompt sent from The Professional into your custom GPT.",
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["autorun.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

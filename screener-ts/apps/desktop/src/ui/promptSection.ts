@@ -8,17 +8,19 @@
  *
  * ── HOW FAR AUTOMATION CAN GO HERE, AND WHY ─────────────────────────────────
  * There is NO API for a custom GPT on chatgpt.com. OpenAI does not expose one, so
- * nothing can drive your GPT programmatically; the only mechanism available is the
- * `?q=` URL parameter, which pre-fills the composer (and on the plain chat URL
- * also submits). Whether the custom-GPT page consumes it is OpenAI's behaviour to
- * decide and has changed before.
+ * nothing server-side can drive your GPT. The `?q=` URL parameter pre-fills and
+ * auto-submits on the PLAIN chat page, but a custom GPT ignores it.
  *
- * So the button does both: it puts the prompt in the URL AND copies it. The copy
- * is not redundancy for its own sake — it is what keeps the feature honest on the
- * day the parameter stops working. Relying on `?q=` alone would fail silently, on
- * someone else's deploy schedule, leaving an empty composer and nothing to paste.
- * The UI states which of the two happened rather than implying the question was
- * definitely sent.
+ * Getting a prompt to actually run inside your GPT therefore requires code on the
+ * ChatGPT tab, which is what `extension/` is: it reads `?q=`, pastes it, clicks
+ * send. The app signals consent by adding the `#tp-autorun` fragment (see
+ * `chatGptAskUrl`), and the marker is inert when the extension isn't installed.
+ *
+ * So the button does both: it puts the prompt in the URL AND copies it. The copy is
+ * not redundancy for its own sake — the extension is optional, and it depends on
+ * ChatGPT's markup, which OpenAI can change without notice. The clipboard is what
+ * keeps this feature working in both cases. The UI says "Opening", never "Sent",
+ * because this code cannot observe whether the extension ran.
  *
  * The prompt text itself is built in core (`buildResearchPrompts`) and is fully
  * tested there. This file is the DOM and the storage around it.
@@ -102,12 +104,16 @@ export function renderPromptSection(
       btn.addEventListener('click', () => {
         const p = prompts[Number(btn.dataset.promptAsk)];
         if (!p) return;
-        const ask = chatGptAskUrl(p.body, gptUrl);
-        // Copy FIRST, then open — and copy even when the prompt IS in the URL. If
-        // ChatGPT ignores `?q=` on a custom GPT, the clipboard is the only thing
-        // standing between the user and an empty composer. Opening in a popup that
-        // the copy failure could pre-empt is the one ordering to avoid, hence
-        // `finally`.
+        // `autorun` adds the fragment marker the companion extension keys off. It
+        // is inert without the extension, so this stays a no-op for anyone who
+        // hasn't installed it.
+        const ask = chatGptAskUrl(p.body, gptUrl, { autorun: true });
+        // Copy FIRST, then open — and copy even when the prompt IS in the URL. The
+        // extension may be absent, disabled, or broken by a ChatGPT markup change,
+        // and a custom GPT does not act on `?q=` by itself; the clipboard is the
+        // only thing standing between the user and an empty composer in all of
+        // those cases. Opening in a popup that the copy failure could pre-empt is
+        // the one ordering to avoid, hence `finally`.
         void copyToClipboard(p.body, btn, ask.embedded).finally(() => {
           window.open(ask.url, '_blank', 'noopener,noreferrer');
         });

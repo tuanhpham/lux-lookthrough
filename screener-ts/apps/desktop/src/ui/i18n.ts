@@ -539,11 +539,14 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'prompts.copy': { en: 'Copy', vi: 'Chép' },
   'prompts.copied': { en: 'Copied ✓', vi: 'Đã chép ✓' },
   'prompts.ask': { en: 'Ask ChatGPT', vi: 'Hỏi ChatGPT' },
-  'prompts.sent': { en: 'Sent →', vi: 'Đã gửi →' },
+  // Deliberately NOT "Sent". Whether the prompt actually runs depends on the
+  // extension being installed, which this code cannot see — claiming "Sent" would
+  // have the user waiting for an answer to a question still sitting in a composer.
+  'prompts.sent': { en: 'Opening →', vi: 'Đang mở →' },
   'prompts.toolong': { en: 'Copied — paste it', vi: 'Đã chép — hãy dán' },
   'prompts.ask.hint': {
-    en: 'Opens ChatGPT with the question already in the composer, and copies it as a backup. Custom GPTs have no API, so if OpenAI ignores the pre-filled text just paste — it is already on your clipboard.',
-    vi: 'Mở ChatGPT với câu hỏi đã điền sẵn trong khung chat, đồng thời chép lại để dự phòng. Custom GPT không có API, nên nếu OpenAI bỏ qua phần điền sẵn thì bạn chỉ cần dán — prompt đã nằm trong clipboard.',
+    en: 'Opens ChatGPT with the question in the URL, and copies it as a backup. A custom GPT will not run it on its own — OpenAI gives them no API — so install the extension in extension/ to have it filled and sent for you. Without it, just paste.',
+    vi: 'Mở ChatGPT với câu hỏi nằm trong URL, đồng thời chép lại để dự phòng. Custom GPT sẽ không tự chạy — OpenAI không cho chúng API — nên hãy cài extension trong thư mục extension/ để nó tự điền và gửi. Không có extension thì bạn chỉ cần dán.',
   },
   'prompts.show': { en: 'Show prompt', vi: 'Xem prompt' },
   'prompts.hide': { en: 'Hide prompt', vi: 'Ẩn prompt' },

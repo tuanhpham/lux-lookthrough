@@ -169,14 +169,26 @@ html.light .app-menu-btn { color: rgba(10,10,10,.65); }
 /* App menu — single centered column, matching reference.
    min-height:0 + overflow-y let the 12-item list scroll instead of overflowing
    the panel on short viewports (e.g. iPhone SE), where the last items would
-   otherwise be clipped and unreachable.                                       */
+   otherwise be clipped and unreachable.
+
+   `justify-content: center` is deliberately NOT used here. Centering a flex
+   column that overflows pushes the first item PAST the scroll origin, and
+   overflow only exposes content below it — so the top item gets its upper half
+   cut off with no way to scroll back up to it. `margin: auto 0` on the item list
+   centres it when it fits and collapses to no offset when it doesn't, which is
+   the behaviour centering only appears to have.                               */
 .app-menu-nav {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
   flex: 1; gap: 10px;
   min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   width: 100%; padding: 8px 18px;
 }
+/* Centres the group when it fits, yields to the scroll origin when it doesn't.
+   Applied to the columns (which are `display: contents`) has no effect, so the
+   first/last child of the flow carry it instead. */
+.app-menu-nav > .app-menu-col:first-child > .sl-menu-item:first-child { margin-top: auto; }
+.app-menu-nav > .app-menu-col:last-child > .sl-menu-item:last-child { margin-bottom: auto; }
 .app-menu-col { display: contents; }
 .app-menu-footer {
   flex-direction: row !important; gap: 24px !important;
@@ -207,6 +219,10 @@ html.light .app-menu-btn { color: rgba(10,10,10,.65); }
   font-weight: 300;
   font-family: 'Source Serif 4', Georgia, serif;
   letter-spacing: .06em;
+  /* Explicit, because `normal` is ~1.2 for this serif and Vietnamese stacks a
+     tone mark above a diacritic ("Ổ", "Ế", "Ữ") — those reach past the em box and
+     get shaved off at the top of the line. */
+  line-height: 1.32;
 }
 html[lang="vi"] #app-menu .sl-menu-item {
   font-family: 'Hanken Grotesk', sans-serif;

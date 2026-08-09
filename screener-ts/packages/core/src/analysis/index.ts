@@ -13,6 +13,7 @@ export {
   RESEARCH_PROMPT_IDS,
   DEFAULT_CHATGPT_URL,
   MAX_URL_PROMPT_LENGTH,
+  AUTORUN_MARKER,
 } from './researchPrompts.js';
 export type {
   PromptLang,

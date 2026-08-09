@@ -415,20 +415,37 @@ export function isCustomGptUrl(url: string): boolean {
 export const MAX_URL_PROMPT_LENGTH = 7500;
 
 /**
+ * Fragment marker that opts a URL in to the companion browser extension.
+ *
+ * A FRAGMENT, deliberately: fragments are not part of the HTTP request line, so
+ * this never reaches OpenAI's servers or their logs. It is a signal between this
+ * app and an extension running in the same browser, and it stays that way.
+ *
+ * The extension MUST require this marker before touching a page. Acting on any
+ * chatgpt.com URL that happens to carry `?q=` would mean hijacking the user's own
+ * navigation — including submitting a message they were still editing.
+ */
+export const AUTORUN_MARKER = 'tp-autorun';
+
+/**
  * The URL that opens ChatGPT with `prompt` already in the composer.
  *
  * ── WHAT THIS CAN AND CANNOT DO ─────────────────────────────────────────────
  * `?q=` pre-fills, and on the plain chat URL ChatGPT also auto-submits it. On a
- * custom GPT (`/g/g-…`) the parameter is appended the same way, but whether that
- * page consumes it is OpenAI's behaviour to decide, not ours, and it has changed
- * before. There is no API for custom GPTs, so this is the only mechanism that
- * exists — and it is best-effort by nature.
+ * custom GPT (`/g/g-…`) the parameter is appended the same way, but the page does
+ * NOT act on it — verified against the live site, which is why the companion
+ * extension exists. There is no API for custom GPTs, so `?q=` plus a content
+ * script is the whole of what is available.
  *
- * Therefore the CALLER MUST STILL COPY the prompt to the clipboard before
- * opening this URL. That is not belt-and-braces; it is the fallback that makes
- * the feature honest when the parameter is ignored. A design that relies on `?q=`
- * alone breaks silently, on someone else's deploy schedule, and leaves the user
- * looking at an empty composer with nothing to paste.
+ * `autorun: true` appends `AUTORUN_MARKER` as a fragment, which is what tells the
+ * extension it may fill and submit. Without the extension the marker is inert and
+ * the URL behaves exactly as before, which is the point: this degrades to
+ * "pre-filled if OpenAI honours it, pasted by hand otherwise" rather than
+ * breaking.
+ *
+ * The CALLER MUST STILL COPY the prompt to the clipboard before opening this URL.
+ * The extension may be absent, disabled, or broken by a ChatGPT markup change; the
+ * clipboard is what keeps the button useful in all three cases.
  *
  * Returns `{ url, embedded }`. `embedded: false` means the prompt was too long to
  * carry and the URL is a bare composer — the UI should say so rather than let the
@@ -437,14 +454,23 @@ export const MAX_URL_PROMPT_LENGTH = 7500;
 export function chatGptAskUrl(
   prompt: string,
   custom?: string | null,
+  opts?: { autorun?: boolean },
 ): { url: string; embedded: boolean } {
   const base = chatGptUrl(custom);
   const encoded = encodeURIComponent(prompt);
-  if (encoded.length > MAX_URL_PROMPT_LENGTH) return { url: base, embedded: false };
-  // `base` is already validated and never contains a query or fragment of its own
-  // (a custom GPT link is a bare path), so appending is unambiguous. The `?`/`&`
-  // choice is kept anyway: a pasted link with an existing query must not produce a
-  // second `?`, which would make the whole parameter unparseable.
-  const sep = base.includes('?') ? '&' : '?';
-  return { url: `${base}${sep}q=${encoded}`, embedded: true };
+  const frag = opts?.autorun ? `#${AUTORUN_MARKER}` : '';
+  if (encoded.length > MAX_URL_PROMPT_LENGTH) {
+    // No prompt to run, so no marker: the extension must not fill a composer from
+    // a URL that carries nothing, and the user is being told to paste instead.
+    return { url: base, embedded: false };
+  }
+  // Split any fragment off `base` before appending the query. A configured link is
+  // normally a bare path, but if one arrives with a fragment then `base + '?q='`
+  // would bury the parameter inside that fragment, where the server never sees it.
+  const hash = base.indexOf('#');
+  const head = hash === -1 ? base : base.slice(0, hash);
+  // The `?`/`&` choice matters for a pasted link that already has a query: a second
+  // `?` would make the whole query string unparseable.
+  const sep = head.includes('?') ? '&' : '?';
+  return { url: `${head}${sep}q=${encoded}${frag}`, embedded: true };
 }
