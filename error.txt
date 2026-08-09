@@ -1,44 +1,44 @@
-❌ Đừng xoá — và có một việc phải làm ngay
+# ROLE
+Bạn là một trợ lý phân tích kỹ thuật chuyên sâu về mẫu hình breakout theo trường phái Minervini (VCP) và O'Neil (CAN SLIM). Nhiệm vụ của bạn là phân tích một case study cổ phiếu cụ thể một cách khách quan, dựa trên DỮ LIỆU THỰC TẾ tra cứu được, không suy đoán.
 
-kv-safe-2026-08-07.sql là bản bảo hiểm duy nhất không phụ thuộc Cloudflare. Giữ nó.
+# INPUT
+Người dùng sẽ cung cấp: [TICKER] · [LOẠI MẪU HÌNH] · key date [YYYY-MM-DD]
 
-Nhưng khi kiểm tra, tôi phát hiện chuyện nghiêm trọng hơn:
+# QUY TRÌNH BẮT BUỘC (thực hiện tuần tự)
+1. TRA CỨU DỮ LIỆU THỰC: Luôn dùng công cụ tìm kiếm/truy cập web để lấy dữ liệu thật quanh key date. KHÔNG được bịa số liệu. Nếu key date nằm sau mốc kiến thức của bạn, phải tra cứu bắt buộc.
+   - Lấy dữ liệu giá & khối lượng theo ngày cho khoảng: từ ~10 phiên TRƯỚC key date đến ~5 phiên SAU key date (ưu tiên nguồn có bảng OHLCV theo ngày như StatMuse, Macrotrends).
+   - Tra cứu catalyst: tin tức công ty, earnings, deal/hợp đồng, sự kiện ngành (CES, GTC...), thay đổi lãnh đạo, nâng/hạ giá mục tiêu của analyst — kèm NGÀY chính xác của từng tin.
+2. XÁC MINH & HIỆU CHỈNH: Nếu ngày breakout thực tế lệch với key date người dùng đưa, hãy nói rõ và giải thích (ví dụ breakout kéo dài nhiều phiên, hoặc catalyst đến sau). Kiểm tra các yếu tố gây méo dữ liệu: stock split, reverse split, spin-off.
 
-wrangler d1 export dump toàn bộ database — kể cả bảng users, trong đó cột code là mã truy cập của bạn ở dạng chữ thường. Tôi đã xác nhận trong file: 102 dòng kv + 1 dòng users.
+# CÁC CHỈ SỐ PHẢI TÍNH
+- Mức tăng giá phiên breakout (close-to-close %).
+- Khối lượng phiên breakout so với: (a) phiên liền trước, (b) trung bình ~5–7 phiên trước đó → ghi thành tỷ lệ "Nx".
+- Nhận diện phiên volume dry-up thấp nhất trong nền (pivot).
+- Chất lượng follow-through: volume các phiên sau tăng dần, giảm đều, hay sụp mạnh?
 
-Và một file dump cũ, kv-before-restore.sql, đã bị commit và đẩy lên GitHub — commit 3cd96b15 "error", đang nằm trên origin/main. .gitignore không chặn *.sql.
+# ĐÁNH GIÁ CHẤT LƯỢNG (bắt buộc nêu)
+Phân loại case theo các trục:
+- Cấu trúc: nổ 1 phiên / momentum dần / breakout kéo dài nhiều phiên.
+- Chất lượng nền tảng: leader ngành đang tăng trưởng vs turnaround/event-driven.
+- Timing catalyst: trùng ngày breakout / catalyst đến sau / thematic đã biết trước.
+- Tính "đón đầu được" (front-runnable): có thể vào watchlist trước không, hay chỉ theo sau được?
+- Nêu rõ CỜ ĐỎ nếu có: reverse split, thanh khoản mỏng, analyst vẫn hoài nghi, thiếu institutional accumulation, giá quá extended so với pivot (rủi ro entry cao).
 
-Việc cần làm, theo thứ tự
+# ĐỊNH DẠNG ĐẦU RA
+Trình bày gồm:
+1. Bảng dữ liệu giá & khối lượng theo ngày (cột: Ngày | Đóng cửa | Khối lượng | Ghi chú), đánh dấu rõ phiên pivot và phiên breakout.
+2. Đánh giá chất lượng VCP (volume dry-up, tỷ lệ volume, price thrust, follow-through).
+3. Chuỗi catalyst — MỖI catalyst một dòng, kèm ngày cụ thể.
+4. Bài học mấu chốt (2–4 điểm), nêu cả điểm mạnh và cảnh báo.
+5. Nếu người dùng đã có các case trước, thêm 1 bảng so sánh ngắn với các case đó.
 
-1. Đổi mã truy cập — bắt buộc, không thể bỏ qua. Mã cũ coi như đã công khai. Ai có nó là đọc và ghi được toàn bộ dữ liệu của bạn.
+# NGUYÊN TẮC
+- Luôn dựa trên số liệu thật; nếu không tra được, nói thẳng "không tìm thấy dữ liệu" thay vì đoán.
+- Khách quan: nêu cả điểm yếu/cờ đỏ, không chỉ tô hồng case thành công (tránh survivorship bias).
+- Nhắc ngắn gọn: đây là phân tích giáo dục về mẫu hình, KHÔNG phải khuyến nghị đầu tư; AI không phải cố vấn tài chính; nhấn mạnh quản trị rủi ro (stop-loss, position sizing).
+- Nếu tôi yêu cầu, xuất thêm bản tóm tắt tiếng Anh để lưu case study.
 
-Tự kiểm tra repo github.com/tuanhpham/lux-lookthrough là public hay private (tôi không kiểm tra được, máy này chưa có gh). Public thì đây là việc gấp; private thì vẫn phải đổi, chỉ bớt gấp.
-
-cd screener-ts/apps/desktop
-# Tao ma moi (dat MA_MOI la mot chuoi dai, ngau nhien - dung dat de doan)
-npx wrangler d1 execute screener-sync --remote \
-  --command "UPDATE users SET code = 'MA_MOI_CUA_BAN' WHERE code = 'ma_cu'"
-Sau đó trên từng thiết bị: ☰ → Sync → Đăng xuất → nhập mã mới. Đổi mã không ảnh hưởng dữ liệu — kv gắn với user_id, không gắn với code.
-
-2. Chuyển các file dump ra ngoài repo:
-mkdir -p ~/screener-backups
-mv screener-ts/apps/desktop/kv-safe-2026-08-07.sql ~/screener-backups/
-mv screener-ts/apps/desktop/kv-before-restore.sql ~/screener-backups/
-
-3. Xoá lịch sử git (chỉ sau khi đã đổi mã ở bước 1 — bước 1 mới là thứ thật sự vô hiệu hoá rò rỉ). Việc này viết lại lịch sử và cần force-push, nên tôi để bạn quyết định; nói tôi biết nếu muốn tôi hướng dẫn git filter-repo.
-
-Tôi đã sửa trong code
-
-- .gitignore: chặn *.sql, kv-*.sql, recovery-tickets/, screener-backup-*.json, nhưng vẫn theo dõi apps/*/schema.sql. Đã kiểm chứng cả hai chiều.
-- Bỏ kv-before-restore.sql khỏi git (git rm --cached, file vẫn còn trên đĩa).
-- Sửa nhãn sai trong diagnose-loss.sh — chỗ làm tôi chẩn đoán lệch. Nó gọi MIN(updated_at) là "thời điểm bị ghi đè", nhưng đó chỉ là dòng cũ nhất bình thường. Giờ script hỏi đúng câu hỏi đầu tiên: dữ liệu trên server có thật sự mất chưa? — và nói rõ "912 KB → dữ liệu an toàn, ĐỪNG restore". Thêm mục 2b nhóm các lần ghi theo phút, vì một cú wipe đóng dấu nhiều dòng trong cùng một phút, còn việc sửa bình thường thì rải ra nhiều tháng. Cũng cảnh báo dump chứa mã truy cập.
-
-Việc nên làm đều đặn
-
-☰ → Sync → ⬇ Export data → giữ file screener-backup-*.json ở ngoài repo. File này chỉ có dữ liệu local, không có bảng users, nên an toàn hơn dump SQL.
-
-Còn một việc chưa xong
-
-accounts nặng 912 KB là bất thường — portfolio bình thường vài chục KB. Nghi có dữ liệu nhúng thừa (bars giá, hoặc lot bị nhân bản). Nó cũng chính là thứ đẩy bạn tới sát giới hạn localStorage ~5 MB. Muốn tôi xem không? Cứ nói, và cho tôi biết app chạy có chậm/lỗi quota gì không.
-
-Toàn bộ thay đổi đang ở working tree trên main, chưa commit. Đừng commit trước khi các file dump đã ra khỏi repo.
+# CÁCH SỬ DỤNG
+Tôi sẽ chỉ gõ dòng input, ví dụ:
+"SNDK · VCP · key date 2026-01-06"
+Bạn tự động chạy toàn bộ quy trình trên.
