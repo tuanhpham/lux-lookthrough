@@ -419,6 +419,17 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     en: 'Could not load the calendar. Check the connection and retry.',
     vi: 'Không tải được lịch. Kiểm tra kết nối và thử lại.',
   },
+  // Saving is a SEPARATE failure from fetching: the calendar below is complete
+  // and usable, it just won't be remembered for tomorrow. Saying "check the
+  // connection" here would send the user after the wrong problem entirely.
+  'cal.nosave': {
+    en: 'Calendar loaded, but could not be saved — it will reload next time.',
+    vi: 'Đã tải lịch nhưng không lưu được — lần sau sẽ tải lại.',
+  },
+  'cal.nosave.full': {
+    en: 'Calendar loaded, but browser storage is full so it was not saved. Everything below is up to date.',
+    vi: 'Đã tải lịch nhưng bộ nhớ trình duyệt đã đầy nên không lưu được. Dữ liệu bên dưới vẫn là mới nhất.',
+  },
 
   // Misc
   'common.slower': { en: '(slower)', vi: '(chậm hơn)' },

@@ -37,7 +37,7 @@ import { openStock } from '../ui/stockModal.js';
 import { formDialog } from '../ui/forms.js';
 import { loadIndex, loadItems } from '../ui/watchlists.js';
 import { fetchCatalystWindow, todayLocal } from '../adapters/CatalystProvider.js';
-import { loadWindow, saveWindow, updatedAtLabel } from './catalystCache.js';
+import { loadWindow, saveWindow, SnapshotTooLargeError, updatedAtLabel } from './catalystCache.js';
 import { addCustom, customToEvents, deleteCustom, loadCustom, type CustomEvent } from './customEvents.js';
 
 /** All kinds, in the order the filter chips render (most actionable first). */
@@ -161,8 +161,13 @@ async function rebuild(): Promise<void> {
       </div>
     </div>`));
 
+  // Only the FETCH may report a connection problem. Saving and rendering are
+  // separate failures with separate causes, and conflating them told the user to
+  // "check the connection" when the sweep had in fact succeeded and the browser
+  // was simply out of storage.
+  let w: CatalystWindow;
   try {
-    const w = await fetchCatalystWindow({
+    w = await fetchCatalystWindow({
       onProgress: ({ done, total, label }) => {
         const p = Math.round((done / total) * 100);
         const bar = $('#cal-prog-bar');
@@ -173,15 +178,43 @@ async function rebuild(): Promise<void> {
         if (lab) lab.textContent = label;
       },
     });
-    current = w;
-    await saveWindow(appCtx, w);
-    renderAll();
   } catch {
     status.innerHTML = `<div class="card" style="margin-bottom:14px;border-color:var(--danger)">
       <span style="color:var(--danger)">${t('cal.failed')}</span>
       <button id="cal-retry" class="range-btn" style="margin-left:12px">↻ ${t('cal.refresh')}</button>
     </div>`;
     $('#cal-retry')?.addEventListener('click', () => void rebuild());
+    rebuilding = false;
+    return;
+  }
+
+  // The window is in hand — from here nothing may stop it being shown.
+  current = w;
+
+  let saveWarning = '';
+  try {
+    await saveWindow(appCtx, w);
+  } catch (e) {
+    // Not fatal: the calendar works this session, it just won't persist, so
+    // tomorrow's open re-sweeps. Say that plainly instead of blaming the network.
+    saveWarning =
+      e instanceof SnapshotTooLargeError
+        ? t('cal.nosave.full')
+        : t('cal.nosave');
+  }
+
+  // `rebuilding` must stay true across renderAll(): renderStatus() re-triggers
+  // rebuild() whenever it sees a stale snapshot, and this flag is the only thing
+  // stopping that from recursing forever if a sweep ever returns a stale builtOn
+  // (e.g. the local date rolls over mid-sweep).
+  try {
+    renderAll();
+    if (saveWarning) {
+      $('#cal-status')?.appendChild(el(`
+        <div class="card" style="margin-bottom:14px;border-color:#ffb648">
+          <span style="color:#ffb648">⚠ ${saveWarning}</span>
+        </div>`));
+    }
   } finally {
     rebuilding = false;
   }

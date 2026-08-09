@@ -33,6 +33,19 @@ describe('dateRange', () => {
     expect(isWeekend('2026-08-08')).toBe(true);  // Saturday
     expect(isWeekend('2026-08-07')).toBe(false); // Friday
   });
+
+  it('still yields a full window when opened ON a weekend', () => {
+    // Regression: the Calendar was reported broken "because it's Sunday". The
+    // window math is fine on a weekend — the failure was elsewhere — but pin the
+    // behaviour so a future weekend-skipping change cannot quietly truncate it.
+    const sunday = '2026-08-09';
+    expect(isWeekend(sunday)).toBe(true);
+    const days = dateRange(sunday, '2026-09-08');
+    expect(days).toHaveLength(31);
+    expect(days[0]).toBe(sunday); // the grid renders the weekend cell itself
+    // Only the SWEEP skips weekends; a Sunday start still has 22 trading days.
+    expect(days.filter((d) => !isWeekend(d))).toHaveLength(22);
+  });
 });
 
 describe('mergeEvents', () => {

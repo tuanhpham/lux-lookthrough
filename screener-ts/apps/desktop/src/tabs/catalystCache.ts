@@ -17,9 +17,19 @@ import type { CatalystWindow } from '@screener/core';
 import type { AppContext } from '../context.js';
 
 const PREFIX = 'calendar:';
-/** Keep a couple of weeks of snapshots — small (~100KB each) and useful as the
- * seed of point-in-time history. */
-const KEEP_DAYS = 14;
+/**
+ * How many daily snapshots to keep.
+ *
+ * ⚠️ MEASURED, not guessed: one 30-day window is ~500 KB (1,900 events — ~1,600
+ * of them earnings). An earlier comment here claimed "~100KB each" and kept 14
+ * days; that is ~6.8 MB against a ~5 MB localStorage quota, so the store filled
+ * up and `set()` threw QuotaExceededError. Three days is enough for the
+ * as-of/point-in-time seed while leaving room for the portfolio and caches.
+ *
+ * If this ever grows again, re-measure. The event count scales with earnings
+ * season, so a window built in late October is the worst case, not a quiet week.
+ */
+const KEEP_DAYS = 3;
 
 const key = (day: string): string => `${PREFIX}${day}`;
 
@@ -28,9 +38,61 @@ export async function loadWindow(ctx: AppContext, day: string): Promise<Catalyst
   return ctx.storage.get<CatalystWindow>(key(day));
 }
 
+/** A storage-full failure, as opposed to any other write error. */
+export class SnapshotTooLargeError extends Error {
+  constructor(public readonly bytes: number) {
+    super(`calendar snapshot (${Math.round(bytes / 1024)} KB) does not fit in storage`);
+    this.name = 'SnapshotTooLargeError';
+  }
+}
+
+/** localStorage signals a full store by name or by legacy code 22. */
+function isQuotaError(e: unknown): boolean {
+  const err = e as { name?: string; code?: number } | null;
+  return (
+    err?.name === 'QuotaExceededError' ||
+    err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    err?.code === 22
+  );
+}
+
+/**
+ * Persist today's window, pruning FIRST so the new snapshot has room, and
+ * evicting older ones if the store is still full.
+ *
+ * Pruning used to run after the write and un-awaited, which is backwards: the
+ * write is the thing that needs the space. On a full store it threw
+ * QuotaExceededError, and because the caller wrapped fetch+save+render in one
+ * try/catch the user saw "Could not load the calendar. Check the connection" —
+ * blaming the network for a disk-full problem, on a sweep that had actually
+ * succeeded.
+ *
+ * Throws `SnapshotTooLargeError` only when even a lone snapshot will not fit.
+ * The caller must treat that as non-fatal and still render the fetched window.
+ */
 export async function saveWindow(ctx: AppContext, w: CatalystWindow): Promise<void> {
-  await ctx.storage.set(key(w.builtOn), w);
-  void pruneOld(ctx).catch(() => {});
+  await pruneOld(ctx).catch(() => {});
+  try {
+    await ctx.storage.set(key(w.builtOn), w);
+    return;
+  } catch (e) {
+    if (!isQuotaError(e)) throw e;
+  }
+
+  // Still full: drop older snapshots, newest-first order means we shed the least
+  // useful history first. Today's key is never a candidate — it is what we are
+  // trying to write.
+  const others = (await listSnapshotDays(ctx)).filter((d) => d !== w.builtOn);
+  for (const day of [...others].reverse()) {
+    await ctx.storage.delete(key(day)).catch(() => {});
+    try {
+      await ctx.storage.set(key(w.builtOn), w);
+      return;
+    } catch (e) {
+      if (!isQuotaError(e)) throw e;
+    }
+  }
+  throw new SnapshotTooLargeError(JSON.stringify(w).length);
 }
 
 export async function clearWindow(ctx: AppContext, day: string): Promise<void> {
