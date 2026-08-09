@@ -1,0 +1,38 @@
+# Cloudflare Pages response headers.
+#
+# The problem this solves: a deploy would land but the app kept showing the old
+# UI. The service worker was the visible cause, but the layer underneath is the
+# HTTP cache — if the browser (or an edge/CDN node) may reuse index.html or
+# sw.js, a new build never gets a chance to be seen. So the two files that must
+# always be re-validated say so here, and everything content-hashed says the
+# opposite as loudly as possible.
+#
+# Rule of thumb: filename encodes the content → cache forever. Filename is
+# stable → never trust the cached copy.
+
+# The app shell. `no-cache` does NOT mean "don't store" — it means "revalidate
+# before reuse", so a 304 is still cheap when nothing changed.
+/index.html
+  Cache-Control: no-cache
+
+/
+  Cache-Control: no-cache
+
+# The service worker itself. If this is cached, no update mechanism can work.
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+
+# Vite writes content-hashed filenames here, so a change is a NEW url and this
+# can be immutable.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Stable names, rarely edited — a day is a fine compromise.
+/icons/*
+  Cache-Control: public, max-age=86400
+/images/*
+  Cache-Control: public, max-age=86400
+
+/manifest.webmanifest
+  Cache-Control: public, max-age=3600

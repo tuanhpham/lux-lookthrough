@@ -373,8 +373,38 @@ try {
 const isTauriShell = typeof window !== 'undefined' && '__TAURI__' in window;
 if (!isTauriShell && 'serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      /* non-fatal: app still works without the SW */
+    // Was this tab already under a worker's control? If not, the very first
+    // install will claim it mid-session and fire `controllerchange` — that is
+    // not a new deploy, so don't treat it as one.
+    const hadController = !!navigator.serviceWorker.controller;
+
+    navigator.serviceWorker
+      // updateViaCache: 'none' — without it the browser may satisfy the sw.js
+      // request from the HTTP cache, so reg.update() below would compare the
+      // deployed worker against a cached copy of itself and see no change.
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then((reg) => {
+        // A single-page app never navigates, so the browser has no natural
+        // moment to notice a redeployed sw.js — a tab left open (or an
+        // installed PWA resumed from the app switcher) can run stale code
+        // indefinitely. Check explicitly: once on load, on every return to the
+        // foreground, and hourly for a tab that just stays open.
+        const check = (): void => void reg.update().catch(() => undefined);
+        check();
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') check();
+        });
+        setInterval(check, 60 * 60 * 1000);
+      })
+      .catch(() => {
+        /* non-fatal: app still works without the SW */
+      });
+
+    // The new worker calls skipWaiting + clients.claim, so it takes over this
+    // page as soon as it activates. The already-loaded JS is still the old
+    // build, so reload once to pick up the new one.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController) location.reload();
     });
   });
 }
