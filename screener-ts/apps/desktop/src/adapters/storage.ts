@@ -150,6 +150,27 @@ export function isHydrated(): boolean {
   return hydrated;
 }
 
+/** One-shot callbacks to run when the gate opens. */
+const hydrationWaiters: Array<() => void> = [];
+
+/**
+ * Run `cb` once the first pull has landed (immediately if it already has).
+ *
+ * For work that must not be mistaken for a first-boot default. The motivating
+ * case is the migration that strips the chart cache out of `accounts`: it shrinks
+ * the row by >90%, so the server's collapse guard refuses it unless the write is
+ * flagged `deliberate` — and only post-hydration writes are. Queuing it through
+ * the pending-push path instead would flush it unflagged and get a silent 409,
+ * leaving the bloated row on the server for the next device to download.
+ */
+export function onHydrated(cb: () => void): void {
+  if (hydrated) {
+    cb();
+    return;
+  }
+  hydrationWaiters.push(cb);
+}
+
 /** One-slot local backup of the values a merge was about to overwrite. */
 export interface PreMergeSnapshot {
   at: number;
@@ -171,6 +192,16 @@ export function openSyncGate(): void {
   }
   pendingPushes.clear();
   preHydrationWrites.clear();
+  // Waiters run LAST, after the queue is drained: a waiter's own writes must not
+  // be re-queued, and must land on top of whatever the queue just pushed.
+  const waiters = hydrationWaiters.splice(0);
+  for (const cb of waiters) {
+    try {
+      cb();
+    } catch {
+      /* a waiter must never break the gate */
+    }
+  }
 }
 
 /** Re-shut the gate around a merge (entering a code mid-session). */

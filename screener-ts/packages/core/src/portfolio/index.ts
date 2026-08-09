@@ -16,5 +16,6 @@ export { createOrder, cancelOrder, processOrders } from './orders.js';
 export type { CreateOrderInput, FillEvent } from './orders.js';
 export { runUpdate } from './update.js';
 export type { UpdateInput, UpdateResult } from './update.js';
+export { toPersistable, hasTransientFields } from './persist.js';
 export { compareAccounts } from './compare.js';
 export type { AccountComparisonRow } from './compare.js';

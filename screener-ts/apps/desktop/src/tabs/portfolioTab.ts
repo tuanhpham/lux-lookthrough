@@ -20,6 +20,8 @@ import {
   computeCash,
   computeEquity,
   computePositionsValue,
+  toPersistable,
+  hasTransientFields,
   fetchMany,
   SECTOR_STOCKS,
   type AccountState,
@@ -28,6 +30,7 @@ import {
   type Bar,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
+import { onHydrated } from '../adapters/storage.js';
 import { $, num, money, pct } from '../ui/dom.js';
 import { drawLine, drawCandles } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
@@ -226,7 +229,41 @@ function normalizeLotPrice(lot: { buyPrice: number; priceCurrency?: 'EUR' | 'USD
 }
 
 async function load(ctx: AppContext): Promise<void> {
-  accounts = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
+  const stored = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
+
+  // One-time slimming of a blob written by an older build (or just pulled from a
+  // server that still holds one). Those carry `_candleCache` — full OHLCV bars
+  // per position — which is why this key reached 912 KB and starved the rest of
+  // localStorage.
+  //
+  // The rewrite is deferred to hydration rather than done inline, and the reason
+  // is specific: the slim value is >90% smaller, so the server's collapse guard
+  // refuses it unless the push is flagged `deliberate`, and only post-hydration
+  // writes are. Writing inline on a synced boot would queue an unflagged push,
+  // eat a silent 409, and leave the 912 KB row on the server for the next device
+  // to download. Waiting also lets the merge finish first, so we slim whichever
+  // copy wins. `kv_history` keeps the fat version either way.
+  const fat = hasTransientFields(stored);
+  accounts = fat ? toPersistable(stored) : stored;
+  if (fat) {
+    onHydrated(() => {
+      void (async () => {
+        // Re-read rather than reuse `accounts`: the merge may have replaced the
+        // stored blob since load(), and whichever copy won is the one to slim.
+        const now = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
+        if (!now.length) return;
+        // Write UNCONDITIONALLY, even when the re-read is already slim. A
+        // pre-hydration save() (the NaN scrub below) can have slimmed the LOCAL
+        // copy while its queued, unflagged push was 409'd by the collapse guard —
+        // so local looks clean while the server still holds the 912 KB row. Gating
+        // this on hasTransientFields() would then skip the one write that fixes
+        // the server. This push carries `deliberate`, so the guard lets it in.
+        await ctx.storage.set(ACCT_KEY, toPersistable(now));
+      })().catch(() => {});
+    });
+  }
+
+  let dirty = false;
   if (!accounts.length) {
     // Auto-create a starter account for DISPLAY ONLY — do NOT save() it.
     //
@@ -246,7 +283,6 @@ async function load(ctx: AppContext): Promise<void> {
   // Scrub any NaN stop/target values that may have been stored via comma-decimal
   // input (e.g. "185,50" parsed by Number() → NaN). NaN is a valid JS value but
   // causes riskEur / rMultiple to silently become NaN and display as "—".
-  let dirty = false;
   for (const acct of accounts) {
     for (const lot of acct.lots) {
       if (lot.stop !== undefined && isNaN(lot.stop)) { lot.stop = undefined; dirty = true; }
@@ -256,8 +292,20 @@ async function load(ctx: AppContext): Promise<void> {
   if (dirty) await save(ctx);
   if (activeId !== OVERVIEW_ID && !accounts.some((a) => a.account.id === activeId)) activeId = OVERVIEW_ID;
 }
+/**
+ * The ONLY write path for `accounts`.
+ *
+ * `toPersistable` strips the UI's chart caches (`_candleCache`) before anything
+ * reaches storage. It used to write the live objects verbatim, which put full
+ * OHLCV bars for every position into localStorage and pushed them to D1 on every
+ * Update — 912 KB for four accounts, most of a 5 MB quota, for data rebuilt from
+ * `pf_bars:*` on load anyway. Do not call `ctx.storage.set(ACCT_KEY, ...)`
+ * directly; the filter has to be unconditional to stay effective. (The migration
+ * in `load()` is the one exception — it writes a re-read blob rather than the
+ * in-memory state, and still runs it through `toPersistable`.)
+ */
 async function save(ctx: AppContext): Promise<void> {
-  await ctx.storage.set(ACCT_KEY, accounts);
+  await ctx.storage.set(ACCT_KEY, toPersistable(accounts));
 }
 function active(): AccountState {
   return accounts.find((a) => a.account.id === activeId) ?? accounts[0]!;
