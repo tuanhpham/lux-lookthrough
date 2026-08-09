@@ -5,6 +5,8 @@ import {
   type QmScanResult,
   type MomentumResult,
   type Financials,
+  type CatalystEvent,
+  type StockPromptContext,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, num, fmtBig, money, fmtPrice, isVnSymbol, scoreColor } from './dom.js';
@@ -13,8 +15,11 @@ import { setupBadge, classBadge } from './badges.js';
 import { t, getLang } from './i18n.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
 import { infoIcon as info, attachTooltips } from './tooltip.js';
+import { loadGptUrl, renderPromptSection } from './promptSection.js';
 import { vnTradingViewSymbol } from '../adapters/universe.js';
 import { sliceBars, fundamentalsAsOf } from './asOf.js';
+import { listSnapshotDays, loadWindow } from '../tabs/catalystCache.js';
+import { loadCalendarScan } from '../tabs/calendarScan.js';
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -177,6 +182,11 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
 
     void wireWatchlistPicker(ctx, symbol);
 
+    // Research prompts. Rendered async because two of its inputs (the next dated
+    // catalyst, the market regime) live in caches that must be read, and neither is
+    // worth delaying the chart for — the section fills in a beat later.
+    void wirePromptSection(ctx, symbol, f, qm, mom, asOf);
+
     // The richer fields (sector, beta, dividend yield, ROE, margin, company
     // summary + website) arrive from a slow background crumb fetch. Poll the
     // cache briefly and live-patch them into the open modal as they land, so
@@ -287,6 +297,7 @@ function renderDetail(
         : ''
     }</div>
     <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f, symbol, asOf)}</div>
+    <div id="prompt-block"></div>
     <div class="section-title">${t('detail.about')}</div>
     <div id="about-block">${aboutHtml(symbol, f, true)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
@@ -425,6 +436,117 @@ function analysisHtml(q: QmScanResult, mom: MomentumResult | null): string {
     : 'Automated, educational read — not financial advice.';
   return `<ul class="analysis-list">${items.map((i) => `<li>${i}</li>`).join('')}</ul>
     <div class="muted" style="font-size:11px;margin-top:6px">${note}</div>`;
+}
+
+/**
+ * Assemble the prompt context from what the modal has and render the section.
+ *
+ * Everything here is best-effort by design: a missing catalyst or regime means one
+ * fewer line in the prompt, never a broken section. `contextBlock` omits absent
+ * fields and tells the model they are unknown, so passing `null` is the correct
+ * way to say "we don't know" — the one thing that must not happen is inventing a
+ * value to fill the slot.
+ */
+async function wirePromptSection(
+  ctx: AppContext,
+  symbol: string,
+  f: { name?: string | null; currency?: string | null; sector?: string | null; industry?: string | null; currentPrice?: number | null; marketCap?: number | null; peRatio?: number | null; eps?: number | null; roe?: number | null; profitMargin?: number | null; revenueGrowth?: number | null },
+  q: QmScanResult | null,
+  mom: MomentumResult | null,
+  asOf: string | null,
+): Promise<void> {
+  const host = $('#prompt-block');
+  if (!host) return;
+
+  const today = asOf ?? localToday();
+  // The next dated catalyst comes from the newest calendar snapshot that is not
+  // in the future relative to the view. In as-of mode a later snapshot would leak
+  // events that were not knowable on that date, which is the whole point of asOf.
+  const nextEvent = await nextEventFor(ctx, symbol, today).catch(() => null);
+  const regime = await cachedRegime(ctx).catch(() => null);
+
+  const context: StockPromptContext = {
+    symbol,
+    name: f.name ?? null,
+    sector: f.sector ?? null,
+    industry: f.industry ?? null,
+    price: f.currentPrice ?? q?.price ?? null,
+    currency: f.currency ?? null,
+    marketCap: f.marketCap ?? null,
+    setupType: q?.setupType ?? null,
+    qualityScore: q?.qualityScore ?? null,
+    pivot: q?.vcp.pivot ?? null,
+    entryPrice: q?.levels.entryPrice ?? null,
+    stopLoss: q?.levels.stopLoss ?? null,
+    targetPrice: q?.levels.targetPrice ?? null,
+    distanceToPivotPct:
+      q?.vcp.pivot != null && q.price > 0
+        ? Number((((q.vcp.pivot - q.price) / q.price) * 100).toFixed(2))
+        : null,
+    previousAdvancePct: q?.vcp.previousAdvancePct ?? null,
+    vcpContractions: q?.vcp.contractions ?? null,
+    volumeContractionPct: q?.vcp.volumeContractionPct ?? null,
+    atrContractionPct: q?.vcp.atrContractionPct ?? null,
+    baseDepthPct: q?.vcp.baseDepthPct ?? null,
+    momentumScore: mom?.momentumScore ?? null,
+    relativeStrength: mom?.relativeStrength ?? null,
+    return1mPct: mom?.returns.oneMonth ?? null,
+    return3mPct: mom?.returns.threeMonth ?? null,
+    return6mPct: mom?.returns.sixMonth ?? null,
+    atrPct: mom?.atrPct ?? null,
+    distanceFrom52wHighPct: mom?.distanceFrom52wHighPct ?? null,
+    peRatio: f.peRatio ?? null,
+    eps: f.eps ?? null,
+    // The app stores these as fractions; the prompt block labels them as percent.
+    roe: f.roe != null ? f.roe * 100 : null,
+    profitMargin: f.profitMargin != null ? f.profitMargin * 100 : null,
+    revenueGrowthPct: f.revenueGrowth != null ? f.revenueGrowth * 100 : null,
+    trendPassed: q?.trend.passed ?? null,
+    nextEventDate: nextEvent?.date ?? null,
+    nextEventTitle: nextEvent?.title ?? null,
+    nextEventKind: nextEvent?.kind ?? null,
+    nextEventEstimated: nextEvent ? nextEvent.confidence === 'estimated' : null,
+    marketRegime: regime,
+    today,
+  };
+
+  await loadGptUrl(ctx);
+  renderPromptSection(host, ctx, context);
+}
+
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * The soonest event for `symbol` on/after `today`, from stored calendar snapshots.
+ *
+ * Reads snapshots only — never the live API. The Calendar tab owns the once-a-day
+ * sweep budget, and a modal open must not spend against it.
+ */
+async function nextEventFor(
+  ctx: AppContext,
+  symbol: string,
+  today: string,
+): Promise<CatalystEvent | null> {
+  const days = await listSnapshotDays(ctx);
+  // Newest snapshot that was built on/before the view date. Newest-first order, so
+  // the first match is the freshest legitimate one.
+  const day = days.find((d) => d <= today);
+  if (!day) return null;
+  const w = await loadWindow(ctx, day);
+  if (!w) return null;
+  const mine = w.events
+    .filter((e) => e.symbol?.toUpperCase() === symbol.toUpperCase() && e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || b.impact - a.impact);
+  return mine[0] ?? null;
+}
+
+/** The regime label from the Calendar scan, when one has been run. */
+async function cachedRegime(ctx: AppContext): Promise<string | null> {
+  const scan = await loadCalendarScan(ctx);
+  return scan?.rows[0]?.regime ?? null;
 }
 
 /**

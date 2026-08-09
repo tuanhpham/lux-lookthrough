@@ -419,6 +419,13 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     en: 'Could not load the calendar. Check the connection and retry.',
     vi: 'Không tải được lịch. Kiểm tra kết nối và thử lại.',
   },
+  // The sweep is ~60 requests, so it is rationed to once a day. When today's run
+  // already happened but left no snapshot behind, re-running automatically would
+  // spend that budget again on every tab open — so we say so and offer ↻.
+  'cal.swept.nosnapshot': {
+    en: 'Already swept today, but the snapshot could not be stored. Use ↻ to sweep again.',
+    vi: 'Hôm nay đã quét rồi nhưng không lưu được dữ liệu. Bấm ↻ để quét lại.',
+  },
   // Saving is a SEPARATE failure from fetching: the calendar below is complete
   // and usable, it just won't be remembered for tomorrow. Saying "check the
   // connection" here would send the user after the wrong problem entirely.
@@ -429,6 +436,130 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'cal.nosave.full': {
     en: 'Calendar loaded, but browser storage is full so it was not saved. Everything below is up to date.',
     vi: 'Đã tải lịch nhưng bộ nhớ trình duyệt đã đầy nên không lưu được. Dữ liệu bên dưới vẫn là mới nhất.',
+  },
+
+  // Calendar — the three analytical sections (attention / VCP / mean reversion)
+  // Column headers. 'cal.event.symbol' is the *form field* label ("Symbol
+  // (optional)") and reads wrong in a table head, so these are separate.
+  'col.symbol': { en: 'Symbol', vi: 'Mã' },
+  'col.price': { en: 'Price', vi: 'Giá' },
+  'cal.watch.title': { en: 'What to watch', vi: 'Cần chú ý' },
+  'cal.watch.sub': {
+    en: 'Three reads over the curated US universe, from one scan a day: what needs attention now, what is consolidating, and what has fallen too far below its mean.',
+    vi: 'Ba góc nhìn trên danh mục cổ phiếu Mỹ đã chọn lọc, từ một lần quét mỗi ngày: mã nào cần chú ý ngay, mã nào đang tích lũy, và mã nào đã rơi quá sâu dưới đường trung bình.',
+  },
+  'cal.watch.run': { en: 'Run the scan', vi: 'Chạy quét' },
+  'cal.watch.rerun': { en: 'Re-scan', vi: 'Quét lại' },
+  'cal.watch.stop': { en: 'Stop', vi: 'Dừng' },
+  'cal.watch.prompt': {
+    en: 'These sections need one pass over ~540 stocks. It is not run automatically — press Run once and the result is kept for the rest of the day, on every device.',
+    vi: 'Các phần này cần quét qua khoảng 540 mã. Hệ thống không tự chạy — bấm Chạy quét một lần, kết quả giữ nguyên cả ngày trên mọi thiết bị.',
+  },
+  'cal.watch.scanning': { en: 'Scanning', vi: 'Đang quét' },
+  'cal.watch.stopped': { en: 'Scan stopped.', vi: 'Đã dừng quét.' },
+  'cal.watch.failed': {
+    en: 'The scan could not finish. Check the connection and try again.',
+    vi: 'Không hoàn tất được lần quét. Kiểm tra kết nối rồi thử lại.',
+  },
+
+  'cal.top.title': { en: 'Top 7 to watch', vi: '7 mã cần chú ý nhất' },
+  'cal.top.sub': {
+    en: 'Ranked by what is coming (dated catalysts) against where the stock is (setup, momentum) — and whether you own it.',
+    vi: 'Xếp hạng theo sự kiện sắp tới (có ngày cụ thể) kết hợp với trạng thái cổ phiếu (thiết lập, động lượng) — và bạn có đang giữ mã đó hay không.',
+  },
+  'cal.top.none': {
+    en: 'Nothing stands out in this window.',
+    vi: 'Không có mã nào nổi bật trong khoảng thời gian này.',
+  },
+  'cal.top.score': { en: 'Attention', vi: 'Mức chú ý' },
+  'cal.top.next': { en: 'Next event', vi: 'Sự kiện tới' },
+  'cal.top.why': { en: 'Why', vi: 'Vì sao' },
+  // Reason chips — one per AttentionReason tag.
+  'cal.why.held': { en: 'You hold it', vi: 'Bạn đang giữ' },
+  'cal.why.watchlist': { en: 'On a watchlist', vi: 'Trong danh sách theo dõi' },
+  'cal.why.earnings-soon': { en: 'Reports soon', vi: 'Sắp báo cáo KD' },
+  'cal.why.event-soon': { en: 'Event soon', vi: 'Sắp có sự kiện' },
+  'cal.why.high-impact': { en: 'High impact', vi: 'Tác động lớn' },
+  'cal.why.multi-event': { en: 'Several events', vi: 'Nhiều sự kiện' },
+  'cal.why.strong-setup': { en: 'Strong setup', vi: 'Thiết lập tốt' },
+  'cal.why.near-pivot': { en: 'At the pivot', vi: 'Sát pivot' },
+  'cal.why.strong-momentum': { en: 'Strong momentum', vi: 'Động lượng mạnh' },
+  'cal.why.unconfirmed-date': { en: 'Date unconfirmed', vi: 'Ngày chưa xác nhận' },
+
+  'cal.vcp.title': { en: 'Consolidating after an advance (VCP)', vi: 'Đang tích lũy sau nhịp tăng (VCP)' },
+  'cal.vcp.sub': {
+    en: 'A real prior advance, now contracting: tighter pullbacks, drying volume, falling range. The base is the setup; the pivot is the trigger.',
+    vi: 'Đã có nhịp tăng thật, giờ đang co thắt: các nhịp điều chỉnh nhỏ dần, khối lượng cạn dần, biên độ hẹp lại. Nền giá là thiết lập; pivot là điểm kích hoạt.',
+  },
+  'cal.vcp.none': {
+    en: 'No VCP bases in the scanned universe.',
+    vi: 'Không có nền VCP nào trong danh mục đã quét.',
+  },
+  'cal.vcp.advance': { en: 'Prior advance', vi: 'Nhịp tăng trước' },
+  'cal.vcp.contractions': { en: 'Contractions', vi: 'Số lần co thắt' },
+  'cal.vcp.depth': { en: 'Base depth', vi: 'Độ sâu nền' },
+  'cal.vcp.topivot': { en: 'To pivot', vi: 'Tới pivot' },
+  'cal.vcp.abovepivot': { en: 'above pivot', vi: 'trên pivot' },
+  'cal.vcp.notrend': { en: 'Trend filter not passed', vi: 'Chưa đạt bộ lọc xu hướng' },
+  'cal.vcp.notrend.tip': {
+    en: 'The base is forming, but the EMA stack is not yet aligned. Worth watching early — not yet worth buying.',
+    vi: 'Nền giá đang hình thành nhưng các đường EMA chưa xếp đúng thứ tự. Đáng theo dõi sớm — chưa đáng mua.',
+  },
+
+  'cal.mr.title': { en: 'Stretched below the mean (Mean Reversion)', vi: 'Giãn quá xa dưới trung bình (Mean Reversion)' },
+  'cal.mr.sub': {
+    en: 'An intact long-term uptrend, pulled unusually far below its 50-day mean. The uptrend is a hard requirement: oversold in a downtrend is a falling knife, not a setup.',
+    vi: 'Xu hướng dài hạn còn nguyên vẹn nhưng giá bị kéo xuống quá xa dưới đường trung bình 50 ngày. Xu hướng tăng là điều kiện bắt buộc: quá bán trong xu hướng giảm là dao rơi, không phải thiết lập.',
+  },
+  'cal.mr.none': {
+    en: 'No mean-reversion candidates in the scanned universe.',
+    vi: 'Không có mã nào phù hợp mean reversion trong danh mục đã quét.',
+  },
+  'cal.mr.stretch': { en: 'Below mean', vi: 'Dưới trung bình' },
+  'cal.mr.drawdown': { en: 'Off the high', vi: 'So với đỉnh' },
+  'cal.mr.target': { en: 'Target (EMA50)', vi: 'Mục tiêu (EMA50)' },
+  'cal.mr.invalidation': { en: 'Invalid below', vi: 'Vô hiệu nếu dưới' },
+  'cal.mr.upside': { en: 'Upside', vi: 'Tiềm năng' },
+  'cal.mr.stabilizing': { en: 'Stabilizing', vi: 'Đang ổn định lại' },
+  'cal.mr.stabilizing.tip': {
+    en: 'A higher low, an up close, or a strong close. Early evidence the fall is being absorbed — never required, because the point is to see the setup before it turns.',
+    vi: 'Đáy cao hơn, đóng cửa tăng, hoặc đóng cửa ở vùng cao trong phiên. Dấu hiệu sớm cho thấy lực bán đang được hấp thụ — không bắt buộc, vì mục đích là thấy thiết lập trước khi nó đảo chiều.',
+  },
+  'cal.mr.falling.tip': {
+    en: 'Every row here closed above a RISING 200-day EMA. That gate is what separates a pullback from a collapse.',
+    vi: 'Mọi mã ở đây đều đóng cửa trên đường EMA200 ĐANG ĐI LÊN. Đúng điều kiện đó mới phân biệt được nhịp điều chỉnh với một cú sụp.',
+  },
+
+  // Stock modal — research prompts
+  'prompts.title': { en: 'Research prompts', vi: 'Prompt nghiên cứu' },
+  'prompts.sub': {
+    en: 'Four questions worth asking, each pre-filled with the numbers measured above. Copy one, or send it straight to your GPT.',
+    vi: 'Bốn câu hỏi đáng đặt ra, mỗi cái đã điền sẵn các số liệu đo được ở trên. Chép lại, hoặc gửi thẳng sang GPT của bạn.',
+  },
+  'prompts.copy': { en: 'Copy', vi: 'Chép' },
+  'prompts.copied': { en: 'Copied ✓', vi: 'Đã chép ✓' },
+  'prompts.ask': { en: 'Ask ChatGPT', vi: 'Hỏi ChatGPT' },
+  'prompts.ask.hint': {
+    en: 'The prompt is copied to your clipboard and ChatGPT opens in a new tab — paste it there. A custom GPT cannot be pre-filled from a link, so this is the one reliable path.',
+    vi: 'Prompt được chép vào clipboard và ChatGPT mở ở tab mới — bạn dán vào đó. Custom GPT không thể điền sẵn qua đường link, nên đây là cách duy nhất chạy ổn định.',
+  },
+  'prompts.show': { en: 'Show prompt', vi: 'Xem prompt' },
+  'prompts.hide': { en: 'Hide prompt', vi: 'Ẩn prompt' },
+  'prompts.gpt.set': { en: 'Set my GPT', vi: 'Đặt GPT của tôi' },
+  'prompts.gpt.title': { en: 'Your custom GPT', vi: 'Custom GPT của bạn' },
+  'prompts.gpt.label': { en: 'ChatGPT link', vi: 'Đường link ChatGPT' },
+  'prompts.gpt.help': {
+    en: 'Paste the link to your own GPT (chatgpt.com/g/…) so “Ask ChatGPT” opens it, signed in to your account. Leave empty for plain ChatGPT. Only https links on chatgpt.com are accepted.',
+    vi: 'Dán link GPT của riêng bạn (chatgpt.com/g/…) để nút “Hỏi ChatGPT” mở đúng GPT đó, với tài khoản bạn đã đăng nhập. Để trống thì dùng ChatGPT thường. Chỉ nhận link https trên chatgpt.com.',
+  },
+  'prompts.gpt.rejected': {
+    en: 'That link was not accepted — only https links on chatgpt.com or chat.openai.com are used.',
+    vi: 'Link đó không được chấp nhận — chỉ dùng link https trên chatgpt.com hoặc chat.openai.com.',
+  },
+  'prompts.gpt.custom': { en: 'Your GPT', vi: 'GPT của bạn' },
+  'prompts.disclaimer': {
+    en: 'These prompts hand an LLM the numbers measured here; they do not verify its answer. Every one of them asks the model to name what would disprove it — read that part.',
+    vi: 'Các prompt này đưa số liệu đo được ở đây cho LLM; chúng không kiểm chứng câu trả lời. Mỗi prompt đều yêu cầu mô hình nêu điều gì sẽ phủ định kết luận của nó — hãy đọc phần đó.',
   },
 
   // Misc

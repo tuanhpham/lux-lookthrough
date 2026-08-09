@@ -18,16 +18,23 @@
  */
 import {
   type AccountState,
+  type AttentionInput,
+  type AttentionReason,
+  type AttentionRow,
+  type CapitalExposure,
   type CatalystEvent,
   type CatalystKind,
   type CatalystWindow,
-  computeCash,
+  capitalExposure,
   dateRange,
+  decideSweep,
   dayRisks,
+  eventsBySymbol,
   filterEvents,
   groupByDate,
   isWeekend,
   mergeEvents,
+  rankAttention,
   uncoveredKinds,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
@@ -37,8 +44,24 @@ import { openStock } from '../ui/stockModal.js';
 import { formDialog } from '../ui/forms.js';
 import { loadIndex, loadItems } from '../ui/watchlists.js';
 import { fetchCatalystWindow, todayLocal } from '../adapters/CatalystProvider.js';
-import { loadWindow, saveWindow, SnapshotTooLargeError, updatedAtLabel } from './catalystCache.js';
+import {
+  listSnapshotDays,
+  loadSweepLog,
+  loadWindow,
+  noteSweep,
+  saveWindow,
+  SnapshotTooLargeError,
+  updatedAtLabel,
+} from './catalystCache.js';
 import { addCustom, customToEvents, deleteCustom, loadCustom, type CustomEvent } from './customEvents.js';
+import {
+  loadCalendarScan,
+  runCalendarScan,
+  type CalendarScanResult,
+  type MeanReversionRow,
+  type VcpWatchRow,
+} from './calendarScan.js';
+import { scannedAtLabel } from './scanCache.js';
 
 /** All kinds, in the order the filter chips render (most actionable first). */
 const KINDS: CatalystKind[] = [
@@ -69,14 +92,53 @@ const view = {
   selectedDate: null as string | null,
   /** Cached scope sets so filtering doesn't re-read storage on every click. */
   watchSymbols: [] as string[],
-  holdWeights: new Map<string, number>(),
+  /** Cost-basis exposure across ALL accounts, one shared denominator. */
+  exposure: null as CapitalExposure | null,
 };
+
+/** Held symbols, for the portfolio scope filter. */
+function heldSymbols(): string[] {
+  return [...(view.exposure?.amounts.keys() ?? [])];
+}
 
 let current: CatalystWindow | null = null;
 let customEvents: CustomEvent[] = [];
 let appCtx: AppContext;
+/**
+ * Today's technical scan behind the three analytical sections, and when it ran.
+ *
+ * Deliberately separate from `current`: the calendar sweep (~60 requests) and the
+ * universe scan (~540) have different budgets and different failure modes, and
+ * tying them together would mean one could not run without the other.
+ */
+let watchScan: CalendarScanResult | null = null;
+let watchScanAt = 0;
+/**
+ * Abort signal. Every run captures its own value and stops as soon as this no
+ * longer matches, so bumping it cancels whatever is in flight.
+ */
+let watchToken = 0;
+/**
+ * Which run currently owns the `#cal-watch` host, or 0 when none does.
+ *
+ * Separate from `watchToken` because Stop and Re-scan both cancel the running scan
+ * but mean opposite things about the host: after Stop the cancelled run should
+ * restore the sections, after Re-scan it must leave the NEW run's progress card
+ * untouched. Comparing against `watchOwner` is what tells them apart — with only
+ * the token, a fast Stop→Run would blank the new scan's progress bar.
+ */
+let watchOwner = 0;
+let watchScanning = false;
 /** Guards against the stale-snapshot rebuild firing on every re-render. */
 let rebuilding = false;
+/**
+ * Last local day a sweep's fetch succeeded, mirrored in memory.
+ *
+ * `renderStatus` runs synchronously on every re-render and needs this to decide
+ * whether an auto-refresh is still owed, so it cannot await storage. Seeded in
+ * boot() and advanced by rebuild().
+ */
+let sweptDay = '';
 
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -94,7 +156,8 @@ export function renderCalendar(ctx: AppContext): void {
     <div id="cal-risk"></div>
     <div id="cal-upcoming"></div>
     <div id="cal-grid"></div>
-    <div id="cal-day"></div>`;
+    <div id="cal-day"></div>
+    <div id="cal-watch"></div>`;
   void boot();
 }
 
@@ -102,12 +165,51 @@ async function boot(): Promise<void> {
   await loadScopeData();
   customEvents = await loadCustom(appCtx);
 
-  const cached = await loadWindow(appCtx, todayLocal());
-  if (cached) {
+  // Today's technical scan, if one already ran. Loading it costs nothing and
+  // never triggers a fetch — the sections render from cache or offer a Run button.
+  const cachedScan = await loadCalendarScan(appCtx).catch(() => null);
+  if (cachedScan?.rows[0]) {
+    watchScan = cachedScan.rows[0];
+    watchScanAt = cachedScan.at;
+  }
+
+  const today = todayLocal();
+  const cached = await loadWindow(appCtx, today);
+  const log = await loadSweepLog(appCtx).catch(() => null);
+  sweptDay = log?.lastSweepDay ?? '';
+  const decision = decideSweep({ today, hasSnapshotForToday: cached !== null, log });
+
+  if (decision === 'use-snapshot') {
     current = cached;
     renderAll();
     return;
   }
+
+  if (decision === 'swept-but-no-snapshot') {
+    // A sweep already ran today; its snapshot just isn't here (the save failed,
+    // or it lives on another device that hasn't synced yet). Re-sweeping would
+    // fire 60 requests on every tab open, which is exactly the bug this avoids.
+    // Show the newest snapshot we do have and let the user force a refresh.
+    const days = await listSnapshotDays(appCtx);
+    const newest = days[0] ? await loadWindow(appCtx, days[0]) : null;
+    if (newest) {
+      current = newest;
+      renderAll();
+      return;
+    }
+    // Nothing at all to show. A manual Refresh is the only sensible offer —
+    // sweeping automatically here would restore the runaway loop.
+    $('#cal-status')!.innerHTML = `<div class="card" style="margin-bottom:14px">
+      <span class="muted">${t('cal.swept.nosnapshot')}</span>
+      <button id="cal-retry" class="range-btn" style="margin-left:12px">↻ ${t('cal.refresh')}</button>
+    </div>`;
+    $('#cal-retry')?.addEventListener('click', () => void rebuild());
+    // The technical sections do not depend on the event window, so they still
+    // render even when there is no calendar to show.
+    renderWatch();
+    return;
+  }
+
   await rebuild();
 }
 
@@ -122,25 +224,16 @@ async function loadScopeData(): Promise<void> {
     view.watchSymbols = [];
   }
 
-  // Portfolio weights: each open position's COST BASIS as a share of equity.
-  // Cost basis rather than market value keeps the weight stable as price moves,
-  // which is what "how much capital is exposed to this event" should mean.
+  // Portfolio weights: each holding's cost basis over the capital of the WHOLE
+  // book. This used to divide by each account's own equity and then sum across
+  // accounts, which made four fully-invested accounts total ~400% and produced
+  // the reported "278% of capital". `capitalExposure` uses one shared
+  // denominator so the figure is a real share of the money. See exposure.ts.
   try {
     const accounts = (await appCtx.storage.get<AccountState[]>('accounts')) ?? [];
-    const weights = new Map<string, number>();
-    for (const acct of accounts) {
-      const open = acct.lots.filter((l) => l.remainingShares > 0);
-      const invested = open.reduce((s, l) => s + l.buyPrice * l.remainingShares, 0);
-      const equity = invested + Math.max(0, computeCash(acct));
-      if (equity <= 0) continue;
-      for (const l of open) {
-        const sym = l.ticker.toUpperCase();
-        weights.set(sym, (weights.get(sym) ?? 0) + (l.buyPrice * l.remainingShares) / equity);
-      }
-    }
-    view.holdWeights = weights;
+    view.exposure = capitalExposure(accounts);
   } catch {
-    view.holdWeights = new Map();
+    view.exposure = null;
   }
 }
 
@@ -191,6 +284,13 @@ async function rebuild(): Promise<void> {
   // The window is in hand — from here nothing may stop it being shown.
   current = w;
 
+  // Write the receipt BEFORE the snapshot, and independently of it. The fetch
+  // succeeded, so today's request budget is spent whether or not the ~500 KB
+  // snapshot fits in storage. Recording it only on a successful save is what let
+  // a full store turn "once a day" into "60 requests every tab open".
+  sweptDay = w.builtOn;
+  await noteSweep(appCtx, w.builtOn, w.at).catch(() => {});
+
   let saveWarning = '';
   try {
     await saveWindow(appCtx, w);
@@ -233,7 +333,7 @@ function allEvents(): CatalystEvent[] {
 function visibleEvents(): CatalystEvent[] {
   const scopeSymbols =
     view.scope === 'watchlist' ? view.watchSymbols
-    : view.scope === 'portfolio' ? [...view.holdWeights.keys()]
+    : view.scope === 'portfolio' ? heldSymbols()
     : undefined;
   return filterEvents(allEvents(), {
     kinds: [...view.kinds],
@@ -251,6 +351,7 @@ function renderAll(): void {
   renderUpcoming();
   renderGrid();
   renderDayPanel();
+  renderWatch();
 }
 
 function renderControls(): void {
@@ -309,7 +410,13 @@ function renderControls(): void {
 function renderStatus(): void {
   if (!current) return;
   const lang = getLang();
-  const stale = current.builtOn !== todayLocal();
+  const today = todayLocal();
+  const stale = current.builtOn !== today;
+  // Whether the auto-refresh below is still allowed today. renderStatus runs on
+  // EVERY re-render — each filter chip, each scope switch — so this must consult
+  // the sweep receipt, not just staleness. Otherwise a day whose snapshot failed
+  // to save re-swept 60 requests on every click.
+  const mayResweep = stale && sweptDay < today;
 
   // Coverage is per-kind; surface the EARLIEST horizon among the active kinds,
   // since that's the first date this view stops being complete.
@@ -326,23 +433,30 @@ function renderStatus(): void {
   $('#cal-status')!.innerHTML = `
     <p class="muted" style="margin:-6px 0 14px;font-size:12px">
       ${current.from} → ${current.to} ·
-      ${stale
-        ? (lang === 'vi' ? `Ảnh chụp ngày ${current.builtOn} — đang làm mới…`
-                         : `Snapshot from ${current.builtOn} — refreshing…`)
-        : updatedAtLabel(current.at, lang)}${gapNote}
+      ${!stale
+        ? updatedAtLabel(current.at, lang)
+        : mayResweep
+          ? (lang === 'vi' ? `Ảnh chụp ngày ${current.builtOn} — đang làm mới…`
+                           : `Snapshot from ${current.builtOn} — refreshing…`)
+          // Already swept today: say so plainly instead of promising a refresh
+          // that will not come. Refresh above is the way to force one.
+          : (lang === 'vi' ? `Ảnh chụp ngày ${current.builtOn} — đã quét hôm nay, bấm ↻ để quét lại`
+                           : `Snapshot from ${current.builtOn} — already swept today; use ↻ to force`)
+      }${gapNote}
     </p>`;
 
-  if (stale) void rebuild(); // local date rolled over → refresh in place
+  if (mayResweep) void rebuild(); // local date rolled over → refresh in place
 }
 
 /** "My event risk": which holdings report, and what share of capital is exposed. */
 function renderRisk(): void {
   const host = $('#cal-risk')!;
-  if (!current || view.holdWeights.size === 0) {
+  const exp = view.exposure;
+  if (!current || !exp || exp.amounts.size === 0) {
     host.innerHTML = '';
     return;
   }
-  const risks = dayRisks(allEvents(), view.holdWeights);
+  const risks = dayRisks(allEvents(), exp.weights);
   if (!risks.length) {
     host.innerHTML = `<div class="card" style="margin-bottom:14px">
       <div class="section-title" style="margin:0 0 6px">${t('cal.myrisk')}</div>
@@ -353,13 +467,31 @@ function renderRisk(): void {
     // 20% of capital into one day's prints is where it stops being a detail and
     // starts being the dominant driver of the week's P&L.
     const hot = d.exposure >= 0.2;
+    // The money amount alongside the percentage: a percentage on its own was what
+    // made the old wrong figure hard to spot. An absolute number is checkable
+    // against the Portfolio tab, so a broken denominator shows up immediately.
+    const amount = d.symbols.reduce((s, sym) => s + (exp.amounts.get(sym.toUpperCase()) ?? 0), 0);
     return `<tr data-goto="${d.date}" style="cursor:pointer">
       <td class="mono">${d.date}</td>
       <td>${d.symbols.map((s) => `<span class="badge">${s}</span>`).join(' ')}</td>
       <td class="mono" style="text-align:right;color:${hot ? 'var(--danger)' : 'var(--text)'}">
-        ${(d.exposure * 100).toFixed(1)}%</td>
+        ${(d.exposure * 100).toFixed(1)}%
+        <span class="muted" style="font-size:11px"> · ${fmtBig(amount)}</span></td>
     </tr>`;
   }).join('');
+
+  // State the denominator. "% of capital" is ambiguous until you say WHICH
+  // capital, and the old bug was invisible precisely because nothing on screen
+  // said what the number was divided by.
+  const lang = getLang();
+  const basis = lang === 'vi'
+    ? `Tính trên tổng vốn ${fmtBig(exp.totalCapital)} của tất cả tài khoản (giá vốn + tiền mặt).`
+    : `Against total capital of ${fmtBig(exp.totalCapital)} across all accounts (cost basis + cash).`;
+  const fxNote = exp.mixedCurrency
+    ? `<br><span style="color:#ffb648">⚠ ${lang === 'vi'
+        ? 'Các tài khoản dùng nhiều loại tiền khác nhau — số tiền được cộng thẳng, chưa quy đổi.'
+        : 'Accounts use different currencies — amounts are summed without conversion.'}</span>`
+    : '';
 
   host.innerHTML = `
     <div class="card" style="margin-bottom:14px">
@@ -368,6 +500,7 @@ function renderRisk(): void {
         <th>${t('cal.event.date')}</th><th>${t('cal.holdings')}</th>
         <th style="text-align:right">${t('cal.ofcapital')}</th>
       </tr></thead><tbody>${rows}</tbody></table>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">${basis}${fxNote}</p>
     </div>`;
 
   host.querySelectorAll<HTMLElement>('[data-goto]').forEach((tr) =>
@@ -566,6 +699,321 @@ function renderDayPanel(): void {
       renderAll();
     }),
   );
+}
+
+/* ── the three analytical sections ───────────────────────────────────────── */
+
+/**
+ * Top attention / VCP / Mean Reversion.
+ *
+ * All three come from one cached scan. Until that scan has run today, the section
+ * shows a Run button and NOT a spinner: ~540 requests must be a deliberate act,
+ * for the same reason Picks works this way.
+ */
+function renderWatch(): void {
+  const host = $('#cal-watch')!;
+  if (watchScanning) return; // the progress card owns the host mid-scan
+
+  const header = `
+    <div class="section-title" style="margin-top:22px">${t('cal.watch.title')}</div>
+    <p class="muted" style="margin:-6px 0 12px;font-size:12px;line-height:1.55">${t('cal.watch.sub')}</p>`;
+
+  if (!watchScan) {
+    host.innerHTML = `${header}
+      <div class="card" style="text-align:center;padding:26px">
+        <p class="muted" style="margin:0 auto 14px;max-width:60ch;line-height:1.6">${t('cal.watch.prompt')}</p>
+        <button id="cal-watch-run" class="btn">${t('cal.watch.run')}</button>
+      </div>`;
+    $('#cal-watch-run')!.addEventListener('click', () => void startWatchScan());
+    return;
+  }
+
+  const lang = getLang();
+  const regime = watchScan.regime
+    ? ` · <span class="badge">${watchScan.regime}</span>`
+    : '';
+  host.innerHTML = `${header}
+    <p class="muted" style="margin:-6px 0 12px;font-size:12px">
+      ${scannedAtLabel(watchScanAt, lang)} · ${watchScan.scanned} ${t('picks.scanned')}${regime}
+      <button id="cal-watch-rerun" class="link-btn" style="margin-left:8px">${t('cal.watch.rerun')}</button>
+    </p>
+    <div id="cal-top"></div>
+    <div id="cal-vcp"></div>
+    <div id="cal-mr"></div>`;
+  $('#cal-watch-rerun')!.addEventListener('click', () => void startWatchScan());
+
+  renderTopAttention();
+  renderVcpSection(watchScan.vcp);
+  renderMeanReversionSection(watchScan.meanReversion);
+}
+
+/** Run the universe scan with live progress, then re-render the sections. */
+async function startWatchScan(): Promise<void> {
+  const host = $('#cal-watch')!;
+  const myToken = ++watchToken;
+  watchOwner = myToken;
+  watchScanning = true;
+
+  host.innerHTML = `
+    <div class="section-title" style="margin-top:22px">${t('cal.watch.title')}</div>
+    <div class="card">
+      <div class="row" style="align-items:center;gap:12px;flex-wrap:nowrap">
+        <span class="muted" id="cal-watch-label" style="font-size:12px">${t('cal.watch.scanning')}…</span>
+        <div style="flex:1;height:6px;background:var(--surface);border-radius:999px;overflow:hidden">
+          <div id="cal-watch-bar" style="height:100%;width:0;background:var(--accent);transition:width .2s"></div>
+        </div>
+        <button id="cal-watch-stop" class="range-btn">${t('cal.watch.stop')}</button>
+      </div>
+    </div>`;
+  // Bumping the token is what the scan polls; it stops between batches rather
+  // than mid-fetch, so an in-flight request is never orphaned.
+  $('#cal-watch-stop')!.addEventListener('click', () => {
+    watchToken += 1;
+  });
+
+  try {
+    const result = await runCalendarScan(
+      appCtx,
+      ({ done, total, vcp, meanReversion }) => {
+        if (myToken !== watchToken) return;
+        const bar = $('#cal-watch-bar');
+        if (bar) bar.style.width = `${Math.round((done / total) * 100)}%`;
+        const lab = $('#cal-watch-label');
+        if (lab) {
+          lab.textContent =
+            `${t('cal.watch.scanning')} ${done}/${total} — ${vcp} VCP · ${meanReversion} MR`;
+        }
+      },
+      () => myToken !== watchToken,
+    );
+    if (myToken !== watchToken) {
+      // Cancelled. If a newer run has since taken the host, this one is done and
+      // must touch nothing — otherwise it wipes the new progress card.
+      if (watchOwner !== myToken) return;
+      watchOwner = 0;
+      watchScanning = false;
+      // Stopped, with nothing newer running: restore whatever was cached rather
+      // than leaving the section blank.
+      renderWatch();
+      if (!watchScan) {
+        host.appendChild(el(`<p class="muted" style="font-size:12px">${t('cal.watch.stopped')}</p>`));
+      }
+      return;
+    }
+    watchOwner = 0;
+    watchScanning = false;
+    if (result) {
+      watchScan = result;
+      watchScanAt = Date.now();
+    }
+    renderWatch();
+  } catch {
+    if (watchOwner !== myToken) return; // superseded — the live run owns the host
+    watchOwner = 0;
+    watchScanning = false;
+    renderWatch();
+    host.appendChild(el(`
+      <div class="card" style="border-color:var(--danger)">
+        <span style="color:var(--danger)">${t('cal.watch.failed')}</span>
+      </div>`));
+  }
+}
+
+/**
+ * Top 7 — the blend of upcoming catalysts and technical state.
+ *
+ * The event side comes from the calendar window (already loaded), the technical
+ * side from the cached scan, and ownership from the portfolio/watchlists. Symbols
+ * with events but no scan row still rank: `rankAttention` scores them on event
+ * terms alone rather than dropping them, which matters most for exactly the case
+ * you care about — a stock you hold that is about to report.
+ */
+function renderTopAttention(): void {
+  const host = $('#cal-top');
+  if (!host) return;
+  const today = todayLocal();
+  const bySymbol = eventsBySymbol(visibleEvents());
+  const signals = new Map((watchScan?.signals ?? []).map((s) => [s.symbol, s]));
+  const held = view.exposure?.weights ?? new Map<string, number>();
+  const watched = new Set(view.watchSymbols);
+
+  // The candidate pool is the union: anything with an event, anything with a
+  // technical signal, everything held, everything watchlisted. Restricting it to
+  // symbols with events would make this a prettier earnings calendar.
+  const pool = new Set<string>([
+    ...bySymbol.keys(),
+    ...signals.keys(),
+    ...held.keys(),
+    ...watched,
+  ]);
+
+  const inputs: AttentionInput[] = [...pool].map((symbol) => {
+    const s = signals.get(symbol);
+    return {
+      symbol,
+      events: bySymbol.get(symbol) ?? [],
+      qualityScore: s?.qualityScore ?? null,
+      setupType: s?.setupType ?? null,
+      distanceToPivotPct: s?.distanceToPivotPct ?? null,
+      momentumScore: s?.momentumScore ?? null,
+      relativeStrength: s?.relativeStrength ?? null,
+      weight: held.get(symbol) ?? 0,
+      watchlisted: watched.has(symbol),
+    };
+  });
+
+  const rows = rankAttention(inputs, today, 7);
+  host.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="section-title" style="margin:0 0 2px">${t('cal.top.title')}</div>
+      <p class="muted" style="margin:0 0 10px;font-size:11px;line-height:1.5">${t('cal.top.sub')}</p>
+      ${rows.length ? topTableHtml(rows) : `<p class="muted" style="margin:0">${t('cal.top.none')}</p>`}
+    </div>`;
+  wireSymbolClicks(host);
+}
+
+function topTableHtml(rows: AttentionRow[]): string {
+  const body = rows.map((r, i) => {
+    const ev = r.nextEvent;
+    // "in 3d" is the actionable form of a date; the date itself is the checkable
+    // one. Both, because either alone leads to a misread.
+    const when = ev && r.daysAway !== null
+      ? `<span class="mono">${ev.date}</span> <span class="muted">· ${daysLabel(r.daysAway)}</span>`
+      : '<span class="muted">—</span>';
+    const what = ev
+      ? `<div class="muted" style="font-size:11px">${esc(ev.title)}${
+          r.eventCount > 1 ? ` +${r.eventCount - 1}` : ''}</div>`
+      : '';
+    const chips = r.reasons
+      .map((why) => `<span class="badge" style="${reasonStyle(why)}">${t(`cal.why.${why}`)}</span>`)
+      .join(' ');
+    const q = r.qualityScore != null ? `<span class="mono">${r.qualityScore.toFixed(0)}</span>` : '—';
+    return `<tr>
+      <td class="muted mono" style="width:1%">${i + 1}</td>
+      <td><button class="cal-sym" data-sym="${r.symbol}">${r.symbol}</button></td>
+      <td>${when}${what}</td>
+      <td style="text-align:right">${q}</td>
+      <td class="mono" style="text-align:right;font-weight:600">${r.score.toFixed(0)}</td>
+      <td>${chips}</td>
+    </tr>`;
+  }).join('');
+
+  return `<table><thead><tr>
+      <th></th><th>${t('col.symbol')}</th>
+      <th>${t('cal.top.next')}</th>
+      <th style="text-align:right">${t('detail.quality')}</th>
+      <th style="text-align:right">${t('cal.top.score')}</th>
+      <th>${t('cal.top.why')}</th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+}
+
+/** Held and unconfirmed-date chips are the two that change what you should do. */
+function reasonStyle(why: AttentionReason): string {
+  if (why === 'held') return 'border-color:var(--accent-line);color:var(--accent)';
+  if (why === 'unconfirmed-date') return 'border-color:#ffb648;color:#ffb648';
+  return '';
+}
+
+function daysLabel(days: number): string {
+  const vi = getLang() === 'vi';
+  if (days === 0) return t('cal.today');
+  if (days === 1) return vi ? 'mai' : 'tomorrow';
+  return vi ? `còn ${days} ngày` : `in ${days}d`;
+}
+
+function renderVcpSection(rows: VcpWatchRow[]): void {
+  const host = $('#cal-vcp');
+  if (!host) return;
+  const top = rows.slice(0, 12);
+  const body = top.map((r) => {
+    const d = r.distanceToPivotPct;
+    // A negative distance means price is already through the pivot: the base has
+    // broken out, which is a different trade from a base still forming.
+    const toPivot = d == null ? '—'
+      : d < 0 ? `<span style="color:var(--accent)">${Math.abs(d).toFixed(1)}% ${t('cal.vcp.abovepivot')}</span>`
+      : `${d.toFixed(1)}%`;
+    const trendFlag = r.trendPassed ? '' :
+      `<span class="badge" title="${esc(t('cal.vcp.notrend.tip'))}"
+         style="border-color:#ffb648;color:#ffb648">⚠ ${t('cal.vcp.notrend')}</span>`;
+    return `<tr>
+      <td><button class="cal-sym" data-sym="${r.symbol}">${r.symbol}</button>
+        ${r.sector ? `<div class="muted" style="font-size:11px">${esc(r.sector)}</div>` : ''}</td>
+      <td class="mono" style="text-align:right">${r.price.toFixed(2)}</td>
+      <td class="mono" style="text-align:right">${r.previousAdvancePct.toFixed(0)}%</td>
+      <td class="mono" style="text-align:right">${r.contractions}</td>
+      <td class="mono" style="text-align:right">${r.baseDepthPct.toFixed(1)}%</td>
+      <td class="mono" style="text-align:right">${r.pivot != null ? r.pivot.toFixed(2) : '—'}</td>
+      <td class="mono" style="text-align:right">${toPivot}</td>
+      <td class="mono" style="text-align:right;font-weight:600">${r.confidence.toFixed(0)}</td>
+      <td>${trendFlag}</td>
+    </tr>`;
+  }).join('');
+
+  host.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="section-title" style="margin:0 0 2px">${t('cal.vcp.title')}</div>
+      <p class="muted" style="margin:0 0 10px;font-size:11px;line-height:1.5">${t('cal.vcp.sub')}</p>
+      ${top.length ? `<div style="overflow-x:auto"><table><thead><tr>
+        <th>${t('col.symbol')}</th>
+        <th style="text-align:right">${t('col.price')}</th>
+        <th style="text-align:right">${t('cal.vcp.advance')}</th>
+        <th style="text-align:right">${t('cal.vcp.contractions')}</th>
+        <th style="text-align:right">${t('cal.vcp.depth')}</th>
+        <th style="text-align:right">Pivot</th>
+        <th style="text-align:right">${t('cal.vcp.topivot')}</th>
+        <th style="text-align:right">${t('detail.quality')}</th>
+        <th></th>
+      </tr></thead><tbody>${body}</tbody></table></div>`
+      : `<p class="muted" style="margin:0">${t('cal.vcp.none')}</p>`}
+    </div>`;
+  wireSymbolClicks(host);
+}
+
+function renderMeanReversionSection(rows: MeanReversionRow[]): void {
+  const host = $('#cal-mr');
+  if (!host) return;
+  const top = rows.slice(0, 12);
+  const body = top.map((r) => {
+    const stab = r.stabilizing
+      ? `<span class="badge" title="${esc(t('cal.mr.stabilizing.tip'))}"
+           style="border-color:var(--accent-line);color:var(--accent)">${t('cal.mr.stabilizing')}</span>`
+      : '';
+    return `<tr>
+      <td><button class="cal-sym" data-sym="${r.symbol}">${r.symbol}</button>
+        ${r.sector ? `<div class="muted" style="font-size:11px">${esc(r.sector)}</div>` : ''}</td>
+      <td class="mono" style="text-align:right">${r.price.toFixed(2)}</td>
+      <td class="mono" style="text-align:right">${r.stretchAtr.toFixed(1)}× ATR
+        <div class="muted" style="font-size:11px">${r.stretchPct.toFixed(1)}%</div></td>
+      <td class="mono" style="text-align:right">${r.rsi.toFixed(0)}</td>
+      <td class="mono" style="text-align:right">${r.pullbackFromHighPct.toFixed(1)}%</td>
+      <td class="mono" style="text-align:right">${r.targetPrice != null ? r.targetPrice.toFixed(2) : '—'}
+        <div class="muted" style="font-size:11px">+${r.upsideToTargetPct.toFixed(1)}%</div></td>
+      <td class="mono" style="text-align:right">${
+        r.invalidationPrice != null ? r.invalidationPrice.toFixed(2) : '—'}</td>
+      <td class="mono" style="text-align:right;font-weight:600">${r.confidence.toFixed(0)}</td>
+      <td>${stab}</td>
+    </tr>`;
+  }).join('');
+
+  host.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="section-title" style="margin:0 0 2px">${t('cal.mr.title')}</div>
+      <p class="muted" style="margin:0 0 10px;font-size:11px;line-height:1.5">${t('cal.mr.sub')}</p>
+      ${top.length ? `<div style="overflow-x:auto"><table><thead><tr>
+        <th>${t('col.symbol')}</th>
+        <th style="text-align:right">${t('col.price')}</th>
+        <th style="text-align:right">${t('cal.mr.stretch')}</th>
+        <th style="text-align:right">RSI</th>
+        <th style="text-align:right">${t('cal.mr.drawdown')}</th>
+        <th style="text-align:right">${t('cal.mr.target')}</th>
+        <th style="text-align:right">${t('cal.mr.invalidation')}</th>
+        <th style="text-align:right">${t('detail.quality')}</th>
+        <th></th>
+      </tr></thead><tbody>${body}</tbody></table></div>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">${t('cal.mr.falling.tip')}</p>`
+      : `<p class="muted" style="margin:0">${t('cal.mr.none')}</p>`}
+    </div>`;
+  wireSymbolClicks(host);
 }
 
 /** Ticker buttons open the existing stock detail modal. */

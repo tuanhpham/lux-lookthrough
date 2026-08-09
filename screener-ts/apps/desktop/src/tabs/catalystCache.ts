@@ -13,10 +13,36 @@
  * calendar APIs only ever return today-and-forward, so a historical as-of view
  * MUST read a stored snapshot and must never call the live API.
  */
-import type { CatalystWindow } from '@screener/core';
+import { type CatalystWindow, type SweepLog, recordSweep } from '@screener/core';
 import type { AppContext } from '../context.js';
 
 const PREFIX = 'calendar:';
+
+/**
+ * The sweep receipt, stored SEPARATELY from the snapshot.
+ *
+ * It must be tiny and it must never share a failure mode with the snapshot: the
+ * whole point is that it still gets written when the ~500 KB snapshot does not
+ * fit. Keeping it under its own key means a full store cannot cost us the record
+ * that a sweep already ran — which is what made the Calendar re-sweep 60
+ * requests on every single tab open.
+ */
+const SWEEP_LOG_KEY = 'calendar_sweep_log';
+
+export async function loadSweepLog(ctx: AppContext): Promise<SweepLog | null> {
+  return ctx.storage.get<SweepLog>(SWEEP_LOG_KEY);
+}
+
+/**
+ * Record that a sweep's FETCH succeeded on `day`.
+ *
+ * Called before the snapshot is saved, deliberately: the receipt is what rations
+ * tomorrow's requests, so it must survive a snapshot write that fails.
+ */
+export async function noteSweep(ctx: AppContext, day: string, at: number): Promise<void> {
+  const next = recordSweep(await loadSweepLog(ctx).catch(() => null), day, at);
+  await ctx.storage.set(SWEEP_LOG_KEY, next);
+}
 /**
  * How many daily snapshots to keep.
  *
