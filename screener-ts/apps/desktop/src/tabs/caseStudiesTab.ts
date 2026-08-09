@@ -383,7 +383,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       .forEach((cat) => {
         const row = el(`
           <div class="row" style="gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft);align-items:flex-start">
-            <span style="font-family:var(--font-mono);color:var(--accent2,#c084fc);white-space:nowrap">${cat.date}</span>
+            <span style="font-family:var(--font-mono);color:var(--violet);white-space:nowrap">${cat.date}</span>
             <span class="note-html" style="flex:1">${sanitizeNoteHtml(cat.text)}</span>
             <button class="link-btn cs-cat-edit" style="color:var(--accent2)" title="${vi ? 'Sửa' : 'Edit'}">✎</button>
             <button class="link-btn cs-cat-del" style="color:var(--danger)">✕</button>
@@ -512,7 +512,7 @@ function catalystListHtml(study: CaseStudy, vi: boolean): string {
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .map(
       (c) =>
-        `<div class="row" style="gap:10px;padding:5px 0;align-items:flex-start"><span style="font-family:var(--font-mono);color:#c084fc;white-space:nowrap">${c.date}</span><span class="note-html" style="flex:1">${sanitizeNoteHtml(c.text)}</span></div>`,
+        `<div class="row" style="gap:10px;padding:5px 0;align-items:flex-start"><span style="font-family:var(--font-mono);color:var(--violet);white-space:nowrap">${c.date}</span><span class="note-html" style="flex:1">${sanitizeNoteHtml(c.text)}</span></div>`,
     )
     .join('');
 }

@@ -24,3 +24,4 @@ export type {
 } from './researchPrompts.js';
 export { buildCaseStudyPrompt, caseContextBlock } from './caseStudyPrompt.js';
 export type { CaseStudyPromptContext } from './caseStudyPrompt.js';
+export { NOTE_COLORS, remapLegacyNoteColor } from './noteColors.js';

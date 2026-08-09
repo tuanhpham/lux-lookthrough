@@ -23,6 +23,10 @@
   --accent-ink: #04130d;        /* text on an accent fill */
   --accent2: #5b8cff;
   --blue: #5b8cff;
+  /* Violet, used for catalyst dates. No single hex clears 3:1 on both themes'
+     cards (#c084fc is 2.5:1 on cream, #9333ea only 3.4:1 on near-black), so it
+     is a token with a per-theme value rather than a literal. */
+  --violet: #c084fc;
   --danger: #ff5266;
   --warn: #ffb648;
   --up: var(--accent);
@@ -65,6 +69,9 @@ html.light {
   --faint: #97a0af;
   --accent: #07b886;
   --accent-ink: #ffffff;
+  /* Deeper so violet text still reads on the cream card (5.1:1 vs 2.5:1). */
+  --accent2: #3a6fe0;
+  --violet: #9333ea;
   /* Donut transitions (light): deeper, more saturated to read on cream. */
   --donut-invested: #03a06f;   /* emerald green */
   --donut-invested4: #12b6cf;  /* cyan */
@@ -640,6 +647,14 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .rn-tool:hover { background: var(--cardhover); border-color: var(--border); }
 .rn-color { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; }
 .rn-color:hover { transform: scale(1.12); }
+/* Reset swatch: fills with the LIVE theme text colour, so it previews exactly
+   what "default" means in the current theme instead of naming a fixed hex. The
+   slash marks it as "no colour" rather than one more colour to choose. */
+.rn-color-reset { background: var(--text); position: relative; overflow: hidden; }
+.rn-color-reset::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom right, transparent 44%, var(--card) 44%, var(--card) 56%, transparent 56%);
+}
 .rn-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--border); }
 .rn-editor {
   min-height: 160px; max-height: 46vh; overflow-y: auto;

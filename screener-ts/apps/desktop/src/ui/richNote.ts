@@ -9,6 +9,8 @@
  * table, the stock detail, and the exported HTML report — with no scripts.
  */
 
+import { NOTE_COLORS, remapLegacyNoteColor } from '@screener/core';
+
 const ALLOWED_TAGS = new Set([
   'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'BR', 'P', 'DIV', 'SPAN',
   'UL', 'OL', 'LI', 'H3', 'H4', 'A',
@@ -27,8 +29,21 @@ const ALLOWED_TAGS = new Set([
  */
 function execFormat(editor: HTMLElement, cmd: string, arg?: string): void {
   editor.focus();
-  const useCss = cmd === 'foreColor';
+  const useCss = cmd === 'foreColor' || cmd === 'removeColor';
   try { document.execCommand('styleWithCSS', false, useCss ? 'true' : 'false'); } catch { /* older engines */ }
+  if (cmd === 'removeColor') {
+    // The reset swatch. There is no execCommand for "drop just the colour":
+    // removeFormat would also strip bold/italic/lists from the selection. So
+    // set the colour to the theme's own foreground, which the sanitizer then
+    // recognises as "meant to inherit" and omits entirely — leaving other
+    // formatting intact. Reading the variable at click time is what keeps this
+    // correct in whichever theme is active.
+    const themeText = getComputedStyle(document.documentElement)
+      .getPropertyValue('--text')
+      .trim();
+    if (themeText) document.execCommand('foreColor', false, themeText);
+    return;
+  }
   if (cmd === 'formatBlock') {
     const isH = document.queryCommandValue('formatBlock').toUpperCase() === 'H3';
     document.execCommand('formatBlock', false, isH ? 'P' : 'H3');
@@ -50,7 +65,7 @@ export function sanitizeNoteHtml(html: string): string {
         // Convert it to an allowed <span style="color:…"> so the colour survives.
         if (tag === 'FONT') {
           const span = doc.createElement('span');
-          const col = elChild.getAttribute('color') || elChild.style.color;
+          const col = remapLegacyNoteColor(elChild.getAttribute('color') || elChild.style.color);
           if (col) span.style.color = col;
           while (elChild.firstChild) span.appendChild(elChild.firstChild);
           node.replaceChild(span, elChild);
@@ -68,7 +83,14 @@ export function sanitizeNoteHtml(html: string): string {
         // text-decoration, font-weight) rather than tags, so we must keep those
         // — plus colour (from style or a legacy `color` attribute).
         const styleParts: string[] = [];
-        const color = elChild.style.color || elChild.getAttribute('color');
+        // remapLegacyNoteColor rewrites colours saved from the OLD palette,
+        // which included each theme's own --text. Baked into the HTML, those
+        // turned invisible when the theme flipped (near-white note text on the
+        // light theme's cream card). Doing it here — in the sanitizer every
+        // render path already calls — means existing notes are fixed on sight,
+        // with no migration pass and no edit required from the user. It returns
+        // null for "should inherit", so the colour is simply omitted.
+        const color = remapLegacyNoteColor(elChild.style.color || elChild.getAttribute('color'));
         if (color) styleParts.push(`color:${color}`);
         if (/italic/i.test(elChild.style.fontStyle)) styleParts.push('font-style:italic');
         if (/underline|line-through/i.test(elChild.style.textDecoration || elChild.style.textDecorationLine)) {
@@ -104,7 +126,22 @@ export function isNoteEmpty(html: string | undefined | null): boolean {
   return text.length === 0;
 }
 
-const COLORS = ['#e9edf4', '#18d89a', '#ff5266', '#ffb648', '#5b8cff', '#c084fc'];
+/**
+ * Colour swatches for the toolbar. NOTE_COLORS[0] is null — the RESET swatch,
+ * which strips the colour so the text follows the active theme. It replaces the
+ * old first swatch (`#e9edf4`, the dark theme's --text): that one looked like
+ * "default" in dark mode but was saved as a literal hex, so the note became
+ * unreadable in light mode. "Default" must mean *inherit*, not a colour.
+ */
+function colorSwatches(vi: boolean): string {
+  return NOTE_COLORS.map((c) =>
+    c === null
+      ? `<button type="button" class="rn-color rn-color-reset" data-cmd="removeColor" title="${
+          vi ? 'Màu mặc định (theo giao diện)' : 'Default colour (follows the theme)'
+        }"></button>`
+      : `<button type="button" class="rn-color" data-cmd="foreColor" data-arg="${c}" style="background:${c}" title="${c}"></button>`,
+  ).join('');
+}
 
 /** Toolbar + contenteditable HTML for an inline rich editor. `idPrefix` keeps
  * multiple editors on one page independent. Wire it with `wireRichEditor`. */
@@ -124,7 +161,7 @@ export function richEditorHtml(idPrefix: string, initialHtml: string, opts: { la
       ${btn('insertUnorderedList', '', '• ', vi ? 'Danh sách' : 'Bullet list')}
       ${btn('insertOrderedList', '', '1.', vi ? 'Danh sách số' : 'Numbered list')}
       <span class="rn-sep"></span>
-      ${COLORS.map((c) => `<button type="button" class="rn-color" data-cmd="foreColor" data-arg="${c}" style="background:${c}" title="${c}"></button>`).join('')}
+      ${colorSwatches(vi)}
       <span class="rn-sep"></span>
       ${btn('removeFormat', '', '⌫', vi ? 'Xóa định dạng' : 'Clear formatting')}
     </div>
@@ -170,7 +207,7 @@ export function richNoteDialog(
           ${btn('insertUnorderedList', '', '• ', vi ? 'Danh sách' : 'Bullet list')}
           ${btn('insertOrderedList', '', '1.', vi ? 'Danh sách số' : 'Numbered list')}
           <span class="rn-sep"></span>
-          ${COLORS.map((c) => `<button type="button" class="rn-color" data-cmd="foreColor" data-arg="${c}" style="background:${c}" title="${c}"></button>`).join('')}
+          ${colorSwatches(vi)}
           <span class="rn-sep"></span>
           ${btn('removeFormat', '', '⌫', vi ? 'Xóa định dạng' : 'Clear formatting')}
         </div>
