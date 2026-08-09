@@ -11,7 +11,7 @@ import {
 
 /**
  * Trading System Playbook — a bilingual (EN/VI) reference page adapted to the
- * app's own design system (CSS variables, `.card`, `.prose`, toolbar pills).
+ * app's own design system (CSS variables, `.card`, `.playbook-*`, toolbar pills).
  *
  * The original was a standalone dark-theme HTML page; here it is rebuilt with
  * the app's components so it inherits the active theme + language and stays
@@ -147,12 +147,12 @@ Khuyến nghị: GIỮ / GIẢM / THOÁT kèm một lý do mỗi mã.`,
 - Did I follow my entry, stop and sizing rules? (yes/no each)
 - What was the realized R and the main driver?
 - One process mistake to avoid and one thing done well.
-Write a 3-bullet journal entry I can paste into the Analysis tab.`,
+Write a 3-bullet journal entry I can paste into a Case Study's notes.`,
       vi: `Với một lệnh đã đóng (kế hoạch so với thực tế):
 - Tôi có tuân thủ quy tắc vào lệnh, stop và khối lượng không? (có/không mỗi mục)
 - R thực hiện được là bao nhiêu và động lực chính là gì?
 - Một lỗi quy trình cần tránh và một việc đã làm tốt.
-Viết một mục nhật ký 3 gạch đầu dòng để tôi dán vào tab Phân tích.`,
+Viết một mục nhật ký 3 gạch đầu dòng để tôi dán vào ghi chú của một Hồ sơ Setup.`,
     },
   },
   {
@@ -243,7 +243,7 @@ const ROUTINE: { phase: Bi; items: Bi[] }[] = [
     items: [
       { en: 'Sector rotation read (Sectors tab)', vi: 'Đọc luân chuyển ngành (tab Ngành)' },
       { en: 'Refresh full watchlist with the screener', vi: 'Làm mới toàn bộ watchlist bằng bộ lọc' },
-      { en: 'Write the weekly post in the Analysis tab', vi: 'Viết bài phân tích tuần ở tab Phân tích' },
+      { en: 'Write up the week&rsquo;s best setup as a Case Study', vi: 'Ghi lại setup đáng chú ý nhất của tuần thành một Hồ sơ Setup' },
     ],
   },
 ];

@@ -172,9 +172,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('lightweight-charts')) return 'vendor-charts';
-          if (id.includes('marked')) return 'vendor-marked';
           if (id.includes('technicalindicators')) return 'vendor-indicators';
-          if (id.includes('js-yaml')) return 'vendor-yaml';
         },
       },
     },

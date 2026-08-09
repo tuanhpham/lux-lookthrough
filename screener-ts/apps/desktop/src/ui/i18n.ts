@@ -15,7 +15,6 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.sectors': { en: 'Sectors', vi: 'Ngành' },
   'nav.portfolio': { en: 'Portfolio', vi: 'Danh Mục' },
   'nav.backtest': { en: 'Backtest', vi: 'Backtest' },
-  'nav.blog': { en: 'Analysis', vi: 'Phân tích' },
   'nav.playbook': { en: 'Playbook', vi: 'Sổ tay' },
   'nav.learn': { en: 'Learn', vi: 'Tìm hiểu' },
   'nav.about': { en: 'About', vi: 'Giới thiệu' },

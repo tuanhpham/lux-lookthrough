@@ -737,11 +737,6 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
       howTo: 'Nhập mã (1–10 mã), chọn chu kỳ lịch sử và chiến lược → nhấn Chạy. Xem phần bên dưới để hiểu tại sao đôi khi kết quả 0 giao dịch.',
     },
     {
-      icon: '📰', name: 'Analysis',
-      what: 'Bài viết phân tích thị trường: setup đang nổi bật, luận điểm cổ phiếu, lý thuyết nền tảng.',
-      howTo: 'Nhấp vào bài để đọc toàn văn.',
-    },
-    {
       icon: '📓', name: 'Playbook',
       what: 'Quy trình giao dịch hàng ngày dưới dạng checklist tương tác: mở cửa, đóng cửa, và quản lý vị thế.',
       howTo: 'Dùng như danh sách kiểm tra hàng ngày. Đánh dấu từng mục khi hoàn thành; trạng thái không được lưu lại (làm mới mỗi ngày).',
@@ -781,11 +776,6 @@ function pageGuideHtml(lang: 'en' | 'vi'): string {
       icon: '⏱', name: 'Backtest',
       what: 'Simulate strategies on historical daily bars. Two strategies: <b>VCP breakout</b> (enters when a VCP base breaks out) and <b>Momentum rebalancing</b> (holds high-momentum names, exits when momentum fades).',
       howTo: 'Enter 1–10 symbols, choose a history period and strategy → Run Backtest. Read the section below for why you sometimes see 0 trades.',
-    },
-    {
-      icon: '📰', name: 'Analysis',
-      what: 'Market analysis posts: notable setups, stock thesis, and foundational theory.',
-      howTo: 'Click a post to read it in full.',
     },
     {
       icon: '📓', name: 'Playbook',

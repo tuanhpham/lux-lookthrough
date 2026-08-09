@@ -827,17 +827,6 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .chart { width: 100%; height: 280px; }
 .tag { font-size: 11px; padding: 1px 7px; border-radius: var(--radius-xs); background: var(--border); color: var(--subtext); }
 
-/* ── Blog / prose ────────────────────────────────────────────────────────── */
-.post-card { display: block; text-align: left; width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 17px; cursor: pointer; margin-bottom: 10px; transition: border-color .15s, background .15s, transform .12s; }
-.post-card:hover { background: var(--cardhover); border-color: var(--accent-line); transform: translateY(-1px); }
-.prose { line-height: 1.75; font-family: var(--font-serif); font-weight: 300; font-size: 15px; }
-.prose h1 { font-size: 25px; margin-top: 0; letter-spacing: .01em; }
-.prose h2 { font-size: 18px; margin-top: 24px; letter-spacing: .01em; }
-.prose p { margin: 0 0 16px; }
-.prose table { margin: 10px 0; font-family: var(--font-ui); font-weight: 400; font-size: 13px; }
-.prose blockquote { border-left: 2px solid var(--accent); margin: 14px 0; padding: 8px 16px; color: var(--subtext); background: var(--surface); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; font-style: italic; }
-.prose code { background: var(--surface); padding: 1px 6px; border-radius: 5px; font-family: var(--font-mono); font-size: .92em; }
-
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
 .notice { background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); color: var(--warn); border-radius: var(--radius-sm); padding: 9px 13px; font-size: 13px; }
 
