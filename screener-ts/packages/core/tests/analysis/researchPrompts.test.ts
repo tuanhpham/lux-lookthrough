@@ -4,9 +4,11 @@ import {
   buildResearchPrompts,
   contextBlock,
   chatGptUrl,
+  chatGptAskUrl,
   isCustomGptUrl,
   RESEARCH_PROMPT_IDS,
   DEFAULT_CHATGPT_URL,
+  MAX_URL_PROMPT_LENGTH,
 } from '../../src/analysis/researchPrompts.js';
 import type { StockPromptContext } from '../../src/analysis/researchPrompts.js';
 
@@ -273,6 +275,81 @@ describe('chatGptUrl', () => {
 
   it('is case-insensitive about the host', () => {
     expect(chatGptUrl('https://ChatGPT.com/g/g-abc')).toBe('https://chatgpt.com/g/g-abc');
+  });
+});
+
+describe('chatGptAskUrl', () => {
+  it('puts the prompt in the q parameter so the composer is pre-filled', () => {
+    const { url, embedded } = chatGptAskUrl('analyse NVDA');
+    expect(embedded).toBe(true);
+    expect(url).toBe('https://chatgpt.com/?q=analyse%20NVDA');
+  });
+
+  it('appends q to a custom GPT link, keeping the GPT path intact', () => {
+    // The whole point: the question must land inside the user's OWN GPT, not in a
+    // fresh default chat that knows none of its instructions.
+    const { url } = chatGptAskUrl('hello', 'https://chatgpt.com/g/g-abc123-my-trader');
+    expect(url).toBe('https://chatgpt.com/g/g-abc123-my-trader?q=hello');
+  });
+
+  it('uses & when the configured link already carries a query', () => {
+    // A second '?' makes the whole query string unparseable, so the prompt would
+    // arrive as part of the previous parameter's value — or not at all.
+    const { url } = chatGptAskUrl('hi', 'https://chatgpt.com/g/g-abc?model=gpt-5');
+    expect(url).toBe('https://chatgpt.com/g/g-abc?model=gpt-5&q=hi');
+  });
+
+  it('encodes characters that would otherwise break the URL', () => {
+    const { url } = chatGptAskUrl('a&b=c?d #e\nf');
+    // Raw '&' would split the parameter; raw '#' would truncate everything after
+    // it into a fragment the server never sees.
+    expect(url).not.toContain('&b');
+    expect(url).not.toContain('#e');
+    expect(url).toContain('%26b');
+    expect(url).toContain('%23e');
+    expect(url).toContain('%0A');
+  });
+
+  it('round-trips the prompt exactly', () => {
+    // Vietnamese diacritics are the case that actually exercises the encoding.
+    const p = 'Phân tích cổ phiếu NVDA — pivot 145.2, "đã tích lũy" 3 lần?';
+    const { url } = chatGptAskUrl(p);
+    expect(decodeURIComponent(url.split('?q=')[1]!)).toBe(p);
+  });
+
+  it('refuses to embed a prompt too long to survive the trip', () => {
+    // A TRUNCATED prompt is the worst outcome: the model answers a question that
+    // silently lost its tail, which is exactly where "state what would disprove
+    // this" lives. Better to open a clean composer and let the paste happen.
+    const huge = 'x'.repeat(MAX_URL_PROMPT_LENGTH + 1);
+    const { url, embedded } = chatGptAskUrl(huge, 'https://chatgpt.com/g/g-abc');
+    expect(embedded).toBe(false);
+    expect(url).toBe('https://chatgpt.com/g/g-abc');
+    expect(url).not.toContain('q=');
+  });
+
+  it('measures the cap against the ENCODED length, not the raw one', () => {
+    // Percent-encoding inflates non-ASCII roughly 3x, so a raw length check would
+    // pass a Vietnamese prompt that is actually 3x over the limit.
+    const raw = 'ữ'.repeat(3000); // 3000 chars raw, ~27000 encoded
+    expect(raw.length).toBeLessThan(MAX_URL_PROMPT_LENGTH);
+    expect(chatGptAskUrl(raw).embedded).toBe(false);
+  });
+
+  it('accepts a real prompt at full length', () => {
+    // Guards the cap against being set below what this app actually produces.
+    for (const lang of ['en', 'vi'] as const) {
+      for (const p of buildResearchPrompts(FULL, lang)) {
+        expect(chatGptAskUrl(p.body).embedded).toBe(true);
+      }
+    }
+  });
+
+  it('still refuses a hostile configured URL', () => {
+    // chatGptAskUrl must not become a way around chatGptUrl's host whitelist.
+    const { url } = chatGptAskUrl('hi', 'javascript:alert(1)');
+    expect(url).toBe(`${DEFAULT_CHATGPT_URL}?q=hi`);
+    expect(chatGptAskUrl('hi', 'https://evil.io/g/g-x').url).toBe(`${DEFAULT_CHATGPT_URL}?q=hi`);
   });
 });
 

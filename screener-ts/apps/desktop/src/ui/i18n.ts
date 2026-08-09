@@ -539,9 +539,11 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'prompts.copy': { en: 'Copy', vi: 'Chép' },
   'prompts.copied': { en: 'Copied ✓', vi: 'Đã chép ✓' },
   'prompts.ask': { en: 'Ask ChatGPT', vi: 'Hỏi ChatGPT' },
+  'prompts.sent': { en: 'Sent →', vi: 'Đã gửi →' },
+  'prompts.toolong': { en: 'Copied — paste it', vi: 'Đã chép — hãy dán' },
   'prompts.ask.hint': {
-    en: 'The prompt is copied to your clipboard and ChatGPT opens in a new tab — paste it there. A custom GPT cannot be pre-filled from a link, so this is the one reliable path.',
-    vi: 'Prompt được chép vào clipboard và ChatGPT mở ở tab mới — bạn dán vào đó. Custom GPT không thể điền sẵn qua đường link, nên đây là cách duy nhất chạy ổn định.',
+    en: 'Opens ChatGPT with the question already in the composer, and copies it as a backup. Custom GPTs have no API, so if OpenAI ignores the pre-filled text just paste — it is already on your clipboard.',
+    vi: 'Mở ChatGPT với câu hỏi đã điền sẵn trong khung chat, đồng thời chép lại để dự phòng. Custom GPT không có API, nên nếu OpenAI bỏ qua phần điền sẵn thì bạn chỉ cần dán — prompt đã nằm trong clipboard.',
   },
   'prompts.show': { en: 'Show prompt', vi: 'Xem prompt' },
   'prompts.hide': { en: 'Hide prompt', vi: 'Ẩn prompt' },

@@ -3,20 +3,29 @@
  *
  * Four prompts (market context, dated catalysts, accumulation, fundamentals),
  * each pre-filled with the numbers the modal already measured, plus a Copy button
- * and an "Ask ChatGPT" button that opens the user's own custom GPT.
+ * and an "Ask ChatGPT" button that opens the user's own custom GPT with the
+ * question already in the composer.
  *
- * ── WHY "ASK CHATGPT" COPIES INSTEAD OF PRE-FILLING ─────────────────────────
- * ChatGPT's `?q=` parameter pre-fills the composer on the PLAIN chat URL only; on
- * a custom GPT link (`/g/g-…`) it is ignored. So a link-only implementation would
- * silently drop the prompt for exactly the user who configured a custom GPT and
- * leave them staring at an empty box. Copy-then-open always works, on every host,
- * and the hint text says so rather than leaving the paste step to be guessed.
+ * ── HOW FAR AUTOMATION CAN GO HERE, AND WHY ─────────────────────────────────
+ * There is NO API for a custom GPT on chatgpt.com. OpenAI does not expose one, so
+ * nothing can drive your GPT programmatically; the only mechanism available is the
+ * `?q=` URL parameter, which pre-fills the composer (and on the plain chat URL
+ * also submits). Whether the custom-GPT page consumes it is OpenAI's behaviour to
+ * decide and has changed before.
+ *
+ * So the button does both: it puts the prompt in the URL AND copies it. The copy
+ * is not redundancy for its own sake — it is what keeps the feature honest on the
+ * day the parameter stops working. Relying on `?q=` alone would fail silently, on
+ * someone else's deploy schedule, leaving an empty composer and nothing to paste.
+ * The UI states which of the two happened rather than implying the question was
+ * definitely sent.
  *
  * The prompt text itself is built in core (`buildResearchPrompts`) and is fully
  * tested there. This file is the DOM and the storage around it.
  */
 import {
   buildResearchPrompts,
+  chatGptAskUrl,
   chatGptUrl,
   isCustomGptUrl,
   DEFAULT_CHATGPT_URL,
@@ -60,8 +69,9 @@ export function renderPromptSection(
   const prompts = buildResearchPrompts(context, lang);
 
   const paint = (): void => {
-    const target = chatGptUrl(gptUrl);
-    const custom = isCustomGptUrl(target);
+    // Only for the badge — the per-prompt URL is built at click time by
+    // chatGptAskUrl, which appends the question to this same validated base.
+    const custom = isCustomGptUrl(chatGptUrl(gptUrl));
     host.innerHTML = `
       <div class="section-title">${t('prompts.title')}</div>
       <p class="muted" style="margin:-6px 0 10px;font-size:12px;line-height:1.55">${t('prompts.sub')}</p>
@@ -92,11 +102,14 @@ export function renderPromptSection(
       btn.addEventListener('click', () => {
         const p = prompts[Number(btn.dataset.promptAsk)];
         if (!p) return;
-        // Copy FIRST, then open. If the copy fails the user still gets the tab and
-        // a visible "copy failed" state, rather than an opened tab and nothing to
-        // paste with no explanation.
-        void copyToClipboard(p.body, btn).finally(() => {
-          window.open(target, '_blank', 'noopener,noreferrer');
+        const ask = chatGptAskUrl(p.body, gptUrl);
+        // Copy FIRST, then open — and copy even when the prompt IS in the URL. If
+        // ChatGPT ignores `?q=` on a custom GPT, the clipboard is the only thing
+        // standing between the user and an empty composer. Opening in a popup that
+        // the copy failure could pre-empt is the one ordering to avoid, hence
+        // `finally`.
+        void copyToClipboard(p.body, btn, ask.embedded).finally(() => {
+          window.open(ask.url, '_blank', 'noopener,noreferrer');
         });
       });
     });
@@ -128,20 +141,33 @@ function promptCardHtml(p: ResearchPrompt, i: number): string {
  *
  * The clipboard API rejects when the document isn't focused or permission is
  * refused, which happens often enough on iOS that failing silently would look
- * like the button doing nothing. The prompt panel is then expanded so the text is
- * at least selectable by hand.
+ * like the button doing nothing.
+ *
+ * `sent` distinguishes the two Ask outcomes. When the prompt travelled in the URL
+ * the button says so; when it was too long to carry, it must say the prompt is on
+ * the clipboard instead — telling the user "sent" in that case would have them
+ * waiting for an answer to a question that was never asked.
  */
-async function copyToClipboard(text: string, btn: HTMLElement): Promise<void> {
+async function copyToClipboard(text: string, btn: HTMLElement, sent?: boolean): Promise<void> {
   const old = btn.textContent ?? '';
+  const vi = getLang() === 'vi';
   try {
     await navigator.clipboard.writeText(text);
-    btn.textContent = t('prompts.copied');
+    btn.textContent =
+      sent === undefined
+        ? t('prompts.copied')
+        : sent
+          ? t('prompts.sent')
+          : t('prompts.toolong');
   } catch {
-    btn.textContent = getLang() === 'vi' ? 'Không chép được' : 'Copy failed';
+    // The URL still carries the prompt when `sent`, so a copy failure is harmless
+    // there; when it doesn't, this is the path where the user is left with nothing
+    // and has to be told to open the prompt and select it by hand.
+    btn.textContent = sent ? t('prompts.sent') : vi ? 'Không chép được' : 'Copy failed';
   }
   setTimeout(() => {
     btn.textContent = old;
-  }, 1400);
+  }, 1800);
 }
 
 /**

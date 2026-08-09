@@ -348,12 +348,6 @@ export function buildResearchPrompts(
 /**
  * Where "Ask ChatGPT" sends the user.
  *
- * ChatGPT has no documented way to pre-fill a **custom GPT's** composer — the
- * `?q=` parameter works on the plain chat URL but is ignored on `/g/<gpt-id>`
- * links. So the prompt always goes to the clipboard, and the URL only decides
- * which page opens; anything else would mean silently dropping the prompt on a
- * custom GPT and leaving the user staring at an empty box.
- *
  * `custom` is whatever the user configured. It is validated rather than trusted:
  * a stored value from a synced device could be any string, and building an
  * `href` from it unchecked is how a stored-XSS `javascript:` URL gets shipped.
@@ -402,4 +396,55 @@ export function chatGptUrl(custom?: string | null): string {
 /** True when the configured URL is a custom GPT (`/g/...`) rather than plain chat. */
 export function isCustomGptUrl(url: string): boolean {
   return splitUrl(url.trim())?.path.startsWith('/g/') ?? false;
+}
+
+/**
+ * Longest prompt we will put in a URL.
+ *
+ * Browsers handle far more, but intermediaries do not: some proxies and server
+ * stacks cut request lines around 8 KB, and a TRUNCATED prompt is the worst
+ * outcome available here — the model would answer a question that silently lost
+ * its last paragraph, which is exactly where the "state what would disprove this"
+ * instruction lives. Over the cap we send the user to a clean composer with the
+ * prompt on the clipboard instead of shipping a mutilated one.
+ *
+ * For reference, the four prompts encode to ~2.9–3.4 KB in English and
+ * ~5.7–6.8 KB in Vietnamese (percent-encoding inflates diacritics ~3x), so
+ * Vietnamese is the case that actually approaches this.
+ */
+export const MAX_URL_PROMPT_LENGTH = 7500;
+
+/**
+ * The URL that opens ChatGPT with `prompt` already in the composer.
+ *
+ * ── WHAT THIS CAN AND CANNOT DO ─────────────────────────────────────────────
+ * `?q=` pre-fills, and on the plain chat URL ChatGPT also auto-submits it. On a
+ * custom GPT (`/g/g-…`) the parameter is appended the same way, but whether that
+ * page consumes it is OpenAI's behaviour to decide, not ours, and it has changed
+ * before. There is no API for custom GPTs, so this is the only mechanism that
+ * exists — and it is best-effort by nature.
+ *
+ * Therefore the CALLER MUST STILL COPY the prompt to the clipboard before
+ * opening this URL. That is not belt-and-braces; it is the fallback that makes
+ * the feature honest when the parameter is ignored. A design that relies on `?q=`
+ * alone breaks silently, on someone else's deploy schedule, and leaves the user
+ * looking at an empty composer with nothing to paste.
+ *
+ * Returns `{ url, embedded }`. `embedded: false` means the prompt was too long to
+ * carry and the URL is a bare composer — the UI should say so rather than let the
+ * user believe the question was sent.
+ */
+export function chatGptAskUrl(
+  prompt: string,
+  custom?: string | null,
+): { url: string; embedded: boolean } {
+  const base = chatGptUrl(custom);
+  const encoded = encodeURIComponent(prompt);
+  if (encoded.length > MAX_URL_PROMPT_LENGTH) return { url: base, embedded: false };
+  // `base` is already validated and never contains a query or fragment of its own
+  // (a custom GPT link is a bare path), so appending is unambiguous. The `?`/`&`
+  // choice is kept anyway: a pasted link with an existing query must not produce a
+  // second `?`, which would make the whole parameter unparseable.
+  const sep = base.includes('?') ? '&' : '?';
+  return { url: `${base}${sep}q=${encoded}`, embedded: true };
 }
