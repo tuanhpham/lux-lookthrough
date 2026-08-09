@@ -9,6 +9,7 @@ import {
   RESEARCH_PROMPT_IDS,
   DEFAULT_CHATGPT_URL,
   MAX_URL_PROMPT_LENGTH,
+  MAX_FRAGMENT_PROMPT_LENGTH,
   AUTORUN_MARKER,
 } from '../../src/analysis/researchPrompts.js';
 import type { StockPromptContext } from '../../src/analysis/researchPrompts.js';
@@ -318,7 +319,7 @@ describe('chatGptAskUrl', () => {
     expect(decodeURIComponent(url.split('?q=')[1]!)).toBe(p);
   });
 
-  it('refuses to embed a prompt too long to survive the trip', () => {
+  it('refuses to put a prompt too long to survive the trip in the query', () => {
     // A TRUNCATED prompt is the worst outcome: the model answers a question that
     // silently lost its tail, which is exactly where "state what would disprove
     // this" lives. Better to open a clean composer and let the paste happen.
@@ -369,14 +370,59 @@ describe('chatGptAskUrl', () => {
     expect(url.split('#')[0]).toContain('q=hi');
   });
 
+  it('carries an over-cap prompt in the marker fragment when autorun is on', () => {
+    // The query cap exists because proxies truncate request lines; a fragment is
+    // never IN the request line, so it is not subject to that. The extension is what
+    // reads it — hence only with autorun.
+    const huge = 'x'.repeat(MAX_URL_PROMPT_LENGTH + 1);
+    const { url, embedded } = chatGptAskUrl(huge, 'https://chatgpt.com/g/g-abc', {
+      autorun: true,
+    });
+    expect(embedded).toBe(true);
+    expect(url.startsWith(`https://chatgpt.com/g/g-abc#${AUTORUN_MARKER}=`)).toBe(true);
+    // Nothing in the query: it stayed out of the part a proxy could cut.
+    expect(url.split('#')[0]).not.toContain('q=');
+    expect(decodeURIComponent(url.split(`#${AUTORUN_MARKER}=`)[1]!)).toBe(huge);
+  });
+
+  it('round-trips a Vietnamese over-cap prompt through the fragment', () => {
+    // The case that forced this path: diacritics encode ~3x, so the real
+    // case-study prompt lands at ~8.5 KB — over the query cap, far under the
+    // fragment one.
+    const p = 'Phân tích cổ phiếu — '.repeat(400);
+    expect(encodeURIComponent(p).length).toBeGreaterThan(MAX_URL_PROMPT_LENGTH);
+    const { url, embedded } = chatGptAskUrl(p, null, { autorun: true });
+    expect(embedded).toBe(true);
+    expect(decodeURIComponent(url.split(`#${AUTORUN_MARKER}=`)[1]!)).toBe(p);
+  });
+
   it('omits the marker when the prompt was too long to embed', () => {
     // Nothing to run. Marking this URL would have the extension fill a composer
     // from a `q` that isn't there, while the UI is telling the user to paste.
-    const huge = 'x'.repeat(MAX_URL_PROMPT_LENGTH + 1);
+    const huge = 'x'.repeat(MAX_FRAGMENT_PROMPT_LENGTH + 1);
     const { url, embedded } = chatGptAskUrl(huge, null, { autorun: true });
     expect(embedded).toBe(false);
     expect(url).not.toContain(AUTORUN_MARKER);
     expect(url).toBe(DEFAULT_CHATGPT_URL);
+  });
+
+  it('does not use the fragment path without autorun', () => {
+    // Reporting `embedded: true` for a fragment nothing will read would have the UI
+    // tell the user the question was sent when it never left the browser.
+    const huge = 'x'.repeat(MAX_URL_PROMPT_LENGTH + 1);
+    expect(chatGptAskUrl(huge).embedded).toBe(false);
+    expect(chatGptAskUrl(huge, null, { autorun: false }).url).toBe(DEFAULT_CHATGPT_URL);
+  });
+
+  it('drops an existing fragment when carrying the prompt in one', () => {
+    // Two fragments cannot coexist; the marker must be the whole fragment or the
+    // extension's `location.hash` check fails and nothing runs.
+    const huge = 'x'.repeat(MAX_URL_PROMPT_LENGTH + 1);
+    const { url } = chatGptAskUrl(huge, 'https://chatgpt.com/g/g-abc#frag', {
+      autorun: true,
+    });
+    expect(url.split('#').length).toBe(2);
+    expect(url).not.toContain('#frag');
   });
 
   it('keeps the query ahead of a fragment on an already-fragmented base', () => {

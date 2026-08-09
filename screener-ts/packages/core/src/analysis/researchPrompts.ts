@@ -411,8 +411,25 @@ export function isCustomGptUrl(url: string): boolean {
  * For reference, the four prompts encode to ~2.9–3.4 KB in English and
  * ~5.7–6.8 KB in Vietnamese (percent-encoding inflates diacritics ~3x), so
  * Vietnamese is the case that actually approaches this.
+ *
+ * This applies to the QUERY path only — see `MAX_FRAGMENT_PROMPT_LENGTH`.
  */
 export const MAX_URL_PROMPT_LENGTH = 7500;
+
+/**
+ * Longest prompt we will put in a URL FRAGMENT.
+ *
+ * Much larger than the query cap for a structural reason, not a hopeful one: a
+ * fragment is never part of the HTTP request line, so none of the proxy and server
+ * limits that force `MAX_URL_PROMPT_LENGTH` apply to it. What is left is the
+ * browser's own address limit, which is in the megabytes.
+ *
+ * The bound is kept anyway so a pathological input cannot produce an address no
+ * browser will open. The case-study prompt — the longest in the app — encodes to
+ * ~8.5 KB in Vietnamese, well inside this and well OUTSIDE the query cap, which is
+ * precisely why the fragment path exists.
+ */
+export const MAX_FRAGMENT_PROMPT_LENGTH = 60000;
 
 /**
  * Fragment marker that opts a URL in to the companion browser extension.
@@ -420,6 +437,10 @@ export const MAX_URL_PROMPT_LENGTH = 7500;
  * A FRAGMENT, deliberately: fragments are not part of the HTTP request line, so
  * this never reaches OpenAI's servers or their logs. It is a signal between this
  * app and an extension running in the same browser, and it stays that way.
+ *
+ * It appears in two forms. Bare (`#tp-autorun`) means "the prompt is in `?q=`, run
+ * it". With a value (`#tp-autorun=<encoded>`) it CARRIES the prompt, for prompts too
+ * long to travel in a query string.
  *
  * The extension MUST require this marker before touching a page. Acting on any
  * chatgpt.com URL that happens to carry `?q=` would mean hijacking the user's own
@@ -443,6 +464,18 @@ export const AUTORUN_MARKER = 'tp-autorun';
  * "pre-filled if OpenAI honours it, pasted by hand otherwise" rather than
  * breaking.
  *
+ * ── TWO WAYS TO CARRY THE PROMPT ────────────────────────────────────────────
+ * By default the prompt rides in `?q=`, because that is the only form the plain
+ * chat page acts on by itself. Over `MAX_URL_PROMPT_LENGTH` that is unsafe (a
+ * truncating proxy would silently amputate the prompt), so with `autorun` the
+ * prompt moves into the marker's own fragment instead — `#tp-autorun=<encoded>` —
+ * which no proxy sees and no server length limit applies to.
+ *
+ * That fallback needs the extension, which is why it is only taken when `autorun`
+ * was asked for. Without `autorun` a long prompt still returns a bare composer:
+ * putting it in a fragment nothing will read would report `embedded: true` for a
+ * prompt that never arrives, and the UI would tell the user it was sent.
+ *
  * The CALLER MUST STILL COPY the prompt to the clipboard before opening this URL.
  * The extension may be absent, disabled, or broken by a ChatGPT markup change; the
  * clipboard is what keeps the button useful in all three cases.
@@ -458,19 +491,23 @@ export function chatGptAskUrl(
 ): { url: string; embedded: boolean } {
   const base = chatGptUrl(custom);
   const encoded = encodeURIComponent(prompt);
-  const frag = opts?.autorun ? `#${AUTORUN_MARKER}` : '';
-  if (encoded.length > MAX_URL_PROMPT_LENGTH) {
-    // No prompt to run, so no marker: the extension must not fill a composer from
-    // a URL that carries nothing, and the user is being told to paste instead.
-    return { url: base, embedded: false };
-  }
-  // Split any fragment off `base` before appending the query. A configured link is
+  // Split any fragment off `base` before appending anything. A configured link is
   // normally a bare path, but if one arrives with a fragment then `base + '?q='`
   // would bury the parameter inside that fragment, where the server never sees it.
   const hash = base.indexOf('#');
   const head = hash === -1 ? base : base.slice(0, hash);
+
+  if (encoded.length > MAX_URL_PROMPT_LENGTH) {
+    if (opts?.autorun && encoded.length <= MAX_FRAGMENT_PROMPT_LENGTH) {
+      return { url: `${head}#${AUTORUN_MARKER}=${encoded}`, embedded: true };
+    }
+    // No prompt to run, so no marker: the extension must not fill a composer from
+    // a URL that carries nothing, and the user is being told to paste instead.
+    return { url: base, embedded: false };
+  }
   // The `?`/`&` choice matters for a pasted link that already has a query: a second
   // `?` would make the whole query string unparseable.
   const sep = head.includes('?') ? '&' : '?';
+  const frag = opts?.autorun ? `#${AUTORUN_MARKER}` : '';
   return { url: `${head}${sep}q=${encoded}${frag}`, embedded: true };
 }

@@ -18,6 +18,11 @@
  * action single-shot: a reload, a back-navigation, or a restored session re-opens
  * an ordinary ChatGPT page and re-sends nothing.
  *
+ * The prompt reaches this script two ways: in `?q=` (the normal case) or inside the
+ * marker itself, `#tp-autorun=<encoded>`, for prompts too long to put in a query
+ * string safely. On the PLAIN chat page the `?q=` form is left alone — ChatGPT
+ * submits that itself, and filling the composer again would send it twice.
+ *
  * ── WHAT IT DOES NOT DO ─────────────────────────────────────────────────────
  * No network access, no storage, no credentials, no message history read. It
  * requests no permissions beyond running on ChatGPT's own two hostnames. Its whole
@@ -32,24 +37,65 @@
 
   const MARKER = 'tp-autorun';
 
-  /** Guards against the SPA re-running this within one page lifetime. */
-  let done = false;
+  /**
+   * The prompt, read at `document_start`.
+   *
+   * Read this early, on purpose. ChatGPT is a client-side router and rewrites its own
+   * URL as it boots; at `document_idle` the marker may already be gone, and then the
+   * ask silently does nothing. Reading it before the app's scripts run makes the
+   * claim independent of when the composer eventually appears.
+   */
+  const claimed = claimPrompt();
 
   /**
    * Read the prompt, then immediately remove the marker.
+   *
+   * Two forms are accepted. `#tp-autorun` means the prompt is in `?q=`; that is the
+   * normal case, and the same parameter is what makes the plain chat page work
+   * without this extension at all. `#tp-autorun=<encoded>` CARRIES the prompt, used
+   * when it is too long to put in a query string safely — a fragment never reaches
+   * the server, so the ~8 KB request-line limits do not apply to it.
    *
    * Order matters: stripping first means an exception below cannot leave a URL
    * that re-arms on the next reload.
    */
   function claimPrompt() {
-    if (done) return null;
-    if (location.hash.replace(/^#/, '') !== MARKER) return null;
-    const prompt = new URLSearchParams(location.search).get('q');
-    done = true;
+    const hash = location.hash.replace(/^#/, '');
+    if (hash !== MARKER && !hash.startsWith(MARKER + '=')) return null;
+
+    let prompt = null;
+    if (hash.length > MARKER.length) {
+      try {
+        prompt = decodeURIComponent(hash.slice(MARKER.length + 1));
+      } catch {
+        // Malformed percent-escapes — the app always copies to the clipboard, so
+        // doing nothing leaves the user able to paste rather than sending mojibake.
+        prompt = null;
+      }
+    } else if (!isPlainChat()) {
+      // `?q=` on the plain chat page is submitted by ChatGPT ITSELF. Filling the
+      // composer again there would send the same prompt twice — once by the page,
+      // once by this script. The marker means "make sure this runs", and on that
+      // page it already does.
+      prompt = new URLSearchParams(location.search).get('q');
+    }
+
     // replaceState, not assignment to location.hash — that would add a history
-    // entry and make Back walk through the marker again.
+    // entry and make Back walk through the marker again. Done unconditionally: even
+    // when there is nothing to run, the URL must not stay armed for the next reload.
     history.replaceState(null, '', location.pathname + location.search);
     return prompt && prompt.trim() ? prompt : null;
+  }
+
+  /**
+   * True on the plain chat page, i.e. NOT a custom GPT.
+   *
+   * `/g/…` is a custom GPT, which ignores `?q=` entirely — that asymmetry is the
+   * whole reason this extension exists, and it is also why the double-submit guard
+   * above has to distinguish the two.
+   */
+  function isPlainChat() {
+    return !location.pathname.startsWith('/g/');
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -132,7 +178,7 @@
   }
 
   async function run() {
-    const prompt = claimPrompt();
+    const prompt = claimed;
     if (!prompt) return;
 
     const composer = await waitFor(

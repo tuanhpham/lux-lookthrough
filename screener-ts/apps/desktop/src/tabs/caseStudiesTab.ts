@@ -7,7 +7,7 @@
 import type { Bar, OHLCV } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el } from '../ui/dom.js';
-import { getLang } from '../ui/i18n.js';
+import { getLang, t } from '../ui/i18n.js';
 import { downloadHtml } from '../ui/exportFile.js';
 import {
   blankCase,
@@ -23,6 +23,14 @@ import {
 import { caseSvgChart, windowBars } from '../caseStudies/svgChart.js';
 import { caseStudyHtml } from '../caseStudies/report.js';
 import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
+import {
+  askChatGpt,
+  copyToClipboard,
+  gptBadgeHtml,
+  loadGptUrl,
+  wireGptBadge,
+} from '../ui/askChatGpt.js';
+import { buildCaseStudyPrompt, type CaseStudyPromptContext } from '@screener/core';
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
@@ -178,7 +186,8 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     <div class="section-title">${vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news'}</div>
     <div class="card" style="margin-bottom:14px">${catalystListHtml(study, vi)}</div>
     <div class="section-title">${vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons'}</div>
-    <div class="card note-html" style="line-height:1.7">${!isNoteEmpty(study.notes) ? sanitizeNoteHtml(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>`;
+    <div class="card note-html" style="line-height:1.7">${!isNoteEmpty(study.notes) ? sanitizeNoteHtml(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>
+    <div id="cs-ask" style="margin-top:14px"></div>`;
 
   $('#cs-back')!.addEventListener('click', () => void renderList(ctx));
   $('#cs-edit')!.addEventListener('click', () => openEditor(ctx, study));
@@ -187,6 +196,10 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     await deleteCase(ctx, id);
     void renderList(ctx);
   });
+
+  // Needed for the ask section's comparison table; a failure there must not cost the
+  // user the chart, so an empty index just means no comparison.
+  const idx = await loadCaseIndex(ctx).catch(() => []);
 
   // Fetch bars and draw the chart; window buttons redraw from the same bars.
   const bars = await fetchBars(ctx, study.symbol);
@@ -213,6 +226,95 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     const html = caseStudyHtml({ ...study, windowMonths }, bars);
     downloadHtml(html, `case-study-${study.symbol}-${study.keyDate}`);
   });
+
+  // Last, and not awaited above: the ask section needs the configured GPT link from
+  // storage, and the chart is what the user is waiting to see.
+  void renderAskSection(ctx, study, idx);
+}
+
+// ── Ask ChatGPT ─────────────────────────────────────────────────────────────────
+/**
+ * The "have ChatGPT analyse this case" section of the detail view.
+ *
+ * The prompt is built from the record itself (`buildCaseStudyPrompt` in core), so it
+ * arrives carrying the symbol, key date, setup, levels and recorded catalysts — and
+ * asks the model to VERIFY those against real looked-up data rather than accept
+ * them. A case study analysed around the wrong session, or from invented volume
+ * ratios, is worse than none: it gets filed and cited later.
+ *
+ * `otherCases` feeds the comparison table. Titles only — the other studies' notes
+ * would blow past any URL length and are not what a comparison needs.
+ */
+async function renderAskSection(
+  ctx: AppContext,
+  study: CaseStudy,
+  idx: readonly { id: string; symbol: string; title: string; keyDate: string }[],
+): Promise<void> {
+  const host = $('#cs-ask');
+  if (!host) return;
+  const vi = getLang() === 'vi';
+  await loadGptUrl(ctx);
+  // The detail view can be replaced while storage was in flight (Back, Edit); a
+  // detached host would take the listeners with it and paint nothing.
+  if (!host.isConnected) return;
+
+  const context: CaseStudyPromptContext = {
+    symbol: study.symbol,
+    keyDate: study.keyDate,
+    setupType: study.setupType,
+    title: study.title,
+    entry: study.entry,
+    stop: study.stop,
+    target: study.target,
+    exitDate: study.exitDate,
+    exitPrice: study.exitPrice,
+    rMultiple: study.rMultiple,
+    outcome: study.outcome,
+    rating: study.rating,
+    catalysts: study.catalysts,
+    otherCases: idx
+      .filter((m) => m.id !== study.id)
+      .slice(0, 8)
+      .map((m) => `${m.symbol} ${m.keyDate}${m.title ? ` (${m.title})` : ''}`),
+  };
+  const prompt = buildCaseStudyPrompt(context, vi ? 'vi' : 'en');
+
+  const paint = (): void => {
+    host.innerHTML = `
+      <div class="section-title">${vi ? '🤖 Nhờ ChatGPT phân tích' : '🤖 Have ChatGPT analyse this'}</div>
+      <div class="card" style="padding:12px">
+        <p class="muted" style="margin:0 0 10px;font-size:12px;line-height:1.55">${
+          vi
+            ? 'Gửi hồ sơ này cho ChatGPT để nó tra dữ liệu giá/khối lượng thật quanh ngày then chốt, tính tỷ lệ volume breakout, dựng chuỗi chất xúc tác theo ngày và nêu cả điểm mạnh lẫn cờ đỏ.'
+            : 'Send this case to ChatGPT so it looks up the real price/volume around the key date, computes the breakout volume ratios, reconstructs the dated catalyst chain, and names the red flags as well as the strengths.'
+        }</p>
+        ${gptBadgeHtml()}
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn" id="cs-ask-go">${t('prompts.ask')}</button>
+          <button class="btn-outline" id="cs-ask-copy">${t('prompts.copy')}</button>
+          <button class="range-btn" id="cs-ask-show">${t('prompts.show')}</button>
+        </div>
+        <pre id="cs-ask-text" class="hidden" style="white-space:pre-wrap;font-size:11px;line-height:1.5;
+          background:var(--surface);border-radius:8px;padding:10px;margin:10px 0 0;max-height:280px;overflow:auto">${escapeAttr(prompt)}</pre>
+        <p class="muted" style="font-size:10px;margin:8px 0 0;line-height:1.5">${t('prompts.ask.hint')}</p>
+        <p class="muted" style="font-size:10px;margin:6px 0 0;line-height:1.5">${t('prompts.disclaimer')}</p>
+      </div>`;
+
+    $('#cs-ask-go')!.addEventListener('click', (e) =>
+      askChatGpt(prompt, e.currentTarget as HTMLElement),
+    );
+    $('#cs-ask-copy')!.addEventListener('click', (e) =>
+      void copyToClipboard(prompt, e.currentTarget as HTMLElement),
+    );
+    $('#cs-ask-show')!.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLElement;
+      const hidden = $('#cs-ask-text')!.classList.toggle('hidden');
+      btn.textContent = hidden ? t('prompts.show') : t('prompts.hide');
+    });
+    wireGptBadge(host, ctx, paint);
+  };
+
+  paint();
 }
 
 // ── Editor view ─────────────────────────────────────────────────────────────────

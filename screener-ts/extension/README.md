@@ -1,7 +1,8 @@
 # The Professional — Ask ChatGPT (browser extension)
 
-Makes the **Ask ChatGPT** button in the stock modal actually run the prompt inside
-your own custom GPT, instead of leaving it for you to paste.
+Makes every **Ask ChatGPT** button in the app — the stock modal's research prompts,
+a Case Study, the Playbook's prompt library — actually run the prompt inside your own
+custom GPT, instead of leaving it for you to paste.
 
 ## Why it is needed
 
@@ -31,7 +32,7 @@ It runs only on `chatgpt.com` and `chat.openai.com`, and only when the URL carri
 the `#tp-autorun` fragment that the app adds when you click Ask ChatGPT. On such a
 page it:
 
-1. reads the prompt from the `q` query parameter,
+1. reads the prompt — from the `q` query parameter, or from the marker itself,
 2. strips the marker from the URL,
 3. waits for the composer to mount,
 4. pastes the prompt and clicks send.
@@ -46,11 +47,26 @@ editing.
 The fragment is also why the marker never reaches OpenAI: fragments are not part of
 the HTTP request, so it stays between the app and this extension.
 
+### Two ways the prompt arrives
+
+Normally it rides in `?q=`. Long prompts cannot: some proxies truncate request lines
+around 8 KB, and the app refuses to ship a prompt that might lose its tail. For those
+the app puts the prompt **inside the marker** — `#tp-autorun=<encoded>` — which no
+proxy sees and no server length limit applies to. The case-study prompt in
+Vietnamese, at ~8.5 KB encoded, is the one that needs this.
+
+On the **plain** chat page the `?q=` form is deliberately left alone, because ChatGPT
+submits that itself; filling the composer again would send the same prompt twice. The
+script only types on a custom GPT (`/g/…`), or when the prompt came in the marker.
+
+It runs at `document_start` rather than `document_idle`: ChatGPT rewrites its own URL
+while booting, so by the time the page is idle the marker can already be gone.
+
 ## What it does not do
 
 No network requests, no storage, no cookie or credential access, no reading of your
 conversations. It asks for **no permissions** beyond running on those two
-hostnames — see `manifest.json`, which is 14 lines. One paste, one click.
+hostnames — see `manifest.json`, which is 13 lines. One paste, one click.
 
 ## If it stops working
 

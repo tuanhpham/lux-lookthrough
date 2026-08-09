@@ -1,6 +1,13 @@
 import type { AppContext } from '../context.js';
 import { $, el } from '../ui/dom.js';
-import { getLang } from '../ui/i18n.js';
+import { getLang, t } from '../ui/i18n.js';
+import {
+  askChatGpt,
+  copyToClipboard,
+  gptBadgeHtml,
+  loadGptUrl,
+  wireGptBadge,
+} from '../ui/askChatGpt.js';
 
 /**
  * Trading System Playbook — a bilingual (EN/VI) reference page adapted to the
@@ -382,13 +389,23 @@ export function renderPlaybook(ctx: AppContext): void {
 }
 
 /**
- * Render every prompt card into `list`, each with Copy / Edit / Delete. Copy
- * uses the body in the active language; Edit/Delete mutate the persisted copy
- * and re-render. Called on first paint and after any change.
+ * Render every prompt card into `list`, each with Ask / Copy / Edit / Delete.
+ *
+ * Ask and Copy both use the body in the active language. Edit/Delete mutate the
+ * persisted copy and re-render. Called on first paint and after any change.
+ *
+ * The GPT badge sits once above the list rather than on each card: it reflects one
+ * shared setting, and repeating it per prompt would suggest each has its own.
  */
 async function renderPromptLibrary(ctx: AppContext, lang: Lang, list: HTMLElement): Promise<void> {
   const prompts = await loadPrompts(ctx);
+  await loadGptUrl(ctx);
   list.innerHTML = '';
+
+  const badge = el(gptBadgeHtml());
+  list.appendChild(badge);
+  wireGptBadge(list, ctx, () => void renderPromptLibrary(ctx, lang, list));
+
   prompts.forEach((p, idx) => {
     const body = tx(p.body, lang);
     const card = el(`<div class="card" style="margin-bottom:10px">
@@ -396,6 +413,7 @@ async function renderPromptLibrary(ctx: AppContext, lang: Lang, list: HTMLElemen
         <span class="badge" style="background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)">P${idx + 1}</span>
         <strong>${escapeHtml(tx(p.title, lang))}</strong>
         <span class="row" style="gap:6px;margin-left:auto">
+          <button class="btn" data-ask>${t('prompts.ask')}</button>
           <button class="range-btn" data-copy>${lang === 'vi' ? 'Sao chép' : 'Copy'}</button>
           <button class="range-btn" data-edit>${lang === 'vi' ? 'Sửa' : 'Edit'}</button>
           <button class="range-btn" data-del>${lang === 'vi' ? 'Xóa' : 'Delete'}</button>
@@ -405,13 +423,14 @@ async function renderPromptLibrary(ctx: AppContext, lang: Lang, list: HTMLElemen
       <pre class="playbook-pre">${escapeHtml(body)}</pre>
     </div>`);
 
+    card.querySelector('[data-ask]')!.addEventListener('click', (e) => {
+      askChatGpt(body, e.currentTarget as HTMLElement);
+    });
+    // Shared with the stock modal and Case Studies so the feedback — and the
+    // "couldn't copy" case, which iOS hits often enough to matter — is identical
+    // everywhere.
     card.querySelector('[data-copy]')!.addEventListener('click', (e) => {
-      const btn = e.currentTarget as HTMLButtonElement;
-      void navigator.clipboard.writeText(body).then(() => {
-        const old = btn.textContent;
-        btn.textContent = lang === 'vi' ? 'Đã chép ✓' : 'Copied ✓';
-        setTimeout(() => (btn.textContent = old), 1200);
-      });
+      void copyToClipboard(body, e.currentTarget as HTMLElement);
     });
     card.querySelector('[data-edit]')!.addEventListener('click', () => {
       openPromptEditor(ctx, lang, p.id, () => void renderPromptLibrary(ctx, lang, list));
