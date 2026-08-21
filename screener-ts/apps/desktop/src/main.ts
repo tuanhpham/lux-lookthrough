@@ -170,9 +170,30 @@ function goToLanding(trigger?: Element): void {
   });
 }
 
-/** A speech bubble with a spark: the assistant, in both the menu and the launcher. */
+/**
+ * The assistant's mark: a taijitu, in both the menu and the launcher.
+ *
+ * ── HOW IT IS DRAWN ─────────────────────────────────────────────────────────
+ * The classic four-arc construction, filled rather than stroked, so it stays a
+ * crisp two-tone disc at 16px and at 46px with no hairline artefacts:
+ *   outer circle r12 → the light half
+ *   one path: the right semicircle, then the r6 lobe bulging left at the bottom
+ *             and the r6 lobe bulging right at the top → the dark half
+ *   two eyes at the lobe centres (12,6) and (12,18), each the other's colour
+ *
+ * ── AND WHY IT IS TWO CLASSES, NOT TWO LITERAL COLOURS ──────────────────────
+ * `.yy-a` is the accent, `.yy-b` is `currentColor`. That is what lets the same
+ * markup sit on the menu row (inheriting the row's ink) and on the launcher
+ * (inheriting the page's) and invert correctly between the light and dark themes,
+ * which a hard-coded black-and-white pair could not do on either.
+ */
 const CHAT_ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-3.6A8 8 0 1 1 20 12z"/><path d="M12 8.4l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
+  '<svg class="yy" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">' +
+  '<circle class="yy-a" cx="12" cy="12" r="12"/>' +
+  '<path class="yy-b" d="M12 0A12 12 0 0 1 12 24A6 6 0 0 1 12 12A6 6 0 0 0 12 0Z"/>' +
+  '<circle class="yy-a" cx="12" cy="6" r="1.9"/>' +
+  '<circle class="yy-b" cx="12" cy="18" r="1.9"/>' +
+  '</svg>';
 
 // ── App cinematic menu overlay ────────────────────────────────────────────────
 function buildAppMenu(): HTMLElement {

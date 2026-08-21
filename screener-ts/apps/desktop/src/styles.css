@@ -2984,25 +2984,68 @@ html[lang="vi"] .tl-h1 { letter-spacing: .01em; }
   font-size: 10.5px; line-height: 1.5; color: var(--faint);
 }
 
+/* ── the taijitu mark ──
+   Two classes rather than two colours: the accent half is fixed, the other half is
+   currentColor, so the same markup reads correctly on a menu row, on the launcher,
+   and in both themes. Filled paths, never stroked — a stroked yin-yang goes muddy
+   at 16px. */
+.yy-a { fill: var(--accent); }
+.yy-b { fill: currentColor; }
+/* On a menu row the ink half inherits that row's deliberately dim colour, so the
+   accent half is dimmed with it — otherwise half the disc glows on a resting row. */
+.sl-menu-ctrl .yy { opacity: .72; transition: opacity .2s; }
+.sl-menu-ctrl:hover .yy { opacity: 1; }
+
 /* ── launcher ──
    Lives inside #app (so it hides with it) and therefore inside #app's stacking
    context, which is what keeps it under both the panel and the cinematic menu
-   without a z-index arms race. */
+   without a z-index arms race.
+
+   The mark IS the button: a green pill with a small glyph on it would have hidden
+   the one thing worth looking at, so the disc fills the whole target and the plate
+   behind it exists only to give the ink half something to sit on — on a near-black
+   page a near-black half would otherwise vanish. */
 #chat-fab {
   position: fixed; right: 18px; bottom: 18px; z-index: 90;
   display: grid; place-items: center;
-  width: 46px; height: 46px; border-radius: 50%;
-  background: var(--accent); border: none; color: var(--accent-ink);
-  box-shadow: var(--shadow-lg); cursor: pointer;
-  transition: transform .14s ease, filter .14s ease;
+  width: 48px; height: 48px; padding: 0; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text); cursor: pointer;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--accent) 9%, transparent),
+    0 14px 34px -12px color-mix(in srgb, var(--accent) 55%, transparent),
+    var(--shadow-lg);
+  transition: transform .2s cubic-bezier(.32, .72, 0, 1), box-shadow .2s ease, border-color .2s ease;
 }
-#chat-fab svg { width: 21px; height: 21px; }
-#chat-fab:hover { transform: translateY(-1px); filter: brightness(1.08); }
+#chat-fab .yy {
+  width: 30px; height: 30px; display: block;
+  /* The rotation lives on the glyph, not the button: spinning the button would
+     spin its glow and its shadow with it, which reads as a wobble. */
+  transition: transform .55s cubic-bezier(.34, 1.32, .48, 1);
+}
+#chat-fab:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-line);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent),
+    0 18px 40px -12px color-mix(in srgb, var(--accent) 70%, transparent),
+    var(--shadow-lg);
+}
+/* Half a turn on hover — the two halves trade places, which is the whole idea of
+   the symbol and costs one property to say. */
+#chat-fab:hover .yy { transform: rotate(180deg); }
+#chat-fab:active { transform: translateY(0) scale(.96); }
+#chat-fab:focus-visible { outline: none; border-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  #chat-fab, #chat-fab .yy { transition: none; }
+  #chat-fab:hover .yy { transform: none; }
+}
 
 /* Phone: there is no "beside the app" to preserve, so it becomes a proper sheet. */
 @media (max-width: 720px) {
   .chat-shell { width: 100vw; border-left: none; }
   #chat-panel.chat--open .chat-backdrop { opacity: 1; pointer-events: auto; }
   .chat-msg--user { max-width: 92%; }
-  #chat-fab { right: 14px; bottom: 14px; width: 42px; height: 42px; }
+  #chat-fab { right: 14px; bottom: 14px; width: 44px; height: 44px; }
+  #chat-fab .yy { width: 27px; height: 27px; }
 }
