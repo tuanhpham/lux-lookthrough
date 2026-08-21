@@ -21,6 +21,15 @@ const SYNC_ORIGIN = process.env.SYNC_ORIGIN ?? 'https://the-professional.pages.d
 // strict verification on for clean networks.
 const SYNC_SECURE = !process.env.SYNC_INSECURE;
 
+// The LLM relay defaults to the same deployed origin as sync, but can be pointed
+// somewhere else on its own. That separation exists for one specific case: running
+// the relay locally (`wrangler pages dev`, which has no D1 binding) to test a
+// not-yet-deployed change to functions/api/llm, WITHOUT dragging /api/sync onto the
+// same origin and breaking real sync for the session.
+//   LLM_ORIGIN=http://127.0.0.1:8788 npm run dev
+const LLM_ORIGIN = process.env.LLM_ORIGIN ?? SYNC_ORIGIN;
+const LLM_SECURE = LLM_ORIGIN.startsWith('http://') ? false : SYNC_SECURE;
+
 /**
  * Yahoo's quoteSummary endpoint (sector, beta, dividend yield, ROE, company
  * summary) requires a cookie + rotating "crumb". We do that handshake here in
@@ -158,6 +167,23 @@ export default defineConfig({
         target: SYNC_ORIGIN,
         changeOrigin: true,
         secure: SYNC_SECURE,
+      },
+      // The assistant's LLM relay → the deployed Cloudflare Function, for the same
+      // reason as sync above: plain Vite has no Functions runtime, and the relay's
+      // provider allow-list plus auth-header rewriting must not be reimplemented
+      // here. A third copy of that table (core has the spec, the Function has the
+      // runtime copy) is exactly how a provider ends up working in dev and 404ing
+      // in production.
+      //
+      // Consequence to know: by default this runs the DEPLOYED relay, so an edit to
+      // functions/api/llm only takes effect locally after a deploy — set LLM_ORIGIN
+      // to a local `wrangler pages dev` to get around that. The API key travels the
+      // same path it does in production — through your own Function, which neither
+      // stores nor logs it.
+      '/api/llm': {
+        target: LLM_ORIGIN,
+        changeOrigin: true,
+        secure: LLM_SECURE,
       },
     },
   },

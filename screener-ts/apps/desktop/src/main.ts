@@ -4,7 +4,8 @@ import { $, $$ } from './ui/dom.js';
 import { initModal, onModalClose } from './ui/stockModal.js';
 import { renderPicks, renderScreener, renderSectors } from './tabs/screenerTabs.js';
 import { renderWatchlist, renderLearn } from './tabs/miscTabs.js';
-import { renderPortfolio, migrateAccountsBlob } from './tabs/portfolioTab.js';
+import { renderPortfolio } from './tabs/portfolioTab.js';
+import { migrateAccountsBlob } from './portfolio/store.js';
 import { renderCalendar } from './tabs/calendarTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
 import { renderPlaybook } from './tabs/playbookTab.js';
@@ -18,6 +19,8 @@ import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange, applyTheme } from './ui/theme.js';
 import { openSyncSettings, onSynced } from './ui/syncSettings.js';
+import { openLlmSettings } from './ui/llmSettings.js';
+import { openChatPanel, closeChatPanel, isChatOpen } from './ui/chatPanel.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
 import { pullAndMerge, openSyncGate } from './adapters/storage.js';
 
@@ -167,6 +170,10 @@ function goToLanding(trigger?: Element): void {
   });
 }
 
+/** A speech bubble with a spark: the assistant, in both the menu and the launcher. */
+const CHAT_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-3.6A8 8 0 1 1 20 12z"/><path d="M12 8.4l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
+
 // ── App cinematic menu overlay ────────────────────────────────────────────────
 function buildAppMenu(): HTMLElement {
   const lang = getLang();
@@ -205,6 +212,14 @@ function buildAppMenu(): HTMLElement {
       <button class="sl-menu-ctrl" id="app-menu-sync">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
         Sync
+      </button>
+      <button class="sl-menu-ctrl" id="app-menu-ai">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 3v2m0 14v2m-9-9h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8-1.4 1.4m-10 10-1.4 1.4"/><circle cx="12" cy="12" r="3.5"/></svg>
+        ${t('ai.menu')}
+      </button>
+      <button class="sl-menu-ctrl" id="app-menu-chat">
+        ${CHAT_ICON}
+        ${t('chat.title')}
       </button>
     </div>`;
   document.body.appendChild(el);
@@ -276,7 +291,44 @@ function wireAppMenu(): void {
     closeAppMenu();
     openSyncSettings(ctx);
   });
+  menu.querySelector('#app-menu-ai')?.addEventListener('click', () => {
+    closeAppMenu();
+    void openLlmSettings(ctx);
+  });
+  menu.querySelector('#app-menu-chat')?.addEventListener('click', () => {
+    closeAppMenu();
+    void openChatPanel(ctx);
+  });
 }
+
+// ── Assistant launcher ────────────────────────────────────────────────────────
+
+/**
+ * A floating button, not a tab.
+ *
+ * Same reason the assistant is a panel: every question is about the screen the user
+ * is already on, so the way in must not replace that screen. It is appended INSIDE
+ * `#app`, which means it disappears with the app on the landing pages without any
+ * visibility bookkeeping of its own.
+ */
+function mountChatLauncher(): void {
+  const app = $('#app');
+  if (!app) return;
+  const existing = app.querySelector<HTMLButtonElement>('#chat-fab');
+  const btn = existing ?? document.createElement('button');
+  if (!existing) {
+    btn.id = 'chat-fab';
+    btn.type = 'button';
+    btn.innerHTML = CHAT_ICON;
+    btn.addEventListener('click', () => void openChatPanel(ctx));
+    app.appendChild(btn);
+  }
+  btn.title = t('chat.title');
+  btn.setAttribute('aria-label', t('chat.title'));
+}
+mountChatLauncher();
+// Re-labelled rather than rebuilt: the listener would be lost with the element.
+onLangChange(() => mountChatLauncher());
 
 const closeNav = (): void => closeAppMenu();
 
@@ -289,7 +341,14 @@ $('#menu-toggle')?.addEventListener('click', () => {
     openAppMenu();
   }
 });
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAppMenu(); });
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  closeAppMenu();
+  // Only the topmost layer closes. A dialog opened FROM the panel (the API-key
+  // form) owns Escape while it is up; closing the panel underneath it would leave
+  // the user staring at a form belonging to something that is no longer there.
+  if (isChatOpen() && !document.querySelector('.dialog-host')) closeChatPanel();
+});
 window.addEventListener('app:show-tab', (e) => {
   const tab = (e as CustomEvent<Tab>).detail;
   enterApp();

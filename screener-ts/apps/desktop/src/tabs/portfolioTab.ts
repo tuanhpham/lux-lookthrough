@@ -20,17 +20,33 @@ import {
   computeCash,
   computeEquity,
   computePositionsValue,
-  toPersistable,
-  hasTransientFields,
   fetchMany,
   SECTOR_STOCKS,
   type AccountState,
   type PriceMap,
-  type IdFactory,
   type Bar,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { onHydrated } from '../adapters/storage.js';
+// The portfolio state itself lives in the store, not in this tab — the assistant
+// reads and writes the same accounts, and two copies would drift on the first
+// trade. `accounts` is a live binding, so reads here need no ceremony; anything
+// that changes which accounts exist goes through an accessor.
+import {
+  accounts,
+  active,
+  activeId,
+  setActiveId,
+  addAccount,
+  removeAccount,
+  loadAccounts as load,
+  saveAccounts as save,
+  OVERVIEW_ID,
+  uuid,
+  today,
+} from '../portfolio/store.js';
+// Prices moved out for the same reason the accounts did: the assistant must report
+// the numbers this table is showing, and a second price map would drift from it.
+import { accountPrices as prices, setAccountPrices, seedPrice } from '../portfolio/prices.js';
 import { $, num, money, pct } from '../ui/dom.js';
 import { drawLine, drawCandles } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
@@ -138,15 +154,6 @@ function wirePriceHint(
   ccyEl?.addEventListener('change', refreshHint);
 }
 
-const ACCT_KEY = 'accounts';
-const OVERVIEW_ID = '__overview__';
-const uuid: IdFactory = () =>
-  (globalThis.crypto?.randomUUID?.() ?? 'id-' + Math.random().toString(36).slice(2));
-const today = () => new Date().toISOString().slice(0, 10);
-
-let accounts: AccountState[] = [];
-let activeId: string = OVERVIEW_ID;
-
 // ---------------------------------------------------------------------------
 // Setup type + A–D rating for buy lots (matches the Case Studies setup list).
 // ---------------------------------------------------------------------------
@@ -228,134 +235,9 @@ function normalizeLotPrice(lot: { buyPrice: number; priceCurrency?: 'EUR' | 'USD
   return lot.buyPrice;
 }
 
-/** Set once the slimming callback has been registered, so it registers once. */
-let slimmingScheduled = false;
-/**
- * True once a blob carrying `_candleCache` has been seen locally at any point.
- *
- * Needed because a pre-hydration `save()` (the NaN scrub in `load()`) can slim the
- * LOCAL copy while its queued, unflagged push is 409'd by the server's collapse
- * guard — leaving local clean and the server still holding the fat row. Once this
- * is set, the post-hydration write goes ahead even though the re-read looks slim,
- * because that write is the only thing that fixes the server.
- */
-let fatBlobSeen = false;
 
-/**
- * Queue the one-time slimming of a fat `accounts` blob.
- *
- * Blobs written by an older build (or pulled from a server that still holds one)
- * carry `_candleCache` — full OHLCV bars per position — which is why this key
- * reached 912 KB and starved the rest of localStorage.
- *
- * The decision is deferred to hydration rather than made inline, for two reasons:
- *
- *  1. The slim value is >90% smaller, so the server's collapse guard refuses it
- *     unless the push is flagged `deliberate`, and only post-hydration writes are.
- *     Writing inline on a synced boot would eat a silent 409 and leave the 912 KB
- *     row on the server for the next device to download.
- *  2. THE CHECK ITSELF has to happen after the merge. At boot, local can be slim
- *     while the server still holds the fat row; deciding from the local copy alone
- *     would skip the migration, and then the merge would pull the fat blob back in
- *     with nothing left to notice. Reading inside the callback tests whichever copy
- *     actually won.
- *
- * `kv_history` keeps the fat version either way.
- *
- * EXPORTED and called at boot (see `main.ts`) rather than only from `load()`,
- * because the default tab is no longer Portfolio. Leaving it tab-scoped meant a
- * user who never opened Portfolio kept paying the 912 KB on every sync,
- * indefinitely.
- */
-export function migrateAccountsBlob(ctx: AppContext): void {
-  if (slimmingScheduled) return;
-  slimmingScheduled = true;
-  onHydrated(() => {
-    void (async () => {
-      const now = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
-      if (!now.length) return;
-      if (!fatBlobSeen && !hasTransientFields(now)) return;
-      // This push carries `deliberate`, so the collapse guard lets the small value in.
-      await ctx.storage.set(ACCT_KEY, toPersistable(now));
-    })().catch(() => {});
-  });
-}
-
-async function load(ctx: AppContext): Promise<void> {
-  const stored = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
-
-  // Strip the cache from the in-memory copy: `accounts` must never hold
-  // `_candleCache` read back from storage, or the next save() would write it
-  // straight out again.
-  const fat = hasTransientFields(stored);
-  if (fat) fatBlobSeen = true;
-  accounts = fat ? toPersistable(stored) : stored;
-  // No-op after boot registered it; kept so the migration still runs if Portfolio
-  // is somehow reached before enterApp() has (e.g. a future deep link).
-  migrateAccountsBlob(ctx);
-
-  let dirty = false;
-  if (!accounts.length) {
-    // Auto-create a starter account for DISPLAY ONLY — do NOT save() it.
-    //
-    // Saving here would stamp the `accounts` key with a fresh "now" timestamp
-    // and (when sync is on) push this empty default to the server. If local
-    // storage was cleared before a sync pull completed, that empty default
-    // would win last-write-wins and WIPE the real synced portfolio. By keeping
-    // it in memory only, tsOf('accounts') stays 0, so a later pullAndMerge
-    // always treats the server copy as newer and restores it. The account is
-    // persisted the first time the user actually acts (buy / add account).
-    const a = createAccount(
-      { name: 'Strategy A', initialCapital: 50000, currency: 'EUR', createdAt: today() },
-      uuid,
-    );
-    accounts = [a];
-  }
-  // Scrub any NaN stop/target values that may have been stored via comma-decimal
-  // input (e.g. "185,50" parsed by Number() → NaN). NaN is a valid JS value but
-  // causes riskEur / rMultiple to silently become NaN and display as "—".
-  for (const acct of accounts) {
-    for (const lot of acct.lots) {
-      if (lot.stop !== undefined && isNaN(lot.stop)) { lot.stop = undefined; dirty = true; }
-      if (lot.target !== undefined && isNaN(lot.target)) { lot.target = undefined; dirty = true; }
-    }
-  }
-  if (dirty) await save(ctx);
-  if (activeId !== OVERVIEW_ID && !accounts.some((a) => a.account.id === activeId)) activeId = OVERVIEW_ID;
-}
-/**
- * The ONLY write path for `accounts`.
- *
- * `toPersistable` strips the UI's chart caches (`_candleCache`) before anything
- * reaches storage. It used to write the live objects verbatim, which put full
- * OHLCV bars for every position into localStorage and pushed them to D1 on every
- * Update — 912 KB for four accounts, most of a 5 MB quota, for data rebuilt from
- * `pf_bars:*` on load anyway. Do not call `ctx.storage.set(ACCT_KEY, ...)`
- * directly; the filter has to be unconditional to stay effective. (The migration
- * in `load()` is the one exception — it writes a re-read blob rather than the
- * in-memory state, and still runs it through `toPersistable`.)
- */
-async function save(ctx: AppContext): Promise<void> {
-  await ctx.storage.set(ACCT_KEY, toPersistable(accounts));
-}
-function active(): AccountState {
-  return accounts.find((a) => a.account.id === activeId) ?? accounts[0]!;
-}
-
-
-/** Latest known price per ticker from the most recent snapshot-time fetch. */
-const priceCache = new Map<string, PriceMap>();
 /** Raw bars per account — populated after Update so openRowChart can render synchronously. */
 const barMapByAccount = new Map<string, Map<string, Bar[]>>();
-function prices(accId: string): PriceMap {
-  return priceCache.get(accId) ?? {};
-}
-/** Record a manually-entered price so equity/positions reflect it right away. */
-function seedPrice(accId: string, ticker: string, price: number): void {
-  const m = priceCache.get(accId) ?? {};
-  m[ticker] = price;
-  priceCache.set(accId, m);
-}
 
 // ---------------------------------------------------------------------------
 // Incremental bar cache — stored in localStorage so updates only fetch the
@@ -536,7 +418,7 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
     ...accounts.map(async (acct) => {
       const bc = await loadBarCache(ctx, acct.account.id);
       barMapByAccount.set(acct.account.id, new Map(Object.entries(bc)));
-      // Seed priceCache from the last cached bar so prices display immediately
+      // Seed the shared price map from the last cached bar so prices display immediately
       // on load without requiring a manual "Update" click.
       const priceMap: PriceMap = {};
       for (const [sym, bars] of Object.entries(bc)) {
@@ -546,14 +428,16 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
         // but use raw for now so the UI isn't blank.
         priceMap[sym] = rawClose;
       }
-      priceCache.set(acct.account.id, priceMap);
+      setAccountPrices(acct.account.id, priceMap);
     }),
     loadEurUsdCache(ctx).then((bars) => {
       applyEurUsdBars(bars);
-      // Re-normalize priceCache with the now-loaded FX rates
+      // Re-normalize the shared price map with the now-loaded FX rates
       for (const acct of accounts) {
-        const pm = priceCache.get(acct.account.id);
-        if (!pm || acct.account.currency !== 'EUR') continue;
+        const pm = prices(acct.account.id);
+        // `prices()` returns {} for an account with nothing fetched — skip it rather
+        // than write an empty map back over the entry.
+        if (!Object.keys(pm).length || acct.account.currency !== 'EUR') continue;
         const normalized: PriceMap = {};
         for (const [sym, rawClose] of Object.entries(pm)) {
           const bc = barMapByAccount.get(acct.account.id);
@@ -563,7 +447,7 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
           const fx = eurUsdForDate(barDate);
           normalized[sym] = fx > 1 ? rawClose / fx : rawClose;
         }
-        priceCache.set(acct.account.id, normalized);
+        setAccountPrices(acct.account.id, normalized);
       }
     }),
   ]);
@@ -584,12 +468,12 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
 }
 
 function toolbarHtml(): string {
-  const isOverview = activeId === OVERVIEW_ID;
+  const isOverview = activeId() === OVERVIEW_ID;
   // Account selector: Overview button + dropdown for accounts (scales to any count)
-  const activeAcct = isOverview ? null : accounts.find((a) => a.account.id === activeId);
+  const activeAcct = isOverview ? null : accounts.find((a) => a.account.id === activeId());
   const acctOptions = accounts.map((a) => {
     const m = computeAccountMetrics(a, prices(a.account.id));
-    return `<option value="${a.account.id}"${a.account.id === activeId ? ' selected' : ''}>${a.account.name}  (${pct(m.totalPnLPct)})</option>`;
+    return `<option value="${a.account.id}"${a.account.id === activeId() ? ' selected' : ''}>${a.account.name}  (${pct(m.totalPnLPct)})</option>`;
   }).join('');
 
   const fxTitle = latestEurUsdRate ? ` · EURUSD ${latestEurUsdRate.toFixed(4)}` : '';
@@ -620,7 +504,7 @@ function toolbarHtml(): string {
 function draw(ctx: AppContext): void {
   const root = $('#tab-portfolio')!;
 
-  if (activeId === OVERVIEW_ID) {
+  if (activeId() === OVERVIEW_ID) {
     root.innerHTML = buildOverviewHtml();
     try {
       wireOverview(ctx, root);
@@ -841,14 +725,14 @@ function wire(ctx: AppContext, root: HTMLElement): void {
   // Overview button + account dropdown
   root.querySelectorAll<HTMLElement>('[data-acct]').forEach((b) =>
     b.addEventListener('click', () => {
-      activeId = b.dataset.acct!;
+      setActiveId(b.dataset.acct!);
       draw(ctx);
     }),
   );
   const acctSelectWire = root.querySelector<HTMLSelectElement>('#pf-acct-select');
   if (acctSelectWire) {
     acctSelectWire.addEventListener('change', () => {
-      if (acctSelectWire.value) { activeId = acctSelectWire.value; draw(ctx); }
+      if (acctSelectWire.value) { setActiveId(acctSelectWire.value); draw(ctx); }
     });
   }
   root.querySelector('#acct-new')!.addEventListener('click', async () => {
@@ -858,13 +742,15 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     ]);
     if (!res || !res.name) return;
     const cap = Number(res.cap) > 0 ? Number(res.cap) : 50000;
-    accounts.push(createAccount({ name: res.name, initialCapital: cap, currency: 'EUR', createdAt: today() }, uuid));
-    activeId = accounts[accounts.length - 1]!.account.id;
+    const created = addAccount(
+      createAccount({ name: res.name, initialCapital: cap, currency: 'EUR', createdAt: today() }, uuid),
+    );
+    setActiveId(created.account.id);
     await save(ctx);
     draw(ctx);
   });
 
-  if (activeId !== OVERVIEW_ID) {
+  if (activeId() !== OVERVIEW_ID) {
     // Edit the active account — rename and/or change its initial capital.
     $('#acct-edit')!.addEventListener('click', async () => {
       const a = active().account;
@@ -1603,8 +1489,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         return;
       }
       if (!confirm(`Delete account “${active().account.name}” and all its transactions?`)) return;
-      accounts = accounts.filter((a) => a.account.id !== activeId);
-      activeId = OVERVIEW_ID;
+      removeAccount(activeId());
+      setActiveId(OVERVIEW_ID);
       await save(ctx);
       draw(ctx);
     });
@@ -1966,7 +1852,7 @@ async function update(ctx: AppContext): Promise<void> {
       priceMap[sym] = rawClose;
     }
   }
-  priceCache.set(st.account.id, priceMap);
+  setAccountPrices(st.account.id, priceMap);
 
   // Run order fills (BUY_STOP orders)
   const lastDate = st.snapshots.length ? st.snapshots[st.snapshots.length - 1]!.date : '0000-00-00';
@@ -2421,7 +2307,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   // Overview button (always shown)
   root.querySelectorAll<HTMLElement>('[data-acct]').forEach((b) =>
     b.addEventListener('click', () => {
-      activeId = b.dataset.acct!;
+      setActiveId(b.dataset.acct!);
       draw(ctx);
     }),
   );
@@ -2430,7 +2316,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   const acctSelect = root.querySelector<HTMLSelectElement>('#pf-acct-select');
   if (acctSelect) {
     acctSelect.addEventListener('change', () => {
-      if (acctSelect.value) { activeId = acctSelect.value; draw(ctx); }
+      if (acctSelect.value) { setActiveId(acctSelect.value); draw(ctx); }
     });
   }
 
@@ -2442,8 +2328,10 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     ]);
     if (!res || !res.name) return;
     const cap = Number(res.cap) > 0 ? Number(res.cap) : 50000;
-    accounts.push(createAccount({ name: res.name, initialCapital: cap, currency: 'EUR', createdAt: today() }, uuid));
-    activeId = accounts[accounts.length - 1]!.account.id;
+    const created = addAccount(
+      createAccount({ name: res.name, initialCapital: cap, currency: 'EUR', createdAt: today() }, uuid),
+    );
+    setActiveId(created.account.id);
     await save(ctx);
     draw(ctx);
   });
@@ -2452,7 +2340,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   root.querySelectorAll<HTMLElement>('[data-acct-open]').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
-      activeId = (a.dataset.acctOpen ?? a.closest<HTMLElement>('[data-acct-open]')?.dataset.acctOpen)!;
+      setActiveId((a.dataset.acctOpen ?? a.closest<HTMLElement>('[data-acct-open]')?.dataset.acctOpen)!);
       draw(ctx);
       $('#tab-portfolio')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }),
@@ -2463,16 +2351,16 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   if (updateAllBtn) {
     updateAllBtn.addEventListener('click', async () => {
       const statusEl = root.querySelector<HTMLElement>('#overview-update-status');
-      const savedActiveId = activeId;
+      const savedActiveId = activeId();
       (updateAllBtn as HTMLButtonElement).disabled = true;
       const total = accounts.length;
       for (let i = 0; i < accounts.length; i++) {
         const acct = accounts[i]!;
         if (statusEl) statusEl.innerHTML = `<span class="status-chip status-chip--loading"><span class="spinner"></span>${t('pf.updating')} ${acct.account.name} (${i + 1}/${total})…</span>`;
-        activeId = acct.account.id;
+        setActiveId(acct.account.id);
         await update(ctx);
       }
-      activeId = savedActiveId;
+      setActiveId(savedActiveId);
       draw(ctx);
       const s = root.querySelector<HTMLElement>('#overview-update-status');
       if (s) s.innerHTML = `<span class="status-chip status-chip--ok"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>${total} ${t('pf.updated.all')}</span>`;

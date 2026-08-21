@@ -566,6 +566,151 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'Các prompt này đưa số liệu đo được ở đây cho LLM; chúng không kiểm chứng câu trả lời. Mỗi prompt đều yêu cầu mô hình nêu điều gì sẽ phủ định kết luận của nó — hãy đọc phần đó.',
   },
 
+  // The assistant — API connection settings. `ai.*` is the assistant; `prompts.*`
+  // above stays with Ask ChatGPT, which is a different, key-free feature.
+  'ai.menu': { en: 'Assistant', vi: 'Trợ lý' },
+  'ai.settings.title': { en: 'Assistant API key', vi: 'Khoá API cho trợ lý' },
+  'ai.provider': { en: 'Provider', vi: 'Nhà cung cấp' },
+  'ai.key': { en: 'API key', vi: 'Khoá API' },
+  'ai.key.placeholder': { en: 'paste your key', vi: 'dán khoá của bạn' },
+  'ai.key.clear': {
+    en: 'Leave empty to remove the stored key.',
+    vi: 'Để trống để xoá khoá đã lưu.',
+  },
+  'ai.model': { en: 'Model', vi: 'Mô hình' },
+  'ai.model.manual': {
+    en: 'Model id (type it — the list could not be loaded)',
+    vi: 'Mã mô hình (hãy tự nhập — không tải được danh sách)',
+  },
+  'ai.baseurl': { en: 'Endpoint', vi: 'Địa chỉ endpoint' },
+  'ai.price.in': { en: 'Price in, $ / 1M tokens', vi: 'Giá vào, $ / 1M token' },
+  'ai.price.out': { en: 'Price out, $ / 1M tokens', vi: 'Giá ra, $ / 1M token' },
+  'ai.price.help': {
+    en: 'Only used for the cost estimate. Left empty, the assistant shows tokens but no dollars — better than a figure taken from a price list that has since changed.',
+    vi: 'Chỉ dùng để ước tính chi phí. Để trống thì trợ lý hiển thị số token mà không quy ra tiền — vẫn tốt hơn một con số lấy từ bảng giá đã đổi.',
+  },
+  'ai.key.local': {
+    en: 'The key is saved on THIS DEVICE only — it is never synced and never stored on the server. It is saved in the clear, so treat it like any key pasted into a web tool: scope it, and rotate it if the device is shared.',
+    vi: 'Khoá chỉ được lưu TRÊN THIẾT BỊ NÀY — không đồng bộ, không lưu trên máy chủ. Khoá lưu dạng văn bản thường, nên hãy đối xử như mọi khoá dán vào một công cụ web: giới hạn quyền và đổi khoá nếu máy dùng chung.',
+  },
+  'ai.provider.switch': {
+    en: 'Provider changed — press Save to reload with that provider’s key and models.',
+    vi: 'Đã đổi nhà cung cấp — nhấn Lưu để tải lại khoá và danh sách mô hình của nhà đó.',
+  },
+  'ai.getkey': { en: 'Get a key', vi: 'Lấy khoá' },
+  'ai.pricing': { en: 'Prices', vi: 'Bảng giá' },
+  'ai.test.ok': { en: 'Connected ✓', vi: 'Đã kết nối ✓' },
+  'ai.test.badkey': {
+    en: 'The provider rejected that key. Check it was copied whole, and that the account is active.',
+    vi: 'Nhà cung cấp từ chối khoá đó. Kiểm tra đã chép đủ chưa, và tài khoản còn hoạt động không.',
+  },
+  'ai.test.noaccess': {
+    en: 'The key works but that model is not available on this account. Pick another model.',
+    vi: 'Khoá dùng được nhưng tài khoản không có mô hình đó. Hãy chọn mô hình khác.',
+  },
+  'ai.test.unreachable': {
+    en: 'Could not reach the provider. Check the connection and try again.',
+    vi: 'Không kết nối được tới nhà cung cấp. Kiểm tra mạng và thử lại.',
+  },
+  'ai.model.missing': {
+    en: 'No model set. Add a key first, or type a model id.',
+    vi: 'Chưa chọn mô hình. Hãy thêm khoá trước, hoặc tự nhập mã mô hình.',
+  },
+  'ai.free': {
+    en: 'No key yet? Ask ChatGPT keeps working without one — it runs on your ChatGPT subscription and costs no tokens.',
+    vi: 'Chưa có khoá? Tính năng Hỏi ChatGPT vẫn dùng được — nó chạy bằng gói ChatGPT của bạn và không tốn token.',
+  },
+
+  // Assistant panel
+  'chat.title': { en: 'Assistant', vi: 'Trợ lý' },
+  'chat.open': { en: 'Assistant', vi: 'Trợ lý' },
+  'chat.close': { en: 'Close', vi: 'Đóng' },
+  'chat.new': { en: 'New conversation', vi: 'Hội thoại mới' },
+  'chat.send': { en: 'Send', vi: 'Gửi' },
+  'chat.placeholder': {
+    en: 'Ask about your portfolio…',
+    vi: 'Hỏi về danh mục của bạn…',
+  },
+  'chat.askgpt': { en: 'Ask ChatGPT', vi: 'Hỏi ChatGPT' },
+  'chat.askgpt.help': {
+    en: 'Open ChatGPT with your question and your numbers already filled in — costs no API tokens.',
+    vi: 'Mở ChatGPT với câu hỏi và số liệu của bạn điền sẵn — không tốn token API.',
+  },
+  'chat.meter.help': {
+    en: 'Tokens used in this conversation, and the estimated cost when the price is known.',
+    vi: 'Số token đã dùng trong hội thoại này, và chi phí ước tính khi biết giá.',
+  },
+  'chat.tokens': { en: 'tokens', vi: 'token' },
+  'chat.notconfigured': { en: 'No key', vi: 'Chưa có khoá' },
+  'chat.thinking': { en: 'Thinking…', vi: 'Đang suy nghĩ…' },
+  'chat.error': { en: 'That did not work', vi: 'Không thực hiện được' },
+  'chat.retry': { en: 'Try again', vi: 'Thử lại' },
+  'chat.truncated': { en: 'cut off', vi: 'bị cắt' },
+  'chat.local.badge': { en: 'from your data', vi: 'từ dữ liệu của bạn' },
+  'chat.disclaimer': {
+    en: 'Reads your portfolio only. It cannot buy, sell or change anything — do that on the Portfolio tab.',
+    vi: 'Chỉ đọc danh mục của bạn. Trợ lý không thể mua, bán hay thay đổi gì — hãy làm việc đó ở tab Danh mục.',
+  },
+  'chat.needkey': {
+    en: 'That one needs a model. Add an API key in settings, or press Ask ChatGPT to send it to your ChatGPT subscription for free.',
+    vi: 'Câu này cần đến mô hình. Hãy thêm khoá API trong cài đặt, hoặc nhấn Hỏi ChatGPT để gửi sang gói ChatGPT của bạn miễn phí.',
+  },
+  'chat.empty.title': {
+    en: 'Ask about your accounts, positions, trades or a price.',
+    vi: 'Hỏi về tài khoản, vị thế, giao dịch hoặc giá.',
+  },
+  'chat.empty.hint': {
+    en: 'Everyday lookups are answered straight from your data, for free. Anything needing judgement goes to the model.',
+    vi: 'Các câu tra cứu thường ngày được trả lời trực tiếp từ dữ liệu của bạn, miễn phí. Những gì cần nhận định sẽ gửi tới mô hình.',
+  },
+  'chat.empty.nokey': {
+    en: 'No key yet — the lookups below still work, straight from your data. For anything else, press Ask ChatGPT.',
+    vi: 'Chưa có khoá — các câu tra cứu dưới đây vẫn dùng được, lấy trực tiếp từ dữ liệu của bạn. Với những câu khác, hãy nhấn Hỏi ChatGPT.',
+  },
+  'chat.s1': { en: 'What do I own?', vi: 'Tôi đang giữ gì?' },
+  'chat.s2': { en: 'How much cash do I have?', vi: 'Tôi còn bao nhiêu tiền mặt?' },
+  'chat.s3': { en: 'How am I doing?', vi: 'Hiệu suất của tôi?' },
+  'chat.s4': { en: 'My trade history', vi: 'Lịch sử giao dịch' },
+
+  // Assistant answers built from local data
+  'chat.local.stale': {
+    en: 'No prices fetched yet this session, so last price falls back to cost — press Update on the Portfolio tab.',
+    vi: 'Phiên này chưa tải giá, nên giá cuối tạm lấy theo giá mua — hãy nhấn Cập nhật ở tab Danh mục.',
+  },
+  'chat.local.noaccounts': {
+    en: 'There are no accounts yet. Create one on the Portfolio tab.',
+    vi: 'Chưa có tài khoản nào. Hãy tạo một tài khoản ở tab Danh mục.',
+  },
+  'chat.local.open': { en: 'open', vi: 'đang mở' },
+  'chat.local.positions': { en: 'positions', vi: 'vị thế' },
+  'chat.local.equity': { en: 'Equity', vi: 'Vốn chủ' },
+  'chat.local.cash': { en: 'cash', vi: 'tiền mặt' },
+  'chat.local.totalpnl': { en: 'Total PnL', vi: 'Tổng lãi/lỗ' },
+  'chat.local.unrealized': { en: 'Unrealized', vi: 'Chưa thực hiện' },
+  'chat.local.realized': { en: 'Realized', vi: 'Đã thực hiện' },
+  'chat.local.risk': { en: 'Open risk', vi: 'Rủi ro đang mở' },
+  'chat.local.ofequity': { en: 'of equity', vi: 'vốn chủ' },
+  'chat.local.trades': { en: 'Trades', vi: 'Giao dịch' },
+  'chat.local.open2': { en: 'open', vi: 'đang mở' },
+  'chat.local.closed': { en: 'closed', vi: 'đã đóng' },
+  'chat.local.winrate': { en: 'win rate', vi: 'tỷ lệ thắng' },
+  'chat.local.nostop': { en: 'Positions with no stop', vi: 'Vị thế chưa có stop' },
+  'chat.local.nopositions': {
+    en: 'No open positions in this account.',
+    vi: 'Tài khoản này không có vị thế nào đang mở.',
+  },
+  'chat.local.nostop2': { en: 'no stop', vi: 'chưa có stop' },
+  'chat.local.riskfree': { en: 'risk-free', vi: 'hết rủi ro' },
+  'chat.local.stop': { en: 'stop', vi: 'stop' },
+  'chat.local.notrades': {
+    en: 'No trades recorded in this account.',
+    vi: 'Tài khoản này chưa ghi giao dịch nào.',
+  },
+  'chat.local.showing': { en: 'showing', vi: 'đang hiển thị' },
+  'chat.local.noquote': { en: 'no price', vi: 'không có giá' },
+  'chat.local.day': { en: 'day', vi: 'ngày' },
+  'chat.local.belowhigh': { en: 'below high', vi: 'dưới đỉnh' },
+
   // Misc
   'common.slower': { en: '(slower)', vi: '(chậm hơn)' },
   'msg.scanning': { en: 'Scanning', vi: 'Đang quét' },
