@@ -618,18 +618,41 @@ tbody tr td:first-child { color: var(--text); font-weight: 600; }
 .price-hint a { color: var(--accent); text-decoration: none; }
 .price-hint a:hover { text-decoration: underline; }
 
-/* ── In-app dialog ───────────────────────────────────────────────────────── */
-.dialog-host { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; }
+/* ── In-app dialog ───────────────────────────────────────────────────────────
+   THE TITLE AND THE ACTIONS ARE PINNED; ONLY THE BODY SCROLLS.
+
+   Without this, a tall form (the assistant connection, with a provider, key,
+   endpoint, model and two prices) simply grows past the viewport — and because the
+   host centres it, it overflows off BOTH edges, so Save is unreachable and there is
+   nothing to scroll. Save must never be the thing that falls off the screen.
+
+   dvh, not vh: on a phone the on-screen keyboard opens the moment a field is
+   focused, and vh ignores it — which would hide the buttons again at exactly the
+   moment the user is typing. The vh line is the fallback for browsers without dvh. */
+.dialog-host { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 14px; }
 .dialog-backdrop { position: absolute; inset: 0; background: rgba(3, 5, 9, .6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .dialog {
   position: relative; width: min(380px, 92vw); background: var(--card);
   border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg);
   padding: 20px; animation: modalIn .24s cubic-bezier(.22, 1, .36, 1);
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 28px);
+  max-height: calc(100dvh - 28px);
 }
-.dialog-title { font-weight: 800; font-size: 17px; margin-bottom: 12px; letter-spacing: -0.02em; }
+.dialog-title { flex: 0 0 auto; font-weight: 800; font-size: 17px; margin-bottom: 12px; letter-spacing: -0.02em; }
+/* min-height: 0 is what actually lets this shrink below its content — a flex item
+   defaults to its content size and would push the actions out again. The negative
+   margin plus matching padding keeps focus rings and the scrollbar off the text. */
+.dialog-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  margin: 0 -4px; padding: 0 4px;
+}
 .dialog-body .field { margin-bottom: 10px; }
 .dialog-info { min-height: 18px; margin-bottom: 8px; }
-.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.dialog-actions {
+  flex: 0 0 auto; display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border-soft);
+}
 
 /* ── Rich-text note editor ───────────────────────────────────────────────── */
 .rn-dialog { width: min(560px, 94vw); }
