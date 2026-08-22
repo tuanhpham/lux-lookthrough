@@ -586,6 +586,12 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // Named after the request field itself rather than described in prose: the person
   // who needs to change this is reading a provider's 400 that quotes that exact name.
   'ai.tokenfield': { en: 'Output-limit field', vi: 'Trường giới hạn đầu ra' },
+  // Not offered as a nicety: some gateways answer a non-streamed request with
+  // "stream must be set to true" and nothing else, so this is a compatibility
+  // switch that happens to also make answers appear as they are written.
+  'ai.stream': { en: 'Streaming', vi: 'Truyền dần' },
+  'ai.stream.on': { en: 'On — required by some gateways', vi: 'Bật — một số cổng yêu cầu' },
+  'ai.stream.off': { en: 'Off', vi: 'Tắt' },
   'ai.price.in': { en: 'Price in, $ / 1M tokens', vi: 'Giá vào, $ / 1M token' },
   'ai.price.out': { en: 'Price out, $ / 1M tokens', vi: 'Giá ra, $ / 1M token' },
   'ai.price.help': {

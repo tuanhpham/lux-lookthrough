@@ -31,6 +31,7 @@ import {
   buildChatRequest,
   buildSystemPrompt,
   classifyFailure,
+  createOpenaiChatStream,
   estimateCostUsd,
   matchIntent,
   nextAction,
@@ -39,6 +40,7 @@ import {
   sumUsage,
   trimForRetry,
   userText,
+  usesStreaming,
   validateToolArgs,
   formatIssues,
   findProvider,
@@ -86,6 +88,14 @@ export type AskResult =
 
 /** Enough room for a long answer with a table in it; not enough to run away. */
 const MAX_OUTPUT_TOKENS = 1500;
+
+/**
+ * Called with each piece of answer text as it arrives, when the connection streams.
+ *
+ * Text only, and deliberately: a half-built tool call is not something to show, and
+ * the panel must not start rendering a table the model has not finished writing.
+ */
+export type OnDelta = (chunk: string) => void;
 
 function accountFacts(): AccountFact[] {
   const openId = activeId();
@@ -155,7 +165,7 @@ export class AssistantSession {
    * added, because a half-written exchange is exactly the dangling-tool-result
    * shape the next request would be rejected for.
    */
-  async ask(question: string, signal?: AbortSignal): Promise<AskResult> {
+  async ask(question: string, signal?: AbortSignal, onDelta?: OnDelta): Promise<AskResult> {
     const asked = question.trim();
     if (!asked) return { kind: 'error', message: 'Nothing to ask.', tools: [] };
 
@@ -165,7 +175,7 @@ export class AssistantSession {
     const before = this.messages.length;
     this.messages.push(userText(asked));
     try {
-      return await this.runModel(signal);
+      return await this.runModel(signal, onDelta);
     } catch (e) {
       this.messages.length = before;
       return {
@@ -209,7 +219,7 @@ export class AssistantSession {
   }
 
   /** The model loop: request → maybe run tools → request again → answer. */
-  private async runModel(signal?: AbortSignal): Promise<AskResult> {
+  private async runModel(signal?: AbortSignal, onDelta?: OnDelta): Promise<AskResult> {
     const tools = readTools();
     const system = buildSystemPrompt(
       { today: today(), accounts: accountFacts(), lang: getLang() === 'vi' ? 'vi' : 'en' },
@@ -222,7 +232,7 @@ export class AssistantSession {
     let trimmed = false;
 
     for (;;) {
-      const sent = await this.send(system, tools, apiKey, signal);
+      const sent = await this.send(system, tools, apiKey, signal, onDelta);
       if ('failure' in sent) {
         // The one retry worth making: the conversation no longer fits, and dropping
         // the oldest exchange is something this side can do by itself. Anything else
@@ -339,6 +349,7 @@ export class AssistantSession {
     tools: ReturnType<typeof readTools>,
     apiKey: string,
     signal?: AbortSignal,
+    onDelta?: OnDelta,
   ): Promise<{ reply: ReturnType<typeof parseChatReply> } | { failure: ApiFailure }> {
     const request = buildChatRequest(this.cfg, {
       system,
@@ -375,7 +386,45 @@ export class AssistantSession {
       return { failure: classifyFailure(res.status, parsed) };
     }
 
+    if (usesStreaming(this.cfg)) return this.readStream(res, onDelta);
+
     const wire = findProvider(this.cfg.providerId)?.wire ?? 'openai';
     return { reply: parseChatReply(await res.json(), wire) };
+  }
+
+  /**
+   * Drain a streamed response into the same reply shape as a buffered one.
+   *
+   * The reader is fed decoded text as it arrives; `{ stream: true }` on the decoder
+   * is what keeps a multi-byte character split across two network packets from
+   * turning into a replacement character mid-word.
+   */
+  private async readStream(
+    res: Response,
+    onDelta?: OnDelta,
+  ): Promise<{ reply: ReturnType<typeof parseChatReply> } | { failure: ApiFailure }> {
+    const stream = createOpenaiChatStream();
+    const body = res.body;
+    if (body) {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const added = stream.push(decoder.decode(value, { stream: true }));
+        if (added && onDelta) onDelta(added);
+      }
+    } else {
+      // No readable body: an environment or proxy that buffered the whole response.
+      // The SSE document parses identically all at once — the answer just arrives in
+      // one go, which is a lost nicety rather than a failure.
+      stream.push(await res.text());
+    }
+    // An error that arrived mid-stream came back with HTTP 200, so `res.ok` never saw
+    // it. Status 200 is passed on purpose: classifyFailure keeps the provider's own
+    // sentence, and inventing a 400 here would mislabel it as our bad request.
+    const streamed = stream.error();
+    if (streamed) return { failure: classifyFailure(200, { error: { message: streamed } }) };
+    return { reply: stream.finish() };
   }
 }

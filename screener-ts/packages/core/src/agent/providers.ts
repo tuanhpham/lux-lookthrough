@@ -108,6 +108,16 @@ export interface LlmProviderDef {
   /** Whether a key is needed at all (a local model needs none). */
   keyRequired: boolean;
   /**
+   * Whether to stream by default.
+   *
+   * NOT true everywhere, tempting as it is. OpenAI gates streaming on some models
+   * behind organisation verification ("your organisation must be verified to
+   * stream this model"), so defaulting it on for a vendor would break accounts that
+   * work today. Gateways are the opposite case: many REJECT a non-streamed request
+   * outright, which is why `custom` opts in.
+   */
+  streamDefault?: boolean;
+  /**
    * Which field caps the output length. Defaults to `max_tokens`.
    *
    * OpenAI's reasoning-capable models REJECT `max_tokens` outright ("Unsupported
@@ -272,6 +282,10 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     modelsPath: '/models',
     cost: 'metered',
     keyRequired: true,
+    // On by default here: a gateway commonly refuses a non-streamed request
+    // ("stream must be set to true"), and streaming is the nicer behaviour anyway —
+    // the answer appears as it is written instead of after a silent wait.
+    streamDefault: true,
     // Direct, like a local model, for the same two reasons: the relay forwards only
     // to fixed hostnames (forwarding to a caller-supplied one is an open proxy), and
     // this endpoint is not in that list and never can be.
@@ -344,9 +358,30 @@ export interface LlmConfig {
    * than by editing this file.
    */
   tokenLimitField?: 'max_tokens' | 'max_completion_tokens';
+  /**
+   * Stream the reply. Undefined = whatever the provider's own default is.
+   *
+   * Also a gateway fact rather than a preference: some refuse to answer at all
+   * unless `stream` is true, so this has to be reachable from the dialog.
+   */
+  stream?: boolean;
   /** User-supplied prices (USD per MTok) when this file does not know them. */
   inputPerMTok?: number;
   outputPerMTok?: number;
+}
+
+/**
+ * Whether this connection streams.
+ *
+ * The wire check is not a policy, it is a fact about this codebase: the streaming
+ * READER is implemented for the OpenAI event format only (see
+ * `createOpenaiChatStream`). Anthropic's stream is a different event set, and
+ * promising to stream it before that reader exists would simply break Claude.
+ */
+export function usesStreaming(cfg: LlmConfig): boolean {
+  const p = findProvider(cfg.providerId);
+  if (!p || p.wire !== 'openai') return false;
+  return cfg.stream ?? p.streamDefault ?? false;
 }
 
 /**

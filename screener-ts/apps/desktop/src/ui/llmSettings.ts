@@ -19,6 +19,7 @@ import {
   LLM_PROVIDERS,
   findProvider,
   seededPrices,
+  usesStreaming,
   type LlmConfig,
   type LlmProviderId,
 } from '@screener/core';
@@ -129,9 +130,10 @@ export async function openLlmSettings(ctx: AppContext): Promise<void> {
         // /chat/completions URL, which is the mistake this placeholder prevents.
         placeholder: provider.baseUrlExample ?? provider.upstream,
       });
-      // Only asked where it cannot be known: behind a user-supplied endpoint there is
-      // no way to tell which name the models accept, and the wrong one 400s every
-      // call. A vendor we route to directly has this pinned in the registry.
+      // The next two are only asked where they cannot be known. Behind a user-supplied
+      // endpoint there is no way to tell which output-cap name the models accept, or
+      // whether the gateway insists on streaming — and each wrong guess fails EVERY
+      // call. A vendor we address directly has both pinned in the registry.
       fields.push({
         key: 'tokenfield',
         label: t('ai.tokenfield'),
@@ -140,6 +142,18 @@ export async function openLlmSettings(ctx: AppContext): Promise<void> {
         options: [
           { value: 'max_tokens', label: 'max_tokens' },
           { value: 'max_completion_tokens', label: 'max_completion_tokens' },
+        ],
+      });
+      fields.push({
+        key: 'stream',
+        label: t('ai.stream'),
+        type: 'select',
+        // Reflects what will ACTUALLY happen, provider default included, so the field
+        // never shows "off" for a connection that streams.
+        value: usesStreaming(cfg) ? 'on' : 'off',
+        options: [
+          { value: 'on', label: t('ai.stream.on') },
+          { value: 'off', label: t('ai.stream.off') },
         ],
       });
     }
@@ -218,6 +232,10 @@ export async function openLlmSettings(ctx: AppContext): Promise<void> {
       ...(provider.baseUrlRequired && res.tokenfield === 'max_completion_tokens'
         ? { tokenLimitField: 'max_completion_tokens' as const }
         : {}),
+      // Written explicitly rather than only when it differs from the default: an
+      // absent flag means "use the provider default", and if that default ever
+      // changes a user who deliberately turned streaming off would have it back on.
+      ...(provider.baseUrlRequired && res.stream ? { stream: res.stream === 'on' } : {}),
       ...(optionalNumber(res.pin) !== undefined ? { inputPerMTok: optionalNumber(res.pin) } : {}),
       ...(optionalNumber(res.pout) !== undefined ? { outputPerMTok: optionalNumber(res.pout) } : {}),
     };

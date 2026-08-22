@@ -27,7 +27,13 @@
  * Pure functions over plain JSON. Nothing here fetches; the transport is app-side.
  */
 
-import { findProvider, tokenLimitField, type LlmConfig, type TokenUsage } from './providers.js';
+import {
+  findProvider,
+  tokenLimitField,
+  usesStreaming,
+  type LlmConfig,
+  type TokenUsage,
+} from './providers.js';
 import { schemaFor, type AgentToolDef } from './tools.js';
 
 // ── the neutral transcript ────────────────────────────────────────────────────
@@ -210,6 +216,10 @@ export function buildChatRequest(cfg: LlmConfig, turn: ChatTurn): ChatRequest | 
     model: cfg.model,
     messages,
     [tokenLimitField(cfg.providerId, cfg.tokenLimitField)]: maxTokens,
+    // `stream_options` rides along because a streamed response otherwise carries NO
+    // usage block at all, and the cost meter would silently read zero for every
+    // streamed turn — worse than an unknown price, because it looks like a fact.
+    ...(usesStreaming(cfg) ? { stream: true, stream_options: { include_usage: true } } : {}),
     ...(tools.length
       ? {
           tools: tools.map((t) => ({
@@ -389,6 +399,160 @@ export function parseChatReply(json: unknown, wire: 'anthropic' | 'openai'): Cha
     // claims: local models and some hosted ones report 'stop' while emitting
     // tool_calls, and believing them would end the turn with the call unrun.
     stop: toolCalls.length ? 'tool_use' : mapStop(choice['finish_reason'], 'openai'),
+  };
+}
+
+// ── streaming ─────────────────────────────────────────────────────────────────
+
+/**
+ * Reads a streamed OpenAI-format reply, incrementally.
+ *
+ * ── WHY STREAMING EXISTS HERE AT ALL ────────────────────────────────────────
+ * Two unrelated reasons, and the first is not cosmetic: many OpenAI-compatible
+ * GATEWAYS refuse a non-streamed request outright ("stream must be set to true"),
+ * so without this the assistant simply cannot talk to them. The second is that a
+ * reply that appears as it is written beats a spinner followed by a wall of text.
+ *
+ * ── WHAT MAKES IT FIDDLY ────────────────────────────────────────────────────
+ * Chunk boundaries are arbitrary — they fall mid-line, mid-JSON, mid-UTF-8 — so
+ * nothing may be parsed until a newline is seen, and a tool call's `arguments`
+ * arrive as a STRING SPLIT ACROSS FRAMES that is only valid JSON once complete.
+ * Hence the accumulate-then-parse-at-the-end shape: `finish()` produces exactly the
+ * `ChatReply` a non-streamed call would have produced, so nothing downstream — the
+ * tool loop, the cost meter, the pairing invariant — needs to know which path ran.
+ */
+export interface ChatStream {
+  /** Feed decoded response text. Returns only the NEW answer text, for display. */
+  push(chunk: string): string;
+  /** A provider error delivered inside an HTTP 200 stream, if there was one. */
+  error(): string | null;
+  /** The finished reply, identical in shape to a non-streamed one. */
+  finish(): ChatReply;
+}
+
+interface PartialCall {
+  id: string;
+  name: string;
+  /** Raw JSON fragments, concatenated. Only parsed once the stream ends. */
+  args: string;
+}
+
+export function createOpenaiChatStream(): ChatStream {
+  /** The tail of the last chunk, up to the first newline of the next one. */
+  let pending = '';
+  /** Everything received, kept for the not-actually-a-stream fallback below. */
+  let raw = '';
+  let answer = '';
+  let finish: unknown = '';
+  let usageRaw: unknown;
+  let errMsg: string | null = null;
+  /** Any frame at all was understood — the difference between "empty" and "not SSE". */
+  let sawFrame = false;
+  const calls: PartialCall[] = [];
+
+  function handleFrame(payload: string): string {
+    const body = payload.trim();
+    if (!body || body === '[DONE]') return '';
+    let json: unknown;
+    try {
+      json = JSON.parse(body);
+    } catch {
+      // A frame that is not JSON is not fatal: gateways insert keep-alives and
+      // status lines, and throwing here would lose an otherwise complete answer.
+      return '';
+    }
+    sawFrame = true;
+    const root = asRecord(json);
+    // An error can arrive INSIDE a 200 response once the stream has started, since
+    // the status line was already sent. Keep the provider's words for the panel.
+    const errBlock = asRecord(root['error']);
+    if (typeof errBlock['message'] === 'string' && errBlock['message']) errMsg = errBlock['message'];
+    if (root['usage']) usageRaw = root['usage'];
+
+    const choice = asRecord(Array.isArray(root['choices']) ? root['choices'][0] : undefined);
+    // `delta` normally; `message` for the servers that stream one whole chunk. Also
+    // note what is NOT read: `reasoning_content` deltas are the model thinking out
+    // loud, not its answer, and showing them as the answer would be a lie.
+    const delta = asRecord(choice['delta'] ?? choice['message']);
+    if (choice['finish_reason']) finish = choice['finish_reason'];
+
+    const piece = openaiText(delta['content']);
+    if (piece) answer += piece;
+
+    const deltaCalls = Array.isArray(delta['tool_calls']) ? delta['tool_calls'] : [];
+    for (const c of deltaCalls) {
+      const call = asRecord(c);
+      const fn = asRecord(call['function']);
+      const id = typeof call['id'] === 'string' ? call['id'] : '';
+      let i = typeof call['index'] === 'number' ? call['index'] : -1;
+      if (i < 0) {
+        // No index (some servers omit it). A fresh id opens a new call; anything else
+        // continues the one in progress. Getting this wrong CONCATENATES two calls'
+        // arguments into one unparseable string, so it is worth the branch.
+        const last = calls[calls.length - 1];
+        i = id && (!last || last.id !== id) ? calls.length : Math.max(0, calls.length - 1);
+      }
+      const slot = (calls[i] ??= { id: '', name: '', args: '' });
+      if (id) slot.id = id;
+      if (typeof fn['name'] === 'string' && fn['name']) slot.name = fn['name'];
+      if (typeof fn['arguments'] === 'string') slot.args += fn['arguments'];
+    }
+    return piece;
+  }
+
+  return {
+    push(chunk: string): string {
+      raw += chunk;
+      pending += chunk;
+      let added = '';
+      // Split on newlines only — a frame is never acted on until it is whole. \r\n is
+      // handled by trimming each line, since SSE allows either.
+      for (;;) {
+        const nl = pending.indexOf('\n');
+        if (nl < 0) break;
+        const line = pending.slice(0, nl).trim();
+        pending = pending.slice(nl + 1);
+        // `:` is a comment (keep-alive), and `event:`/`id:` carry nothing this needs.
+        // Per the SSE spec multi-line data fields concatenate; no chat provider emits
+        // them, so each `data:` line is treated as one complete payload.
+        if (!line.startsWith('data:')) continue;
+        added += handleFrame(line.slice(5));
+      }
+      return added;
+    },
+
+    error(): string | null {
+      return errMsg;
+    },
+
+    finish(): ChatReply {
+      // Flush a final frame that arrived without a trailing newline.
+      if (pending.trim()) {
+        const line = pending.trim();
+        if (line.startsWith('data:')) handleFrame(line.slice(5));
+        pending = '';
+      }
+      // Not a stream after all: a server that ignored `stream: true` and answered
+      // with one ordinary JSON body. Parsing it as such turns that mismatch into a
+      // working answer instead of a blank reply the user cannot explain.
+      if (!sawFrame && raw.trim().startsWith('{')) {
+        try {
+          return parseChatReply(JSON.parse(raw), 'openai');
+        } catch {
+          /* fall through to the empty reply below */
+        }
+      }
+      const toolCalls: ParsedToolCall[] = calls.filter(Boolean).map((c) => {
+        const { input, inputError } = parseArguments(c.args);
+        return { id: c.id, name: c.name, input, ...(inputError ? { inputError } : {}) };
+      });
+      return {
+        text: answer.trim(),
+        toolCalls,
+        usage: readUsage(usageRaw, 'openai'),
+        stop: toolCalls.length ? 'tool_use' : mapStop(finish, 'openai'),
+      };
+    },
   };
 }
 

@@ -10,6 +10,7 @@ import {
   authHeaders,
   buildProbeRequest,
   tokenLimitField,
+  usesStreaming,
   probeVerdict,
   estimateCostUsd,
   seededPrices,
@@ -257,6 +258,30 @@ describe('the connection probe', () => {
     expect(probeVerdict(403)).toBe('bad-key');
     expect(probeVerdict(404)).toBe('no-access');
     expect(probeVerdict(503)).toBe('unreachable');
+  });
+});
+
+describe('usesStreaming', () => {
+  it('streams a user-supplied endpoint by default, since gateways often demand it', () => {
+    expect(usesStreaming({ providerId: 'custom', model: 'm', baseUrl: 'https://g.example/v1' })).toBe(true);
+  });
+
+  it('lets the saved choice override the default in either direction', () => {
+    // Off matters most: a gateway that streams badly is unusable otherwise, and the
+    // user needs a way out that does not involve editing the registry.
+    expect(usesStreaming({ providerId: 'custom', model: 'm', stream: false })).toBe(false);
+    expect(usesStreaming({ providerId: 'deepseek', model: 'deepseek-chat', stream: true })).toBe(true);
+  });
+
+  it('never streams a vendor we address directly, or the Anthropic wire at all', () => {
+    // The stream reader only understands OpenAI frames, so `stream: true` on Anthropic
+    // must not take effect anywhere — not in the request, and not in the read path.
+    expect(usesStreaming({ providerId: 'openai', model: 'gpt-5' })).toBe(false);
+    expect(usesStreaming({ providerId: 'anthropic', model: 'claude-opus-5', stream: true })).toBe(false);
+  });
+
+  it('says no for a provider it has never heard of, rather than guessing', () => {
+    expect(usesStreaming({ providerId: 'ollama' as never, model: 'x', stream: true })).toBe(false);
   });
 });
 

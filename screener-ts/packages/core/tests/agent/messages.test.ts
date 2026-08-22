@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildChatRequest,
+  createOpenaiChatStream,
   parseChatReply,
   readUsage,
   classifyFailure,
@@ -135,6 +136,31 @@ describe('buildChatRequest — OpenAI wire', () => {
     const body = buildChatRequest(gw, { system: '', messages: [] })!.body;
     expect(body['max_completion_tokens']).toBe(4096);
     expect(body['max_tokens']).toBeUndefined();
+  });
+
+  it('asks to stream, with usage, only where streaming is actually in use', () => {
+    // `stream_options` is the part that is easy to forget: a streamed reply carries NO
+    // usage block without it, so the cost meter would sit at zero all conversation.
+    const gw = { providerId: 'custom' as const, model: 'm', baseUrl: 'https://g.example/v1' };
+    const on = buildChatRequest(gw, { system: '', messages: [] })!.body;
+    expect(on['stream']).toBe(true);
+    expect(on['stream_options']).toEqual({ include_usage: true });
+
+    // Turned off in the dialog, and the flag disappears rather than being sent false.
+    const off = buildChatRequest({ ...gw, stream: false }, { system: '', messages: [] })!.body;
+    expect(off['stream']).toBeUndefined();
+    expect(off['stream_options']).toBeUndefined();
+
+    // A vendor addressed directly does not stream: it answers a buffered request fine,
+    // and buffered replies are simpler to be right about.
+    expect(buildChatRequest(gpt, { system: '', messages: [] })!.body['stream']).toBeUndefined();
+  });
+
+  it('never asks the Anthropic wire to stream, whose frames this cannot read', () => {
+    // `createOpenaiChatStream` only understands OpenAI frames. Setting the flag on an
+    // Anthropic request would produce a response nothing here can parse.
+    const req = buildChatRequest({ ...claude, stream: true }, { system: '', messages: [] })!;
+    expect(req.body['stream']).toBeUndefined();
   });
 
   it('describes tools as functions with parameters', () => {
@@ -295,6 +321,142 @@ describe('parseChatReply — robustness', () => {
         expect(reply.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
       }
     }
+  });
+});
+
+describe('createOpenaiChatStream', () => {
+  /** One SSE frame, as a server would write it. */
+  const frame = (o: unknown): string => `data: ${JSON.stringify(o)}\n\n`;
+  const delta = (o: unknown): string => frame({ choices: [{ delta: o }] });
+
+  it('returns each piece of text as it arrives, and the whole of it at the end', () => {
+    const s = createOpenaiChatStream();
+    expect(s.push(delta({ role: 'assistant', content: '' }))).toBe('');
+    expect(s.push(delta({ content: 'You own ' }))).toBe('You own ');
+    expect(s.push(delta({ content: '3 positions.' }))).toBe('3 positions.');
+    s.push(frame({ choices: [{ delta: {}, finish_reason: 'stop' }] }));
+    s.push('data: [DONE]\n\n');
+    expect(s.finish()).toMatchObject({ text: 'You own 3 positions.', stop: 'end', toolCalls: [] });
+  });
+
+  it('waits for the newline before parsing, so a chunk may split anywhere', () => {
+    // The actual failure mode this guards: a network packet ends mid-JSON. Parsing
+    // early throws away that frame, and the answer silently loses a word.
+    const s = createOpenaiChatStream();
+    const whole = delta({ content: 'hello' });
+    const cut = Math.floor(whole.length / 2);
+    expect(s.push(whole.slice(0, cut))).toBe('');
+    expect(s.push(whole.slice(cut))).toBe('hello');
+    expect(s.finish().text).toBe('hello');
+  });
+
+  it('accepts data with or without the space, and ignores comments and events', () => {
+    const s = createOpenaiChatStream();
+    s.push(': keep-alive\n');
+    s.push('event: message\n');
+    s.push('id: 42\n');
+    s.push(`data:${JSON.stringify({ choices: [{ delta: { content: 'a' } }] })}\n`);
+    s.push(`data: ${JSON.stringify({ choices: [{ delta: { content: 'b' } }] })}\n`);
+    expect(s.finish().text).toBe('ab');
+  });
+
+  it('reassembles a tool call whose arguments were split across frames', () => {
+    // `arguments` is a JSON STRING delivered in fragments — no single frame parses.
+    const s = createOpenaiChatStream();
+    s.push(delta({ tool_calls: [{ index: 0, id: 'call_1', function: { name: 'list_positions', arguments: '' } }] }));
+    s.push(delta({ tool_calls: [{ index: 0, function: { arguments: '{"acc' } }] }));
+    s.push(delta({ tool_calls: [{ index: 0, function: { arguments: 'ount":"Ma' } }] }));
+    s.push(delta({ tool_calls: [{ index: 0, function: { arguments: 'in"}' } }] }));
+    s.push(frame({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }));
+    const reply = s.finish();
+    expect(reply.toolCalls).toEqual([
+      { id: 'call_1', name: 'list_positions', input: { account: 'Main' } },
+    ]);
+    expect(reply.stop).toBe('tool_use');
+  });
+
+  it('keeps two parallel calls apart even when the server omits the index', () => {
+    // Merging them concatenates both argument strings into one unparseable blob, and
+    // the model gets told its own perfectly good call was malformed.
+    const s = createOpenaiChatStream();
+    s.push(delta({ tool_calls: [{ id: 'c1', function: { name: 'list_positions', arguments: '{"account":' } }] }));
+    s.push(delta({ tool_calls: [{ function: { arguments: '"Main"}' } }] }));
+    s.push(delta({ tool_calls: [{ id: 'c2', function: { name: 'get_quote', arguments: '{"ticker":"NVDA"}' } }] }));
+    const reply = s.finish();
+    expect(reply.toolCalls.map((c) => c.id)).toEqual(['c1', 'c2']);
+    expect(reply.toolCalls[0]!.input).toEqual({ account: 'Main' });
+    expect(reply.toolCalls[1]!.input).toEqual({ ticker: 'NVDA' });
+  });
+
+  it('reads the usage that only the last frame carries', () => {
+    const s = createOpenaiChatStream();
+    s.push(delta({ content: 'hi' }));
+    s.push(frame({ choices: [], usage: { prompt_tokens: 120, completion_tokens: 8 } }));
+    expect(s.finish().usage).toEqual({ inputTokens: 120, outputTokens: 8 });
+  });
+
+  it('surfaces an error that arrived inside a 200 response', () => {
+    // The status line was already sent, so `res.ok` was true and only the body knows.
+    const s = createOpenaiChatStream();
+    s.push(delta({ content: 'partial' }));
+    s.push(frame({ error: { message: 'insufficient quota' } }));
+    expect(s.error()).toBe('insufficient quota');
+  });
+
+  it('reports no error for an ordinary stream', () => {
+    const s = createOpenaiChatStream();
+    s.push(delta({ content: 'fine' }));
+    expect(s.error()).toBeNull();
+  });
+
+  it('falls back to a plain JSON body from a server that ignored stream: true', () => {
+    // Rather than showing a blank answer the user has no way to explain.
+    const s = createOpenaiChatStream();
+    s.push(
+      JSON.stringify({
+        choices: [{ message: { content: 'Buffered after all.' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 3 },
+      }),
+    );
+    expect(s.finish()).toMatchObject({
+      text: 'Buffered after all.',
+      stop: 'end',
+      usage: { inputTokens: 10, outputTokens: 3 },
+    });
+  });
+
+  it('flushes a final frame that came without a trailing newline', () => {
+    const s = createOpenaiChatStream();
+    s.push(`data: ${JSON.stringify({ choices: [{ delta: { content: 'last' } }] })}`);
+    expect(s.finish().text).toBe('last');
+  });
+
+  it('survives junk without losing the answer around it', () => {
+    const s = createOpenaiChatStream();
+    s.push(delta({ content: 'before ' }));
+    s.push('data: not json at all\n');
+    s.push('data: \n');
+    s.push(delta({ content: 'after' }));
+    expect(s.finish().text).toBe('before after');
+  });
+
+  it('returns an empty reply for a stream that said nothing', () => {
+    // 'unknown' rather than 'end': nothing said why it stopped, and `nextAction` reads
+    // an empty answer with no reason as a halt — which is exactly right here.
+    const s = createOpenaiChatStream();
+    s.push('data: [DONE]\n\n');
+    expect(s.finish()).toEqual({
+      text: '',
+      toolCalls: [],
+      usage: { inputTokens: 0, outputTokens: 0 },
+      stop: 'unknown',
+    });
+  });
+
+  it('takes a whole message in one frame, for servers that stream exactly once', () => {
+    const s = createOpenaiChatStream();
+    s.push(frame({ choices: [{ message: { content: 'all at once' }, finish_reason: 'stop' }] }));
+    expect(s.finish().text).toBe('all at once');
   });
 });
 

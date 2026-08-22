@@ -2929,6 +2929,17 @@ html[lang="vi"] .tl-h1 { letter-spacing: .01em; }
 }
 .chat-h { font-weight: 700; }
 .chat-pending { color: var(--subtext); font-style: italic; }
+/* The answer as it is being written. `pre-wrap` because the raw text still has its
+   newlines in it — markdown is only applied once the reply is complete — and the
+   caret is what distinguishes "still writing" from "stopped mid-sentence". */
+.chat-stream { white-space: pre-wrap; }
+.chat-stream::after {
+  content: ''; display: inline-block; vertical-align: -1px;
+  width: 6px; height: 13px; margin-left: 2px;
+  background: var(--accent); animation: chatCaret 1s steps(1) infinite;
+}
+@keyframes chatCaret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .chat-stream::after { animation: none; } }
 
 /* Badges: what produced this answer, and whether it is complete. */
 .chat-badge {

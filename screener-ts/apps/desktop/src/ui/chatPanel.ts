@@ -233,7 +233,8 @@ type Entry =
   | { role: 'user'; text: string }
   | { role: 'assistant'; text: string; local: boolean; truncated: boolean; tools: ToolTrace[]; usage?: TokenUsage; costUsd?: number | null }
   | { role: 'error'; text: string; canRetry: boolean }
-  | { role: 'pending' };
+  /** The row that is being written into: the placeholder, then the streamed text. */
+  | { role: 'pending'; text: string };
 
 const entries: Entry[] = [];
 
@@ -289,7 +290,12 @@ function render(): void {
     .map((e) => {
       if (e.role === 'user') return `<div class="chat-msg chat-msg--user">${esc(e.text)}</div>`;
       if (e.role === 'pending') {
-        return `<div class="chat-msg chat-msg--bot chat-pending">${t('chat.thinking')}</div>`;
+        // Escaped and NOT run through the markdown renderer while it streams: half a
+        // table or an unclosed `**` renders as garbage that reflows on every token.
+        // The finished answer is re-rendered as markdown the moment it lands.
+        return e.text
+          ? `<div class="chat-msg chat-msg--bot chat-stream" data-role="pending">${esc(e.text)}</div>`
+          : `<div class="chat-msg chat-msg--bot chat-pending" data-role="pending">${t('chat.thinking')}</div>`;
       }
       if (e.role === 'error') {
         return `<div class="chat-msg chat-msg--err">
@@ -329,6 +335,28 @@ function updateMeter(): void {
 
 // ── asking ───────────────────────────────────────────────────────────────────
 
+/**
+ * Show a piece of a streamed answer.
+ *
+ * Patches the one node rather than calling `render()`: a full re-render per token
+ * would fight the user's scroll position and destroy any selection they had. And
+ * autoscroll only happens if they are ALREADY at the bottom — dragging someone back
+ * down while they are reading something further up is the worst habit a chat UI has.
+ */
+function appendDelta(chunk: string): void {
+  const entry = entries.find((e) => e.role === 'pending');
+  if (!entry || entry.role !== 'pending') return;
+  entry.text += chunk;
+  const node = host?.querySelector<HTMLElement>('[data-role="pending"]');
+  if (!node) return;
+  const box = log();
+  const wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 48;
+  node.classList.remove('chat-pending');
+  node.classList.add('chat-stream');
+  node.textContent = entry.text;
+  if (wasAtBottom) box.scrollTop = box.scrollHeight;
+}
+
 async function submit(): Promise<void> {
   const input = field();
   const question = input.value.trim();
@@ -342,7 +370,7 @@ async function submit(): Promise<void> {
   // Without a key, Tier 0 is still worth trying — those questions never needed one.
   const active =
     session ?? new AssistantSession(ctxRef!, cfg ?? { providerId: 'openai', model: '' });
-  entries.push({ role: 'pending' });
+  entries.push({ role: 'pending', text: '' });
   render();
 
   let result: AskResult;
@@ -350,7 +378,7 @@ async function submit(): Promise<void> {
     if (ready) {
       const ctrl = new AbortController();
       inFlight = ctrl;
-      result = await active.ask(question, ctrl.signal);
+      result = await active.ask(question, ctrl.signal, appendDelta);
       inFlight = null;
       // Keep the session that holds the transcript, so a follow-up continues it.
       session = active;
