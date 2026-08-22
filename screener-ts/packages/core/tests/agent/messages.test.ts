@@ -122,6 +122,21 @@ describe('buildChatRequest — OpenAI wire', () => {
     expect(buildChatRequest(deepseek, { system: '', messages: [] })!.body['max_tokens']).toBe(4096);
   });
 
+  it('lets a custom endpoint override that field from its saved config', () => {
+    // A gateway can front models that renamed the parameter, and the registry cannot
+    // know which — so the user's choice has to reach the request body, not just the
+    // connection probe.
+    const gw = {
+      providerId: 'custom' as const,
+      model: 'gpt-5.6-sol',
+      baseUrl: 'https://gateway.example.com/v1',
+      tokenLimitField: 'max_completion_tokens' as const,
+    };
+    const body = buildChatRequest(gw, { system: '', messages: [] })!.body;
+    expect(body['max_completion_tokens']).toBe(4096);
+    expect(body['max_tokens']).toBeUndefined();
+  });
+
   it('describes tools as functions with parameters', () => {
     const req = buildChatRequest(gpt, { system: '', messages: [], tools: TOOLS })!;
     const tools = req.body['tools'] as Array<Record<string, unknown>>;

@@ -32,6 +32,7 @@ import {
   setApiKey,
   listModels,
   testConnection,
+  isConfigured,
 } from '../ai/llmClient.js';
 
 /** Subscribers that want to repaint when the connection changes. */
@@ -123,7 +124,23 @@ export async function openLlmSettings(ctx: AppContext): Promise<void> {
         key: 'baseurl',
         label: t('ai.baseurl'),
         value: cfg.baseUrl ?? provider.upstream,
-        placeholder: provider.upstream,
+        // The example, not `upstream`, so a provider with no default host still shows
+        // the SHAPE of what is wanted — the API root ending in /v1, not the
+        // /chat/completions URL, which is the mistake this placeholder prevents.
+        placeholder: provider.baseUrlExample ?? provider.upstream,
+      });
+      // Only asked where it cannot be known: behind a user-supplied endpoint there is
+      // no way to tell which name the models accept, and the wrong one 400s every
+      // call. A vendor we route to directly has this pinned in the registry.
+      fields.push({
+        key: 'tokenfield',
+        label: t('ai.tokenfield'),
+        type: 'select',
+        value: cfg.tokenLimitField ?? 'max_tokens',
+        options: [
+          { value: 'max_tokens', label: 'max_tokens' },
+          { value: 'max_completion_tokens', label: 'max_completion_tokens' },
+        ],
       });
     }
 
@@ -198,6 +215,9 @@ export async function openLlmSettings(ctx: AppContext): Promise<void> {
       providerId: cfg.providerId,
       model: (res.model ?? '').trim(),
       ...(provider.baseUrlRequired && res.baseurl ? { baseUrl: res.baseurl.trim() } : {}),
+      ...(provider.baseUrlRequired && res.tokenfield === 'max_completion_tokens'
+        ? { tokenLimitField: 'max_completion_tokens' as const }
+        : {}),
       ...(optionalNumber(res.pin) !== undefined ? { inputPerMTok: optionalNumber(res.pin) } : {}),
       ...(optionalNumber(res.pout) !== undefined ? { outputPerMTok: optionalNumber(res.pout) } : {}),
     };
@@ -253,10 +273,11 @@ export async function llmStatus(
   ctx: AppContext,
 ): Promise<{ configured: boolean; label: string | null }> {
   const cfg = await loadLlmConfig(ctx);
-  if (!cfg?.model) return { configured: false, label: null };
-  const provider = findProvider(cfg.providerId);
-  if (!provider) return { configured: false, label: null };
+  if (!cfg) return { configured: false, label: null };
   const key = await getApiKey(ctx, cfg.providerId);
-  const configured = !!key || !provider.keyRequired;
+  // Deliberately `isConfigured` rather than a second copy of the same three checks:
+  // this badge and the chat panel disagreeing about whether the assistant is ready is
+  // exactly the bug a duplicated rule produces.
+  const configured = isConfigured(cfg, !!key);
   return { configured, label: configured ? cfg.model : null };
 }

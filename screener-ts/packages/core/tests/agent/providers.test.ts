@@ -46,11 +46,24 @@ describe('the registry itself', () => {
 
   it('asks for a key wherever one is actually needed', () => {
     // Only a local model may skip the key; a hosted provider without one would
-    // fail at the first call with an opaque 401.
+    // fail at the first call with an opaque 401. The link to go get that key is
+    // required too — EXCEPT where the user brings the endpoint, since there is no
+    // vendor page to send them to and inventing one would be a lie.
     for (const p of LLM_PROVIDERS) {
       if (!p.keyRequired) expect(p.directOnly).toBe(true);
-      else expect(p.keysUrl).toBeTruthy();
+      else if (!p.baseUrlRequired) expect(p.keysUrl).toBeTruthy();
     }
+  });
+
+  it('gives a user-supplied endpoint no default host to fall back to', () => {
+    // The whole point of `baseUrlExample`: a placeholder is a hint, an `upstream` is
+    // somewhere the app will actually POST the key. `local` is the one exception —
+    // Ollama's port is a real, universal default, not a guess.
+    const custom = findProvider('custom')!;
+    expect(custom.upstream).toBe('');
+    expect(custom.baseUrlExample).toBeTruthy();
+    expect(custom.baseUrlRequired).toBe(true);
+    expect(custom.directOnly).toBe(true);
   });
 });
 
@@ -58,8 +71,10 @@ describe('relay allow-list', () => {
   it('excludes self-hosted endpoints', () => {
     // A relay that forwarded to a caller-supplied host would be an open proxy, and
     // a Cloudflare Function cannot reach the user's localhost anyway.
-    expect(relayableProviders().map((p) => p.id)).not.toContain('local');
-    expect(Object.keys(relayUpstreams())).not.toContain('local');
+    for (const id of ['local', 'custom']) {
+      expect(relayableProviders().map((p) => p.id)).not.toContain(id);
+      expect(Object.keys(relayUpstreams())).not.toContain(id);
+    }
   });
 
   it('maps each relayable id to its fixed upstream', () => {
@@ -97,6 +112,16 @@ describe('resolveBaseUrl', () => {
     expect(resolveBaseUrl(cfg({ providerId: 'local', baseUrl: '   ' }))).toBe(
       'http://localhost:11434/v1',
     );
+  });
+
+  it('honours it for a custom endpoint, and reports none until one is given', () => {
+    expect(
+      resolveBaseUrl(cfg({ providerId: 'custom', baseUrl: ' https://api.example.dev/v1/ ' })),
+    ).toBe('https://api.example.dev/v1');
+    // Null, not the example URL: nothing may be POSTed anywhere until the user says
+    // where. `isConfigured` in the app turns this into "not configured yet".
+    expect(resolveBaseUrl(cfg({ providerId: 'custom' }))).toBeNull();
+    expect(resolveBaseUrl(cfg({ providerId: 'custom', baseUrl: '  ' }))).toBeNull();
   });
 
   it('returns null for an unknown provider', () => {
@@ -204,6 +229,19 @@ describe('the connection probe', () => {
     expect(openai.body.max_tokens).toBeUndefined();
     expect(buildProbeRequest('deepseek', 'deepseek-chat')!.body.max_tokens).toBe(1);
     expect(tokenLimitField('groq')).toBe('max_tokens');
+  });
+
+  it('lets a saved override win, and ignores a nonsense one', () => {
+    // The override exists for gateways: the registry knows what OpenAI accepts, not
+    // what someone's proxy in front of it accepts. A junk value falls back to the
+    // provider's own field rather than being sent as a parameter name.
+    expect(tokenLimitField('custom', 'max_completion_tokens')).toBe('max_completion_tokens');
+    expect(tokenLimitField('openai', 'max_tokens')).toBe('max_tokens');
+    expect(tokenLimitField('custom', 'nonsense')).toBe('max_tokens');
+    expect(tokenLimitField('openai', '')).toBe('max_completion_tokens');
+    const probe = buildProbeRequest('custom', 'gpt-5.6', 'max_completion_tokens')!;
+    expect(probe.body.max_completion_tokens).toBe(1);
+    expect(probe.body.max_tokens).toBeUndefined();
   });
 
   it('treats a 400 as reachable, because the probe tests the key and not the params', () => {

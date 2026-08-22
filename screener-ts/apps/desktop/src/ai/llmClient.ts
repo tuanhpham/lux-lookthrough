@@ -151,7 +151,7 @@ export interface ProbeResult {
  * pipe and the credential, not whether one particular model likes `max_tokens`.
  */
 export async function testConnection(cfg: LlmConfig, apiKey: string): Promise<ProbeResult> {
-  const probe = buildProbeRequest(cfg.providerId, cfg.model);
+  const probe = buildProbeRequest(cfg.providerId, cfg.model, cfg.tokenLimitField);
   if (!probe) return { verdict: 'unreachable', status: 0, detail: 'unknown provider' };
   try {
     const res = await llmFetch(cfg, apiKey, {
@@ -187,5 +187,9 @@ export function isConfigured(cfg: LlmConfig | null, hasKey: boolean): boolean {
   if (!cfg?.model) return false;
   const provider = findProvider(cfg.providerId);
   if (!provider) return false;
+  // A provider whose endpoint the user supplies is not configured until they have.
+  // Without this, a custom provider with a key and a model would look ready and then
+  // throw "no endpoint" on the first question, with the panel already open.
+  if (!resolveBaseUrl(cfg)) return false;
   return hasKey || !provider.keyRequired;
 }

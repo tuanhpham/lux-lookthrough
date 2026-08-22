@@ -40,6 +40,7 @@ export type LlmProviderId =
   | 'deepseek'
   | 'groq'
   | 'openrouter'
+  | 'custom'
   | 'local';
 
 /** How much a provider costs to use, before any per-model price is known. */
@@ -96,6 +97,14 @@ export interface LlmProviderDef {
   directOnly?: boolean;
   /** The user supplies the endpoint (only meaningful with `directOnly`). */
   baseUrlRequired?: boolean;
+  /**
+   * What to show in the endpoint field before the user has typed one.
+   *
+   * Separate from `upstream` because a truly custom provider has NO default: an
+   * `upstream` that looked like a real host would be a URL the app invented, and
+   * `resolveBaseUrl` would happily fall back to it and send the key there.
+   */
+  baseUrlExample?: string;
   /** Whether a key is needed at all (a local model needs none). */
   keyRequired: boolean;
   /**
@@ -249,6 +258,34 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     prefer: [/:free$/, /^anthropic\//, /^openai\//],
   },
   {
+    id: 'custom',
+    label: 'Custom endpoint (OpenAI-compatible)',
+    wire: 'openai',
+    // NO default host. The endpoint is the user's own — a gateway, a proxy, a
+    // company deployment — and this file has no business guessing it. Empty means
+    // `resolveBaseUrl` returns null until one is supplied, which `isConfigured`
+    // reports as "not configured" instead of quietly posting a key somewhere.
+    upstream: '',
+    baseUrlExample: 'https://gateway.example.com/v1',
+    auth: 'bearer',
+    chatPath: '/chat/completions',
+    modelsPath: '/models',
+    cost: 'metered',
+    keyRequired: true,
+    // Direct, like a local model, for the same two reasons: the relay forwards only
+    // to fixed hostnames (forwarding to a caller-supplied one is an open proxy), and
+    // this endpoint is not in that list and never can be.
+    directOnly: true,
+    baseUrlRequired: true,
+    // A gateway lists whatever it resells, so the families are ordered newest-first
+    // and `/./` catches anything else rather than leaving the default empty.
+    prefer: [/^gpt-5/, /^claude/, /^gemini/, /^deepseek/, /^gpt-4/, /./],
+    note: {
+      en: 'Any OpenAI-compatible endpoint — a gateway, a proxy, or your own server. Called straight from the browser, so the endpoint must allow this origin (CORS). Prices are unknown here; fill them in for the cost meter.',
+      vi: 'Bất kỳ endpoint tương thích OpenAI — cổng trung gian, proxy, hoặc máy chủ của bạn. Được gọi trực tiếp từ trình duyệt nên endpoint phải cho phép origin này (CORS). Không biết giá; nhập vào để có đồng hồ chi phí.',
+    },
+  },
+  {
     id: 'local',
     label: 'Local model (Ollama / LM Studio)',
     wire: 'openai',
@@ -297,6 +334,16 @@ export interface LlmConfig {
   model: string;
   /** Overrides `upstream`. Only honoured for `directOnly` providers. */
   baseUrl?: string;
+  /**
+   * Overrides the provider's output-cap field name.
+   *
+   * Exists for one case, and it is not hypothetical: a user-supplied endpoint may
+   * be a gateway in front of models that renamed this parameter, and the registry
+   * cannot know which. Getting it wrong fails EVERY call with a 400 about an
+   * unsupported parameter, so it has to be fixable from the settings dialog rather
+   * than by editing this file.
+   */
+  tokenLimitField?: 'max_tokens' | 'max_completion_tokens';
   /** User-supplied prices (USD per MTok) when this file does not know them. */
   inputPerMTok?: number;
   outputPerMTok?: number;
@@ -314,7 +361,9 @@ export function resolveBaseUrl(cfg: LlmConfig): string | null {
   if (!p) return null;
   if (p.directOnly) {
     const raw = (cfg.baseUrl ?? '').trim().replace(/\/+$/, '');
-    return raw || p.upstream;
+    // `|| null`, not `|| ''`: a provider with no default host and no URL yet has no
+    // endpoint at all, and every caller already treats null as "cannot call".
+    return raw || p.upstream || null;
   }
   return p.upstream;
 }
@@ -378,8 +427,18 @@ export interface ProbeRequest {
   body: Record<string, unknown>;
 }
 
-/** The name this provider wants for the output-token cap. */
-export function tokenLimitField(providerId: string): 'max_tokens' | 'max_completion_tokens' {
+/**
+ * The name this provider wants for the output-token cap.
+ *
+ * `override` is the user's saved choice (see `LlmConfig.tokenLimitField`) and wins
+ * when set — the registry's value is a fact about a known vendor, not about the
+ * gateway someone put in front of it.
+ */
+export function tokenLimitField(
+  providerId: string,
+  override?: string,
+): 'max_tokens' | 'max_completion_tokens' {
+  if (override === 'max_tokens' || override === 'max_completion_tokens') return override;
   return findProvider(providerId)?.tokenLimitField ?? 'max_tokens';
 }
 
@@ -392,12 +451,16 @@ export function tokenLimitField(providerId: string): 'max_tokens' | 'max_complet
  * `probeVerdict`): a 400 means the pipe and the key are both fine and only a
  * parameter was disliked, which is not what we are testing.
  */
-export function buildProbeRequest(providerId: string, model: string): ProbeRequest | null {
+export function buildProbeRequest(
+  providerId: string,
+  model: string,
+  tokenField?: string,
+): ProbeRequest | null {
   const p = findProvider(providerId);
   if (!p) return null;
   const body: Record<string, unknown> = {
     model,
-    [tokenLimitField(providerId)]: 1,
+    [tokenLimitField(providerId, tokenField)]: 1,
     messages: [{ role: 'user', content: 'ping' }],
   };
   return { path: p.chatPath, body };

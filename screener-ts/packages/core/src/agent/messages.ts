@@ -209,7 +209,7 @@ export function buildChatRequest(cfg: LlmConfig, turn: ChatTurn): ChatRequest | 
   const body: Record<string, unknown> = {
     model: cfg.model,
     messages,
-    [tokenLimitField(cfg.providerId)]: maxTokens,
+    [tokenLimitField(cfg.providerId, cfg.tokenLimitField)]: maxTokens,
     ...(tools.length
       ? {
           tools: tools.map((t) => ({

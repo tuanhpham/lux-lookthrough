@@ -582,7 +582,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     en: 'Model id (type it — the list could not be loaded)',
     vi: 'Mã mô hình (hãy tự nhập — không tải được danh sách)',
   },
-  'ai.baseurl': { en: 'Endpoint', vi: 'Địa chỉ endpoint' },
+  'ai.baseurl': { en: 'Endpoint (API root, e.g. …/v1)', vi: 'Endpoint (gốc API, ví dụ …/v1)' },
+  // Named after the request field itself rather than described in prose: the person
+  // who needs to change this is reading a provider's 400 that quotes that exact name.
+  'ai.tokenfield': { en: 'Output-limit field', vi: 'Trường giới hạn đầu ra' },
   'ai.price.in': { en: 'Price in, $ / 1M tokens', vi: 'Giá vào, $ / 1M token' },
   'ai.price.out': { en: 'Price out, $ / 1M tokens', vi: 'Giá ra, $ / 1M token' },
   'ai.price.help': {
