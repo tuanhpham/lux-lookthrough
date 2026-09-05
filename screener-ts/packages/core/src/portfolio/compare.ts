@@ -4,7 +4,14 @@ import { computeAccountMetrics, type PriceMap } from './metrics.js';
 export interface AccountComparisonRow {
   accountId: string;
   name: string;
+  /** Money-weighted: PnL over capital contributed. What the money earned. */
   totalReturnPct: number;
+  /**
+   * Time-weighted return %. The fair basis for ranking accounts against each
+   * other — an account that got a large mid-window top-up is not penalised.
+   */
+  twrPct: number;
+  twrAnnualizedPct: number;
   equity: number;
   winRate: number;
   expectancy: number;
@@ -29,6 +36,8 @@ export function compareAccounts(
       accountId: s.account.id,
       name: s.account.name,
       totalReturnPct: m.totalPnLPct,
+      twrPct: m.twrPct,
+      twrAnnualizedPct: m.twrAnnualizedPct,
       equity: m.equity,
       winRate: m.winRate,
       expectancy: m.expectancy,

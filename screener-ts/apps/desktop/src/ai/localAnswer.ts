@@ -70,7 +70,8 @@ function summaryAnswer(d: Record<string, unknown>): string {
   const lines = [
     `**${s(d['account'])}**`,
     `- ${t('chat.local.equity')}: ${money(d['equity'], ccy)} (${t('chat.local.cash')} ${money(d['cash'], ccy)})`,
-    `- ${t('chat.local.totalpnl')}: ${money(d['totalPnL'], ccy)} (${pc(d['totalPnLPct'])})`,
+    `- ${t('chat.local.totalpnl')}: ${money(d['totalPnL'], ccy)} (${pc(d['totalPnLPct'])} ${t('chat.local.oncapitalin')} ${money(d['contributedCapital'], ccy)})`,
+    `- ${t('chat.local.twr')}: ${pc(d['twrPct'])} (${pc(d['twrAnnualizedPct'])} ${t('chat.local.pa')})`,
     `- ${t('chat.local.unrealized')}: ${money(d['unrealizedPnL'], ccy)} · ${t('chat.local.realized')}: ${money(d['realizedPnL'], ccy)}`,
     `- ${t('chat.local.risk')}: ${money(d['openRisk'], ccy)} (${pc(d['openRiskPctOfEquity'])} ${t('chat.local.ofequity')})`,
     `- ${t('chat.local.trades')}: ${n(d['openTrades']) ?? 0} ${t('chat.local.open2')}, ${n(d['closedTrades']) ?? 0} ${t('chat.local.closed')} · ${t('chat.local.winrate')} ${(n(d['winRate']) ?? 0).toFixed(0)}%`,

@@ -5,7 +5,8 @@ import type {
   BuyLot,
 } from '../types/index.js';
 import { pyRound } from '../util/round.js';
-import { computeCash, realizedPnL } from './account.js';
+import { computeCash, netCashFlow, realizedPnL } from './account.js';
+import { computeTwr } from './twr.js';
 
 /** Whole-number day difference between two ISO dates (b - a). */
 function daysBetween(a: string, b: string): number {
@@ -157,18 +158,15 @@ export function computeEquity(state: AccountState, prices: PriceMap): number {
   return computeCash(state) + computePositionsValue(state, prices);
 }
 
-/** Max drawdown % from the equity-snapshot curve (0 if < 2 points). */
+/**
+ * Max drawdown %, measured on the cash-flow-neutral TWR index rather than on
+ * raw equity. On raw equity a withdrawal is indistinguishable from a loss —
+ * taking 20% of the account out would book a 20% drawdown that never happened.
+ * With no cash flows the index is just equity scaled by opening capital, so
+ * this is identical to the peak-to-trough of the equity curve.
+ */
 export function maxDrawdownPct(state: AccountState): number {
-  let peak = -Infinity;
-  let maxDd = 0;
-  for (const snap of state.snapshots) {
-    if (snap.equity > peak) peak = snap.equity;
-    if (peak > 0) {
-      const dd = ((peak - snap.equity) / peak) * 100;
-      if (dd > maxDd) maxDd = dd;
-    }
-  }
-  return pyRound(maxDd, 6);
+  return computeTwr(state).maxDrawdownPct;
 }
 
 /**
@@ -218,6 +216,11 @@ export function computeAccountMetrics(
   const positionsValue = computePositionsValue(state, prices);
   const equity = cash + positionsValue;
   const initial = state.account.initialCapital;
+  // PnL is measured against the money actually put in, not just the opening
+  // balance. Deposits and withdrawals land in `equity` via computeCash(), so
+  // they must land in the base too — otherwise a 10k top-up reads as +10k PnL.
+  const flows = netCashFlow(state);
+  const contributed = initial + flows;
 
   const positions = buildPositions(state, prices, state.account.createdAt);
   let totalOpenRiskEur = 0;
@@ -231,6 +234,7 @@ export function computeAccountMetrics(
 
   const realized = realizedPnL(state);
   const { closedCount, wins, avgR, expectancy } = closedTradeStats(state);
+  const twr = computeTwr(state);
 
   return {
     accountId: state.account.id,
@@ -238,14 +242,19 @@ export function computeAccountMetrics(
     positionsValue: pyRound(positionsValue, 6),
     equity: pyRound(equity, 6),
     initialCapital: initial,
-    totalPnL: pyRound(equity - initial, 6),
-    totalPnLPct: initial > 0 ? pyRound(((equity - initial) / initial) * 100, 6) : 0,
+    netCashFlow: pyRound(flows, 6),
+    contributedCapital: pyRound(contributed, 6),
+    totalPnL: pyRound(equity - contributed, 6),
+    totalPnLPct:
+      contributed > 0 ? pyRound(((equity - contributed) / contributed) * 100, 6) : 0,
+    twrPct: twr.totalPct,
+    twrAnnualizedPct: twr.annualizedPct,
     unrealizedPnL: pyRound(unrealized, 6),
     realizedPnL: pyRound(realized, 6),
     totalOpenRiskEur: pyRound(totalOpenRiskEur, 6),
     totalOpenRiskPct: equity > 0 ? pyRound((totalOpenRiskEur / equity) * 100, 6) : 0,
     openPositionsWithoutStop: withoutStop,
-    maxDrawdownPct: maxDrawdownPct(state),
+    maxDrawdownPct: twr.maxDrawdownPct,
     winRate: closedCount ? pyRound(wins / closedCount, 6) : 0,
     avgRMultiple: pyRound(avgR, 6),
     expectancy: pyRound(expectancy, 6),

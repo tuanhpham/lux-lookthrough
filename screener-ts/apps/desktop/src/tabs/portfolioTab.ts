@@ -20,6 +20,8 @@ import {
   computeCash,
   computeEquity,
   computePositionsValue,
+  computeTwr,
+  netCashFlow,
   fetchMany,
   SECTOR_STOCKS,
   type AccountState,
@@ -535,10 +537,11 @@ function draw(ctx: AppContext): void {
         pnl: m.totalPnL, pnlPct: m.totalPnLPct,
       })}</div>
       <div class="grid kpi-stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat"><div class="k">${t('pf.stat.initialcap')}</div><div class="v">${money(toDisplay(st.account.initialCapital), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.contributed')}</div><div class="v">${money(toDisplay(m.contributedCapital), dispSymbol())}${m.netCashFlow !== 0 ? `<span class="muted" style="font-size:11px"> (${money(toDisplay(st.account.initialCapital), dispSymbol())} ${m.netCashFlow > 0 ? '+' : '−'} ${money(toDisplay(Math.abs(m.netCashFlow)), dispSymbol())})</span>` : ''}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.equity')}</div><div class="v">${money(toDisplay(m.equity), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.cash')}</div><div class="v">${money(toDisplay(m.cash), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.pnl')}</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(m.totalPnL), dispSymbol())} (${pct(m.totalPnLPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.twr')}</div><div class="v" style="color:${m.twrPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(m.twrPct)}<span class="muted" style="font-size:11px"> (${pct(m.twrAnnualizedPct)} ${t('pf.stat.annualized')})</span></div></div>
       <div class="stat"><div class="k">${t('pf.stat.risk')}</div><div class="v">${money(toDisplay(m.totalOpenRiskEur), dispSymbol())} (${pct(m.totalOpenRiskPct)})</div></div>
       <div class="stat"><div class="k">${t('pf.stat.realizedpnl')} / ${t('pf.stat.unrealpnl')}</div><div class="v">${money(toDisplay(m.realizedPnL), dispSymbol())} / ${money(toDisplay(m.unrealizedPnL), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.winrate')}</div><div class="v">${num(m.winRate * 100, 0)}%</div></div>
@@ -554,6 +557,7 @@ function draw(ctx: AppContext): void {
         <div class="toolbar" style="margin:0;gap:4px">
           <button class="range-btn active" data-pf-view="equity">${t('pf.chart.equity')}</button>
           <button class="range-btn" data-pf-view="candle">${t('pf.chart.candle')}</button>
+          <button class="range-btn" data-pf-view="twr" title="${t('pf.chart.twr.title')}">${t('pf.chart.twr')}</button>
         </div>
         <div class="toolbar" style="margin:0;gap:4px">
           <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
@@ -786,7 +790,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
     // ── Portfolio chart ─────────────────────────────────────────────────────────
     const pfEl = $('#portfolio-chart')!;
-    let pfView: 'equity' | 'candle' = 'equity';
+    let pfView: 'equity' | 'candle' | 'twr' = 'equity';
     let pfRange = 'all';
     let pfEma: Record<number, boolean> = { 5: false, 10: false, 21: false, 50: false, 150: false, 200: false };
     let pfCandleChart: ReturnType<typeof drawCandles> | null = null;
@@ -797,11 +801,26 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       return [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
         .map(([time, v]) => ({ time, equity: v.equity, positionsValue: v.positionsValue }));
     })();
+    // Growth-of-1 index as %. Unlike the equity line this has no vertical step
+    // on a deposit, so it is the honest picture of how the account performed.
+    const twrPoints = computeTwr(stChart).points
+      .map((p) => ({ time: p.date, value: (p.index - 1) * 100 }));
 
     function renderPfChart() {
       if (pfCandleChart) { try { pfCandleChart.destroy(); } catch { /* ignore */ } pfCandleChart = null; }
-      const dispCap = toDisplay(stChart.account.initialCapital);
-      if (pfView === 'equity') {
+      // Baseline = money actually put in, so "above the line" means a real gain
+      // even after top-ups. Against initial capital alone every deposit would
+      // lift the curve permanently over the line.
+      const dispCap = toDisplay(stChart.account.initialCapital + netCashFlow(stChart));
+      if (pfView === 'twr') {
+        const pts = slicePoints(twrPoints, pfRange);
+        if (pts.length) {
+          try { drawLine(pfEl, pts, { baseline: 0, height: 260, maxLine: true, minLine: true, currentLine: true }); }
+          catch { pfEl.innerHTML = `<div class=”muted” style=”text-align:center;padding:60px”>Chart unavailable.</div>`; }
+        } else {
+          pfEl.innerHTML = noDataHtml();
+        }
+      } else if (pfView === 'equity') {
         const pts = slicePoints(
           equityPoints.map((p) => ({
             time: p.time,
@@ -828,6 +847,9 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }
       const emaBar = $('#pf-ema-bar');
       if (emaBar) emaBar.style.display = pfView === 'candle' ? '' : 'none';
+      // TWR is a pure return series — there is no cash to include or exclude.
+      const cashBar = $('#pf-cash-toggle')?.parentElement;
+      if (cashBar) cashBar.style.display = pfView === 'twr' ? 'none' : '';
     }
     renderPfChart();
 
@@ -840,7 +862,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
     root.querySelectorAll<HTMLElement>('[data-pf-view]').forEach((b) =>
       b.addEventListener('click', () => {
-        pfView = b.dataset.pfView as 'equity' | 'candle';
+        pfView = b.dataset.pfView as 'equity' | 'candle' | 'twr';
         root.querySelectorAll('[data-pf-view]').forEach((x) => x.classList.remove('active'));
         b.classList.add('active');
         renderPfChart();
@@ -2183,15 +2205,29 @@ function buildOverviewHtml(): string {
   const pricesByAccount = new Map(accounts.map((a) => [a.account.id, prices(a.account.id)]));
   const compareRows = compareAccounts(accounts, pricesByAccount);
 
-  const totalInitialCap = accounts.reduce((s, a) => s + a.account.initialCapital, 0);
+  // Contributed capital, not opening capital: deposits/withdrawals are already
+  // inside `equity`, so leaving them out of the base books every top-up as PnL.
+  const totalContributed = accounts.reduce(
+    (s, a) => s + a.account.initialCapital + netCashFlow(a),
+    0,
+  );
   const totalEquity = accounts.reduce((s, a) => s + (computeAccountMetrics(a, prices(a.account.id)).equity), 0);
   const totalCash = accounts.reduce((s, a) => s + (computeAccountMetrics(a, prices(a.account.id)).cash), 0);
   const totalInvested = accounts.reduce((s, a) => s + (computeAccountMetrics(a, prices(a.account.id)).positionsValue), 0);
-  const totalPnL = totalEquity - totalInitialCap;
-  const totalPnLPct = totalInitialCap > 0 ? (totalPnL / totalInitialCap) * 100 : 0;
+  const totalPnL = totalEquity - totalContributed;
+  const totalPnLPct = totalContributed > 0 ? (totalPnL / totalContributed) * 100 : 0;
 
-  const best = compareRows.length ? [...compareRows].sort((a, b) => b.totalReturnPct - a.totalReturnPct)[0]! : null;
-  const worst = compareRows.length ? [...compareRows].sort((a, b) => a.totalReturnPct - b.totalReturnPct)[0]! : null;
+  // Equity-weighted combined TWR — a 500k account's month counts more than a
+  // 5k account's. Falls back to a plain mean when no account has equity yet.
+  const twrDen = compareRows.reduce((s, r) => s + Math.max(0, r.equity), 0);
+  const combinedTwrPct = twrDen > 0
+    ? compareRows.reduce((s, r) => s + r.twrPct * Math.max(0, r.equity), 0) / twrDen
+    : 0;
+
+  // Ranked on TWR: an account that took a large mid-window top-up would look
+  // worst on money-weighted return purely because of the dilution.
+  const best = compareRows.length ? [...compareRows].sort((a, b) => b.twrPct - a.twrPct)[0]! : null;
+  const worst = compareRows.length ? [...compareRows].sort((a, b) => a.twrPct - b.twrPct)[0]! : null;
 
   const totalClosedTrades = accounts.reduce((s, a) => s + a.sells.length, 0);
   const totalOpenPositions = accounts.reduce((s, a) => s + a.lots.filter((l) => l.remainingShares > 0).length, 0);
@@ -2236,12 +2272,13 @@ function buildOverviewHtml(): string {
         equityLabel: t('pf.stat.totalequity'),
       })}</div>
       <div class="grid kpi-stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat"><div class="k">${t('pf.stat.totalcap')}</div><div class="v">${money(toDisplay(totalInitialCap), dispSymbol())}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.totalcap')}</div><div class="v">${money(toDisplay(totalContributed), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.totalequity')}</div><div class="v">${money(toDisplay(totalEquity), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.totalcash')}</div><div class="v">${money(toDisplay(totalCash), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.totalpnl')}</div><div class="v" style="color:${totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(totalPnL), dispSymbol())} (${pct(totalPnLPct)})</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.best')}</div><div class="v" style="color:var(--accent)">${best ? `${best.name} · ${pct(best.totalReturnPct)}` : '—'}</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.worst')}</div><div class="v" style="color:var(--danger)">${worst && worst.totalReturnPct < 0 ? `${worst.name} · ${pct(worst.totalReturnPct)}` : '—'}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.twr')}</div><div class="v" style="color:${combinedTwrPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(combinedTwrPct)}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.best')}</div><div class="v" style="color:var(--accent)">${best ? `${best.name} · ${pct(best.twrPct)}` : '—'}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.worst')}</div><div class="v" style="color:var(--danger)">${worst && worst.twrPct < 0 ? `${worst.name} · ${pct(worst.twrPct)}` : '—'}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.avgwinrate')}</div><div class="v">${num(avgWinRate * 100, 0)}%</div></div>
       <div class="stat"><div class="k">${t('pf.stat.openclosed')}</div><div class="v">${totalOpenPositions} / ${totalClosedTrades}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.avghold')}</div><div class="v">${holdShares > 0 ? num(avgHoldDays, 0) + ' days' : '—'}</div></div>
@@ -2255,11 +2292,11 @@ function buildOverviewHtml(): string {
         : `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2l3.5 11 1.8-4.4L12.7 7 3 2z" fill="currentColor"/></svg>${t('pf.clickacct')}</span>`}
     </div>
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
-      <table><thead><tr><th>${t('pf.col.account')}</th><th>${t('pf.col.return')}</th><th>${t('pf.col.equity2')}</th><th>${t('pf.col.winrate')}</th><th>${t('pf.stat.expectancy')}</th><th>${t('pf.col.avgr')}</th><th>${t('pf.col.maxdd')}</th><th>${t('pf.col.openrisk')}</th><th>${t('pf.col.open')}</th><th>${t('pf.col.closed')}</th></tr></thead>
+      <table><thead><tr><th>${t('pf.col.account')}</th><th>${t('pf.col.return')}</th><th>${t('pf.col.twr')}</th><th>${t('pf.col.equity2')}</th><th>${t('pf.col.winrate')}</th><th>${t('pf.stat.expectancy')}</th><th>${t('pf.col.avgr')}</th><th>${t('pf.col.maxdd')}</th><th>${t('pf.col.openrisk')}</th><th>${t('pf.col.open')}</th><th>${t('pf.col.closed')}</th></tr></thead>
       <tbody>${compareRows
         .map(
           (r) =>
-            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
+            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td style="color:${r.twrPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.twrPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
         )
         .join('')}</tbody></table>
     </div>
@@ -2270,6 +2307,7 @@ function buildOverviewHtml(): string {
         <div class="toolbar" style="margin:0;gap:4px">
           <button class="range-btn active" data-pf-view="equity">${t('pf.chart.equity')}</button>
           <button class="range-btn" data-pf-view="candle">${t('pf.chart.candle')}</button>
+          <button class="range-btn" data-pf-view="twr" title="${t('pf.chart.twr.title')}">${t('pf.chart.twr')}</button>
         </div>
         <div class="toolbar" style="margin:0;gap:4px">
           <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
@@ -2398,7 +2436,44 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     }
     return { time, equity, positionsValue };
   });
-  const totalInitialCap = accounts.reduce((s, a) => s + a.account.initialCapital, 0);
+  const totalContributed = accounts.reduce(
+    (s, a) => s + a.account.initialCapital + netCashFlow(a),
+    0,
+  );
+
+  // Combined TWR: equity-weight each account's daily return by the equity that
+  // account brought into the day. An account with no snapshot yet weighs 0, so
+  // opening a second account mid-window doesn't read as a return — joining the
+  // combined portfolio is a contribution, not performance. Summing equity and
+  // running TWR on the total would instead see that first snapshot as a jump.
+  const combinedTwrPoints = (() => {
+    const retByAcct = accounts.map((a) => {
+      const m = new Map<string, number>();
+      for (const p of computeTwr(a).points) m.set(p.date, p.periodReturn);
+      return m;
+    });
+    const prevEq: number[] = new Array(accounts.length).fill(0);
+    let index = 1;
+    return allDates.map((date) => {
+      let weighted = 0;
+      let weight = 0;
+      for (let i = 0; i < accounts.length; i++) {
+        const r = retByAcct[i]!.get(date);
+        if (r == null) continue; // no snapshot for this account on this date
+        // On an account's first day prevEq is still 0 — weight it by the capital
+        // it opened with, matching how computeTwr seeds its own first period.
+        const w = prevEq[i]! > 0 ? prevEq[i]! : accounts[i]!.account.initialCapital;
+        weighted += w * r;
+        weight += w;
+      }
+      if (weight > 0) index *= 1 + weighted / weight;
+      for (let i = 0; i < accounts.length; i++) {
+        const cur = snapByAcctDate[i]!.get(date);
+        if (cur) prevEq[i] = cur.equity;
+      }
+      return { time: date, value: (index - 1) * 100 };
+    });
+  })();
 
   // Merge portfolio bars (with cash) and positions-only bars across all accounts.
   // Like the equity series above, each account's candle bars live on their own
@@ -2429,7 +2504,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
   const combinedPortfolioNoCashBars = mergeCandleSeries((c) => c.portfolioNoCash);
 
   const pfEl = root.querySelector<HTMLElement>('#portfolio-chart')!;
-  let pfView: 'equity' | 'candle' = 'equity';
+  let pfView: 'equity' | 'candle' | 'twr' = 'equity';
   let pfRange = 'all';
   let pfEma: Record<number, boolean> = { 5: false, 10: false, 21: false, 50: false, 150: false, 200: false };
   let pfCandleChart: ReturnType<typeof drawCandles> | null = null;
@@ -2449,8 +2524,16 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
 
   function renderPfChart() {
     if (pfCandleChart) { try { pfCandleChart.destroy(); } catch { /* ignore */ } pfCandleChart = null; }
-    const dispCap = toDisplay(totalInitialCap);
-    if (pfView === 'equity') {
+    const dispCap = toDisplay(totalContributed);
+    if (pfView === 'twr') {
+      const pts = slicePoints(combinedTwrPoints, pfRange);
+      if (pts.length) {
+        try { drawLine(pfEl, pts, { baseline: 0, height: 260, maxLine: true, minLine: true }); }
+        catch { pfEl.innerHTML = noDataHtml(t('pf.unavailable')); }
+      } else {
+        pfEl.innerHTML = noDataHtml(t('pf.nodata.overview'));
+      }
+    } else if (pfView === 'equity') {
       const pts = slicePoints(
         combinedEquityPoints.map((p) => ({
           time: p.time,
@@ -2478,6 +2561,9 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
     }
     const emaBar = root.querySelector<HTMLElement>('#pf-ema-bar');
     if (emaBar) emaBar.style.display = pfView === 'candle' ? '' : 'none';
+    // TWR is a pure return series — there is no cash to include or exclude.
+    const cashBar = root.querySelector<HTMLElement>('#pf-cash-toggle')?.parentElement;
+    if (cashBar) cashBar.style.display = pfView === 'twr' ? 'none' : '';
   }
   if (pfEl) renderPfChart();
 
@@ -2490,7 +2576,7 @@ function wireOverview(ctx: AppContext, root: HTMLElement): void {
 
   root.querySelectorAll<HTMLElement>('[data-pf-view]').forEach((b) =>
     b.addEventListener('click', () => {
-      pfView = b.dataset.pfView as 'equity' | 'candle';
+      pfView = b.dataset.pfView as 'equity' | 'candle' | 'twr';
       root.querySelectorAll('[data-pf-view]').forEach((x) => x.classList.remove('active'));
       b.classList.add('active');
       renderPfChart();

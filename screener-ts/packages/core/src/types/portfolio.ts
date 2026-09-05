@@ -117,8 +117,18 @@ export interface AccountMetrics {
   positionsValue: number;
   equity: number;
   initialCapital: number;
+  /** Net dated deposits (+) / withdrawals (−) booked after opening. */
+  netCashFlow: number;
+  /** initialCapital + netCashFlow — the money actually put in. PnL's base. */
+  contributedCapital: number;
+  /** equity − contributedCapital. Neutral to deposits and withdrawals. */
   totalPnL: number;
+  /** totalPnL as % of contributedCapital (money-weighted; timing of flows dilutes it). */
   totalPnLPct: number;
+  /** Time-weighted return %, independent of the size and timing of cash flows. */
+  twrPct: number;
+  /** twrPct annualized over 365 calendar days. */
+  twrAnnualizedPct: number;
   unrealizedPnL: number;
   realizedPnL: number;
   totalOpenRiskEur: number; // sum of defined per-position risks
