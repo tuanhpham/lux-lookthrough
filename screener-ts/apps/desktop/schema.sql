@@ -55,3 +55,24 @@ CREATE TABLE IF NOT EXISTS kv_trash (
   PRIMARY KEY (user_id, key, deleted_at)
 );
 CREATE INDEX IF NOT EXISTS idx_kv_trash_user ON kv_trash (user_id, deleted_at DESC);
+
+-- ── Scanner bridge ──────────────────────────────────────────────────────────
+-- Snapshots pushed by the Python scanner on the VM (github.com/tuanhpham/scanner),
+-- plus the two keys the app writes back to it. Read/written ONLY by
+-- functions/api/scanner — see that file for why this is not the `kv` table
+-- above (short version: `kv`'s collapse guard would reject a legitimate
+-- candidates list shrinking after a market drop, and it would do so silently).
+--
+-- Not per-user: this is one machine's state, and every reader sees the same
+-- rows. Values are whole JSON snapshots, one row per snapshot — never one row
+-- per symbol. 500 candidates as 500 rows, refreshed on a 3-minute loop, would
+-- be ~130k writes/day and blow the D1 free write allowance; as one blob it is
+-- one write.
+--
+-- No history/trash twin: a lost snapshot is replaced by the next push a minute
+-- later, so there is nothing worth undoing.
+CREATE TABLE IF NOT EXISTS scanner_kv (
+  key        TEXT PRIMARY KEY,           -- always 'scanner:*' (enforced in the function)
+  value      TEXT NOT NULL,              -- JSON snapshot
+  updated_at INTEGER NOT NULL            -- epoch millis, set server-side
+);

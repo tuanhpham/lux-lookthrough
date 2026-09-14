@@ -10,6 +10,7 @@ import { renderCalendar } from './tabs/calendarTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
 import { renderPlaybook } from './tabs/playbookTab.js';
 import { renderCaseStudies } from './tabs/caseStudiesTab.js';
+import { renderScanner } from './tabs/scannerTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
 import { runSplash } from './ui/splash.js';
@@ -45,7 +46,7 @@ onModalClose(() => {
   if (entered && currentTab === 'watchlist') renderTab('watchlist');
 });
 
-const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'backtest', 'playbook', 'casestudies', 'learn', 'about'] as const;
+const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'backtest', 'playbook', 'casestudies', 'scanner', 'learn', 'about'] as const;
 type Tab = (typeof TABS)[number];
 
 let entered = false;
@@ -101,6 +102,9 @@ function renderTab(tab: Tab): void {
       break;
     case 'casestudies':
       renderCaseStudies(ctx);
+      break;
+    case 'scanner':
+      renderScanner(ctx);
       break;
     case 'learn':
       renderLearn();
@@ -220,6 +224,7 @@ function buildAppMenu(): HTMLElement {
         <button class="sl-menu-item" data-amtab="backtest">${t('nav.backtest')}</button>
         <button class="sl-menu-item" data-amtab="playbook">${t('nav.playbook')}</button>
         <button class="sl-menu-item" data-amtab="casestudies">${t('nav.casestudies')}</button>
+        <button class="sl-menu-item" data-amtab="scanner">${t('nav.scanner')}</button>
         <button class="sl-menu-item" data-amtab="learn">${t('nav.learn')}</button>
         <button class="sl-menu-item" data-amtab="about">${t('nav.about')}</button>
       </div>

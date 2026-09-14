@@ -8,6 +8,14 @@
 #   (cd ../.. && npm run build --workspace @screener/core && npm run build --workspace @screener/desktop)
 #   npx wrangler pages deploy dist --project-name the-professional
 #   npx wrangler pages secret put FINNHUB_API_KEY --project-name the-professional   # optional fallback provider
+#   npx wrangler pages secret put SCANNER_TOKEN   --project-name the-professional   # optional: the VM scanner bridge
+#
+# SCANNER_TOKEN is the write credential for functions/api/scanner — the Python
+# scanner on the Oracle VM sends it as `X-Scanner-Token` to push snapshots. It is
+# NOT a user access code: it can only touch `scanner:*` keys in `scanner_kv` and
+# never sees portfolio or watchlist data. Leave it unset and the bridge simply
+# refuses every writer (readers with an access code still work, they just see no
+# data).
 name = "the-professional"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-11-01"

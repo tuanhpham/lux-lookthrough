@@ -20,6 +20,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.about': { en: 'About', vi: 'Giới thiệu' },
   'nav.casestudies': { en: 'Case Studies', vi: 'Hồ sơ Setup' },
   'nav.calendar': { en: 'Calendar', vi: 'Lịch sự kiện' },
+  'nav.scanner': { en: 'Scanner', vi: 'Máy quét' },
   'nav.more': { en: 'More', vi: 'Thêm' },
   'foot.disclaimer': { en: 'Educational use only. Not financial advice.', vi: 'Chỉ dùng cho mục đích học tập. Không phải lời khuyên đầu tư.' },
 
@@ -731,6 +732,100 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.local.noquote': { en: 'no price', vi: 'không có giá' },
   'chat.local.day': { en: 'day', vi: 'ngày' },
   'chat.local.belowhigh': { en: 'below high', vi: 'dưới đỉnh' },
+
+  // Scanner tab — read-only view of the Python scanner on the Oracle VM. Table
+  // column headers are not translated (same convention as the QM table): they are
+  // the names of fields in the scanner's own database.
+  'scan.title': { en: 'Scanner', vi: 'Máy quét' },
+  'scan.sub': {
+    en: 'Live state of the alert bot: its watch list, why the rest of the market was rejected, and what it alerted today. Read-only — the bot runs on its own machine and pushes these snapshots out.',
+    vi: 'Trạng thái của bot cảnh báo: danh sách theo dõi, lý do phần còn lại của thị trường bị loại, và những gì nó đã báo hôm nay. Chỉ đọc — bot chạy trên máy riêng và tự đẩy các bản chụp này lên.',
+  },
+  'scan.needcode': {
+    en: 'The scanner reads through the same access code as sync. Set one to see it.',
+    vi: 'Máy quét dùng chung mã truy cập với đồng bộ. Đặt mã để xem.',
+  },
+  'scan.setcode': { en: 'Set access code', vi: 'Đặt mã truy cập' },
+  'scan.refresh': { en: 'Refresh', vi: 'Tải lại' },
+  'scan.loading': { en: 'Reading', vi: 'Đang đọc' },
+  'scan.ok': { en: 'Healthy', vi: 'Bình thường' },
+  'scan.issues': { en: 'to check', vi: 'cần xem' },
+  'scan.read': { en: 'read', vi: 'đọc' },
+  'scan.nodata': {
+    en: 'Nothing pushed yet. Run `python push.py --all` on the VM.',
+    vi: 'Chưa có gì được đẩy lên. Chạy `python push.py --all` trên VM.',
+  },
+  'scan.nocand': {
+    en: 'No watch list. `setups.py --build` has not run, or nothing qualified.',
+    vi: 'Không có danh sách theo dõi. `setups.py --build` chưa chạy, hoặc không mã nào đạt.',
+  },
+  'scan.norej': {
+    en: 'No rejection table. It is only built by `push.py --all`, once a night.',
+    vi: 'Chưa có bảng lý do bị loại. Bảng này chỉ dựng bởi `push.py --all`, mỗi tối một lần.',
+  },
+  'scan.noalerts': { en: 'No alerts on the latest day pushed.', vi: 'Không có cảnh báo trong ngày mới nhất được đẩy lên.' },
+
+  // Status tiles
+  'scan.sec.status': { en: 'Status', vi: 'Trạng thái' },
+  'scan.st.session': { en: 'Session', vi: 'Phiên' },
+  'scan.st.uptime': { en: 'Uptime', vi: 'Thời gian chạy' },
+  'scan.st.scans': { en: 'Scans', vi: 'Số lần quét' },
+  'scan.st.errors': { en: 'Errors', vi: 'Lỗi' },
+  'scan.st.universe': { en: 'Universe', vi: 'Số mã quét' },
+  'scan.st.alerts': { en: 'Alerts today', vi: 'Cảnh báo hôm nay' },
+  'scan.st.tracking': { en: 'Tracking', vi: 'Đang theo dõi' },
+  'scan.st.pushed': { en: 'Last push', vi: 'Đẩy lần cuối' },
+  'scan.st.missing': { en: 'table missing', vi: 'chưa có bảng' },
+
+  // Sections
+  'scan.sec.watch': { en: 'Watch list', vi: 'Danh sách theo dõi' },
+  'scan.sec.rejects': { en: 'Why rejected', vi: 'Lý do bị loại' },
+  'scan.sec.alerts': { en: 'Alerts', vi: 'Cảnh báo' },
+  'scan.rej.passed': { en: 'passed', vi: 'qua lọc' },
+  'scan.rej.cut': { en: 'over ceiling', vi: 'bị cắt trần' },
+  'scan.rej.fund': { en: 'awaiting fundamentals', vi: 'chờ điểm cơ bản' },
+  'scan.rej.note': {
+    en: 'Recomputed against the thresholds in force right now, not stored when the list was built. "no consolidation base" dominating is normal — most of the market is not in a base. "still far from pivot" dominating means the market just fell, and the setup should be quiet.',
+    vi: 'Tính lại theo đúng ngưỡng đang có hiệu lực, không phải bảng lưu lúc dựng danh sách. "khong co nen tich luy" chiếm gần hết là bình thường — phần lớn thị trường không ở nền. "con xa pivot" chiếm gần hết nghĩa là thị trường vừa rơi, và setup đúng ra nên im lặng.',
+  },
+
+  // Health warnings — every one of these is a state that produces SILENCE, not an
+  // error, so the wording says what is silently not happening.
+  'scan.warn.nopush': {
+    en: 'The VM has never pushed a status. Either push.py is not in cron yet, or its token is wrong.',
+    vi: 'VM chưa từng đẩy trạng thái lên. Hoặc push.py chưa vào cron, hoặc token sai.',
+  },
+  'scan.warn.db': { en: 'Cannot read the scanner database', vi: 'Không đọc được cơ sở dữ liệu của máy quét' },
+  'scan.warn.stale': {
+    en: 'Status is stale — the push cron has stopped',
+    vi: 'Trạng thái đã cũ — cron đẩy dữ liệu đã dừng',
+  },
+  'scan.warn.silent': {
+    en: 'The candidates table is older than the bot will accept, so it is sending nothing at all: no alerts, no errors',
+    vi: 'Bảng candidates cũ hơn mức bot chấp nhận, nên nó không gửi gì cả: không cảnh báo, không lỗi',
+  },
+  'scan.warn.nobeat': {
+    en: 'No heartbeat from the scanner process: it has never started, or it is running a build from before heartbeats existed.',
+    vi: 'Không có nhịp tim từ tiến trình máy quét: nó chưa từng chạy, hoặc đang chạy bản cũ chưa có nhịp tim.',
+  },
+  'scan.warn.beatstale': {
+    en: 'The scanner loop has stopped writing its heartbeat',
+    vi: 'Vòng quét đã ngừng ghi nhịp tim',
+  },
+  'scan.warn.dry': {
+    en: 'Running in dry mode: it scans and scores, but sends no messages.',
+    vi: 'Đang chạy chế độ thử: vẫn quét và chấm điểm, nhưng không gửi tin nhắn nào.',
+  },
+  'scan.warn.universe': {
+    en: 'The universe has not refreshed for a long time — the quote source is down',
+    vi: 'Danh sách mã đã lâu không làm mới — nguồn giá đang lỗi',
+  },
+  'scan.warn.halts': { en: 'Halt feed error', vi: 'Lỗi nguồn tin tạm dừng giao dịch' },
+  'scan.warn.news': { en: 'News feed error', vi: 'Lỗi nguồn tin' },
+  'scan.warn.spool': {
+    en: 'Messages are queued undelivered — Telegram is rejecting them',
+    vi: 'Có tin nhắn xếp hàng chưa gửi được — Telegram đang từ chối',
+  },
 
   // Misc
   'common.slower': { en: '(slower)', vi: '(chậm hơn)' },
