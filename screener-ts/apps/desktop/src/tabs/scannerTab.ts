@@ -34,7 +34,12 @@ const ALERTS_PREFIX = 'scanner:alerts:';
  */
 const MAX_AGE_DAYS = 5;
 
-/** `beat` is written every 20s by main.py, so anything older means the loop stopped. */
+/**
+ * `beat` is written every 20s by main.py's clock loop — unconditionally, not only
+ * during market hours — so a beat more than this old *at the time of the push*
+ * means the loop stopped. Compared against the push time, never against now; see
+ * `healthNotes`.
+ */
 const BEAT_STALE_SEC = 120;
 /** `--status` cron runs every minute during 04:00–20:59 ET. */
 const PUSH_STALE_SEC = 600;
@@ -245,8 +250,18 @@ function healthNotes(status: Status | null, pushedAt: number | null): string[] {
   if (!b) {
     out.push(t('scan.warn.nobeat'));
   } else {
-    if (b.ts && Date.now() - b.ts > BEAT_STALE_SEC * 1000) {
-      out.push(`${t('scan.warn.beatstale')} (${ago(b.ts)})`);
+    // Measure the beat against the moment the snapshot was PUSHED, not against
+    // now. `beat` only travels to the browser inside a snapshot, so once pushing
+    // stops the beat inside the last snapshot ages forever and `Date.now()` would
+    // accuse a perfectly healthy loop of having died — which is exactly what
+    // happens between two `--status` runs, or before cron is installed at all.
+    // A stalled pusher is a different fault and `scan.warn.stale` already owns it.
+    // Clocks: b.ts is the VM's, pushedAt is Cloudflare's — both NTP-synced, so the
+    // difference is meaningful in a way a browser clock never is. Clamp at 0 in
+    // case the VM runs slightly ahead.
+    const beatAge = b.ts ? Math.max(0, Math.round(((pushedAt ?? Date.now()) - b.ts) / 1000)) : null;
+    if (beatAge != null && beatAge > BEAT_STALE_SEC) {
+      out.push(`${t('scan.warn.beatstale')} (${dur(beatAge)})`);
     }
     if (b.dry) out.push(t('scan.warn.dry'));
     if (b.universe_age != null && b.universe_age > UNIVERSE_STALE_SEC) {
