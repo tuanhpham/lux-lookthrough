@@ -168,12 +168,16 @@ function show(tab: Tab): void {
  * entered on this device, so the usual case costs no extra click. `#landing` is
  * hidden here rather than in `enterApp`, which is only ever reached from the tool
  * landing and so has never needed to.
+ *
+ * `mandatory`: on a device without the code there is nothing to fall back to — the
+ * landing is held hidden until the boot gate passes (see the boot block), so a
+ * dismissible gate would dismiss to a blank page.
  */
 function openDeepLink(tab: Tab): void {
   showGate(() => {
     $('#landing')!.classList.add('hidden');
     enterApp(tab);
-  });
+  }, { mandatory: true });
 }
 
 
@@ -216,8 +220,22 @@ function goToLanding(trigger?: Element): void {
     $('#app')!.classList.add('hidden');
     $('#tool-landing')!.classList.add('hidden');
     $('#landing')!.classList.remove('hidden');
-    renderLanding($('#landing')!, requestPrivateAccess);
+    renderLanding($('#landing')!, requestPrivateAccess, openStory);
   });
+}
+
+/**
+ * The landing page's "story" link. The story is a tab now, not a page of its own,
+ * so this is the ordinary way into the app aimed at About — it still goes through
+ * the gate, which is a no-op once the device holds the code.
+ */
+function openStory(trigger?: Element): void {
+  pageTransition(trigger ?? null, () =>
+    showGate(() => {
+      $('#landing')!.classList.add('hidden');
+      enterApp('about');
+    }),
+  );
 }
 
 /**
@@ -451,7 +469,7 @@ function reRenderCurrentPage(): void {
       (trigger) => goToLanding(trigger),
     );
   } else if (!$('#landing')!.classList.contains('hidden')) {
-    renderLanding($('#landing')!, requestPrivateAccess);
+    renderLanding($('#landing')!, requestPrivateAccess, openStory);
   }
 }
 
@@ -506,16 +524,29 @@ if (isSyncEnabled()) {
   openSyncGate();
 }
 
-// Boot splash → then show landing.
+// Boot splash → access code → landing.
+//
+// The order is the point. The splash runs to 100%, and only then does anything
+// else happen: a device that already holds the code gets the landing page as the
+// splash wipes away, and a device that does not gets the code prompt and nothing
+// else — the landing is rendered but held hidden, so an unknown machine never even
+// sees what is behind the door. That is why this awaits `runSplash()` instead of
+// firing it off; the gate must not appear under a splash that is still animating.
 try {
-  renderLanding($('#landing')!, requestPrivateAccess);
+  const landing = $('#landing')!;
+  renderLanding(landing, requestPrivateAccess, openStory);
   applyStaticI18n();
   (window as unknown as { __APP_READY__?: boolean }).__APP_READY__ = true;
-  void runSplash(); // overlay sits on top; fades away when ring completes
-  // After the landing is rendered, so that cancelling the gate leaves a usable
-  // page underneath rather than a blank one.
+
   const deep = tabFromHash();
-  if (deep) openDeepLink(deep);
+  const locked = !isUnlocked();
+  if (locked) landing.classList.add('hidden');
+
+  void runSplash().then(() => {
+    if (deep) { openDeepLink(deep); return; }
+    if (!locked) return; // landing is already on screen
+    showGate(() => landing.classList.remove('hidden'), { mandatory: true });
+  });
 } catch (e) {
   showFatal(String((e as Error)?.stack || e));
 }

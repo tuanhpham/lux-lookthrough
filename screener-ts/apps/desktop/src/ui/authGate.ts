@@ -10,8 +10,19 @@ export function isUnlocked(): boolean {
   return localStorage.getItem(STORAGE_KEY) === '1';
 }
 
+export interface GateOpts {
+  /**
+   * Nothing dismisses the gate but the code itself.
+   *
+   * Used by the boot gate, which is asked for before the landing page is on
+   * screen: there is no page underneath to go back to, so a backdrop that closed
+   * the modal would leave the reader facing a blank document.
+   */
+  mandatory?: boolean;
+}
+
 /** Show the gate modal. Calls `onSuccess` if the correct code is entered. */
-export function showGate(onSuccess: () => void): void {
+export function showGate(onSuccess: () => void, opts: GateOpts = {}): void {
   if (isUnlocked()) { onSuccess(); return; }
 
   const host = document.createElement('div');
@@ -52,8 +63,12 @@ export function showGate(onSuccess: () => void): void {
 
   host.querySelector('#gate-submit')!.addEventListener('click', attempt);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') attempt(); });
-  host.querySelector('.gate-backdrop')!.addEventListener('click', () => host.remove());
-  host.querySelector('.gate-backdrop')!.addEventListener('touchend', () => host.remove());
+  if (opts.mandatory) {
+    host.classList.add('gate--mandatory');
+  } else {
+    host.querySelector('.gate-backdrop')!.addEventListener('click', () => host.remove());
+    host.querySelector('.gate-backdrop')!.addEventListener('touchend', () => host.remove());
+  }
 
   requestAnimationFrame(() => input.focus());
 }
