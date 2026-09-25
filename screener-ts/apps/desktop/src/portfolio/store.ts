@@ -39,6 +39,7 @@ import {
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { onHydrated, isHydrated } from '../adapters/storage.js';
+import { publishPositions } from './positionsFeed.js';
 
 export const ACCT_KEY = 'accounts';
 /** The pseudo-account id for the all-accounts view. */
@@ -227,6 +228,12 @@ export async function loadAccounts(ctx: AppContext): Promise<void> {
 export async function saveAccounts(ctx: AppContext): Promise<void> {
   await ctx.storage.set(ACCT_KEY, toPersistable(accounts));
   announce();
+
+  // Tell the scanner which positions are open, so its intraday side can warn
+  // about a stop. Deliberately last, deliberately not awaited, deliberately
+  // unable to throw: the save is the thing that matters and this is a courtesy
+  // to another process. `publishPositions` refuses before hydration on its own.
+  void publishPositions(accounts);
 }
 
 /**

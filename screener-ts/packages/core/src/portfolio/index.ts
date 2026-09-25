@@ -12,6 +12,8 @@ export {
   maxDrawdownPct,
 } from './metrics.js';
 export type { PriceMap } from './metrics.js';
+export { buildPositionsDigest } from './positionsDigest.js';
+export type { PositionsDigest, PositionsRow } from './positionsDigest.js';
 export { computeTwr } from './twr.js';
 export type { TwrPoint, TwrResult } from './twr.js';
 export { createOrder, cancelOrder, processOrders } from './orders.js';

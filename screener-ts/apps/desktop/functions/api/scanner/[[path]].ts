@@ -29,10 +29,25 @@
 // SINGLE WRITER PER KEY
 // ---------------------
 // Both roles can write, but never the same key. Keys in APP_KEYS (config,
-// commands) are writable ONLY by a reader; everything else ONLY by the writer.
-// Neither side ever reads-modifies-writes the other's key, so a lost update is
-// not possible and no locking is needed. Command *results* come back on a
-// separate key the VM owns (`scanner:command_results`).
+// commands, positions) are writable ONLY by a reader; everything else ONLY by
+// the writer. Neither side ever reads-modifies-writes the other's key, so a lost
+// update is not possible and no locking is needed. Command *results* come back on
+// a separate key the VM owns (`scanner:command_results`).
+//
+// WHAT THE VM CAN READ — read this before adding an app-owned key
+// --------------------------------------------------------------
+// `mayWrite` gates writes only. GET is open to BOTH roles, deliberately: the VM
+// has to read `scanner:config` and `scanner:commands` for any of that to work.
+// So anything the app publishes here is readable by whoever holds the VM's
+// token, and point 3 above ("it must not be able to touch portfolio data") means
+// *write*, not *read*.
+//
+// `scanner:positions` is the one place that narrows: the intraday alerter cannot
+// warn about a stop on a position it does not know exists, and under DOWNTREND
+// that is the ONLY kind of alert it is allowed to send. What crosses is a derived
+// digest — ticker, open shares, average cost, stop levels — and deliberately not
+// cash, equity, total P&L, account ids, or anything dated. See
+// src/portfolio/positionsFeed.ts for the exact shape and why each field is there.
 //
 // ROUTES (all under /api/scanner)
 //   GET    /api/scanner/ping            → { ok, role, keys }
@@ -86,7 +101,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 /** Keys the APP owns. The VM is refused on these; it only reads them. */
-const APP_KEYS = new Set(['scanner:config', 'scanner:commands']);
+const APP_KEYS = new Set(['scanner:config', 'scanner:commands', 'scanner:positions']);
 
 // Everything lives under one prefix so a leaked writer token cannot reach
 // anything else, and so `pull` can hand the tab the whole world in one request.

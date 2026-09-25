@@ -52,3 +52,29 @@ export async function scannerPull(since = 0): Promise<{ entries: ScannerEntry[];
   const body = (await res.json()) as { entries?: ScannerEntry[]; now?: number };
   return { entries: body.entries ?? [], now: body.now ?? 0 };
 }
+
+/**
+ * Write one app-owned key. The endpoint's `mayWrite` accepts a reader only for
+ * keys in its APP_KEYS set (`scanner:config`, `scanner:commands`,
+ * `scanner:positions`) and answers 403 for anything else, so a typo here fails
+ * with a message rather than corrupting a snapshot the VM owns.
+ *
+ * Returns false instead of throwing. Every caller is a side effect of something
+ * the user actually asked for (saving the portfolio, editing config); none of
+ * them may fail because a bridge is down or a sync code is not set yet.
+ */
+export async function scannerPut(key: string, value: unknown): Promise<boolean> {
+  if (!isSyncEnabled()) return false;
+  try {
+    // encodeURI, not encodeURIComponent: every key contains ':' and the route
+    // matches on the raw segment. syncClient.ts and push.py both send it raw.
+    const res = await fetch(`${BASE}/kv/${encodeURI(key)}`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ value }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
