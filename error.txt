@@ -450,3 +450,33 @@ Deploy cùng lượt với VIỆC B ở trên (build + `wrangler pages deploy di
 
 Đáng sửa khi rảnh: câu "bỏ dòng restart đi" trong README mục 5.8 (xem VM-4), và
 khối ```bash hở ở README khoảng dòng 671-680.
+huongnguyen105@Huongs-MacBook-Air screener-ts % npm run build --workspace @screener/desktop
+
+> @screener/desktop@0.1.0 build
+> npm run build:core && tsc -p tsconfig.json --noEmit && vite build
+
+
+> @screener/desktop@0.1.0 build:core
+> npm --prefix ../../packages/core run build
+
+
+> @screener/core@0.1.0 build
+> tsc -p tsconfig.json
+
+vite v8.0.16 building client environment for production...
+✓ 170 modules transformed.
+computing gzip size...
+dist/index.html                          5.82 kB │ gzip:   2.31 kB
+dist/assets/index-Bapvtj5t.css          89.03 kB │ gzip:  17.05 kB
+dist/assets/core-BFqLT5rb.js             1.86 kB │ gzip:   0.78 kB
+dist/assets/dist-js-3xh1JaRE.js          1.86 kB │ gzip:   0.85 kB
+dist/assets/dist-js-No6nrZNX.js          7.25 kB │ gzip:   1.91 kB
+dist/assets/vendor-charts-4WvflUc8.js  157.57 kB │ gzip:  50.43 kB
+dist/assets/index-5p-8oLNH.js          637.77 kB │ gzip: 209.75 kB
+
+✓ built in 168ms
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 600 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
