@@ -137,16 +137,6 @@ export interface CinematicOpts {
   snap: HTMLElement;
   /** Blur flash shown while a chapter transition is in flight. */
   veil: HTMLElement;
-  /**
-   * What the first and last boundary do with the wheel.
-   *  - `contain`: swallow it, so the story is the whole screen.
-   *  - `release`: let it through, so the page keeps scrolling past the story.
-   *    This is what makes the story sit INSIDE the About page: the reader falls
-   *    into it at chapter 0 and out of it after chapter 4 without a dead zone.
-   */
-  edge?: 'contain' | 'release';
-  /** `onVisible` waits for the scroller to enter the viewport (story below the fold). */
-  initialReveal?: 'now' | 'onVisible';
 }
 
 /**
@@ -158,7 +148,6 @@ export interface CinematicOpts {
  */
 export function wireCinematic(opts: CinematicOpts): void {
   const { snap, veil } = opts;
-  const edge = opts.edge ?? 'contain';
 
   requestAnimationFrame(() => {
     const chapters = Array.from(snap.querySelectorAll<HTMLElement>('.sl-chapter'));
@@ -179,9 +168,6 @@ export function wireCinematic(opts: CinematicOpts): void {
     let animating = false;
     let targetIdx = 0;
     let activeIdx = -1;
-    // Set while the page is being scrolled to align the story with the screen —
-    // see pinIntoView below. Positions measured during that move are meaningless.
-    let pinning = false;
 
     const chapterTop = (i: number) =>
       chapters.slice(0, i).reduce((s, ch) => s + ch.offsetHeight, 0);
@@ -257,51 +243,14 @@ export function wireCinematic(opts: CinematicOpts): void {
       }
     };
 
-    const lastIdx = chapters.length - 1;
-
     // Intercept wheel only at chapter boundaries; allow free scroll within tall chapters
     let wheelCooldown = false;
     // On mobile, native touch scroll can bypass animateTo entirely — watch
     // the scroll position directly and reveal whichever chapter is in view.
     snap.addEventListener('scroll', () => {
-      if (pinning) return;
       const idx = getActiveIdx();
       if (idx !== activeIdx) revealAt(idx);
     }, { passive: true });
-
-    /** At the outer edges of the story, does the gesture belong to the page? */
-    const handOver = (goingDown: boolean) =>
-      edge === 'release' && ((goingDown && targetIdx === lastIdx) || (!goingDown && targetIdx === 0));
-
-    /**
-     * Pinning — only meaningful in `release` mode, where the story is a section of
-     * a longer page rather than the page itself.
-     *
-     * A chapter only works when it fills the screen, so the story cannot start
-     * halfway up the viewport. The first gesture that arrives while the section is
-     * still sliding in is spent aligning it to the screen, and the chapter the
-     * reader lands on depends on which way they came: down from the pull quote
-     * starts at chapter 0, up from the pillars starts at the last chapter.
-     */
-    const aligned = () => {
-      const r = snap.getBoundingClientRect();
-      return r.top > -24 && r.bottom < window.innerHeight + 24;
-    };
-    // Coming INTO view in the direction of travel — not on the way out, which is
-    // what stops a reader leaving at either end from being pulled straight back in.
-    const entering = (goingDown: boolean) => {
-      const r = snap.getBoundingClientRect();
-      return goingDown ? r.top > 0 : r.bottom < window.innerHeight;
-    };
-    const pinIntoView = (goingDown: boolean) => {
-      pinning = true;
-      const idx = goingDown ? 0 : lastIdx;
-      targetIdx = idx;
-      snap.scrollTop = chapterTop(idx);
-      revealAt(idx);
-      snap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setTimeout(() => { pinning = false; }, 600);
-    };
 
     snap.addEventListener('wheel', (e) => {
       if (animating) { e.preventDefault(); return; }
@@ -315,14 +264,7 @@ export function wireCinematic(opts: CinematicOpts): void {
       const atBottom = scrolled >= chBottom - 2;
       const atTop = scrolled <= chTop + 2;
 
-      if (edge === 'release' && !aligned() && entering(goingDown)) {
-        e.preventDefault();
-        if (!pinning) pinIntoView(goingDown);
-        return;
-      }
-
       if (!((goingDown && atBottom) || (!goingDown && atTop))) return;
-      if (handOver(goingDown)) return; // page takes it — no preventDefault
 
       e.preventDefault();
       if (wheelCooldown) return;
@@ -341,27 +283,11 @@ export function wireCinematic(opts: CinematicOpts): void {
       const chTop = chapterTop(targetIdx);
       const chBot = chTop + (chapters[targetIdx]?.offsetHeight ?? vh) - vh;
       const goingDown = dy > 0;
-      if (edge === 'release' && !aligned() && entering(goingDown)) {
-        if (!pinning) pinIntoView(goingDown);
-        return;
-      }
-      if (handOver(goingDown)) return;
       if ((goingDown && snap.scrollTop >= chBot - 2) || (!goingDown && snap.scrollTop <= chTop + 2)) {
         animateTo(targetIdx + (goingDown ? 1 : -1));
       }
     }, { passive: true });
 
-    if (opts.initialReveal === 'onVisible' && 'IntersectionObserver' in window) {
-      // Below the fold: hold the first chapter blank so the reader arrives to the
-      // same fade-up everyone got on the old landing page.
-      const io = new IntersectionObserver((entries) => {
-        if (!entries.some((en) => en.isIntersecting)) return;
-        io.disconnect();
-        revealAt(getActiveIdx());
-      }, { threshold: 0.2 });
-      io.observe(snap);
-    } else {
-      revealAt(0);
-    }
+    revealAt(0);
   });
 }

@@ -57,18 +57,16 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <!-- Narrative landing: public, shown first -->
+    <!-- Landing page: the front door. Public, shown once the splash finishes —
+         on a device without the access code it stays hidden behind the gate. -->
     <div id="landing"></div>
-
-    <!-- Tool landing: shown after gate passes, before entering the app -->
-    <div id="tool-landing" class="hidden"></div>
 
     <div id="app" class="hidden">
       <!-- TradingView-style sticky top navigation: brand left, inline tabs
            center, language/theme right. On phones the tabs collapse behind the
            hamburger into a dropdown (#topnav-menu). -->
       <header id="topnav">
-        <div class="app-brand" id="logo-home" role="button" tabindex="0" title="Back to story">
+        <div class="app-brand" id="logo-home" role="button" tabindex="0" title="Home">
           <span class="app-brand-name">The Professional</span>
         </div>
         <button id="menu-toggle" class="app-menu-btn" aria-label="Menu" aria-expanded="false">

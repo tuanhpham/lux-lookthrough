@@ -15,7 +15,6 @@ import { renderAbout } from './tabs/aboutTab.js';
 import { renderLanding } from './ui/landing.js';
 import { runSplash } from './ui/splash.js';
 import { pageTransition } from './ui/transition.js';
-import { renderToolLanding } from './ui/toolLanding.js';
 import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange, applyTheme } from './ui/theme.js';
@@ -165,19 +164,14 @@ function show(tab: Tab): void {
  *
  * Goes through the gate like any other way in: a deep link must not be a way past
  * the access code. `showGate` calls straight through when the code was already
- * entered on this device, so the usual case costs no extra click. `#landing` is
- * hidden here rather than in `enterApp`, which is only ever reached from the tool
- * landing and so has never needed to.
+ * entered on this device, so the usual case costs no extra click.
  *
  * `mandatory`: on a device without the code there is nothing to fall back to — the
  * landing is held hidden until the boot gate passes (see the boot block), so a
  * dismissible gate would dismiss to a blank page.
  */
 function openDeepLink(tab: Tab): void {
-  showGate(() => {
-    $('#landing')!.classList.add('hidden');
-    enterApp(tab);
-  }, { mandatory: true });
+  showGate(() => enterApp(tab), { mandatory: true });
 }
 
 
@@ -185,9 +179,13 @@ function openDeepLink(tab: Tab): void {
  * `tab` is the tab the caller is about to open, when it knows. The menu passes it
  * so the default tab is not rendered first and thrown away — with Calendar as the
  * default that throwaway render costs an upstream fetch, not just DOM work.
+ *
+ * Hiding the landing is this function's job: there used to be a second "welcome"
+ * page in between that did it, and every way into the app now comes straight from
+ * the landing instead.
  */
 function enterApp(tab?: Tab): void {
-  $('#tool-landing')!.classList.add('hidden');
+  $('#landing')!.classList.add('hidden');
   $('#app')!.classList.remove('hidden');
   applyStaticI18n();
   if (entered) return;
@@ -200,25 +198,23 @@ function enterApp(tab?: Tab): void {
   show(tab ?? currentTab);
 }
 
-function showToolLanding(): void {
-  $('#landing')!.classList.add('hidden');
-  $('#app')!.classList.add('hidden');
-  $('#tool-landing')!.classList.remove('hidden');
-  renderToolLanding(
-    $('#tool-landing')!,
-    (trigger) => pageTransition(trigger ?? null, enterApp),
-    (trigger) => goToLanding(trigger),
-  );
-}
-
+/**
+ * "Enter the platform" — the landing page's main call to action.
+ *
+ * It lands on Calendar, the app itself. There was a second landing page here once
+ * (a tile menu of the twelve workspaces) and it earned nobody anything: the reader
+ * had already said what they wanted by clicking Enter, and got another page asking
+ * the same question. The workspaces are one click away in the menu from wherever
+ * they end up instead.
+ */
 function requestPrivateAccess(trigger?: Element): void {
-  pageTransition(trigger ?? null, () => showGate(showToolLanding));
+  pageTransition(trigger ?? null, () => showGate(() => enterApp('calendar')));
 }
 
+/** Home: back out of the app to the landing page. */
 function goToLanding(trigger?: Element): void {
   pageTransition(trigger ?? null, () => {
     $('#app')!.classList.add('hidden');
-    $('#tool-landing')!.classList.add('hidden');
     $('#landing')!.classList.remove('hidden');
     renderLanding($('#landing')!, requestPrivateAccess, openStory);
   });
@@ -348,7 +344,7 @@ function wireAppMenu(): void {
   menu.querySelector('#app-menu-close')?.addEventListener('click', closeAppMenu);
   menu.querySelector('#app-menu-home')?.addEventListener('click', (e) => {
     closeAppMenu();
-    pageTransition(e.currentTarget as Element, showToolLanding);
+    goToLanding(e.currentTarget as Element);
   });
   menu.querySelectorAll<HTMLElement>('[data-amtab]').forEach((b) => {
     b.addEventListener('click', (e) => {
@@ -455,19 +451,13 @@ window.addEventListener('app:show-tab', (e) => {
   TABS.forEach((name) => $(`#tab-${name}`)!.classList.toggle('hidden', name !== tab));
 });
 
-$('#logo-home')?.addEventListener('click', (e) => pageTransition(e.currentTarget as Element, showToolLanding));
-$('#logo-home')?.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') pageTransition($('#logo-home')!, showToolLanding); });
+$('#logo-home')?.addEventListener('click', (e) => goToLanding(e.currentTarget as Element));
+$('#logo-home')?.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') goToLanding($('#logo-home')!); });
 
 function reRenderCurrentPage(): void {
   applyStaticI18n();
   if (!$('#app')!.classList.contains('hidden')) {
     renderTab(currentTab);
-  } else if (!$('#tool-landing')!.classList.contains('hidden')) {
-    renderToolLanding(
-      $('#tool-landing')!,
-      (trigger) => pageTransition(trigger ?? null, enterApp),
-      (trigger) => goToLanding(trigger),
-    );
   } else if (!$('#landing')!.classList.contains('hidden')) {
     renderLanding($('#landing')!, requestPrivateAccess, openStory);
   }
