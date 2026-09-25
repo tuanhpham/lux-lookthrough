@@ -378,6 +378,7 @@ phải thiếu file, chỉ là dán sai chỗ.
     crontab -e          # user ubuntu, KHÔNG sudo — rồi dán:
 
     CRON_TZ=America/New_York
+    30 6 * * 6  cd /home/ubuntu/scanner && .venv/bin/python prep.py >> state/prep.log 2>&1
     0 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1
     0 9 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py >> state/prep.log 2>&1
     5 9 * * 1-5  /usr/bin/systemctl restart scanner
