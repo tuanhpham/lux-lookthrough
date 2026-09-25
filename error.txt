@@ -577,11 +577,3 @@ tai nạn, không phải bố cục), panel và mục "không phải là gì" x�
 
 rồi rollback trong dashboard Cloudflare. Lượt này không có migration nào đi kèm,
 nên lùi site tĩnh là đủ — D1 không liên quan.
-
-
-
-0 14 * * 1-5 cd /home/ubuntu/scanner && .venv/bin/python prep.py >> state/prep_cron.log 2>&1 && .venv/bin/python scripts/mark_etf.>
-CRON_TZ=America/New_York
-0 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1
-0 9 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py >> state/prep.log 2>&1
-5 9 * * 1-5  /usr/bin/systemctl restart scanner

@@ -57,29 +57,80 @@
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* ── Light: paper, not "dark mode with the lights on" ─────────────────────────
+   Two things were wrong here and neither was a matter of taste.
+
+   1. NO LAYERING. `--surface` and `--card` were the same hex (#faf8f5), and
+      `--cardhover` was the same hex as `--bg` (#f0ece7). So a card had no edge
+      against the surface it sat on, and hovering one moved it TOWARDS the page
+      background — the lift ran backwards. Dark mode looks deep because
+      #0c0b0f → #100f14 → #141219 → #1a1820 are four real steps. Light has real
+      steps now too, and the card is the LIGHTEST resting surface on the page.
+      That inversion is the whole trick of a paper theme — paper is what the light
+      falls on, so it cannot be dimmer than the room.
+
+   2. MIXED TEMPERATURE. Every surface was warm (cream) and every ink was cool
+      blue-grey (#0a0e16 / #58616f / #97a0af). Warm paper under cool ink is the
+      muddy, unfinished look — and it is why the story overlays, which were
+      already written warm (`rgba(20,16,10,…)`), looked better than the app. The
+      ramp below is warm the whole way through, so the page reads as one material.
+
+   Contrast, computed against the card rather than eyeballed — new on #fffdf9,
+   old on the old #faf8f5:
+     text     17.9:1  (was 18.2)      subtext  7.1:1  (was 5.9)
+     faint     4.2:1  (was 2.5)       accent   4.0:1  (was 2.4)
+     danger    5.3:1  (was 3.0)       warn     4.6:1  (was 1.7)
+   Only `text` was ever fine. The accent had to go deeper because it is a TEXT
+   colour in 63 rules — ticker symbols, section numbers, eyebrows — and a mint
+   green that pops on near-black is a pale smear on near-white. White ink on the
+   accent fill still clears 4.1:1, so the one token serves both jobs. */
 html.light {
-  --bg: #f0ece7;
-  --surface: #faf8f5;
-  --card: #faf8f5;
-  --cardhover: #f0ece7;
-  --border: #ddd8d2;
-  --border-soft: #e8e4df;
-  --text: #0a0e16;
-  --subtext: #58616f;
-  --faint: #97a0af;
-  --accent: #07b886;
+  --bg: #eae4db;
+  --surface: #f5f1ea;
+  --card: #fffdf9;
+  /* Downwards, not up to white. Every one of the 13 places this token is used is a
+     hover tint on something sitting ON a card — table rows, calendar cells, combo
+     items — so #ffffff against a #fffdf9 card would be a state change nobody can
+     see. In a light theme the lift comes from the shadow and the hover comes from
+     a tint; they are not the same signal and must not share a value. */
+  --cardhover: #f2ece1;
+  --border: #d9d2c6;
+  --border-soft: #e7e1d6;
+  --text: #191510;
+  --subtext: #5d564a;
+  --faint: #827a6b;
+  --accent: #0b8f69;
   --accent-ink: #ffffff;
   /* Deeper so violet text still reads on the cream card (5.1:1 vs 2.5:1). */
   --accent2: #3a6fe0;
+  --blue: #3a6fe0;
   --violet: #9333ea;
+  /* `--danger` and `--warn` were never overridden, so light inherited the
+     near-black theme's values: #ff5266 is 3.1:1 on the card and #ffb648 is 1.7:1
+     — amber on cream is very nearly invisible. Both are semantic colours that
+     carry meaning on their own, so they are the last place to accept a guess. */
+  --danger: #cf1f38;
+  --warn: #a86500;
+  /* The washes are re-mixed, not inherited: the same percentage of a colour reads
+     much weaker over near-white than over near-black, so 12%/42%/30% tuned on the
+     dark canvas all but vanish here. Lower the fill, raise the lines. */
+  --accent-wash: color-mix(in srgb, var(--accent) 9%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 55%, transparent);
+  --ring: color-mix(in srgb, var(--accent) 38%, transparent);
   /* Donut transitions (light): deeper, more saturated to read on cream. */
   --donut-invested: #03a06f;   /* emerald green */
   --donut-invested4: #12b6cf;  /* cyan */
   --donut-cash: #003781;       /* Allianz blue */
   --donut-cash4: #b94fd8;      /* orchid / lila */
   --donut-track: color-mix(in srgb, var(--border) 90%, transparent);
-  --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 12px 32px -16px rgba(16, 24, 40, .18);
-  --shadow-lg: 0 1px 2px rgba(16, 24, 40, .06), 0 32px 64px -24px rgba(16, 24, 40, .22);
+  /* Warm shadows, and two layers on purpose: a tight 1px one that draws the card's
+     own edge and a wide soft one that puts it above the page. The cool-blue
+     shadow that was here fought the cream — a shadow is the paper's own colour
+     with the light taken out of it, not a separate hue. */
+  --shadow: 0 1px 1px rgba(58, 46, 28, .05), 0 2px 4px rgba(58, 46, 28, .05),
+            0 10px 24px -12px rgba(58, 46, 28, .16);
+  --shadow-lg: 0 1px 2px rgba(58, 46, 28, .06), 0 4px 10px rgba(58, 46, 28, .06),
+               0 30px 60px -22px rgba(58, 46, 28, .22);
 }
 
 * { box-sizing: border-box; }
@@ -119,7 +170,18 @@ body::before {
     radial-gradient(120% 60% at 80% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%),
     linear-gradient(to bottom, color-mix(in srgb, var(--accent2) 4%, transparent), transparent 30%);
 }
-html.light body::before { opacity: .5; }
+/* Light gets its own atmosphere, not the dark recipe at half strength.
+   The dark one ADDS colour (a green radial, a blue wash) to lift something that
+   is nearly black. Adding colour to something already bright does the opposite:
+   it reads as a stain. So light SUBTRACTS instead — a near-white top-light, the
+   way paper looks under a window, with the faintest accent breath at the
+   shoulder. Same element, same cost, opposite arithmetic. */
+html.light body::before {
+  background:
+    radial-gradient(120% 68% at 78% -14%, rgba(255, 255, 255, .9), transparent 60%),
+    radial-gradient(84% 50% at 8% -6%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 64%),
+    linear-gradient(to bottom, rgba(255, 255, 255, .5), transparent 38%);
+}
 #app, #landing, .modal, .dialog-host { position: relative; z-index: 1; }
 
 /* Tabular, monospaced numerals everywhere data appears — the terminal signature. */
@@ -554,6 +616,12 @@ th {
 th.sortable { cursor: pointer; -webkit-user-select: none; user-select: none; white-space: nowrap; }
 th.sortable:hover { color: var(--text); }
 th.sorted { color: var(--accent); }
+/* On paper the sticky header has to be a band. `background: var(--card)` makes it
+   the exact colour of the rows scrolling underneath it, so the only thing holding
+   the labels apart from the data is one hairline — and once a row scrolls under a
+   sorted column the two greens touch. Dark mode gets away with it because a dark
+   card and dark rows still differ from the page; near-white does not. */
+html.light th { background: var(--surface); }
 tbody tr { cursor: pointer; transition: background .12s ease; }
 tbody tr:hover { background: var(--cardhover); }
 tbody tr td:first-child { color: var(--text); font-weight: 600; }
@@ -898,7 +966,7 @@ a.tkr:hover { text-decoration: underline; }
 
 /* ── wrapper — softened neutrals, easier on the eyes ── */
 .sl-wrap { position: relative; background: #242424; }
-html.light .sl-wrap { background: #e8e4df; }
+html.light .sl-wrap { background: var(--bg); }
 
 /* ── Snap scroll container — scroll driven by JS, no native snap ── */
 .sl-snap {
@@ -1124,12 +1192,22 @@ html.light #sl-menu {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 36px; height: 56px; flex-shrink: 0;
 }
+/* The wordmark in either overlay header. It is a <button> now (it goes Home), so
+   every default the browser gives a button has to be named and removed — the ✕
+   right below is a standing reminder of what an unreset button looks like. */
 .sl-menu-brand {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 15px; font-weight: 400; letter-spacing: 0.18em;
   text-transform: uppercase; color: rgba(255,255,255,.82);
+  flex: none; margin: 0; padding: 0; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid transparent;
+  cursor: pointer; line-height: 1.2;
+  transition: color .2s ease, border-color .2s ease;
 }
+.sl-menu-brand:hover { color: #fff; border-bottom-color: var(--accent); }
+.sl-menu-brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 html.light .sl-menu-brand { color: rgba(10,10,10,.75); }
+html.light .sl-menu-brand:hover { color: rgba(10,6,0,1); }
 /* The ✕ that closes either overlay.
    This used to be a BUG, and a loud one: the two selectors sat above a comment
    with a trailing comma and no block of their own, so they were swallowed into
@@ -1300,7 +1378,7 @@ html.light .sl-story .story-final { color: rgba(10,10,10,.72); }
   opacity: 0;
   transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
 }
-html.light .sl-veil { background: rgba(232,228,223,.55); }
+html.light .sl-veil { background: color-mix(in srgb, var(--bg) 55%, transparent); }
 .sl-veil.sl-veil--in {
   opacity: 1;
   transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
@@ -1334,7 +1412,8 @@ html.light .sl-veil { background: rgba(232,228,223,.55); }
   background: #181818;
   opacity: 0;
 }
-html.light #nav-ripple { background: #e0dbd5; }
+/* A shade off --bg so the ripple is visible on it, derived rather than typed. */
+html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c); }
 
 /* ── Boot splash ── */
 #splash-overlay {
@@ -1461,8 +1540,16 @@ html.light #nav-ripple { background: #e0dbd5; }
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
 }
-.cl-nav-brand { display: flex; align-items: center; }
-.cl-nav-brand .app-brand-name { color: var(--text); }
+/* A <button>, because it does something (goes to the top). Same reset discipline as
+   `.sl-menu-brand`: name every default and remove it. */
+.cl-nav-brand {
+  display: flex; align-items: center;
+  background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.cl-nav-brand .app-brand-name { color: var(--text); transition: color .2s ease; }
+.cl-nav-brand:hover .app-brand-name { color: var(--accent); }
+.cl-nav-brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
 .cl-nav-links { display: flex; align-items: center; gap: 4px; margin-right: auto; }
 .cl-nav-link {
   background: none; border: none; cursor: pointer;

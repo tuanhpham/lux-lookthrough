@@ -188,13 +188,21 @@ function enterApp(tab?: Tab): void {
   $('#landing')!.classList.add('hidden');
   $('#app')!.classList.remove('hidden');
   applyStaticI18n();
-  if (entered) return;
-  entered = true;
-  // Queue the `accounts` slimming rewrite regardless of which tab opens. This used
-  // to happen inside Portfolio's load(); with Calendar as the default tab, leaving
-  // it there would mean a user who never opens Portfolio keeps a 912 KB row
-  // syncing forever. It only acts on a blob that still carries the chart cache.
-  void migrateAccountsBlob(ctx);
+  if (!entered) {
+    entered = true;
+    // Queue the `accounts` slimming rewrite regardless of which tab opens. This
+    // used to happen inside Portfolio's load(); with Calendar as the default tab,
+    // leaving it there would mean a user who never opens Portfolio keeps a 912 KB
+    // row syncing forever. It only acts on a blob that still carries the chart
+    // cache — so it is once per session, and it stays inside this guard.
+    void migrateAccountsBlob(ctx);
+  }
+  // Outside the guard, and that is the whole point. `if (entered) return` used to
+  // sit above this line, which made every entry point a one-shot: go Home to the
+  // landing and click "Enter the platform" a second time and you did NOT land on
+  // Calendar, you landed on whatever tab you happened to leave open. Same for the
+  // Story link and About. A caller that names a tab is asking for that tab every
+  // time, not only the first time.
   show(tab ?? currentTab);
 }
 
@@ -267,7 +275,7 @@ function buildAppMenu(): HTMLElement {
   el.id = 'app-menu';
   el.innerHTML = `
     <header class="sl-menu-header">
-      <span class="sl-menu-brand">The Professional</span>
+      <button class="sl-menu-brand" id="app-menu-brand">The Professional</button>
       <button id="app-menu-close" aria-label="Close menu">✕</button>
     </header>
     <nav class="app-menu-nav">
@@ -342,17 +350,22 @@ function wireAppMenu(): void {
   appMenuWired = true;
   const menu = getAppMenu();
   menu.querySelector('#app-menu-close')?.addEventListener('click', closeAppMenu);
-  menu.querySelector('#app-menu-home')?.addEventListener('click', (e) => {
-    closeAppMenu();
-    goToLanding(e.currentTarget as Element);
-  });
+  // The wordmark and Home are the same promise: "The Professional" always goes back
+  // to the landing page, from the top bar and from inside the menu alike.
+  menu.querySelectorAll('#app-menu-home, #app-menu-brand').forEach((b) =>
+    b.addEventListener('click', (e) => {
+      closeAppMenu();
+      goToLanding(e.currentTarget as Element);
+    }),
+  );
   menu.querySelectorAll<HTMLElement>('[data-amtab]').forEach((b) => {
     b.addEventListener('click', (e) => {
       const tab = b.dataset.amtab as Tab;
       closeAppMenu();
-      // Pass the tab in: enterApp would otherwise render the default tab first and
-      // discard it, which for Calendar means a wasted upstream fetch.
-      pageTransition(e.currentTarget as Element, () => { enterApp(tab); show(tab); });
+      // One call, not `enterApp(tab); show(tab)`: enterApp shows the tab it is
+      // given now, so the second call was a second full render of the same tab —
+      // for Calendar, a second upstream fetch.
+      pageTransition(e.currentTarget as Element, () => enterApp(tab));
     });
   });
   menu.querySelectorAll<HTMLElement>('[data-aml]').forEach((b) =>

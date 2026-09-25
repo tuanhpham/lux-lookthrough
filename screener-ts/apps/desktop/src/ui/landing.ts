@@ -258,9 +258,9 @@ export function renderLanding(
 <div class="cl-wrap">
 
   <header class="cl-nav">
-    <div class="cl-nav-brand">
+    <button class="cl-nav-brand" id="cl-brand" aria-label="${t('brand.name')}">
       <span class="app-brand-name">${t('brand.name')}</span>
-    </div>
+    </button>
     <nav class="cl-nav-links">
       <button class="cl-nav-link" id="cl-nav-platform">${c.navPlatform}</button>
       <button class="cl-nav-link" id="cl-nav-story">${c.navStory}</button>
@@ -376,7 +376,7 @@ export function renderLanding(
 <!-- Full-screen menu overlay (shared styling with the tool landing) -->
 <div id="sl-menu">
   <header class="sl-menu-header">
-    <span class="sl-menu-brand">${t('brand.name')}</span>
+    <button class="sl-menu-brand" id="sl-menu-brand">${t('brand.name')}</button>
     <button id="sl-menu-close" aria-label="Close menu">✕</button>
   </header>
   <div class="sl-menu-items">
@@ -414,6 +414,17 @@ export function renderLanding(
   wire('#cl-foot-story', story);
   wire('#sl-menu-discover', onEnterPrivate, true);
   wire('#sl-menu-story', story, true);
+
+  // "The Professional" always means the landing page. From inside the app that is a
+  // navigation; from here we are already on it, so the honest equivalent is the top
+  // of the page — not a re-render, which would throw away the scroll position for
+  // no visible reason.
+  const toTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  host.querySelector('#cl-brand')?.addEventListener('click', toTop);
+  host.querySelector('#sl-menu-brand')?.addEventListener('click', () => {
+    closeMenu();
+    toTop();
+  });
 
   host.querySelector('#sl-menu-btn')!.addEventListener('click', () => {
     menu.classList.add('sl-menu--open');
