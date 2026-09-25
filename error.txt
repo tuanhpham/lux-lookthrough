@@ -217,3 +217,210 @@ không nằm trên Cloudflare.
     getUpdates 409).
   - Không sửa firewall của Oracle VM (rủi ro mất SSH).
   - `crontab -e` chạy dưới user `ubuntu`, KHÔNG phải `sudo crontab -e`.
+
+
+================================================================================
+# ĐƯA SCANNER LÊN VM — ssh vào Oracle VM, KHÔNG cần wrangler
+================================================================================
+
+Viết ngày 2026-09-25. Việc này thuộc repo `scanner` (bàn giao gốc:
+`scanner/error.txt`), để ở đây vì đây là file đang mở trên máy kia. Chỉ cần ssh,
+không cần đăng nhập Cloudflare — trừ MỤC CUỐI.
+
+Code đã push hết: `scanner` main == origin/main, working tree sạch.
+`requirements.txt` và `.env.example` KHÔNG đổi → không có dependency mới, không
+có secret mới. Việc còn lại là dựng dữ liệu + thêm một unit systemd.
+
+Đã làm xong trên VM (ĐỪNG chạy lại):
+  - `git pull`, `pip install -r requirements.txt`, `pytest`
+  - `bars.py --sync --full` trong tmux `bars` → kho nến có 11081 mã
+    (11081 là đúng: `sync_list()` = toàn bộ universe Alpaca + SPY + 11 sector
+    ETF, không phải ~5000 như prose trong README)
+
+Chưa xác minh: hai trường còn lại của `bars.py --info` — `first -> last` phải
+tới phiên gần nhất, và `X mã dưới 60 nến` phải nhỏ. Chạy lại một lần và ĐỌC cả
+dòng trước khi đi tiếp:
+
+    cd ~/scanner && source .venv/bin/activate
+    python bars.py --info
+
+
+## VM-1. Đối chiếu kho nến với `base` — BƯỚC BỊ CẤM BỎ
+
+Vì sao tồn tại: kho nến thiếu ngày làm SAI ÂM THẦM mọi thứ dựng trên baseline,
+không có gì báo lỗi, và backtest ở VM-3 sẽ chạy trên số rác.
+
+HAI chỗ runbook cũ (`scanner/error.txt` mục 2 bước 4) viết sai, đã kiểm lại code:
+
+  1. `prep.py` KHÔNG có `--db`. Nó luôn ghi `ROOT/state/baseline.db`. Chạy
+     `prep.py --from-bars` lúc này là ghi thẳng lên `base` thật — đúng cái mà
+     bước đối chiếu tồn tại để tránh. Phải gọi hàm `prep.from_bars()` trực tiếp
+     trên bản copy.
+  2. ĐỪNG `cp state/baseline.db`. DB ở chế độ WAL và `bars.py` vừa ghi rất
+     nhiều; copy riêng file `.db` sẽ thiếu phần còn trong WAL, và bạn sẽ đi soi
+     một sai lệch không có thật. Dùng `.backup`.
+
+    # a. bản copy nguyên vẹn (gồm cả WAL)
+    sqlite3 state/baseline.db ".backup /tmp/copy.db"
+
+    # b. dựng base từ kho nến, CHỈ trên bản copy
+    python - <<'PY'
+    import sqlite3, prep
+    con = sqlite3.connect("/tmp/copy.db")
+    con.executescript(prep.DDL); prep.ensure_cols(con)
+    print("from_bars:", prep.from_bars(con, {}), "ma")   # cik={} -> khong goi SEC
+    con.close()
+    PY
+
+    # c. so adv20 / prev_close
+    python - <<'PY'
+    import sqlite3
+    c = sqlite3.connect("file:state/baseline.db?mode=ro", uri=True)  # ban that: chi doc
+    c.execute("ATTACH '/tmp/copy.db' AS cp")
+    n, dadv, dpx = c.execute("""
+      SELECT COUNT(*),
+             SUM(ABS(a.adv20-b.adv20)/NULLIF(a.adv20,0) > 0.05),
+             SUM(ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02)
+      FROM base a JOIN cp.base b USING(sym)""").fetchone()
+    print(f"{n} ma so duoc | adv20 lech >5%: {dadv} | prev_close lech >2%: {dpx}")
+    for r in c.execute("""SELECT a.sym, a.prev_close, b.prev_close, a.adv20, b.adv20
+                          FROM base a JOIN cp.base b USING(sym)
+                          WHERE ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02
+                          ORDER BY a.adv20 DESC LIMIT 15"""):
+        print(r)
+    PY
+
+Truyền `cik={}` không xoá cik của ai: câu UPSERT dùng
+`cik=COALESCE(excluded.cik, base.cik)` — chính là bug đã sửa hồi Phase 9.
+
+CÁCH ĐỌC. `base` thật do cron `prep.py` ghi lúc 08:00 ET hôm nay, nên
+`prev_close` phải khớp gần như tuyệt đối.
+  - lệch rải rác vài mã          → chia tách / điều chỉnh giá, bình thường
+  - lệch có hệ thống, hoặc bản `--from-bars` cũ hơn một phiên trở lên
+                                 → kho nến thiếu ngày. Quay lại `bars.py --sync`,
+                                   CHƯA đi tiếp.
+  - `adv20` lệch rộng hơn        → được phép: đường cũ tải 4 tháng, `from_bars`
+                                   lấy 20 nến cuối trong 40 nến.
+
+
+## VM-2. Dựng struct + candidates (chỉ khi VM-1 sạch)
+
+    python structure.py --build        # in luôn danh sách "sắp vượt pivot"
+    python setups.py --build           # in bảng LÝ DO BỊ LOẠI
+    python setups.py --show BO --n 40
+    python push.py --all               # tab Scanner hết "table missing"
+
+Đọc bảng lý do bị loại: `"khong co nen tich luy"` chiếm gần hết là BÌNH THƯỜNG
+(phần lớn thị trường không ở nền). `"con xa pivot"` chiếm gần hết = thị trường
+vừa rơi mạnh, và BO đúng ra nên im lặng.
+
+Không phải restart `scanner` sau bước này: `main.py` không đọc `bars`/`struct`/
+`candidates` (không có `import setups` trong đó), và `watchd.py` gọi
+`watchlist.load()` BÊN TRONG mỗi vòng 60s nên nó thấy ngay.
+
+
+## VM-3. Backtest — trước khi tin bất kỳ ngưỡng nào
+
+    python backtest.py --run --limit 300
+    python backtest.py --run --by base_len
+    python backtest.py --run --by base_depth
+    python backtest.py --run --by rs_pct
+    python backtest.py --run --by rvol
+    python backtest.py --run --setup RV --rv-no-fund
+
+So `med10` với dòng `ngau nhien`, và đọc cột MAE ngang trọng số với `med`: MAE
+trung vị -12% thì dù lãi 12% cũng không giao dịch được, đã bị quét cắt lỗ trước.
+Bốn điều phải đọc nằm đủ ở `scanner/error.txt` mục 2 bước 6 — đọc bản gốc đó,
+đừng đọc bản viết tắt này.
+
+Chỉnh dict BO ở đầu `setups.py` BẰNG SỐ, không bằng cảm giác. Sửa một chỗ đó là
+cả bot lẫn backtest đổi theo (có test khoá việc này).
+
+
+## VM-4. cron — thay chuỗi `&&` bằng MỘT dòng `nightly.py`
+
+    CRON_TZ=America/New_York
+    0 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1
+    0 9 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py >> state/prep.log 2>&1
+    5 9 * * 1-5  /usr/bin/systemctl restart scanner
+
+Hai dòng `push.py` đang có: GIỮ NGUYÊN, không sửa.
+
+GIỮ dòng restart 09:05. README mục 5.8 có gợi ý "nếu bạn xác nhận
+`scorer.load_baseline()` tự nạp lại theo chu kỳ thì bỏ dòng đó đi" — đã đọc code,
+gợi ý đó SAI. `st.base` chỉ được nạp ở hai chỗ: lúc khởi động (`main.py:649`) và
+lúc sang ngày ET mới (`main.py:557`). Mốc sang ngày là 00:00 ET, còn `nightly.py`
+ghi `base` lúc 08:00 ET — tám tiếng SAU. Bỏ dòng restart thì bot chạy cả phiên
+bằng baseline cũ một ngày, và không có gì báo.
+
+Restart giữa phiên an toàn: `restore_today()` đọc lại bảng `alerts` nên không bắn
+trùng tin, `prune_track()` dọn theo tuổi nên danh sách theo dõi không mất.
+
+Chạy thử trước khi giao cho cron:
+
+    python nightly.py --dry-run     # xâu các bước, stage bars KHÔNG gọi mạng
+    python nightly.py --status      # lần chạy gần nhất (bảng `night`)
+
+`nightly.py` luôn gửi Telegram kể cả khi lỗi và nói rõ bước nào lỗi vì cái gì;
+mã thoát 0/1/2/3 lọt ra cho cron. Bước bắt buộc: bars, sectors, structure,
+setups. Không bắt buộc: prep, regime, mktcap, push, telegram.
+
+Chọn cron HOẶC systemd timer, đừng bật cả hai — hai lịch cùng gọi `nightly.py`
+lúc 08:00 là hai lần tải.
+
+
+## VM-5. `watchd.service` — unit MỚI
+
+Chạy thử trước:
+
+    python watchd.py --selftest                 # luật + vòng quét, không mạng
+    python watchd.py --once --dry-run           # một vòng, in ra stdout
+
+Nội dung unit: copy NGUYÊN VĂN từ `scanner/README.md` mục 12.9 (khoảng dòng
+3102). Không chép lại vào đây: bản viết tắt sẽ khác bản gốc, và bản gốc đúng hơn.
+
+    sudo nano /etc/systemd/system/watchd.service     # dán từ README 12.9
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now watchd
+    systemctl status watchd --no-pager | head -15
+    tail -50 state/watchd.log
+
+KHÔNG đụng vào unit của `main.py`. `watchd.py` không gọi `getUpdates` nên chạy
+song song `main.py` được — đó là điều kiện để bỏ `main.py` mà không có ngày nào
+bỏ trống phiên. Ngược lại, hai tiến trình `main.py` cùng lúc vẫn là 409 như cũ.
+
+`Restart=always` an toàn đúng vì bảng `watch_alert` (khoá chính `d, sym, rule`,
+ghi SAU khi gửi được): restart giữa phiên không thể bắn lại tin đã gửi.
+
+
+## VM-6. Phần cần wrangler — luật `stop` của Tier 1
+
+Luật Tier 1 `stop` canh vị thế đang mở, đọc từ khoá `scanner:positions` do app
+đẩy lên (commit `fe14cc61` bên lux-lookthrough, CHƯA deploy). Thiếu nó
+`positions.py` trả "KHÔNG BIẾT", không phải "không có vị thế" — watchd vẫn chạy,
+chỉ là luật stop không có gì để canh.
+
+Deploy cùng lượt với VIỆC B ở trên (build + `wrangler pages deploy dist` từ
+`apps/desktop`, KHÔNG từ gốc monorepo).
+
+
+## VM-7. Sổ tay lỗi
+
+  - đừng chạy `nightly.py` trước khi kho nến dựng xong: stage `bars` của nó dùng
+    `DAILY_PERIOD = "1mo"`, không phải `FULL_PERIOD = "2y"` — nó không tự
+    bootstrap được kho.
+  - `nightly.py` raise khi >25% mã tải thất bại (`BARS_FAIL_SHARE = 0.25`). Đúng:
+    xếp hạng percentile (`rs_pct`) trên phần còn lại sẽ lệch, mà danh sách vẫn
+    trông bình thường.
+  - lô nào lỗi thì `bars.sync()` in `[bars] batch N loi:` rồi `continue` và
+    KHÔNG in dòng tiến độ. Nên thấy `XONG:` không có nghĩa là tải đủ — đọc số
+    `that bai` trong chính dòng đó.
+  - chạy lại `bars.py --sync --full` an toàn: commit theo từng lô, không có
+    resume. Mất thời gian tải lại, không mất dữ liệu.
+  - `MAX_AGE_DAYS = 5` trong `scannerTab.ts` là bản chép tay của `setups.MAX_AGE`.
+    Sửa một bên thì sửa cả bên kia.
+  - đọc DB bằng shell thứ hai trong lúc sync đang chạy là an toàn: WAL +
+    `busy_timeout=30000`.
+
+Đáng sửa khi rảnh: câu "bỏ dòng restart đi" trong README mục 5.8 (xem VM-4), và
+khối ```bash hở ở README khoảng dòng 671-680.
