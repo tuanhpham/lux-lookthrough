@@ -91,6 +91,56 @@ Cột `bytes` là cách nhận ra bản đúng: bản có vị thế TO HƠN b�
 (chục nghìn byte so với vài trăm). Chép nguyên con số `archived_at` 13 chữ số của
 dòng đó — đó là `<so-archived_at>` của bước 5.
 
+### 4b. Muốn phục hồi bản của một thời điểm cụ thể
+
+Ví dụ: bản còn sống lúc 23:00 đêm 22/09/2026 (giờ Việt Nam).
+
+BA điều phải nắm, sai bất kỳ cái nào là chọn sai dòng:
+
+  1. `datetime(...,'unixepoch')` in ra giờ UTC. Phải thêm `'+7 hours'` mới là giờ
+     Việt Nam — không thì nhìn lệch 7 tiếng.
+  2. `archived_at` là lúc bản đó BỊ GHI ĐÈ, không phải lúc nó được ghi (lúc được
+     ghi nằm ở `updated_at`). Nên bản còn sống vào 23:00 là dòng có `archived_at`
+     NHỎ NHẤT mà LỚN HƠN mốc 23:00.
+  3. Con số tự tính chỉ dùng để LỌC. Cái điền vào `restore` phải là `archived_at`
+     có thật của một dòng, chép nguyên từ kết quả.
+
+Mốc cần dùng: 22/09/2026 23:00 giờ VN = 1790092800000 (= 22/09 16:00 UTC).
+
+    npx wrangler d1 execute screener-sync --remote --command \
+      "SELECT archived_at,
+              datetime(archived_at/1000,'unixepoch','+7 hours') AS bi_ghi_de_luc,
+              datetime(updated_at/1000,'unixepoch','+7 hours')  AS ban_nay_ghi_luc,
+              length(value) AS bytes
+         FROM kv_history
+        WHERE key='accounts' AND archived_at > 1790092800000
+        ORDER BY archived_at ASC LIMIT 5;"
+
+DÒNG ĐẦU TIÊN là bản cần cứu. Chép `archived_at` của nó sang bước 5.
+
+Muốn nhìn cả cửa sổ 22/09 → 23/09 rồi tự chọn theo cột `bytes`:
+
+    npx wrangler d1 execute screener-sync --remote --command \
+      "SELECT archived_at,
+              datetime(archived_at/1000,'unixepoch','+7 hours') AS gio_vn,
+              length(value) AS bytes
+         FROM kv_history
+        WHERE key='accounts'
+          AND archived_at BETWEEN 1790010000000 AND 1790182800000
+        ORDER BY archived_at ASC;"
+
+    -- 1790010000000 = 22/09/2026 00:00 VN
+    -- 1790182800000 = 24/09/2026 00:00 VN
+
+Đổi ngày khác thì tính mốc bằng:
+
+    python -c "import datetime as dt; ict=dt.timezone(dt.timedelta(hours=7)); \
+      print(int(dt.datetime(2026,9,22,23,0,tzinfo=ict).timestamp()*1000))"
+
+Hai kết quả KHÔNG phải lỗi: không có dòng nào `> mốc` nghĩa là bản sống từ lúc đó
+vẫn đang là bản hiện tại, không cần restore. Và nếu `accounts` từng bị XÓA chứ
+không phải ghi đè thì dòng nằm ở `kv_trash`, cùng logic, cột tên `deleted_at`.
+
 Không thích đọc bảng thì lấy bằng JSON, trường `archivedAt` nằm ngay trong đó:
 
     curl -s -H 'X-Sync-Code: <ma-sync>' \
