@@ -415,15 +415,45 @@ lúc 08:00 là hai lần tải.
 
 ## VM-5. `watchd.service` — unit MỚI
 
+`git pull` TRƯỚC ĐÃ. `--once` cũ kiểm cờ ở cuối vòng lặp, sau lệnh ngủ, nên nó
+in kết quả trong một giây rồi treo thêm 60s (ngoài phiên) / 240s (sau phiên) /
+`poll_sec` (trong phiên) mới thoát — giống hệt treo, và phải Ctrl-C. Đã sửa ở
+commit `watchd: --once thoat ngay sau mot vong`.
+
 Chạy thử trước:
 
     python watchd.py --selftest                 # luật + vòng quét, không mạng
-    python watchd.py --once --dry-run           # một vòng, in ra stdout
+    python watchd.py --once --dry-run           # một vòng rồi thoát ngay (~2s)
 
-Nội dung unit: copy NGUYÊN VĂN từ `scanner/README.md` mục 12.9 (khoảng dòng
-3102). Không chép lại vào đây: bản viết tắt sẽ khác bản gốc, và bản gốc đúng hơn.
+Ngoài phiên nó in `watchd: bat dau ...` rồi thoát mà không có cảnh báo nào — đó
+là đúng, không phải lỗi. Muốn thấy nó xử lý giá thì chạy trong phiên.
 
-    sudo nano /etc/systemd/system/watchd.service     # dán từ README 12.9
+Nội dung unit (nguyên văn README 12.9, để đây cho khỏi phải đi tìm):
+
+    sudo nano /etc/systemd/system/watchd.service
+
+    [Unit]
+    Description=Scanner intraday Tier 1 watcher
+    Wants=network-online.target
+    After=network-online.target
+
+    [Service]
+    Type=simple
+    User=ubuntu
+    WorkingDirectory=/home/ubuntu/scanner
+    Environment=PYTHONUNBUFFERED=1
+    Environment=PYTHONIOENCODING=utf-8
+    ExecStart=/home/ubuntu/scanner/.venv/bin/python watchd.py --quiet
+    Restart=always
+    RestartSec=30
+    StandardError=append:/home/ubuntu/scanner/state/watchd.service.log
+
+    [Install]
+    WantedBy=multi-user.target
+
+Không cần `EnvironmentFile`: `tgapi.py` tự `load_dotenv` theo đường dẫn tuyệt
+đối của `.env` cạnh `main.py`, nên token không phải đi qua systemd.
+
     sudo systemctl daemon-reload
     sudo systemctl enable --now watchd
     systemctl status watchd --no-pager | head -15
