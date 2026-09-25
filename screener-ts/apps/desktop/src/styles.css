@@ -1900,12 +1900,62 @@ html.light #tl-menu {
 .lang-toggle button.active { background: var(--accent-wash); color: var(--accent); }
 .theme-toggle { background: transparent; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 4px 9px; cursor: pointer; font-size: 13px; line-height: 1; transition: border-color .15s; }
 .theme-toggle:hover { border-color: var(--accent-line); }
-/* Device-sync button: its SVG cloud sits inline; when sync is ON, an accent
-   dot rides the top-right corner. */
-#sync-toggle { position: relative; color: var(--subtext); }
-#sync-toggle svg { width: 16px; height: 16px; display: block; }
-#sync-toggle.sync-on { color: var(--accent); border-color: var(--accent-line); }
-#sync-toggle.sync-on::after { content: ''; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
+/* Device-sync menu item: when a code is set, an accent dot rides the corner.
+   Selector must match what main.ts toggles (#app-menu-sync) — it was previously
+   written for a #sync-toggle button that no longer exists, so the class had no
+   visual effect at all. */
+#app-menu-sync { position: relative; }
+#app-menu-sync.sync-on { color: var(--accent); }
+#app-menu-sync.sync-on::after {
+  content: ''; position: absolute; top: 6px; right: 6px;
+  width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* ── Sync status pill (top bar) ───────────────────────────────────────────────
+   Always visible, because a warning inside a closed menu warns nobody. Healthy
+   sync is a bare dot; only the states the user should act on ('Local only',
+   'Not saved') keep their text, so a problem is the one worded thing up here. */
+#sync-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: auto; margin-right: 10px;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 999px; padding: 3px 8px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--faint); cursor: pointer; white-space: nowrap;
+  transition: border-color .15s, color .15s;
+}
+#sync-status:hover { border-color: var(--border); color: var(--subtext); }
+.sync-status-dot {
+  width: 6px; height: 6px; border-radius: 999px; flex: 0 0 auto;
+  background: currentColor;
+}
+/* Healthy and in-flight: dot only. The label stays in the DOM for the
+   accessible name and the tooltip. */
+#sync-status:not(.sync-status--verbose) .sync-status-label { display: none; }
+
+#sync-status.sync-status--ok { color: var(--accent); }
+#sync-status.sync-status--pending { color: var(--faint); }
+#sync-status.sync-status--pending .sync-status-dot { animation: sync-pulse 1.2s ease-in-out infinite; }
+/* The two that matter. Bordered as well as coloured, so they read as a badge
+   rather than decoration. */
+#sync-status.sync-status--off { color: var(--warn); border-color: currentColor; }
+#sync-status.sync-status--error { color: var(--danger); border-color: currentColor; }
+
+@keyframes sync-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #sync-status.sync-status--pending .sync-status-dot { animation: none; opacity: .6; }
+}
+
+/* Phones: the top bar is brand + hamburger with little room, so even the
+   worded states fall back to their dot. The tooltip still carries the detail. */
+@media (max-width: 640px) {
+  #sync-status { margin-right: 4px; padding: 3px 5px; }
+  #sync-status .sync-status-label { display: none; }
+  #sync-status.sync-status--off .sync-status-dot,
+  #sync-status.sync-status--error .sync-status-dot { width: 8px; height: 8px; }
+}
 
 /* ── Info tooltips ───────────────────────────────────────────────────────── */
 .info-i {

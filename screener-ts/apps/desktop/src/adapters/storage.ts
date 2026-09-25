@@ -145,6 +145,82 @@ const preHydrationWrites = new Set<string>();
 /** Pushes deferred until hydration. `null` value = a pending delete. */
 const pendingPushes = new Map<string, { value: unknown; ts: number } | null>();
 
+// ── Push observability ───────────────────────────────────────────────────────
+/**
+ * Pushes are fire-and-forget by design (a dead server must not break a local
+ * write), which for a long time meant a device could stop saving and say nothing.
+ * These few lines are the whole fix: record the outcome and let anyone who cares
+ * subscribe.
+ *
+ * The listener registry lives HERE rather than the status UI importing itself into
+ * this file, because `adapters/` must not depend on `ui/` — the same layering that
+ * keeps `core` free of platform code. This module reports facts; the UI decides
+ * what they look like (`deriveSyncStatus` in core).
+ */
+export interface SyncActivity {
+  /** When a push last succeeded this session, or null. */
+  lastPushAt: number | null;
+  /** Message from the most recent failed push; cleared by the next success. */
+  lastError: string | null;
+  /** Writes waiting on the hydration gate, or in flight right now. */
+  queued: number;
+}
+
+let lastPushAt: number | null = null;
+let lastError: string | null = null;
+/** Pushes handed to fetch but not yet resolved — 'pending', not yet 'ok'. */
+let inFlight = 0;
+const activityListeners: Array<(a: SyncActivity) => void> = [];
+
+/** A snapshot of push health. Cheap; safe to call on every render. */
+export function syncActivity(): SyncActivity {
+  return { lastPushAt, lastError, queued: pendingPushes.size + inFlight };
+}
+
+/** Subscribe to push-health changes. Multi-subscriber, unlike `onSynced`. */
+export function onSyncActivity(cb: (a: SyncActivity) => void): void {
+  activityListeners.push(cb);
+}
+
+function emitActivity(): void {
+  const snap = syncActivity();
+  for (const cb of activityListeners) {
+    try {
+      cb(snap);
+    } catch {
+      /* a broken indicator must never break storage */
+    }
+  }
+}
+
+/** Seed the last-success time from the previous session (see `ui/syncStatus`). */
+export function primeLastPushAt(at: number | null): void {
+  if (lastPushAt === null && at !== null) lastPushAt = at;
+  emitActivity();
+}
+
+/**
+ * Wrap a push so its outcome is recorded. Still never throws: the caller's local
+ * write has already succeeded and must not be undone by a transport problem.
+ */
+function tracked(push: Promise<void>): Promise<void> {
+  inFlight++;
+  emitActivity();
+  return push.then(
+    () => {
+      inFlight--;
+      lastPushAt = Date.now();
+      lastError = null;
+      emitActivity();
+    },
+    (e: unknown) => {
+      inFlight--;
+      lastError = String((e as Error)?.message ?? e);
+      emitActivity();
+    },
+  );
+}
+
 /** True once the server has been heard from — writes push through immediately. */
 export function isHydrated(): boolean {
   return hydrated;
@@ -186,12 +262,16 @@ export interface PreMergeSnapshot {
 export function openSyncGate(): void {
   if (hydrated) return;
   hydrated = true;
-  for (const [key, push] of pendingPushes) {
-    if (push === null) void remoteDelete(key).catch(() => {});
-    else void remotePut(key, push.value, push.ts).catch(() => {});
-  }
+  // Drain into a local list first: `tracked` counts each push as in-flight, and
+  // clearing the queue afterwards must not make the indicator read 'ok' while
+  // these requests are still open.
+  const queued = [...pendingPushes];
   pendingPushes.clear();
   preHydrationWrites.clear();
+  for (const [key, push] of queued) {
+    if (push === null) void tracked(remoteDelete(key));
+    else void tracked(remotePut(key, push.value, push.ts));
+  }
   // Waiters run LAST, after the queue is drained: a waiter's own writes must not
   // be re-queued, and must land on top of whatever the queue just pushed.
   const waiters = hydrationWaiters.splice(0);
@@ -202,6 +282,7 @@ export function openSyncGate(): void {
       /* a waiter must never break the gate */
     }
   }
+  emitActivity(); // the gate is open now — 'pending' may have become 'ok'
 }
 
 /** Re-shut the gate around a merge (entering a code mid-session). */
@@ -245,6 +326,7 @@ export class SyncedStorage implements Storage {
       // the server win it.
       preHydrationWrites.add(key);
       pendingPushes.set(key, { value, ts });
+      emitActivity();
       return;
     }
     // Past hydration this device has seen the account's data, so a write that
@@ -252,10 +334,10 @@ export class SyncedStorage implements Storage {
     // not a first-boot default. Mark it deliberate so the server's collapse guard
     // does not silently reject it and then push the old value back down. The
     // previous value is still archived to kv_history, so it stays recoverable.
-    // Best-effort: a failed push must not break the local write.
-    void remotePut(key, value, ts, { deliberate: true }).catch(() => {
-      /* offline / transient — local copy is the source of truth until next sync */
-    });
+    // Best-effort: a failed push must not break the local write. `tracked` swallows
+    // the rejection exactly as the bare `.catch` used to, but records it first so
+    // the status indicator can say the server is behind instead of failing silently.
+    void tracked(remotePut(key, value, ts, { deliberate: true }));
   }
 
   /** Bookkeeping keys are hidden from every consumer — including the backup
@@ -275,9 +357,10 @@ export class SyncedStorage implements Storage {
       // would erase the server's copy for good — DELETE has no timestamp guard.
       preHydrationWrites.add(key);
       pendingPushes.set(key, null);
+      emitActivity();
       return;
     }
-    void remoteDelete(key).catch(() => {});
+    void tracked(remoteDelete(key));
   }
 
   /** Write a value into the LOCAL layer only (used by the merge to apply remote

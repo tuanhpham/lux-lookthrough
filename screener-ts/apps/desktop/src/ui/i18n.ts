@@ -827,6 +827,16 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'Có tin nhắn xếp hàng chưa gửi được — Telegram đang từ chối',
   },
 
+  // Sync indicator (top bar)
+  'sync.state.off': { en: 'Local only', vi: 'Chỉ lưu máy này' },
+  'sync.state.error': { en: 'Not saved', vi: 'Chưa lưu được' },
+  'sync.state.pending': { en: 'Syncing…', vi: 'Đang đồng bộ…' },
+  'sync.state.ok': { en: 'Synced', vi: 'Đã đồng bộ' },
+  'sync.status.hint': {
+    en: 'click to open device sync',
+    vi: 'bấm để mở đồng bộ thiết bị',
+  },
+
   // Misc
   'common.slower': { en: '(slower)', vi: '(chậm hơn)' },
   'msg.scanning': { en: 'Scanning', vi: 'Đang quét' },

@@ -20,6 +20,7 @@ import { showGate, isUnlocked } from './ui/authGate.js';
 import { t, setLang, getLang, onLangChange } from './ui/i18n.js';
 import { initTheme, onThemeChange, applyTheme } from './ui/theme.js';
 import { openSyncSettings, onSynced } from './ui/syncSettings.js';
+import { mountSyncStatus, refreshSyncStatus } from './ui/syncStatus.js';
 import { openLlmSettings } from './ui/llmSettings.js';
 import { openChatPanel, closeChatPanel, isChatOpen } from './ui/chatPanel.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
@@ -411,14 +412,24 @@ onThemeChange(() => {
 });
 
 // ── Device sync ──────────────────────────────────────────────────────────────
+/**
+ * The menu item's own on/off tint. Note this used to be the ONLY sync feedback
+ * anywhere, and it had silently stopped working: the class is applied to
+ * `#app-menu-sync`, but every rule for it was written for a `#sync-toggle` button
+ * that no longer exists in the top bar. The styles now match this selector, and
+ * the always-visible pill (`mountSyncStatus`) is what actually reports health —
+ * a signal inside a closed menu cannot warn anyone.
+ */
 function reflectSyncState(): void {
   const btn = document.getElementById('app-menu-sync');
   if (btn) btn.classList.toggle('sync-on', isSyncEnabled());
+  refreshSyncStatus();
 }
 onSynced(() => {
   reflectSyncState();
   if (entered) renderTab(currentTab);
 });
+mountSyncStatus(ctx);
 reflectSyncState();
 
 // On boot: if a code is already stored, pull+merge in the background, then

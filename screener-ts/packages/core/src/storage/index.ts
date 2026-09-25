@@ -8,3 +8,5 @@ export {
   UNSTAMPED_PUSH_TS,
   COLLAPSE_RATIO,
 } from './syncMerge.js';
+export type { SyncPhase, SyncStatusInput, SyncStatusView } from './syncStatus.js';
+export { deriveSyncStatus } from './syncStatus.js';
