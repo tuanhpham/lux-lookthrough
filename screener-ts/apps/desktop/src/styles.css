@@ -1489,6 +1489,16 @@ html.light #nav-ripple { background: #e0dbd5; }
   transition: filter .15s ease, transform .15s ease;
 }
 .cl-nav-cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
+/* Reading progress, sitting on the bar's own bottom border so it costs no height. */
+.cl-progress {
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  overflow: hidden; pointer-events: none;
+}
+.cl-progress > i {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transform: scaleX(0); transform-origin: left center;
+}
 
 /* ── Hero ── */
 .cl-hero {
@@ -1503,6 +1513,17 @@ html.light #nav-ripple { background: #e0dbd5; }
   top: -12%; left: -14%; width: 62%; aspect-ratio: 1;
   background: radial-gradient(circle at center, var(--accent-wash) 0%, transparent 68%);
   opacity: .9; pointer-events: none;
+}
+/* A faint graph-paper grid, faded out towards the edges. It gives the hero a
+   floor to sit on; at 4% it is felt rather than seen, which is the point. */
+.cl-hero::after {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--text) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--text) 4%, transparent) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 30% 40%, #000, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 70% at 30% 40%, #000, transparent 75%);
 }
 .cl-hero-text { position: relative; z-index: 1; }
 .cl-eyebrow {
@@ -1537,6 +1558,33 @@ html.light #nav-ripple { background: #e0dbd5; }
 
 /* Hero illustration card */
 .cl-hero-visual { position: relative; z-index: 1; }
+/* The regime card, tucked under the signal card's bottom-left corner. Hidden on
+   narrow screens rather than restacked: two overlapping cards in a single column
+   is a collision, not a composition. */
+.cl-regime {
+  position: absolute; left: -22px; bottom: -34px; z-index: 2;
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 13px 15px 11px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+.cl-regime-row { display: flex; align-items: center; gap: 8px; }
+.cl-regime-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.cl-regime-dot--dim { background: var(--faint); box-shadow: none; }
+.cl-regime-k {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint); min-width: 62px;
+}
+.cl-regime-v { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.cl-regime-as {
+  font-size: 9.5px; color: var(--faint); font-family: var(--font-mono);
+  letter-spacing: .04em; margin-top: 1px;
+}
 .cl-card {
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius); box-shadow: var(--shadow-lg);
@@ -1602,6 +1650,17 @@ html.light #nav-ripple { background: #e0dbd5; }
 
 /* ── Content sections ── */
 .cl-section { padding-top: clamp(56px, 8vh, 100px); }
+/* Two-line section head: a mono label for what kind of thing this is, then the
+   serif line that says it. Six sections down a page need the label -- without it
+   every heading is the same weight and the page reads as one long argument. */
+.cl-head { margin-bottom: 30px; }
+.cl-head-eyebrow {
+  display: block; margin-bottom: 12px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--accent);
+}
+.cl-head .cl-h2 { margin-bottom: 10px; }
+.cl-head .cl-section-sub { margin-bottom: 0; }
 .cl-h2 {
   font-family: var(--font-serif);
   font-size: clamp(24px, 3vw, 34px); font-weight: 300; letter-spacing: -.02em;
@@ -1646,6 +1705,128 @@ html.light #nav-ripple { background: #e0dbd5; }
 .cl-step strong { display: block; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
 .cl-step p { font-size: 13.5px; line-height: 1.6; margin: 0; }
 
+/* ── The funnel ────────────────────────────── */
+.cl-funnel {
+  display: grid; gap: 1px; background: var(--border);
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+}
+.cl-fn-row {
+  background: var(--card); display: grid;
+  grid-template-columns: 26px minmax(0, 200px) minmax(0, 1fr) 62px;
+  align-items: center; gap: 14px; padding: 15px 20px;
+  transition: background .18s ease;
+}
+.cl-fn-row:hover { background: var(--cardhover); }
+.cl-fn-step {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--faint);
+  text-align: center;
+}
+.cl-fn-label { font-size: 13.5px; color: var(--text); }
+.cl-fn-track { height: 8px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+.cl-fn-bar {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--accent) 34%, transparent), var(--accent-line));
+}
+/* The last row is the answer, so it is the only one carrying the full accent. */
+.cl-fn-bar--last {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, var(--accent2)), var(--accent));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cl-fn-n {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  color: var(--subtext); text-align: right;
+}
+.cl-fn-row:last-child .cl-fn-n { color: var(--accent); }
+.cl-funnel + .cl-note { margin-top: 12px; }
+
+/* ── Drawn product panels ────────────────────── */
+.cl-panels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+/* The three mocks are naturally different heights (four rows, six rows, a chart),
+   which would leave the three titles on three different baselines. Grid already
+   stretches the articles to the tallest; letting the glass absorb that slack pins
+   every title to the same line and centres the shorter mock in its own box. */
+.cl-panel { display: flex; flex-direction: column; }
+.cl-panel h3 { font-size: 15px; font-weight: 600; margin: 16px 0 5px; letter-spacing: -.01em; }
+.cl-panel p { font-size: 13px; line-height: 1.6; margin: 0; }
+.cl-panel-glass {
+  flex: 1; display: flex; flex-direction: column; justify-content: center;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px;
+  box-shadow: var(--shadow);
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.cl-panel:hover .cl-panel-glass {
+  border-color: var(--accent-line); transform: translateY(-3px); box-shadow: var(--shadow-lg);
+}
+.cl-mock { font-family: var(--font-mono); font-size: 11px; }
+.cl-mock-head {
+  display: flex; justify-content: space-between;
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); padding-bottom: 8px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.cl-mock-row {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) 34px 22px;
+  align-items: center; gap: 8px; padding: 8px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.cl-mock-row:last-child { border-bottom: 0; }
+.cl-mock-sym { color: var(--accent); font-weight: 600; font-size: 12px; }
+.cl-mock-setup {
+  color: var(--faint); font-size: 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cl-mock-bar { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.cl-mock-bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.cl-mock-score { color: var(--text); font-weight: 600; text-align: right; font-size: 11px; }
+
+/* Sector rows: the bar grows out of a centre line, so up and down are a shape and
+   not only a sign. */
+.cl-sec-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 84px 38px;
+  align-items: center; gap: 8px; padding: 7px 0;
+}
+.cl-sec-name { font-family: var(--font-ui); font-size: 11.5px; color: var(--subtext); }
+.cl-sec-track { position: relative; height: 7px; background: var(--surface); border-radius: 2px; }
+.cl-sec-track::before {
+  content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px;
+  width: 1px; background: var(--border);
+}
+.cl-sec-bar { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 2px; }
+.cl-sec-bar.neg { background: var(--danger); }
+.cl-sec-v { text-align: right; color: var(--accent); font-weight: 600; }
+.cl-sec-v.neg { color: var(--danger); }
+
+.cl-eq-svg { width: 100%; height: 104px; display: block; }
+.cl-eq-foot {
+  display: flex; justify-content: space-between; gap: 10px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.cl-eq-foot span { display: flex; flex-direction: column; gap: 2px; }
+.cl-eq-foot i {
+  font-style: normal; font-size: 8.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint);
+}
+.cl-eq-foot b { font-size: 14px; font-weight: 600; color: var(--text); }
+
+/* ── And what it is not ─────────────────────── */
+.cl-nots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.cl-not {
+  display: flex; gap: 13px; align-items: flex-start;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-left: 2px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: var(--radius-sm); padding: 18px 20px;
+}
+.cl-not-x {
+  flex: none; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 10px;
+  color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent);
+  position: relative; top: 1px;
+}
+.cl-not strong { display: block; font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+.cl-not p { font-size: 12.5px; line-height: 1.6; margin: 0; }
+
 /* ── Closing call to action ── */
 .cl-close {
   text-align: center;
@@ -1683,9 +1864,24 @@ html.light #nav-ripple { background: #e0dbd5; }
 }
 .cl-rise.cl-in { opacity: 1; transform: none; }
 
+/* Children of a revealed section arrive one after another. Pure CSS: the section
+   already has the IntersectionObserver, and a second observer per card would be a
+   lot of machinery to buy a 60ms offset. */
+.cl-rise .cl-stagger > * {
+  opacity: 0; transform: translateY(12px);
+  transition: opacity .55s ease, transform .55s cubic-bezier(.22, 1, .36, 1);
+}
+.cl-rise.cl-in .cl-stagger > * { opacity: 1; transform: none; }
+.cl-rise.cl-in .cl-stagger > *:nth-child(1) { transition-delay: .05s; }
+.cl-rise.cl-in .cl-stagger > *:nth-child(2) { transition-delay: .13s; }
+.cl-rise.cl-in .cl-stagger > *:nth-child(3) { transition-delay: .21s; }
+.cl-rise.cl-in .cl-stagger > *:nth-child(4) { transition-delay: .29s; }
+.cl-rise.cl-in .cl-stagger > *:nth-child(5) { transition-delay: .37s; }
+
 @media (prefers-reduced-motion: reduce) {
   .cl-marquee-track { animation: none; }
   .cl-rise { opacity: 1; transform: none; transition: none; }
+  .cl-rise .cl-stagger > * { opacity: 1; transform: none; transition: none; }
 }
 
 @media (max-width: 900px) {
@@ -1694,6 +1890,17 @@ html.light #nav-ripple { background: #e0dbd5; }
   .cl-feat-grid { grid-template-columns: 1fr; }
   .cl-stats { grid-template-columns: repeat(2, 1fr); }
   .cl-nav-links { display: none; }
+  .cl-panels, .cl-nots { grid-template-columns: 1fr; }
+  .cl-regime { display: none; }
+}
+@media (max-width: 560px) {
+  .cl-fn-row {
+    grid-template-columns: 22px minmax(0, 1fr) 54px;
+    gap: 10px; padding: 13px 15px;
+  }
+  /* The bar is the first thing to go: the label and the count carry the meaning on
+     their own, and a 40px-wide bar carries none of it. */
+  .cl-fn-track { display: none; }
 }
 @media (max-width: 640px) {
   .cl-wrap > section, .cl-wrap > .cl-stats, .cl-wrap > footer { padding-left: 18px; padding-right: 18px; }
