@@ -558,6 +558,15 @@ tbody tr { cursor: pointer; transition: background .12s ease; }
 tbody tr:hover { background: var(--cardhover); }
 tbody tr td:first-child { color: var(--text); font-weight: 600; }
 
+/* A ticker, anywhere in the app. The accent is what the eye scans a table by, so
+   it belongs to the one cell that identifies the row and to nothing else — which
+   is also why `th.sorted` is the only other accent-coloured thing in a table.
+   Beats the `td:first-child` colour above by being a rule on the element itself
+   rather than inherited from the cell, so it works in any column. */
+.tkr { color: var(--accent); font-weight: 600; letter-spacing: .01em; }
+a.tkr { text-decoration: none; }
+a.tkr:hover { text-decoration: underline; }
+
 /* ── Badges & score bars ─────────────────────────────────────────────────── */
 .badge {
   padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
@@ -1878,6 +1887,18 @@ html.light #nav-ripple { background: #e0dbd5; }
 /* The divider carries the grouping once the header has scrolled out of sight —
    without it the plan columns and the evidence columns read as one strip. */
 .wl th.wl-sep-r, .wl td.wl-sep-r { border-right: 1px solid var(--border); }
+
+/* ── Scanner tab: nine sections and a jump bar ────────────────────────────── */
+/* The tab is long by nature — it mirrors a nine-stage pipeline — so each stage is
+   a `<section>` with room to breathe and a hairline above it, and the jump bar at
+   the top turns the length into an index instead of a scroll. */
+.scan-sec { scroll-margin-top: 72px; }   /* clears the 56px fixed bar */
+.scan-sec + .scan-sec {
+  margin-top: 30px; padding-top: 6px; border-top: 1px solid var(--border-soft);
+}
+.scan-sec > :first-child, .scan-sec > .section-title-row:first-child { margin-top: 12px; }
+.scan-jump { gap: 6px; row-gap: 6px; margin-bottom: 18px; }
+.scan-jump .range-btn { font-size: 11px; padding: 5px 10px; }
 
 /* ── Playbook tab ────────────────────────────────────────────────────────── */
 .playbook-section { margin-bottom: 24px; }

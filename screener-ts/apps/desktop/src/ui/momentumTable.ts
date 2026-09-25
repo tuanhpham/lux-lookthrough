@@ -99,7 +99,7 @@ export function momentumTable(rows: MomentumRow[], options: MomentumTableOptions
     const body = sorted
       .map(
         (r) => `<tr data-sym="${r.symbol}">
-        <td><strong>${r.symbol}</strong></td>
+        <td><strong class="tkr">${r.symbol}</strong></td>
         <td><span class="scorebar"><span style="width:${Math.max(0, r.momentumScore)}%;background:${scoreColor(r.momentumScore)}"></span></span> <span style="color:${scoreColor(r.momentumScore)};font-weight:700">${num(r.momentumScore, 0)}</span></td>
         <td>${num(r.momentumPercentile, 0)}</td>
         <td>${classBadge(r.classification)}</td>

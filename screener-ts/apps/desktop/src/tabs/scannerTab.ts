@@ -392,6 +392,16 @@ const stat = (k: string, v: string, color?: string): string =>
 const cell = (v: string, color?: string): string =>
   `<td${color ? ` style="color:${color}"` : ''}>${v}</td>`;
 
+/**
+ * A ticker, in the app's ticker colour.
+ *
+ * Every table in the app paints symbols with `.tkr` — the eye finds the one row it
+ * came for by colour instead of reading down a column of monospace, and the scanner
+ * has more symbol columns than anywhere else.
+ */
+const tkr = (sym: string | undefined): string =>
+  sym ? `<span class="tkr">${esc(sym)}</span>` : '—';
+
 // ── health ───────────────────────────────────────────────────────────────────
 
 /**
@@ -524,7 +534,7 @@ function renderToday(snap: RegimeSnap | null): string {
   const bar = `<div class="stat"><div class="k">${t('scan.today.bar')}</div>`
     + `<div class="v">${esc(r.d ?? '—')}`
     + `<span class="muted" style="font-size:11px"> · ${esc(r.bench ?? '')}`
-    + `${r.n_bars ? ` · ${r.n_bars} bars` : ''}</span></div></div>`;
+    + `${r.n_bars ? ` · ${r.n_bars} ${t('scan.col.bars')}` : ''}</span></div></div>`;
 
   const atr = `<div class="stat"><div class="k">${t('scan.today.atr')}</div>`
     + `<div class="v"${volColor(r.vol) ? ` style="color:${volColor(r.vol)}"` : ''}>`
@@ -599,8 +609,8 @@ function renderSectors(snap: SectorsSnap | null, topN: number): string {
 
   const cols: { key: SectorSortKey; label: string }[] = [
     { key: 'rank', label: '#' },
-    { key: 'sym', label: 'Sym' },
-    { key: 'composite', label: 'Score' },
+    { key: 'sym', label: t('scan.col.sym') },
+    { key: 'composite', label: t('scan.col.score') },
     { key: 'ret21', label: '21d' },
     { key: 'ret63', label: '63d' },
     { key: 'ret126', label: '126d' },
@@ -627,7 +637,7 @@ function renderSectors(snap: SectorsSnap | null, topN: number): string {
   const head = cols.map((c) =>
     `<th class="sortable${c.key === sectorSort ? ' sorted' : ''}"`
     + ` data-sec-sort="${c.key}">${esc(c.label)}${arrow(c.key)}</th>`).join('')
-    + `<th>&gt;50SMA</th><th>&gt;21EMA</th><th>Slope</th>`;
+    + `<th>&gt;50SMA</th><th>&gt;21EMA</th><th>${t('scan.col.slope')}</th>`;
 
   const body = sorted.map((r) => {
     const top = (r.rank ?? 99) <= topN;
@@ -637,7 +647,7 @@ function renderSectors(snap: SectorsSnap | null, topN: number): string {
     // where stock picking happens at all.
     return `<tr${top ? ' style="background:color-mix(in srgb, var(--accent) 9%, transparent)"' : ''}>`
       + `<td${top ? ' style="color:var(--accent);font-weight:700"' : ''}>${r.rank ?? '—'}</td>`
-      + `<td${top ? ' style="font-weight:700"' : ''}>${esc(r.sym ?? '—')}</td>`
+      + `<td${top ? ' style="font-weight:700"' : ''}>${tkr(r.sym)}</td>`
       + cell(num(r.composite, 1))
       + cell(signedFrac(r.ret21), (r.ret21 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
       + cell(signedFrac(r.ret63), (r.ret63 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
@@ -705,7 +715,7 @@ const tvHref = (sym: string): string =>
 
 const tvLink = (sym: string): string =>
   `<a href="${tvHref(sym)}" target="_blank" rel="noopener" title="${t('scan.watch.tv')}"`
-  + ` data-tv="1" style="color:inherit">${esc(sym)} ↗</a>`;
+  + ` data-tv="1" class="tkr">${esc(sym)} ↗</a>`;
 
 /**
  * The swing watch list — the nightly output, and the only list the intraday
@@ -736,10 +746,10 @@ function renderWatch(snap: WatchSnap | null, blocked: boolean): string {
   // at the trigger.
   const PLAN = [t('scan.watch.entry'), t('scan.watch.togo'), t('scan.watch.stop'),
     t('scan.watch.target'), t('scan.watch.sizepct')];
-  const CTX = ['Sector', 'Qual', 'Close', 'ATR%', 'Off high', 'RS21', 'RS63',
-    'Base', 'ADV20'];
+  const CTX = [t('scan.col.sector'), t('scan.col.qual'), t('scan.col.close'),
+    'ATR%', t('scan.col.offhigh'), 'RS21', 'RS63', t('scan.col.base'), 'ADV20'];
   const head = `<tr>`
-    + `<th rowspan="2" class="wl-sep-r">Sym</th>`
+    + `<th rowspan="2" class="wl-sep-r">${t('scan.col.sym')}</th>`
     + `<th colspan="${PLAN.length}" class="wl-grp wl-sep-r">${t('scan.watch.grp.plan')}</th>`
     + `<th colspan="${CTX.length}" class="wl-grp">${t('scan.watch.grp.ctx')}</th>`
     + `</tr><tr>`
@@ -906,10 +916,11 @@ function renderThresholds(snap: ThresholdsSnap | null): string {
         + `<td>${thValue(p.setups)}</td>`
         + `<td>${sizeText(typeof p.size === 'number' ? p.size : null)}</td>`
         + `<td>${esc(String(p.note ?? ''))}</td></tr>`).join('');
-      return `<h3 class="section-title">playbook</h3>
+      return `<h3 class="section-title">${t('scan.sec.playbook')}</h3>
         <div class="card" style="padding:0;overflow-x:auto">
-        <table><thead><tr><th>Regime</th><th>Vol</th><th>Setups</th><th>Size</th>
-        <th>Note</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        <table><thead><tr><th>${t('scan.col.regime')}</th><th>${t('scan.col.volat')}</th>
+        <th>${t('scan.col.setups')}</th><th>${t('scan.col.size')}</th>
+        <th>${t('scan.col.note')}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
     if (val && typeof val === 'object' && !Array.isArray(val)) {
       const rows = Object.entries(val as Record<string, unknown>).map(([k, v]) =>
@@ -989,8 +1000,12 @@ function renderStatus(status: Status | null, pushedAt: number | null): string {
     <div class="grid grid-cards" style="margin-top:10px">${tables}</div>`;
 }
 
-const CAND_HEAD = ['Sym', 'Qual', 'Close', 'Pivot', 'To pivot', 'Base', 'Depth',
-  'Off high', 'RS', 'ADV20', 'ATR%', 'Fund'];
+/** Built per render, not once at module scope: the labels follow the language. */
+const candHead = (): string[] => [
+  t('scan.col.sym'), t('scan.col.qual'), t('scan.col.close'), t('scan.col.pivot'),
+  t('scan.col.topivot'), t('scan.col.base'), t('scan.col.depth'),
+  t('scan.col.offhigh'), 'RS', 'ADV20', 'ATR%', t('scan.col.fund'),
+];
 
 function candRow(c: Candidate): string {
   const dist = c.dist_pivot;
@@ -999,9 +1014,10 @@ function candRow(c: Candidate): string {
     : dist <= 0 ? 'var(--accent)'
     : dist <= 0.02 ? 'var(--warn)'
     : undefined;
-  const fund = c.fund_ok === true ? 'ok' : c.fund_ok === false ? 'no' : '—';
+  const fund = c.fund_ok === true ? t('scan.col.fundok')
+    : c.fund_ok === false ? t('scan.col.fundno') : '—';
   return `<tr data-sym="${esc(c.sym ?? '')}">`
-    + `<td>${esc(c.sym ?? '—')}</td>`
+    + `<td>${tkr(c.sym)}</td>`
     + cell(num(c.quality, 2))
     + cell(num(c.ref_close, 2))
     + cell(num(c.pivot, 2))
@@ -1033,7 +1049,7 @@ function renderCandidates(snap: CandidatesSnap | null): string {
     const cut = total > rows.length
       ? `<span class="tag">${rows.length} / ${total}</span>`
       : `<span class="tag">${total}</span>`;
-    const head = CAND_HEAD.map((h) => `<th>${h}</th>`).join('');
+    const head = candHead().map((h) => `<th>${esc(h)}</th>`).join('');
     return `
       <div class="section-title-row">
         <h3 class="section-title">${esc(s)}</h3>${cut}
@@ -1079,7 +1095,8 @@ function renderRejects(snap: RejectsSnap | null): string {
         ${cutoff ? `<span class="tag">${t('scan.rej.cut')} ${cutoff}</span>` : ''}
       </div>
       <div class="card" style="padding:0;overflow-x:auto">
-        <table><thead><tr><th>Reason</th><th>Count</th><th>Share</th></tr></thead>
+        <table><thead><tr><th>${t('scan.col.reason')}</th>
+        <th>${t('scan.col.count')}</th><th>${t('scan.col.share')}</th></tr></thead>
         <tbody>${rows.join('')}</tbody></table>
       </div>`;
   });
@@ -1113,7 +1130,7 @@ function renderAlerts(snap: AlertsSnap | null): string {
     return `<tr data-sym="${esc(r.sym ?? '')}">`
       + `<td>${esc((r.ts_et ?? '').slice(11, 16) || '—')}</td>`
       + `<td>${esc(r.kind ?? '—')}</td>`
-      + `<td>${esc(r.sym ?? '—')}</td>`
+      + `<td>${tkr(r.sym)}</td>`
       + cell(num(r.score, 1))
       + cell(num(r.px, 2))
       + cell(signedFrac(r.chg), (r.chg ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
@@ -1124,8 +1141,9 @@ function renderAlerts(snap: AlertsSnap | null): string {
       + `</tr>`;
   });
 
-  const head = ['Time', 'Kind', 'Sym', 'Score', 'Px', 'Chg', 'RVol', '$Vol',
-    '+15m', '+60m', 'Close', 'MFE', 'MAE'].map((h) => `<th>${h}</th>`).join('');
+  const head = [t('scan.col.time'), t('scan.col.kind'), t('scan.col.sym'),
+    t('scan.col.score'), 'Px', 'Chg', 'RVol', '$Vol', '+15m', '+60m',
+    t('scan.col.close'), 'MFE', 'MAE'].map((h) => `<th>${esc(h)}</th>`).join('');
   return `${title}
     <div class="card" style="padding:0;overflow-x:auto">
       <table><thead><tr>${head}</tr></thead><tbody>${body.join('')}</tbody></table>
@@ -1133,6 +1151,30 @@ function renderAlerts(snap: AlertsSnap | null): string {
 }
 
 // ── shell ────────────────────────────────────────────────────────────────────
+
+/**
+ * The nine sections, in the order they are read.
+ *
+ * One list drives both the jump bar and the `<section>` wrappers, so a pill can
+ * never point at an anchor that does not exist. The order is deliberate — the
+ * market first (regime, sectors), then what to do about it (watch list), then the
+ * machinery behind it (run log, status, raw candidates, rejects, alerts, config).
+ */
+const SECS = [
+  { id: 'today', key: 'scan.sec.today' },
+  { id: 'sectors', key: 'scan.sec.sectors' },
+  { id: 'watch', key: 'scan.sec.watch' },
+  { id: 'night', key: 'scan.sec.night' },
+  { id: 'status', key: 'scan.sec.status' },
+  { id: 'cand', key: 'scan.sec.cand' },
+  { id: 'rejects', key: 'scan.sec.rejects' },
+  { id: 'alerts', key: 'scan.sec.alerts' },
+  { id: 'thresholds', key: 'scan.sec.thresholds' },
+] as const;
+
+/** Wrap one section's markup so the jump bar has something to scroll to. */
+const sec = (id: string, html: string): string =>
+  `<section class="scan-sec" id="scan-sec-${id}">${html}</section>`;
 
 function draw(ctx: AppContext): void {
   const root = $('#tab-scanner')!;
@@ -1195,17 +1237,30 @@ function draw(ctx: AppContext): void {
     </div>
     ${notes.map((n) => `<div class="notice" style="margin-bottom:8px">${esc(n)}</div>`).join('')}
     ${status || !lastLoad ? '' : `<p class="muted">${t('scan.nodata')}</p>`}
-    ${renderToday(get<RegimeSnap>(KEY_REGIME))}
-    ${renderSectors(sectors, topN)}
-    ${renderWatch(get<WatchSnap>(KEY_WATCH), watchBlocked)}
-    ${renderNight(status?.night)}
-    ${renderStatus(status, pushedAt)}
-    ${renderCandidates(get<CandidatesSnap>(KEY_CANDIDATES))}
-    ${renderRejects(get<RejectsSnap>(KEY_REJECTS))}
-    ${renderAlerts(alertsKey ? get<AlertsSnap>(alertsKey) : null)}
-    ${renderThresholds(thresholds)}`;
+    <nav class="toolbar scan-jump">
+      <span class="muted" style="font-size:12px">${t('scan.jump')}</span>
+      ${SECS.map((x) => `<button class="range-btn" data-jump="${x.id}">${t(x.key)}</button>`).join('')}
+    </nav>
+    ${sec('today', renderToday(get<RegimeSnap>(KEY_REGIME)))}
+    ${sec('sectors', renderSectors(sectors, topN))}
+    ${sec('watch', renderWatch(get<WatchSnap>(KEY_WATCH), watchBlocked))}
+    ${sec('night', renderNight(status?.night))}
+    ${sec('status', renderStatus(status, pushedAt))}
+    ${sec('cand', renderCandidates(get<CandidatesSnap>(KEY_CANDIDATES)))}
+    ${sec('rejects', renderRejects(get<RejectsSnap>(KEY_REJECTS)))}
+    ${sec('alerts', renderAlerts(alertsKey ? get<AlertsSnap>(alertsKey) : null))}
+    ${sec('thresholds', renderThresholds(thresholds))}`;
 
   root.querySelector('#scan-refresh')?.addEventListener('click', () => void load(ctx, true));
+
+  // Jump bar. `scroll-margin-top` on .scan-sec keeps the heading clear of the
+  // fixed top bar, so this can stay a plain scrollIntoView.
+  root.querySelectorAll<HTMLElement>('[data-jump]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const target = root.querySelector(`#scan-sec-${b.dataset.jump}`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
 
   // Sector table sort. Client-side only: the 11 rows are already in hand, so
   // sorting must not cost a D1 read.

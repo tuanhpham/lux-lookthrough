@@ -733,9 +733,13 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.local.day': { en: 'day', vi: 'ngày' },
   'chat.local.belowhigh': { en: 'below high', vi: 'dưới đỉnh' },
 
-  // Scanner tab — read-only view of the Python scanner on the Oracle VM. Table
-  // column headers are not translated (same convention as the QM table): they are
-  // the names of fields in the scanner's own database.
+  // Scanner tab — read-only view of the Python scanner on the Oracle VM.
+  //
+  // Column headers ARE translated, under `scan.col.*`. They used to be left in
+  // English on the grounds that they name fields in the scanner's own database,
+  // which is true of `ADV20` or `RVol` but was not true of `Reason`, `Count` or
+  // `Close` — those are ordinary words, and leaving them made the page read as
+  // half-finished next to every other tab. Field-name headers stay as they are.
   'scan.title': { en: 'Scanner', vi: 'Máy quét' },
   'scan.sub': {
     en: 'Live state of the alert bot: its watch list, why the rest of the market was rejected, and what it alerted today. Read-only — the bot runs on its own machine and pushes these snapshots out.',
@@ -764,6 +768,39 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'Chưa có bảng lý do bị loại. Bảng này chỉ dựng bởi `push.py --all`, mỗi tối một lần.',
   },
   'scan.noalerts': { en: 'No alerts on the latest day pushed.', vi: 'Không có cảnh báo trong ngày mới nhất được đẩy lên.' },
+
+  // Table column headers. Short by necessity — a table of 15 columns cannot carry
+  // sentences — so the meaning lives in the note under each table.
+  'scan.col.sym': { en: 'Sym', vi: 'Mã' },
+  'scan.col.score': { en: 'Score', vi: 'Điểm' },
+  'scan.col.qual': { en: 'Qual', vi: 'Chất lượng' },
+  'scan.col.close': { en: 'Close', vi: 'Giá đóng' },
+  'scan.col.pivot': { en: 'Pivot', vi: 'Pivot' },
+  'scan.col.topivot': { en: 'To pivot', vi: 'Cách pivot' },
+  'scan.col.base': { en: 'Base', vi: 'Nền' },
+  'scan.col.depth': { en: 'Depth', vi: 'Độ sâu' },
+  'scan.col.offhigh': { en: 'Off high', vi: 'Cách đỉnh' },
+  'scan.col.sector': { en: 'Sector', vi: 'Ngành' },
+  'scan.col.fund': { en: 'Fund', vi: 'Cơ bản' },
+  'scan.col.fundok': { en: 'ok', vi: 'đạt' },
+  'scan.col.fundno': { en: 'no', vi: 'không' },
+  'scan.col.slope': { en: 'Slope', vi: 'Độ dốc' },
+  'scan.col.reason': { en: 'Reason', vi: 'Lý do' },
+  'scan.col.count': { en: 'Count', vi: 'Số mã' },
+  'scan.col.share': { en: 'Share', vi: 'Tỷ lệ' },
+  'scan.col.time': { en: 'Time', vi: 'Giờ' },
+  'scan.col.kind': { en: 'Kind', vi: 'Loại' },
+  'scan.col.note': { en: 'Note', vi: 'Ghi chú' },
+  'scan.col.bars': { en: 'bars', vi: 'nến' },
+  'scan.col.regime': { en: 'Regime', vi: 'Bối cảnh' },
+  'scan.col.volat': { en: 'Vol', vi: 'Biên độ' },
+  'scan.col.setups': { en: 'Setups', vi: 'Setup' },
+  'scan.col.size': { en: 'Size', vi: 'Cỡ' },
+  'scan.sec.playbook': { en: 'Playbook', vi: 'Kịch bản' },
+
+  // Jump links across the top of the page — the tab is nine sections long, and the
+  // one you came to read is rarely the first.
+  'scan.jump': { en: 'Jump to', vi: 'Đến phần' },
 
   // Status tiles
   'scan.sec.status': { en: 'Status', vi: 'Trạng thái' },

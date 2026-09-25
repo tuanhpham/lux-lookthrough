@@ -973,7 +973,7 @@ function volumeTable(
         : '—';
       const ratioColor = r.ratio >= 3 ? 'var(--accent)' : r.ratio >= 2 ? 'var(--warn)' : 'inherit';
       return `<tr data-vsym="${r.symbol}" style="cursor:pointer">
-        <td><strong>${r.symbol}</strong></td>
+        <td><strong class="tkr">${r.symbol}</strong></td>
         <td style="color:${ratioColor};font-weight:700">${r.ratio.toFixed(2)}×</td>
         <td>${fmtBig(r.peakVolume)}</td>
         <td class="muted">${fmtBig(r.baselineAvgVolume)}</td>

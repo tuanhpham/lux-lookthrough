@@ -124,7 +124,7 @@ export function screenerTable(rows: ScreenerRow[], options: ScreenerTableOptions
     const body = sorted
       .map(
         (r) => `<tr data-sym="${r.symbol}">
-        <td><strong>${r.symbol}</strong></td>
+        <td><strong class="tkr">${r.symbol}</strong></td>
         <td><span class="scorebar"><span style="width:${Math.max(0, r.qualityScore)}%;background:${scoreColor(r.qualityScore)}"></span></span> <span style="color:${scoreColor(r.qualityScore)};font-weight:700">${num(r.qualityScore, 0)}</span></td>
         <td>${setupBadge(r.setupType)}</td>
         <td>${num(r.momentumScore, 0)}</td>
