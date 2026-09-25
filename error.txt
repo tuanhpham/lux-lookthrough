@@ -279,22 +279,38 @@ con.close()
 PY
 
 # c. so adv20 / prev_close
+# `WHERE b.updated > a.updated` la phan BAT BUOC, khong phai trang tri:
+# /tmp/copy.db la ban copy nen cp.base da co san toan bo dong cu, from_bars chi
+# UPSERT len phan dung lai duoc. Dong khong dung lai giong nhau y het o hai ben
+# -> gop 0 sai lech va lam ti le trong dep gia. Loc theo mocc `updated` de chi
+# so dung phan vua dung lai (from_bars ghi moc moi, dong cu giu moc cu).
 python - <<'PY'
 import sqlite3
 c = sqlite3.connect("file:state/baseline.db?mode=ro", uri=True)  # ban that: chi doc
 c.execute("ATTACH '/tmp/copy.db' AS cp")
+tot = c.execute("SELECT COUNT(*) FROM base").fetchone()[0]
 n, dadv, dpx = c.execute("""
   SELECT COUNT(*),
          SUM(ABS(a.adv20-b.adv20)/NULLIF(a.adv20,0) > 0.05),
          SUM(ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02)
-  FROM base a JOIN cp.base b USING(sym)""").fetchone()
-print(f"{n} ma so duoc | adv20 lech >5%: {dadv} | prev_close lech >2%: {dpx}")
+  FROM base a JOIN cp.base b USING(sym)
+  WHERE b.updated > a.updated""").fetchone()
+print(f"base that: {tot} ma | dung lai tu kho nen: {n} ma")
+print(f"adv20 lech >5%: {dadv} | prev_close lech >2%: {dpx}")
 for r in c.execute("""SELECT a.sym, a.prev_close, b.prev_close, a.adv20, b.adv20
                       FROM base a JOIN cp.base b USING(sym)
-                      WHERE ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02
+                      WHERE b.updated > a.updated
+                        AND ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02
                       ORDER BY a.adv20 DESC LIMIT 15"""):
     print(r)
 PY
+
+`n` phải xấp xỉ con số mà bước b in ra. Kết quả chạy ngày 2026-09-25:
+`--from-bars: 10509 ma trong kho nen` -> `from_bars: 4587 ma`. Hai con số đó
+bình thường: `bars.syms(min_rows=25)` bỏ 572 mã quá thưa, rồi
+`structure.baseline()` loại theo `MIN_ADV = 200_000` cổ/phiên và
+`MIN_PRICE = 1.0` USD. `base` thật dùng đúng hai ngưỡng đó nên hai bên phải
+xấp xỉ nhau.
 
 Cả hai khối phải chạy từ `~/scanner` (đã `source .venv/bin/activate`): `import
 prep` chỉ tìm thấy khi thư mục hiện tại là repo, và `state/baseline.db` là đường
