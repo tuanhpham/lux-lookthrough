@@ -260,35 +260,45 @@ HAI chỗ runbook cũ (`scanner/error.txt` mục 2 bước 4) viết sai, đã k
      nhiều; copy riêng file `.db` sẽ thiếu phần còn trong WAL, và bạn sẽ đi soi
      một sai lệch không có thật. Dùng `.backup`.
 
+Bước a chạy được ngay. Hai bước b và c là heredoc: dòng kết `PY` PHẢI nằm ở cột
+0, không một khoảng trắng nào phía trước, nên hai khối dưới đây KHÔNG thụt lề —
+copy nguyên văn, đừng thêm lề. Thụt vào thì heredoc không bao giờ đóng và shell
+đứng ở dấu nhắc `>` đợi mãi (thoát bằng Ctrl-C). `<<-` không chữa được: nó chỉ
+cắt TAB, không cắt khoảng trắng.
+
     # a. bản copy nguyên vẹn (gồm cả WAL)
     sqlite3 state/baseline.db ".backup /tmp/copy.db"
 
-    # b. dựng base từ kho nến, CHỈ trên bản copy
-    python - <<'PY'
-    import sqlite3, prep
-    con = sqlite3.connect("/tmp/copy.db")
-    con.executescript(prep.DDL); prep.ensure_cols(con)
-    print("from_bars:", prep.from_bars(con, {}), "ma")   # cik={} -> khong goi SEC
-    con.close()
-    PY
+# b. dựng base từ kho nến, CHỈ trên bản copy
+python - <<'PY'
+import sqlite3, prep
+con = sqlite3.connect("/tmp/copy.db")
+con.executescript(prep.DDL); prep.ensure_cols(con)
+print("from_bars:", prep.from_bars(con, {}), "ma")   # cik={} -> khong goi SEC
+con.close()
+PY
 
-    # c. so adv20 / prev_close
-    python - <<'PY'
-    import sqlite3
-    c = sqlite3.connect("file:state/baseline.db?mode=ro", uri=True)  # ban that: chi doc
-    c.execute("ATTACH '/tmp/copy.db' AS cp")
-    n, dadv, dpx = c.execute("""
-      SELECT COUNT(*),
-             SUM(ABS(a.adv20-b.adv20)/NULLIF(a.adv20,0) > 0.05),
-             SUM(ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02)
-      FROM base a JOIN cp.base b USING(sym)""").fetchone()
-    print(f"{n} ma so duoc | adv20 lech >5%: {dadv} | prev_close lech >2%: {dpx}")
-    for r in c.execute("""SELECT a.sym, a.prev_close, b.prev_close, a.adv20, b.adv20
-                          FROM base a JOIN cp.base b USING(sym)
-                          WHERE ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02
-                          ORDER BY a.adv20 DESC LIMIT 15"""):
-        print(r)
-    PY
+# c. so adv20 / prev_close
+python - <<'PY'
+import sqlite3
+c = sqlite3.connect("file:state/baseline.db?mode=ro", uri=True)  # ban that: chi doc
+c.execute("ATTACH '/tmp/copy.db' AS cp")
+n, dadv, dpx = c.execute("""
+  SELECT COUNT(*),
+         SUM(ABS(a.adv20-b.adv20)/NULLIF(a.adv20,0) > 0.05),
+         SUM(ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02)
+  FROM base a JOIN cp.base b USING(sym)""").fetchone()
+print(f"{n} ma so duoc | adv20 lech >5%: {dadv} | prev_close lech >2%: {dpx}")
+for r in c.execute("""SELECT a.sym, a.prev_close, b.prev_close, a.adv20, b.adv20
+                      FROM base a JOIN cp.base b USING(sym)
+                      WHERE ABS(a.prev_close-b.prev_close)/NULLIF(a.prev_close,0) > 0.02
+                      ORDER BY a.adv20 DESC LIMIT 15"""):
+    print(r)
+PY
+
+Cả hai khối phải chạy từ `~/scanner` (đã `source .venv/bin/activate`): `import
+prep` chỉ tìm thấy khi thư mục hiện tại là repo, và `state/baseline.db` là đường
+dẫn tương đối.
 
 Truyền `cik={}` không xoá cik của ai: câu UPSERT dùng
 `cik=COALESCE(excluded.cik, base.cik)` — chính là bug đã sửa hồi Phase 9.
