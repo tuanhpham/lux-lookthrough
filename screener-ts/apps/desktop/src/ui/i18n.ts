@@ -802,6 +802,46 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // one you came to read is rarely the first.
   'scan.jump': { en: 'Jump to', vi: 'Đến phần' },
 
+  // One line under each section title, saying what that section answers. Nine
+  // uppercase micro-labels in a column told the reader nothing about which of the
+  // nine they wanted; a sentence does, and it costs one line.
+  'scan.lead.today': {
+    en: 'The market regime measured on last night’s close, and the playbook cell it puts you in.',
+    vi: 'Bối cảnh thị trường đo trên nến chốt đêm qua, và ô playbook mà nó đặt bạn vào.',
+  },
+  'scan.lead.sectors': {
+    en: 'Which of the 11 sector baskets money is rotating into. Only the top three are looked inside.',
+    vi: 'Dòng tiền đang chảy vào rổ nào trong 11 rổ ngành. Chỉ ba rổ dẫn đầu được tìm bên trong.',
+  },
+  'scan.lead.watch': {
+    en: 'The trade plan set on last night’s closed bar: what to watch, at what price, stop and size.',
+    vi: 'Kế hoạch lệnh đặt trên nến đã chốt đêm qua: canh mã nào, giá nào, cắt lỗ và cỡ bao nhiêu.',
+  },
+  'scan.lead.night': {
+    en: 'Did the chain actually run? Stage by stage with its exit code. An empty table above means nothing until this says the stage ran.',
+    vi: 'Chuỗi chạy có chạy thật không? Từng bước kèm mã thoát. Bảng trống ở trên chưa nói được gì nếu bước đó không chạy.',
+  },
+  'scan.lead.status': {
+    en: 'The heartbeat of the VM: session, uptime, how many symbols it scanned, when it last pushed.',
+    vi: 'Nhịp tim của VM: phiên, thời gian chạy, quét bao nhiêu mã, đẩy dữ liệu lần cuối lúc nào.',
+  },
+  'scan.lead.cand': {
+    en: 'The raw candidates per setup, before the quality floor cuts them down to a watch list.',
+    vi: 'Ứng viên thô theo từng setup, trước khi sàn chất lượng cắt xuống thành danh sách theo dõi.',
+  },
+  'scan.lead.rejects': {
+    en: 'What the filters threw away, and why. A stage that rejects everything is a threshold set wrong.',
+    vi: 'Bộ lọc đã loại những gì, và vì sao. Một bước loại sạch mọi thứ là một ngưỡng bị đặt sai.',
+  },
+  'scan.lead.alerts': {
+    en: 'Every alert sent today, with what price did next — 15 minutes, 60 minutes, and the close.',
+    vi: 'Mọi cảnh báo đã gửi hôm nay, kèm việc giá đã làm gì sau đó — 15 phút, 60 phút và lúc đóng cửa.',
+  },
+  'scan.lead.thresholds': {
+    en: 'Every number the scanner is currently using, read out of the config.py running on the VM.',
+    vi: 'Mọi con số máy quét đang dùng, đọc từ chính file config.py đang chạy trên VM.',
+  },
+
   // Status tiles
   'scan.sec.status': { en: 'Status', vi: 'Trạng thái' },
   'scan.st.session': { en: 'Session', vi: 'Phiên' },

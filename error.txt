@@ -365,28 +365,10 @@ cả bot lẫn backtest đổi theo (có test khoá việc này).
 
 ## VM-4. cron — thay chuỗi `&&` bằng MỘT dòng `nightly.py`
 
-BỐN DÒNG DƯỚI ĐÂY LÀ NỘI DUNG CRONTAB, KHÔNG PHẢI LỆNH SHELL. Dán chúng vào
-trong trình soạn thảo của `crontab -e`. Dán vào thẳng terminal thì bash đọc số
-phút `0` là tên lệnh và trả về `0: command not found` — không phải timeout, không
-phải thiếu file, chỉ là dán sai chỗ.
-
-    crontab -e          # user ubuntu, KHÔNG sudo — rồi dán:
-
     CRON_TZ=America/New_York
     0 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1
     0 9 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py >> state/prep.log 2>&1
     5 9 * * 1-5  /usr/bin/systemctl restart scanner
-
-    crontab -l          # đọc lại, phải thấy đủ cả dòng CRON_TZ
-
-Muốn chạy tay một dòng thì bỏ 5 trường lịch ở đầu, giữ phần sau:
-
-    cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py
-
-`mark_etf.py` tải một file text của Nasdaq Trader (`timeout=45`) rồi UPDATE cột
-`is_etf` của bảng `base` — vài giây là xong. Nó đòi bảng `base` đã tồn tại, nên
-chạy sau VM-1. Chạy tay thì bỏ luôn `>> state/prep.log 2>&1` để thấy lỗi ngay
-trên màn hình thay vì phải đi mở log.
 
 Hai dòng `push.py` đang có: GIỮ NGUYÊN, không sửa.
 
@@ -415,45 +397,15 @@ lúc 08:00 là hai lần tải.
 
 ## VM-5. `watchd.service` — unit MỚI
 
-`git pull` TRƯỚC ĐÃ. `--once` cũ kiểm cờ ở cuối vòng lặp, sau lệnh ngủ, nên nó
-in kết quả trong một giây rồi treo thêm 60s (ngoài phiên) / 240s (sau phiên) /
-`poll_sec` (trong phiên) mới thoát — giống hệt treo, và phải Ctrl-C. Đã sửa ở
-commit `watchd: --once thoat ngay sau mot vong`.
-
 Chạy thử trước:
 
     python watchd.py --selftest                 # luật + vòng quét, không mạng
-    python watchd.py --once --dry-run           # một vòng rồi thoát ngay (~2s)
+    python watchd.py --once --dry-run           # một vòng, in ra stdout
 
-Ngoài phiên nó in `watchd: bat dau ...` rồi thoát mà không có cảnh báo nào — đó
-là đúng, không phải lỗi. Muốn thấy nó xử lý giá thì chạy trong phiên.
+Nội dung unit: copy NGUYÊN VĂN từ `scanner/README.md` mục 12.9 (khoảng dòng
+3102). Không chép lại vào đây: bản viết tắt sẽ khác bản gốc, và bản gốc đúng hơn.
 
-Nội dung unit (nguyên văn README 12.9, để đây cho khỏi phải đi tìm):
-
-    sudo nano /etc/systemd/system/watchd.service
-
-    [Unit]
-    Description=Scanner intraday Tier 1 watcher
-    Wants=network-online.target
-    After=network-online.target
-
-    [Service]
-    Type=simple
-    User=ubuntu
-    WorkingDirectory=/home/ubuntu/scanner
-    Environment=PYTHONUNBUFFERED=1
-    Environment=PYTHONIOENCODING=utf-8
-    ExecStart=/home/ubuntu/scanner/.venv/bin/python watchd.py --quiet
-    Restart=always
-    RestartSec=30
-    StandardError=append:/home/ubuntu/scanner/state/watchd.service.log
-
-    [Install]
-    WantedBy=multi-user.target
-
-Không cần `EnvironmentFile`: `tgapi.py` tự `load_dotenv` theo đường dẫn tuyệt
-đối của `.env` cạnh `main.py`, nên token không phải đi qua systemd.
-
+    sudo nano /etc/systemd/system/watchd.service     # dán từ README 12.9
     sudo systemctl daemon-reload
     sudo systemctl enable --now watchd
     systemctl status watchd --no-pager | head -15
@@ -498,33 +450,3 @@ Deploy cùng lượt với VIỆC B ở trên (build + `wrangler pages deploy di
 
 Đáng sửa khi rảnh: câu "bỏ dòng restart đi" trong README mục 5.8 (xem VM-4), và
 khối ```bash hở ở README khoảng dòng 671-680.
-huongnguyen105@Huongs-MacBook-Air screener-ts % npm run build --workspace @screener/desktop
-
-> @screener/desktop@0.1.0 build
-> npm run build:core && tsc -p tsconfig.json --noEmit && vite build
-
-
-> @screener/desktop@0.1.0 build:core
-> npm --prefix ../../packages/core run build
-
-
-> @screener/core@0.1.0 build
-> tsc -p tsconfig.json
-
-vite v8.0.16 building client environment for production...
-✓ 170 modules transformed.
-computing gzip size...
-dist/index.html                          5.82 kB │ gzip:   2.31 kB
-dist/assets/index-Bapvtj5t.css          89.03 kB │ gzip:  17.05 kB
-dist/assets/core-BFqLT5rb.js             1.86 kB │ gzip:   0.78 kB
-dist/assets/dist-js-3xh1JaRE.js          1.86 kB │ gzip:   0.85 kB
-dist/assets/dist-js-No6nrZNX.js          7.25 kB │ gzip:   1.91 kB
-dist/assets/vendor-charts-4WvflUc8.js  157.57 kB │ gzip:  50.43 kB
-dist/assets/index-5p-8oLNH.js          637.77 kB │ gzip: 209.75 kB
-
-✓ built in 168ms
-[plugin builtin:vite-reporter] 
-(!) Some chunks are larger than 600 kB after minification. Consider:
-- Using dynamic import() to code-split the application
-- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
-- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.

@@ -1130,8 +1130,35 @@ html.light #sl-menu {
   text-transform: uppercase; color: rgba(255,255,255,.82);
 }
 html.light .sl-menu-brand { color: rgba(10,10,10,.75); }
+/* The ✕ that closes either overlay.
+   This used to be a BUG, and a loud one: the two selectors sat above a comment
+   with a trailing comma and no block of their own, so they were swallowed into
+   the `.sl-menu-items` rule below — which gave a bare `<button>` `flex: 1` and
+   let the browser's default `buttonface` grey stretch right across the header as
+   a white strip. A selector list that ends in a comment is a selector list that
+   ends in whatever comes next. */
 #sl-menu-close,
-#app-menu-close,
+#app-menu-close {
+  width: 40px; height: 40px; flex: none;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid transparent; border-radius: 999px;
+  color: rgba(255,255,255,.55); cursor: pointer;
+  font-size: 17px; line-height: 1; font-family: var(--font-ui);
+  transition: color .2s ease, border-color .2s ease, background .2s ease, transform .3s cubic-bezier(.25,1,.5,1);
+}
+#sl-menu-close:hover,
+#app-menu-close:hover {
+  color: #fff; border-color: rgba(255,255,255,.22);
+  background: rgba(255,255,255,.06); transform: rotate(90deg);
+}
+#sl-menu-close:focus-visible,
+#app-menu-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+html.light #sl-menu-close,
+html.light #app-menu-close { color: rgba(20,16,10,.5); }
+html.light #sl-menu-close:hover,
+html.light #app-menu-close:hover {
+  color: rgba(10,6,0,1); border-color: rgba(20,16,10,.2); background: rgba(20,16,10,.05);
+}
 
 /* menu body */
 .sl-menu-items {
@@ -1888,17 +1915,67 @@ html.light #nav-ripple { background: #e0dbd5; }
    without it the plan columns and the evidence columns read as one strip. */
 .wl th.wl-sep-r, .wl td.wl-sep-r { border-right: 1px solid var(--border); }
 
-/* ── Scanner tab: nine sections and a jump bar ────────────────────────────── */
+/* ── Scanner tab: nine numbered sections and a jump bar ──────────────────── */
 /* The tab is long by nature — it mirrors a nine-stage pipeline — so each stage is
-   a `<section>` with room to breathe and a hairline above it, and the jump bar at
-   the top turns the length into an index instead of a scroll. */
+   a `<section>` with a numbered header, room to breathe, and a hairline above it;
+   the jump bar at the top turns the length into an index instead of a scroll. */
 .scan-sec { scroll-margin-top: 72px; }   /* clears the 56px fixed bar */
 .scan-sec + .scan-sec {
-  margin-top: 30px; padding-top: 6px; border-top: 1px solid var(--border-soft);
+  margin-top: 38px; padding-top: 30px; border-top: 1px solid var(--border-soft);
 }
-.scan-sec > :first-child, .scan-sec > .section-title-row:first-child { margin-top: 12px; }
-.scan-jump { gap: 6px; row-gap: 6px; margin-bottom: 18px; }
+
+.scan-head {
+  display: flex; align-items: baseline; gap: 14px;
+  margin: 0 0 16px;
+}
+/* The stage number. Monospace and hollow: it is a landmark, not a datum, so it
+   must not read louder than the figures in the tables underneath. */
+.scan-head-n {
+  flex: none; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .08em; color: var(--accent);
+  width: 30px; height: 30px; border-radius: 999px;
+  display: grid; place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  background: var(--accent-wash);
+  position: relative; top: -2px;
+}
+.scan-head-txt { min-width: 0; }
+.scan-head-txt h2 {
+  margin: 0; font-size: 19px; font-weight: 400; letter-spacing: .01em;
+  font-family: 'Source Serif 4', Georgia, serif; color: var(--text);
+}
+.scan-head-txt p {
+  margin: 4px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--subtext);
+  max-width: 74ch;
+}
+
+/* Date / row-count chips, which used to crowd in beside the title. */
+.scan-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+
+/* The fold over the threshold dump. The section header already names it, so the
+   summary only has to say which way the fold goes. */
+.scan-th > summary {
+  cursor: pointer; width: fit-content;
+  font-size: 12px; color: var(--subtext);
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card);
+  transition: color .18s ease, border-color .18s ease;
+}
+.scan-th > summary:hover { color: var(--text); border-color: var(--faint); }
+.scan-th[open] > summary { margin-bottom: 10px; }
+
+.scan-jump {
+  gap: 6px; row-gap: 6px; margin-bottom: 26px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--border-soft);
+}
 .scan-jump .range-btn { font-size: 11px; padding: 5px 10px; }
+
+@media (max-width: 700px) {
+  .scan-head { gap: 10px; }
+  .scan-head-n { width: 26px; height: 26px; font-size: 10px; }
+  .scan-head-txt h2 { font-size: 17px; }
+  .scan-sec + .scan-sec { margin-top: 28px; padding-top: 22px; }
+}
 
 /* ── Playbook tab ────────────────────────────────────────────────────────── */
 .playbook-section { margin-bottom: 24px; }

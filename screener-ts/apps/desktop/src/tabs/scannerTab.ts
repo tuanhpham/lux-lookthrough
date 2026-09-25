@@ -511,9 +511,8 @@ const enumLabel = (kind: 'trend' | 'vol', v: string | undefined): string =>
  * regime is a list of trades you may not be permitted to take.
  */
 function renderToday(snap: RegimeSnap | null): string {
-  const title = `<h2 class="section-title">${t('scan.sec.today')}</h2>`;
   const r = snap?.row;
-  if (!r) return `${title}<p class="muted">${t('scan.today.none')}</p>`;
+  if (!r) return `<p class="muted">${t('scan.today.none')}</p>`;
 
   const pb = snap?.playbook ?? {};
   const setups = pb.setups?.length ? pb.setups.join(' · ') : t('scan.today.nosetup');
@@ -555,7 +554,7 @@ function renderToday(snap: RegimeSnap | null): string {
     ? `<div class="card" style="margin-top:10px">${esc(pb.note)}${changed}</div>`
     : changed;
 
-  return `${title}
+  return `
     <div class="grid grid-cards">${tiles}</div>
     <div class="grid grid-cards" style="margin-top:10px">${bar}${atr}</div>
     ${note}`;
@@ -588,9 +587,7 @@ function sectorSortVal(r: SectorRow, key: SectorSortKey,
 }
 
 function renderSectors(snap: SectorsSnap | null, topN: number): string {
-  const title = `<div class="section-title-row">`
-    + `<h2 class="section-title">${t('scan.sec.sectors')}</h2>`
-    + `${snap?.d ? `<span class="tag">${esc(snap.d)}</span>` : ''}</div>`;
+  const title = tags(snap?.d && esc(snap.d));
   const rows = snap?.rows ?? [];
   if (!rows.length) return `${title}<p class="muted">${t('scan.sectors.none')}</p>`;
 
@@ -729,11 +726,10 @@ const tvLink = (sym: string): string =>
 function renderWatch(snap: WatchSnap | null, blocked: boolean): string {
   const rows = snap?.rows ?? [];
   const total = snap?.total ?? rows.length;
-  const title = `<div class="section-title-row">`
-    + `<h2 class="section-title">${t('scan.sec.watch')}</h2>`
-    + `${snap?.d ? `<span class="tag">${esc(snap.d)}</span>` : ''}`
-    + `${rows.length ? `<span class="tag">${total > rows.length ? `${rows.length} / ${total}` : total}</span>` : ''}`
-    + `</div>`;
+  const title = tags(
+    snap?.d && esc(snap.d),
+    rows.length ? String(total > rows.length ? `${rows.length} / ${total}` : total) : '',
+  );
 
   if (!rows.length) {
     return `${title}<p class="muted">`
@@ -827,9 +823,8 @@ const STAGE_MARK: Record<string, [string, string]> = {
  * `render_night._failed/_blocked` and in `push._night`; all three have to agree.
  */
 function renderNight(night: NightBlock | null | undefined): string {
-  const title = `<h2 class="section-title">${t('scan.sec.night')}</h2>`;
   const last = night?.last;
-  if (!last) return `${title}<p class="muted">${t('scan.night.none')}</p>`;
+  if (!last) return `<p class="muted">${t('scan.night.none')}</p>`;
 
   const ok = !!last.ok;
   const st = night?.stale;
@@ -875,7 +870,7 @@ function renderNight(night: NightBlock | null | undefined): string {
   const dry = last.dry
     ? `<div class="notice" style="margin-top:8px">${t('scan.night.dry')}</div>` : '';
 
-  return `${title}
+  return `
     <div class="grid grid-cards">${tiles}</div>
     ${dry}
     ${stages ? `<div class="card" style="padding:0;overflow-x:auto;margin-top:10px">
@@ -902,9 +897,8 @@ function thValue(v: unknown): string {
  * figure the scanner used — the page cannot be out of date with respect to itself.
  */
 function renderThresholds(snap: ThresholdsSnap | null): string {
-  const title = `<h2 class="section-title">${t('scan.sec.thresholds')}</h2>`;
   const cfg = snap?.config;
-  if (!cfg) return `${title}<p class="muted">${t('scan.th.none')}</p>`;
+  if (!cfg) return `<p class="muted">${t('scan.th.none')}</p>`;
 
   const sections = Object.entries(cfg).map(([group, val]) => {
     // `playbook` is the 12-row lookup table, not a bag of scalars — the one group
@@ -937,10 +931,7 @@ function renderThresholds(snap: ThresholdsSnap | null): string {
   const scalars = sections.filter((s) => s.startsWith('<div class="stat"'));
   const groups = sections.filter((s) => !s.startsWith('<div class="stat"'));
 
-  return `<details><summary style="cursor:pointer;margin:18px 0 4px">
-      <span class="section-title" style="display:inline">${t('scan.sec.thresholds')}</span>
-      <span class="muted" style="font-size:12px"> — ${t('scan.th.show')}</span>
-    </summary>
+  return `<details class="scan-th"><summary>${t('scan.th.show')}</summary>
     <p class="muted" style="font-size:12px;margin:0 0 8px">${t('scan.th.note')}</p>
     ${scalars.length ? `<div class="grid grid-cards">${scalars.join('')}</div>` : ''}
     ${groups.join('')}
@@ -995,7 +986,6 @@ function renderStatus(status: Status | null, pushedAt: number | null): string {
   ].join('');
 
   return `
-    <h2 class="section-title">${t('scan.sec.status')}</h2>
     <div class="grid grid-cards">${tiles.join('')}</div>
     <div class="grid grid-cards" style="margin-top:10px">${tables}</div>`;
 }
@@ -1036,8 +1026,7 @@ function renderCandidates(snap: CandidatesSnap | null): string {
   const by = snap?.by_setup ?? {};
   const setups = Object.keys(by).filter((k) => Array.isArray(by[k])).sort();
   if (!setups.length) {
-    return `<h2 class="section-title">${t('scan.sec.watch')}</h2>`
-      + `<p class="muted">${t('scan.nocand')}</p>`;
+    return `<p class="muted">${t('scan.nocand')}</p>`;
   }
 
   const blocks = setups.map((s) => {
@@ -1060,15 +1049,14 @@ function renderCandidates(snap: CandidatesSnap | null): string {
       </div>`;
   });
 
-  return `<h2 class="section-title">${t('scan.sec.cand')}</h2>${blocks.join('')}`;
+  return blocks.join('');
 }
 
 function renderRejects(snap: RejectsSnap | null): string {
   const by = snap?.by_setup ?? {};
   const setups = Object.keys(by).sort();
   if (!setups.length) {
-    return `<h2 class="section-title">${t('scan.sec.rejects')}</h2>`
-      + `<p class="muted">${t('scan.norej')}</p>`;
+    return `<p class="muted">${t('scan.norej')}</p>`;
   }
 
   const blocks = setups.map((s) => {
@@ -1106,18 +1094,14 @@ function renderRejects(snap: RejectsSnap | null): string {
   if (snap?.cho_fund) meta.push(`${t('scan.rej.fund')} ${snap.cho_fund}`);
 
   return `
-    <div class="section-title-row">
-      <h2 class="section-title">${t('scan.sec.rejects')}</h2>
-      ${meta.map((m) => `<span class="tag">${esc(m)}</span>`).join('')}
-    </div>
+    ${tags(...meta.map((m) => esc(m)))}
     <p class="muted" style="font-size:12px;margin:0 0 8px">${t('scan.rej.note')}</p>
     ${blocks.join('')}`;
 }
 
 function renderAlerts(snap: AlertsSnap | null): string {
   const rows = snap?.rows ?? [];
-  const title = `<div class="section-title-row"><h2 class="section-title">${t('scan.sec.alerts')}</h2>`
-    + `${snap?.day ? `<span class="tag">${esc(snap.day)}</span>` : ''}</div>`;
+  const title = tags(snap?.day && esc(snap.day));
   if (!rows.length) return `${title}<p class="muted">${t('scan.noalerts')}</p>`;
 
   const body = rows.map((r) => {
@@ -1161,20 +1145,49 @@ function renderAlerts(snap: AlertsSnap | null): string {
  * machinery behind it (run log, status, raw candidates, rejects, alerts, config).
  */
 const SECS = [
-  { id: 'today', key: 'scan.sec.today' },
-  { id: 'sectors', key: 'scan.sec.sectors' },
-  { id: 'watch', key: 'scan.sec.watch' },
-  { id: 'night', key: 'scan.sec.night' },
-  { id: 'status', key: 'scan.sec.status' },
-  { id: 'cand', key: 'scan.sec.cand' },
-  { id: 'rejects', key: 'scan.sec.rejects' },
-  { id: 'alerts', key: 'scan.sec.alerts' },
-  { id: 'thresholds', key: 'scan.sec.thresholds' },
+  { id: 'today', key: 'scan.sec.today', lead: 'scan.lead.today' },
+  { id: 'sectors', key: 'scan.sec.sectors', lead: 'scan.lead.sectors' },
+  { id: 'watch', key: 'scan.sec.watch', lead: 'scan.lead.watch' },
+  { id: 'night', key: 'scan.sec.night', lead: 'scan.lead.night' },
+  { id: 'status', key: 'scan.sec.status', lead: 'scan.lead.status' },
+  { id: 'cand', key: 'scan.sec.cand', lead: 'scan.lead.cand' },
+  { id: 'rejects', key: 'scan.sec.rejects', lead: 'scan.lead.rejects' },
+  { id: 'alerts', key: 'scan.sec.alerts', lead: 'scan.lead.alerts' },
+  { id: 'thresholds', key: 'scan.sec.thresholds', lead: 'scan.lead.thresholds' },
 ] as const;
 
-/** Wrap one section's markup so the jump bar has something to scroll to. */
-const sec = (id: string, html: string): string =>
-  `<section class="scan-sec" id="scan-sec-${id}">${html}</section>`;
+/**
+ * Wrap one section: a numbered header, a real title, a line saying what the
+ * section answers, then the body.
+ *
+ * Every section used to open with `<h2 class="section-title">` — 11px, uppercase,
+ * `var(--faint)`. Nine of those stacked down a page is nine identical grey
+ * whispers, and the reader has to parse the table under each one to find out
+ * which section they are in. The number gives the page a spine (it is a
+ * nine-stage pipeline and now it reads like one), and the lead line answers
+ * "why am I looking at this" before the first row of data does.
+ */
+const sec = (id: string, html: string): string => {
+  const i = SECS.findIndex((x) => x.id === id);
+  const s = SECS[i]!;
+  return `<section class="scan-sec" id="scan-sec-${id}">
+    <header class="scan-head">
+      <span class="scan-head-n">${String(i + 1).padStart(2, '0')}</span>
+      <div class="scan-head-txt">
+        <h2>${t(s.key)}</h2>
+        <p>${t(s.lead)}</p>
+      </div>
+    </header>
+    ${html}</section>`;
+};
+
+/** The chips that used to crowd a section title (a date, a row count). */
+const tags = (...items: (string | false | null | undefined)[]): string => {
+  const on = items.filter(Boolean) as string[];
+  return on.length
+    ? `<div class="scan-tags">${on.map((x) => `<span class="tag">${x}</span>`).join('')}</div>`
+    : '';
+};
 
 function draw(ctx: AppContext): void {
   const root = $('#tab-scanner')!;
