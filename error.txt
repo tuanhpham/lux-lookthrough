@@ -66,15 +66,36 @@ Lưu ý: `wrangler pages deploy` chỉ thay site tĩnh + Functions. D1 và các 
 ## 4. Xem còn cứu được gì
 
     npx wrangler d1 execute screener-sync --remote --command \
-      "SELECT key, length(value) AS bytes, datetime(archived_at/1000,'unixepoch') AS luc
+      "SELECT archived_at, datetime(archived_at/1000,'unixepoch') AS luc,
+              length(value) AS bytes
          FROM kv_history WHERE key='accounts' ORDER BY archived_at DESC LIMIT 20;"
 
     npx wrangler d1 execute screener-sync --remote --command \
-      "SELECT key, length(value) AS bytes, datetime(deleted_at/1000,'unixepoch') AS luc
+      "SELECT deleted_at AS archived_at, datetime(deleted_at/1000,'unixepoch') AS luc,
+              length(value) AS bytes
          FROM kv_trash WHERE key='accounts' ORDER BY deleted_at DESC LIMIT 20;"
 
-Cột `bytes` là cách nhận ra bản đúng: bản có vị thế TO HƠN bản rỗng rất nhiều.
-Ghi lại con số `archived_at` (epoch millis) của bản to nhất.
+Phải SELECT cả `archived_at` thô, không chỉ `datetime(...)`: con số thô mới là
+thứ bước 5 cần, và nó không suy ra được từ giờ đọc được.
+
+Kết quả trông như thế này:
+
+    ┌───────────────┬─────────────────────┬───────┐
+    │ archived_at   │ luc                 │ bytes │
+    ├───────────────┼─────────────────────┼───────┤
+    │ 1758801600000 │ 2026-09-25 12:00:00 │   412 │  ← bản rỗng đã ghi đè
+    │ 1754582400000 │ 2026-08-07 16:00:00 │ 18734 │  ← BẢN CẦN CỨU (to nhất)
+    └───────────────┴─────────────────────┴───────┘
+
+Cột `bytes` là cách nhận ra bản đúng: bản có vị thế TO HƠN bản rỗng rất nhiều
+(chục nghìn byte so với vài trăm). Chép nguyên con số `archived_at` 13 chữ số của
+dòng đó — đó là `<so-archived_at>` của bước 5.
+
+Không thích đọc bảng thì lấy bằng JSON, trường `archivedAt` nằm ngay trong đó:
+
+    curl -s -H 'X-Sync-Code: <ma-sync>' \
+      'https://the-professional.pages.dev/api/sync/history?key=accounts'
+    # → {"versions":[{"key":"accounts","archivedAt":1754582400000,"bytes":18734,…}]}
 
 
 ## 5. Restore
@@ -82,16 +103,32 @@ Ghi lại con số `archived_at` (epoch millis) của bản to nhất.
 ĐÓNG HẾT tab/app trên mọi thiết bị trước đã — sync là last-write-wins, một tab
 còn mở sẽ đẩy bản rỗng đè lên bản vừa cứu.
 
+Điền con số 13 chữ số lấy ở bước 4 vào `archivedAt` — ví dụ thật:
+
     curl -X POST https://the-professional.pages.dev/api/sync/restore \
       -H 'content-type: application/json' \
-      -H 'X-Sync-Code: <ma-sync-cua-minh>' \
-      -d '{"key":"accounts","archivedAt":<so-archived_at>}'
+      -H 'X-Sync-Code: abc-ma-sync-that-cua-minh' \
+      -d '{"key":"accounts","archivedAt":1754582400000}'
+
+    # → {"ok":true,"key":"accounts","updatedAt":1758807…}
+
+Ba cách điền sai và thông báo tương ứng:
+
+    "archivedAt":"1754582400000"   → 400 need { key, archivedAt }   (chuỗi, không phải số)
+    "archivedAt":1754582400         → 404 no such archived version   (giây, thiếu 3 số 0)
+    lệch một chữ số                 → 404 no such archived version
+
+Con số là một phần của KHÓA CHÍNH, nên nó phải khớp tuyệt đối — không làm tròn,
+không cắt bớt. 404 nghĩa là số sai, KHÔNG phải mất dữ liệu: chạy lại bước 4.
 
 Chưa có UI cho việc này nên `curl` là đường duy nhất. Bản thân restore cũng được
-archive lại, nên bấm sai vẫn lùi được. Xem lại lịch sử:
+archive lại, nên bấm sai vẫn lùi được (bản vừa bị thay xuất hiện trong
+`kv_history` với `archived_at` = đúng lúc restore).
 
-    curl -s -H 'X-Sync-Code: <ma-sync>' \
-      'https://the-professional.pages.dev/api/sync/history?key=accounts'
+Nếu laptop kia là Windows: chạy mấy dòng `curl` này trong **Git Bash**, đừng chạy
+trong PowerShell. PowerShell không hiểu nháy đơn theo kiểu POSIX và `curl` ở đó là
+alias của `Invoke-WebRequest` — kết quả là một lỗi cú pháp trông như lỗi server.
+Bí quá thì dùng `curl.exe` và bọc JSON bằng nháy đôi đã escape.
 
 Các key khác cũng restore được y như vậy nếu cần: `watchlists:index`,
 `watchlist:*`, `post:*`. Liệt kê tất cả bản đã archive (bỏ `?key=`):
