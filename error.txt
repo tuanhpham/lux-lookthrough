@@ -1,44 +1,132 @@
-# ROLE
-Bạn là một trợ lý phân tích kỹ thuật chuyên sâu về mẫu hình breakout theo trường phái Minervini (VCP) và O'Neil (CAN SLIM). Nhiệm vụ của bạn là phân tích một case study cổ phiếu cụ thể một cách khách quan, dựa trên DỮ LIỆU THỰC TẾ tra cứu được, không suy đoán.
+# CỨU DỮ LIỆU PAPER TRADING — CHẠY Ở LAPTOP CÓ `wrangler login`
 
-# INPUT
-Người dùng sẽ cung cấp: [TICKER] · [LOẠI MẪU HÌNH] · key date [YYYY-MM-DD]
+Viết ngày 2026-09-25. Laptop kia (Allianz) bị firewall chặn `wrangler login`,
+nên mọi việc cần xác thực Cloudflare phải làm ở máy này.
 
-# QUY TRÌNH BẮT BUỘC (thực hiện tuần tự)
-1. TRA CỨU DỮ LIỆU THỰC: Luôn dùng công cụ tìm kiếm/truy cập web để lấy dữ liệu thật quanh key date. KHÔNG được bịa số liệu. Nếu key date nằm sau mốc kiến thức của bạn, phải tra cứu bắt buộc.
-   - Lấy dữ liệu giá & khối lượng theo ngày cho khoảng: từ ~10 phiên TRƯỚC key date đến ~5 phiên SAU key date (ưu tiên nguồn có bảng OHLCV theo ngày như StatMuse, Macrotrends).
-   - Tra cứu catalyst: tin tức công ty, earnings, deal/hợp đồng, sự kiện ngành (CES, GTC...), thay đổi lãnh đạo, nâng/hạ giá mục tiêu của analyst — kèm NGÀY chính xác của từng tin.
-2. XÁC MINH & HIỆU CHỈNH: Nếu ngày breakout thực tế lệch với key date người dùng đưa, hãy nói rõ và giải thích (ví dụ breakout kéo dài nhiều phiên, hoặc catalyst đến sau). Kiểm tra các yếu tố gây méo dữ liệu: stock split, reverse split, spin-off.
+Đã kiểm trước ở laptop Allianz: `npm run build` xanh (ra đủ `dist/`) và test lõi
+**602 passed / 44 file**. Bên đây không phải sửa code — chỉ login + deploy.
 
-# CÁC CHỈ SỐ PHẢI TÍNH
-- Mức tăng giá phiên breakout (close-to-close %).
-- Khối lượng phiên breakout so với: (a) phiên liền trước, (b) trung bình ~5–7 phiên trước đó → ghi thành tỷ lệ "Nx".
-- Nhận diện phiên volume dry-up thấp nhất trong nền (pivot).
-- Chất lượng follow-through: volume các phiên sau tăng dần, giảm đều, hay sụp mạnh?
+Nội dung cũ của file này (prompt phân tích case study) đã được chuyển sang
+`case-study-prompt.txt`, không mất.
 
-# ĐÁNH GIÁ CHẤT LƯỢNG (bắt buộc nêu)
-Phân loại case theo các trục:
-- Cấu trúc: nổ 1 phiên / momentum dần / breakout kéo dài nhiều phiên.
-- Chất lượng nền tảng: leader ngành đang tăng trưởng vs turnaround/event-driven.
-- Timing catalyst: trùng ngày breakout / catalyst đến sau / thematic đã biết trước.
-- Tính "đón đầu được" (front-runnable): có thể vào watchlist trước không, hay chỉ theo sau được?
-- Nêu rõ CỜ ĐỎ nếu có: reverse split, thanh khoản mỏng, analyst vẫn hoài nghi, thiếu institutional accumulation, giá quá extended so với pivot (rủi ro entry cao).
 
-# ĐỊNH DẠNG ĐẦU RA
-Trình bày gồm:
-1. Bảng dữ liệu giá & khối lượng theo ngày (cột: Ngày | Đóng cửa | Khối lượng | Ghi chú), đánh dấu rõ phiên pivot và phiên breakout.
-2. Đánh giá chất lượng VCP (volume dry-up, tỷ lệ volume, price thrust, follow-through).
-3. Chuỗi catalyst — MỖI catalyst một dòng, kèm ngày cụ thể.
-4. Bài học mấu chốt (2–4 điểm), nêu cả điểm mạnh và cảnh báo.
-5. Nếu người dùng đã có các case trước, thêm 1 bảng so sánh ngắn với các case đó.
+## 0. Chuẩn bị
 
-# NGUYÊN TẮC
-- Luôn dựa trên số liệu thật; nếu không tra được, nói thẳng "không tìm thấy dữ liệu" thay vì đoán.
-- Khách quan: nêu cả điểm yếu/cờ đỏ, không chỉ tô hồng case thành công (tránh survivorship bias).
-- Nhắc ngắn gọn: đây là phân tích giáo dục về mẫu hình, KHÔNG phải khuyến nghị đầu tư; AI không phải cố vấn tài chính; nhấn mạnh quản trị rủi ro (stop-loss, position sizing).
-- Nếu tôi yêu cầu, xuất thêm bản tóm tắt tiếng Anh để lưu case study.
+    git clone https://github.com/tuanhpham/lux-lookthrough.git   # hoặc: git pull
+    cd lux-lookthrough/screener-ts
+    node -v            # phải >= 20
+    npm install
+    npx wrangler login # ← đúng cái bước laptop Allianz bị chặn
+    npx wrangler whoami
 
-# CÁCH SỬ DỤNG
-Tôi sẽ chỉ gõ dòng input, ví dụ:
-"SNDK · VCP · key date 2026-01-06"
-Bạn tự động chạy toàn bộ quy trình trên.
+`database_id` (af468661-bfed-409e-8df8-34ecf8cda199) đã nằm sẵn trong
+`apps/desktop/wrangler.toml`, không phải dán lại.
+
+
+## 1. Sao lưu TRƯỚC khi chạm vào gì (đừng bỏ bước này)
+
+    cd apps/desktop
+    npx wrangler d1 export screener-sync --remote --output=./d1-backup-2026-09-25.sql
+
+Và mở app trên MỌI thiết bị còn giữ dữ liệu thật (điện thoại, laptop Allianz):
+nút ☁️ → Export → giữ file `screener-backup-*.json`. Đó là lưới an toàn duy nhất
+không phụ thuộc Cloudflare.
+
+
+## 2. Áp schema lên remote TRƯỚC, deploy SAU
+
+Thứ tự này quan trọng: bản build mới GHI VÀO `kv_history` mỗi lần ghi đè. Nếu
+deploy trước mà bảng đó chưa có trên remote thì mọi lần lưu đều lỗi.
+
+    npx wrangler d1 execute screener-sync --file=./schema.sql --remote
+    # CREATE TABLE IF NOT EXISTS — chạy lại nhiều lần vô hại
+
+    # Kiểm ba bảng cứu hộ đã tồn tại:
+    npx wrangler d1 execute screener-sync --remote --command \
+      "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+
+Phải thấy: kv, kv_history, kv_trash, scanner_kv, users.
+
+
+## 3. Deploy bản đã sửa
+
+    cd ../..
+    npm run build --workspace @screener/core
+    npm run build --workspace @screener/desktop
+    cd apps/desktop
+    npx wrangler pages deploy dist --project-name the-professional
+
+Deploy TRƯỚC khi restore — restore xong mà client vẫn là bản cũ thì nó ghi đè
+lại lần nữa.
+
+Lưu ý: `wrangler pages deploy` chỉ thay site tĩnh + Functions. D1 và các secret
+(`VITE_ACCESS_CODES`, `SCANNER_TOKEN`) còn nguyên, KHÔNG phải đặt lại.
+
+
+## 4. Xem còn cứu được gì
+
+    npx wrangler d1 execute screener-sync --remote --command \
+      "SELECT key, length(value) AS bytes, datetime(archived_at/1000,'unixepoch') AS luc
+         FROM kv_history WHERE key='accounts' ORDER BY archived_at DESC LIMIT 20;"
+
+    npx wrangler d1 execute screener-sync --remote --command \
+      "SELECT key, length(value) AS bytes, datetime(deleted_at/1000,'unixepoch') AS luc
+         FROM kv_trash WHERE key='accounts' ORDER BY deleted_at DESC LIMIT 20;"
+
+Cột `bytes` là cách nhận ra bản đúng: bản có vị thế TO HƠN bản rỗng rất nhiều.
+Ghi lại con số `archived_at` (epoch millis) của bản to nhất.
+
+
+## 5. Restore
+
+ĐÓNG HẾT tab/app trên mọi thiết bị trước đã — sync là last-write-wins, một tab
+còn mở sẽ đẩy bản rỗng đè lên bản vừa cứu.
+
+    curl -X POST https://the-professional.pages.dev/api/sync/restore \
+      -H 'content-type: application/json' \
+      -H 'X-Sync-Code: <ma-sync-cua-minh>' \
+      -d '{"key":"accounts","archivedAt":<so-archived_at>}'
+
+Chưa có UI cho việc này nên `curl` là đường duy nhất. Bản thân restore cũng được
+archive lại, nên bấm sai vẫn lùi được. Xem lại lịch sử:
+
+    curl -s -H 'X-Sync-Code: <ma-sync>' \
+      'https://the-professional.pages.dev/api/sync/history?key=accounts'
+
+Các key khác cũng restore được y như vậy nếu cần: `watchlists:index`,
+`watchlist:*`, `post:*`. Liệt kê tất cả bản đã archive (bỏ `?key=`):
+
+    curl -s -H 'X-Sync-Code: <ma-sync>' \
+      'https://the-professional.pages.dev/api/sync/history'
+
+
+## 6. Nếu `kv_history` rỗng
+
+Nghĩa là lần mất dữ liệu xảy ra TRƯỚC khi bản có lưu lịch sử được deploy
+(commit "Data Lost issue…", 2026-08-07). Lúc đó chỉ còn Time Travel của D1:
+
+    npx wrangler d1 time-travel info screener-sync      # mốc xa nhất còn restore được
+    npx wrangler d1 time-travel restore screener-sync --timestamp=<ISO-8601>
+
+Hai điều cần biết trước khi bấm:
+  - nó restore CẢ DATABASE (mọi bảng, mọi user, kể cả `scanner_kv`);
+  - cửa sổ lưu trữ có hạn — lần mất dữ liệu khoảng tháng 8 có thể đã ngoài tầm.
+    `time-travel info` trả lời dứt điểm.
+Bước 1 đã có bản export nên vẫn lùi lại được nếu restore ra kết quả tệ hơn.
+
+
+## 7. Xác nhận
+
+Mở app, dán mã sync, kiểm số vị thế và vốn của TỪNG account. Rồi Export ngay một
+bản nữa — từ giờ mỗi lần sửa account xong nên export một lần, đó là thứ duy nhất
+không nằm trên Cloudflare.
+
+
+## Ghi chú an toàn (giữ nguyên, đừng bỏ qua)
+
+  - `.env` / mã sync / `SCANNER_TOKEN`: không commit, không gõ vào đâu ngoài ô ☁️
+    của app.
+  - Cùng lúc chỉ MỘT tiến trình `main.py` của scanner được chạy (Telegram
+    getUpdates 409).
+  - Không sửa firewall của Oracle VM (rủi ro mất SSH).
+  - `crontab -e` chạy dưới user `ubuntu`, KHÔNG phải `sudo crontab -e`.
