@@ -116,6 +116,34 @@ function renderTab(tab: Tab): void {
   }
 }
 
+/**
+ * ── Deep links ──────────────────────────────────────────────────────────────
+ * `#scanner` is the link the scanner's own morning Telegram message carries
+ * (`nightly.dashboard_url()` derives it from `SCANNER_PUSH_URL`, so the two can
+ * never point at different domains). Without this the link opened the app on the
+ * default tab and the reader had to go and find the scanner by hand, which is
+ * exactly the friction the link existed to remove.
+ *
+ * Only `#<tab>` is understood — no router, no library, no path segments. Anything
+ * else in the hash is ignored rather than guessed at.
+ */
+function tabFromHash(): Tab | null {
+  const h = location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+  return (TABS as readonly string[]).includes(h) ? (h as Tab) : null;
+}
+
+function syncHash(tab: Tab): void {
+  const want = `#${tab}`;
+  if (location.hash === want) return;
+  // replaceState, not `location.hash = …`. Two reasons, both about Back:
+  // assigning pushes a history entry per tab click, so after browsing five tabs
+  // Back walks backwards through all five instead of leaving the app; and it
+  // would re-enter the `hashchange` handler below, which then calls show() again.
+  // The cost is that Back does not step between tabs — the same as before this
+  // existed, so nothing regresses.
+  history.replaceState(null, '', want);
+}
+
 function show(tab: Tab): void {
   currentTab = tab;
   $$('[data-tab]').forEach((b) =>
@@ -128,7 +156,24 @@ function show(tab: Tab): void {
     const activeInMore = !!more.querySelector('.nav-more-panel [data-tab].active');
     more.classList.toggle('has-active', activeInMore);
   }
+  syncHash(tab);
   renderTab(tab);
+}
+
+/**
+ * Open a tab named in the URL hash on a cold load.
+ *
+ * Goes through the gate like any other way in: a deep link must not be a way past
+ * the access code. `showGate` calls straight through when the code was already
+ * entered on this device, so the usual case costs no extra click. `#landing` is
+ * hidden here rather than in `enterApp`, which is only ever reached from the tool
+ * landing and so has never needed to.
+ */
+function openDeepLink(tab: Tab): void {
+  showGate(() => {
+    $('#landing')!.classList.add('hidden');
+    enterApp(tab);
+  });
 }
 
 
@@ -376,6 +421,15 @@ window.addEventListener('keydown', (e) => {
   // the user staring at a form belonging to something that is no longer there.
   if (isChatOpen() && !document.querySelector('.dialog-host')) closeChatPanel();
 });
+// A second `#scanner` link clicked while the app is already open, or the hash
+// edited by hand. Ignored unless the app is actually on screen: changing the hash
+// while the landing page is up must not silently unlock and reveal the app.
+window.addEventListener('hashchange', () => {
+  const tab = tabFromHash();
+  if (!tab || tab === currentTab) return;
+  if ($('#app')!.classList.contains('hidden')) return;
+  show(tab);
+});
 window.addEventListener('app:show-tab', (e) => {
   const tab = (e as CustomEvent<Tab>).detail;
   enterApp();
@@ -458,6 +512,10 @@ try {
   applyStaticI18n();
   (window as unknown as { __APP_READY__?: boolean }).__APP_READY__ = true;
   void runSplash(); // overlay sits on top; fades away when ring completes
+  // After the landing is rendered, so that cancelling the gate leaves a usable
+  // page underneath rather than a blank one.
+  const deep = tabFromHash();
+  if (deep) openDeepLink(deep);
 } catch (e) {
   showFatal(String((e as Error)?.stack || e));
 }

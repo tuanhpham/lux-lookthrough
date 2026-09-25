@@ -779,8 +779,116 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
 
   // Sections
   'scan.sec.watch': { en: 'Watch list', vi: 'Danh sách theo dõi' },
+  'scan.sec.cand': { en: 'Candidates by setup', vi: 'Ứng viên theo setup' },
   'scan.sec.rejects': { en: 'Why rejected', vi: 'Lý do bị loại' },
   'scan.sec.alerts': { en: 'Alerts', vi: 'Cảnh báo' },
+
+  // ── Nightly swing funnel (Stage 1–4) ──────────────────────────────────────
+  // Today panel: market regime + the playbook cell in force.
+  'scan.sec.today': { en: 'Today', vi: 'Hôm nay' },
+  'scan.today.none': {
+    en: 'No market regime has been measured yet. Run the nightly chain once (nightly.py) — until it does, no stage downstream of it has anything to stand on.',
+    vi: 'Chưa đo được bối cảnh thị trường lần nào. Chạy chuỗi buổi sáng một lần (nightly.py) — chưa có nó thì mọi bước phía sau đều không có gì để dựa vào.',
+  },
+  'scan.today.trend': { en: 'Regime', vi: 'Bối cảnh' },
+  'scan.today.vol': { en: 'Volatility', vi: 'Biên độ' },
+  'scan.today.setups': { en: 'Playbook', vi: 'Được phép' },
+  'scan.today.size': { en: 'Position size', vi: 'Cỡ vị thế' },
+  'scan.today.bar': { en: 'Decision bar', vi: 'Nến quyết định' },
+  'scan.today.nosize': { en: 'no new entries', vi: 'không vào lệnh mới' },
+  'scan.today.nosetup': { en: 'none', vi: 'không có' },
+  'scan.today.changed': { en: 'changed from', vi: 'đổi từ' },
+  'scan.today.atr': { en: 'ATR vs its own average', vi: 'ATR so với trung bình của chính nó' },
+
+  // Trend / volatility labels. These mirror regime.py's enum, one label per value —
+  // the raw value is also shown, because that is what the database holds.
+  'scan.trend.UPTREND': { en: 'Uptrend', vi: 'Xu hướng tăng' },
+  'scan.trend.UPTREND_UNDER_STRESS': { en: 'Uptrend under stress', vi: 'Xu hướng tăng đang yếu' },
+  'scan.trend.RANGE': { en: 'Range', vi: 'Đi ngang' },
+  'scan.trend.DOWNTREND': { en: 'Downtrend', vi: 'Xu hướng giảm' },
+  'scan.vol.CONTRACTED': { en: 'Contracted', vi: 'Co hẹp' },
+  'scan.vol.NORMAL': { en: 'Normal', vi: 'Bình thường' },
+  'scan.vol.EXPANDED': { en: 'Expanded', vi: 'Nở rộng' },
+
+  // Sector ranking + rank history chart.
+  'scan.sec.sectors': { en: 'Sector ranking', vi: 'Xếp hạng ngành' },
+  'scan.sectors.none': {
+    en: 'No sector ranking has been stored yet. It is what picks the three baskets Stage 3 looks inside, so the watch list stays empty until it exists.',
+    vi: 'Chưa lưu được bảng xếp hạng ngành. Chính nó chọn ba rổ mà bước lọc cổ phiếu tìm bên trong, nên chưa có nó thì danh sách theo dõi vẫn trống.',
+  },
+  'scan.sectors.defensive': {
+    en: 'Defensive sectors are in the top 3 — money is leaving risk. Long setups work worse from here even when the regime still reads as an uptrend.',
+    vi: 'Nhóm phòng thủ đã vào top 3 — dòng tiền đang rút khỏi rủi ro. Từ đây các setup mua chạy kém hơn, kể cả khi bối cảnh vẫn đọc ra là xu hướng tăng.',
+  },
+  'scan.sec.chart': { en: 'Rank history', vi: 'Lịch sử xếp hạng' },
+  'scan.chart.note': {
+    en: 'Rank 1 is at the top, so a line RISING means money rotating in. Click a ticker to hide its line. A break in a line is a session with no data — not a flat stretch.',
+    vi: 'Hạng 1 ở trên cùng, nên đường ĐI LÊN nghĩa là dòng tiền đang chảy vào. Bấm vào mã để ẩn đường của nó. Đường bị ngắt là phiên không có dữ liệu — không phải là đi ngang.',
+  },
+  'scan.chart.none': { en: 'not enough history yet', vi: 'chưa đủ lịch sử' },
+  'scan.chart.sessions': { en: 'sessions', vi: 'phiên' },
+
+  // Swing watch list (the nightly output, distinct from intraday candidates).
+  'scan.watch.none': {
+    en: 'No stock cleared the quality floor in the top 3 sectors. That is a normal result, not a fault — on most days nothing is worth a new position.',
+    vi: 'Không mã nào qua hết sàn chất lượng trong 3 ngành dẫn đầu. Đây là kết quả bình thường, không phải lỗi — phần lớn các ngày không có gì đáng mở vị thế mới.',
+  },
+  'scan.watch.blocked': {
+    en: 'The filter stage did not run, so this table is empty for a reason that has nothing to do with the market. See the run report below.',
+    vi: 'Bước lọc không chạy, nên bảng này trống vì một lý do không liên quan gì đến thị trường. Xem báo cáo chuỗi chạy bên dưới.',
+  },
+  'scan.watch.tv': { en: 'Open in TradingView', vi: 'Mở trong TradingView' },
+
+  // The trade plan computed last night. Column headers stay short on purpose —
+  // the note below the table carries the meaning, the header only labels.
+  'scan.watch.grp.plan': { en: 'Trade plan (set last night)', vi: 'Kế hoạch lệnh (đặt từ đêm trước)' },
+  'scan.watch.grp.ctx': { en: 'Why it is on the list', vi: 'Lý do có trong danh sách' },
+  'scan.watch.entry': { en: 'Entry', vi: 'Vào' },
+  'scan.watch.togo': { en: 'To entry', vi: 'Cách vào' },
+  'scan.watch.stop': { en: 'Stop', vi: 'Cắt lỗ' },
+  'scan.watch.target': { en: 'Target', vi: 'Mục tiêu' },
+  'scan.watch.sizepct': { en: 'Size', vi: 'Cỡ' },
+  'scan.watch.noplan': { en: 'no plan', vi: 'chưa có kế hoạch' },
+  'scan.watch.note': {
+    en: 'Entry, stop, target and size were all computed from last night\'s closed bar — they do not move during the session. Size is the final figure (risk 0.75% of capital divided by the stop distance, already scaled by the playbook cell), so do not scale it again. "To entry" is how far price has to travel, in per cent and in ATR.',
+    vi: 'Điểm vào, cắt lỗ, mục tiêu và cỡ vị thế đều được tính từ nến đã chốt của đêm trước — chúng không đổi trong phiên. Cỡ là con số cuối cùng (rủi ro 0,75% vốn chia cho khoảng cách cắt lỗ, đã nhân hệ số của ô playbook), nên đừng nhân thêm lần nữa. "Cách vào" là khoảng giá còn phải đi, tính theo phần trăm và theo ATR.',
+  },
+
+  // Nightly run report.
+  'scan.sec.night': { en: 'Nightly run', vi: 'Chuỗi chạy buổi sáng' },
+  'scan.night.none': {
+    en: 'The nightly chain has never reported a run. Either it is not in cron yet, or push.py cannot read its table.',
+    vi: 'Chuỗi chạy buổi sáng chưa báo về lần nào. Hoặc nó chưa vào cron, hoặc push.py không đọc được bảng của nó.',
+  },
+  'scan.night.last': { en: 'Last run', vi: 'Lần chạy cuối' },
+  'scan.night.lastok': { en: 'Last success', vi: 'Thành công gần nhất' },
+  'scan.night.never': { en: 'never', vi: 'chưa lần nào' },
+  'scan.night.took': { en: 'Duration', vi: 'Thời gian chạy' },
+  // Column header, so it has to stay short; the tile above uses the long form.
+  'scan.night.sec': { en: 'Took', vi: 'Giây' },
+  'scan.night.exit': { en: 'Exit code', vi: 'Mã thoát' },
+  'scan.night.stage': { en: 'Stage', vi: 'Bước' },
+  'scan.night.detail': { en: 'Result', vi: 'Kết quả' },
+  'scan.night.ok': { en: 'ok', vi: 'xong' },
+  'scan.night.failed': { en: 'failed', vi: 'lỗi' },
+  'scan.night.blocked': { en: 'did not run', vi: 'không chạy' },
+  'scan.night.skipped': { en: 'skipped', vi: 'bỏ qua' },
+  'scan.night.dry': { en: 'dry run — nothing was written', vi: 'chạy thử — không ghi gì' },
+  'scan.night.warn': { en: 'Warnings', vi: 'Cảnh báo' },
+  'scan.night.source': { en: 'Data source', vi: 'Nguồn dữ liệu' },
+  'scan.night.sourceval': {
+    en: 'yfinance daily bars, cached on the VM — delayed, not realtime',
+    vi: 'nến ngày từ yfinance, cache trên VM — có độ trễ, không phải thời gian thực',
+  },
+
+  // Read-only thresholds.
+  'scan.sec.thresholds': { en: 'Active thresholds', vi: 'Ngưỡng đang chạy' },
+  'scan.th.note': {
+    en: 'Read straight out of the running config.py on the VM, not a copy kept here. If a number on this page looks wrong, it IS what the scanner used.',
+    vi: 'Đọc trực tiếp từ file config.py đang chạy trên VM, không phải bản copy giữ ở đây. Nếu một con số ở trang này trông sai thì đó ĐÚNG là con số máy quét đã dùng.',
+  },
+  'scan.th.none': { en: 'The VM has not pushed its thresholds yet.', vi: 'VM chưa đẩy bảng ngưỡng lên.' },
+  'scan.th.show': { en: 'Show thresholds', vi: 'Xem bảng ngưỡng' },
   'scan.rej.passed': { en: 'passed', vi: 'qua lọc' },
   'scan.rej.cut': { en: 'over ceiling', vi: 'bị cắt trần' },
   'scan.rej.fund': { en: 'awaiting fundamentals', vi: 'chờ điểm cơ bản' },
@@ -825,6 +933,22 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'scan.warn.spool': {
     en: 'Messages are queued undelivered — Telegram is rejecting them',
     vi: 'Có tin nhắn xếp hàng chưa gửi được — Telegram đang từ chối',
+  },
+  'scan.warn.nightstale': {
+    en: 'The nightly chain has not completed for more than',
+    vi: 'Chuỗi chạy buổi sáng đã không hoàn tất quá',
+  },
+  'scan.warn.nightstale.tail': {
+    en: 'working hours — everything below is from an older session',
+    vi: 'giờ làm việc — mọi thứ bên dưới là của một phiên cũ hơn',
+  },
+  'scan.warn.nightnever': {
+    en: 'The nightly chain has never completed successfully — nothing below has ever been refreshed',
+    vi: 'Chuỗi chạy buổi sáng chưa hoàn tất thành công lần nào — chưa có gì bên dưới từng được làm mới',
+  },
+  'scan.warn.nightfail': {
+    en: 'Last nightly run failed at',
+    vi: 'Lần chạy buổi sáng gần nhất bị lỗi ở',
   },
 
   // Sync indicator (top bar)

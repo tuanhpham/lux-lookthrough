@@ -18,11 +18,22 @@ import { t } from '../ui/i18n.js';
 import { isSyncEnabled } from '../adapters/syncClient.js';
 import { scannerPull } from '../adapters/scannerClient.js';
 import { openSyncSettings } from '../ui/syncSettings.js';
+import { rankChartSvg, rankChartColor, type RankHistory } from './scannerRankChart.js';
 
 const KEY_STATUS = 'scanner:status';
 const KEY_CANDIDATES = 'scanner:candidates';
 const KEY_REJECTS = 'scanner:rejects';
 const ALERTS_PREFIX = 'scanner:alerts:';
+
+// Nightly swing funnel (Stage 1–4). The spec for these asked for four HTTP
+// endpoints; the VM opens no inbound port, so they are four D1 keys instead and
+// `scannerPull` is the API. Note `scanner:thresholds`, NOT `scanner:config`: the
+// endpoint reserves `scanner:config` for app→VM writes and would 403 the VM's
+// writer token, so the read-only threshold view rides on a key the VM owns.
+const KEY_REGIME = 'scanner:regime';
+const KEY_SECTORS = 'scanner:sectors';
+const KEY_WATCH = 'scanner:watchlist';
+const KEY_THRESHOLDS = 'scanner:thresholds';
 
 /**
  * Mirrors `setups.MAX_AGE`. Duplicated on purpose: the browser has no way to read
@@ -77,6 +88,46 @@ interface TableInfo {
   by_setup?: Record<string, number>;
 }
 
+/** One stage of the nightly chain, as `nightly.run()` records it. */
+interface NightStage {
+  stage?: string;
+  ok?: boolean;
+  fatal?: boolean;
+  /** Did not run because a required stage ahead of it failed. NOT a failure. */
+  blocked?: boolean;
+  skipped?: boolean;
+  sec?: number;
+  err?: string | null;
+  detail?: string | null;
+}
+
+interface NightRun {
+  run_id?: string;
+  day?: string;
+  /** The bar the decisions were made on. Must be a CLOSED session. */
+  bar?: string | null;
+  ok?: boolean | number;
+  code?: number;
+  sec?: number;
+  dry?: boolean | number;
+  stages?: NightStage[];
+  warn?: string[];
+}
+
+interface NightBlock {
+  last?: NightRun | null;
+  /** Last run that SUCCEEDED. A failed run does not make the data fresher. */
+  last_ok?: NightRun | null;
+  failed?: string[];
+  blocked?: string[];
+  stale?: {
+    /** Working hours since the last success — weekends excluded. */
+    hours?: number | null;
+    limit?: number;
+    stale?: boolean;
+  };
+}
+
 interface Status {
   ts?: number;
   today?: string;
@@ -88,6 +139,119 @@ interface Status {
   tracking?: number;
   beat?: Beat;
   spool?: number;
+  night?: NightBlock;
+}
+
+// ── nightly swing shapes ─────────────────────────────────────────────────────
+
+interface RegimeRow {
+  d?: string;
+  trend?: string;
+  vol?: string;
+  slope_dir?: string;
+  px?: number | null;
+  sma50?: number | null;
+  sma200?: number | null;
+  slope50?: number | null;
+  atr14?: number | null;
+  atr_pct?: number | null;
+  atr_pct_avg?: number | null;
+  atr_ratio?: number | null;
+  bench?: string;
+  n_bars?: number | null;
+}
+
+interface RegimeSnap {
+  ts?: number;
+  row?: RegimeRow;
+  /** The previous session, so "what changed since yesterday" needs no second key. */
+  prev?: RegimeRow | null;
+  /**
+   * Straight from the running `config.PLAYBOOK`, not from the row's stored
+   * `playbook` column — so a drift between the two is visible rather than flattened.
+   */
+  playbook?: { setups?: string[]; size?: number | null; note?: string | null };
+  age?: number | null;
+}
+
+interface SectorRow {
+  d?: string;
+  sym?: string;
+  rank?: number | null;
+  composite?: number | null;
+  ret21?: number | null;
+  ret63?: number | null;
+  ret126?: number | null;
+  px?: number | null;
+  above_sma50?: number | null;
+  above_ema21?: number | null;
+  slope_up?: number | null;
+  n_bars?: number | null;
+}
+
+interface SectorsSnap {
+  ts?: number;
+  d?: string;
+  rows?: SectorRow[];
+  /** `sym -> {"5": +2, "21": null}`. POSITIVE = moved UP. `null` = not knowable. */
+  chg?: Record<string, Record<string, number | null>>;
+  wins?: number[];
+  /** Defensive sectors currently inside the top 3, or empty. */
+  defensive?: string[];
+  hist?: RankHistory;
+  age?: number | null;
+}
+
+interface WatchRow {
+  sym?: string;
+  d?: string;
+  sector?: string;
+  ref_close?: number | null;
+  pivot?: number | null;
+  dist_pivot?: number | null;
+  atr_pct?: number | null;
+  off_high?: number | null;
+  rs21?: number | null;
+  rs63?: number | null;
+  rs_pct?: number | null;
+  adv20?: number | null;
+  base_len?: number | null;
+  quality?: number | null;
+  /**
+   * The playbook cell's coefficient (0 / 0.5 / 1), one value for the whole
+   * session — "how much of a full position is today worth at all".
+   */
+  size?: number | null;
+  /**
+   * The trade plan, computed last night from the closed bar by plan.make().
+   * These do not move during the session: the point of having them is that the
+   * entry decision was made the night before and is only *executed* intraday.
+   *
+   * `size_pct` is the FINAL size as a fraction of capital — risk budget divided
+   * by stop distance, with `size` above already folded in. Multiplying the two
+   * halves the position and nobody notices.
+   */
+  trigger?: number | null;
+  stop?: number | null;
+  target?: number | null;
+  stop_pct?: number | null;
+  risk_pct?: number | null;
+  size_pct?: number | null;
+}
+
+interface WatchSnap {
+  ts?: number;
+  d?: string;
+  rows?: WatchRow[];
+  /** Rows before the `watch_top` ceiling, so a truncated table says so. */
+  total?: number;
+  size?: number | null;
+  age?: number | null;
+}
+
+interface ThresholdsSnap {
+  ts?: number;
+  config?: Record<string, unknown>;
 }
 
 interface Candidate {
@@ -160,6 +324,14 @@ let since = 0;
 let loading = false;
 let loadError: string | null = null;
 let lastLoad = 0;
+
+/** Sector table sort. Rank ascending is the order the ranking itself produced. */
+type SectorSortKey = 'rank' | 'sym' | 'composite' | 'ret21' | 'ret63' | 'ret126'
+  | 'chg0' | 'chg1';
+let sectorSort: SectorSortKey = 'rank';
+let sectorDesc = false;
+/** Sectors switched off in the rank chart. Survives a redraw; not persisted. */
+const chartOff = new Set<string>();
 
 const esc = (s: string): string =>
   s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -273,7 +445,495 @@ function healthNotes(status: Status | null, pushedAt: number | null): string[] {
 
   const spool = status.spool ?? 0;
   if (spool > 0) out.push(`${t('scan.warn.spool')} (${spool})`);
+
+  // The nightly chain. Its staleness is measured in WORKING hours on the VM, not
+  // in wall-clock hours here: cron runs Mon–Fri, so a Monday morning is ~48 clock
+  // hours after the last Friday run and a clock-hour threshold would raise the
+  // banner every single Monday. A banner that cries every week stops being read,
+  // and then it cannot report the real outage. See `push._biz_hours`.
+  const ns = status.night?.stale;
+  if (ns?.stale) {
+    if (ns.hours == null) out.push(t('scan.warn.nightnever'));
+    else {
+      out.push(`${t('scan.warn.nightstale')} ${ns.limit ?? '?'} `
+        + `${t('scan.warn.nightstale.tail')} (${Math.round(ns.hours)}h)`);
+    }
+  }
+  // Named separately from staleness: a run that failed one hour ago is fresh AND
+  // broken, and only the failure names which stage to go and look at.
+  const nf = status.night?.failed ?? [];
+  if (nf.length) out.push(`${t('scan.warn.nightfail')} ${nf.join(', ')}`);
   return out;
+}
+
+// ── nightly swing sections ───────────────────────────────────────────────────
+
+/**
+ * Colour of a regime. Only two states get a colour, and that is deliberate:
+ * UPTREND is the one where the playbook opens up, DOWNTREND is the one where it
+ * closes entirely. The two middle states are the ones you have to actually read
+ * the note for, and painting them amber would invite deciding by colour instead.
+ */
+function trendColor(trend: string | undefined): string | undefined {
+  if (trend === 'UPTREND') return 'var(--accent)';
+  if (trend === 'DOWNTREND') return 'var(--danger)';
+  return undefined;
+}
+
+const volColor = (vol: string | undefined): string | undefined =>
+  vol === 'EXPANDED' ? 'var(--warn)' : undefined;
+
+/** `1.0` → `100%`, `0.5` → `50%`, `0` → the words that say why. */
+function sizeText(size: number | null | undefined): string {
+  if (size == null) return '—';
+  if (size <= 0) return `<span style="color:var(--danger)">${t('scan.today.nosize')}</span>`;
+  return `${Math.round(size * 100)}%`;
+}
+
+const enumLabel = (kind: 'trend' | 'vol', v: string | undefined): string =>
+  v ? `${t(`scan.${kind}.${v}`)} <span class="muted" style="font-size:11px">${esc(v)}</span>` : '—';
+
+/**
+ * Today: the regime, the volatility bucket, and the playbook cell they select.
+ *
+ * It sits first on the page because it is the one thing that changes what you are
+ * allowed to do with everything below it. A watch list read without knowing the
+ * regime is a list of trades you may not be permitted to take.
+ */
+function renderToday(snap: RegimeSnap | null): string {
+  const title = `<h2 class="section-title">${t('scan.sec.today')}</h2>`;
+  const r = snap?.row;
+  if (!r) return `${title}<p class="muted">${t('scan.today.none')}</p>`;
+
+  const pb = snap?.playbook ?? {};
+  const setups = pb.setups?.length ? pb.setups.join(' · ') : t('scan.today.nosetup');
+
+  const tiles = [
+    stat(t('scan.today.trend'), enumLabel('trend', r.trend), trendColor(r.trend)),
+    stat(t('scan.today.vol'), enumLabel('vol', r.vol), volColor(r.vol)),
+    stat(t('scan.today.setups'), esc(setups),
+      pb.setups?.length ? undefined : 'var(--danger)'),
+    stat(t('scan.today.size'), sizeText(pb.size)),
+  ].join('');
+
+  // The decision bar, stated plainly. It is the answer to the one question this
+  // whole pipeline can get catastrophically wrong — acting on a bar that has not
+  // closed — and `nightly._check_bar` already raises a warning when it looks
+  // wrong, so the number is here for the reader to confirm, not to be trusted on
+  // its own.
+  const bar = `<div class="stat"><div class="k">${t('scan.today.bar')}</div>`
+    + `<div class="v">${esc(r.d ?? '—')}`
+    + `<span class="muted" style="font-size:11px"> · ${esc(r.bench ?? '')}`
+    + `${r.n_bars ? ` · ${r.n_bars} bars` : ''}</span></div></div>`;
+
+  const atr = `<div class="stat"><div class="k">${t('scan.today.atr')}</div>`
+    + `<div class="v"${volColor(r.vol) ? ` style="color:${volColor(r.vol)}"` : ''}>`
+    + `${num(r.atr_ratio, 2)}×`
+    + `<span class="muted" style="font-size:11px"> · ${frac(r.atr_pct, 2)}</span>`
+    + `</div></div>`;
+
+  // Only when it actually changed. "unchanged since yesterday" printed every day
+  // is noise that trains the eye to skip the line that matters on the day it does.
+  const prev = snap?.prev;
+  const changed = prev && prev.trend && prev.trend !== r.trend
+    ? `<p class="muted" style="font-size:12px;margin:8px 0 0">`
+      + `${t('scan.today.changed')} <b>${esc(t(`scan.trend.${prev.trend}`))}</b>`
+      + `${prev.vol && prev.vol !== r.vol ? ` / ${esc(t(`scan.vol.${prev.vol}`))}` : ''}</p>`
+    : '';
+
+  const note = pb.note
+    ? `<div class="card" style="margin-top:10px">${esc(pb.note)}${changed}</div>`
+    : changed;
+
+  return `${title}
+    <div class="grid grid-cards">${tiles}</div>
+    <div class="grid grid-cards" style="margin-top:10px">${bar}${atr}</div>
+    ${note}`;
+}
+
+/** `+2` / `-1` / `—`. Zero prints `0`, never `—`: unchanged ≠ unknown. */
+function rankDelta(v: number | null | undefined): string {
+  if (v == null) return '<span class="muted">—</span>';
+  if (v === 0) return '0';
+  // Positive = moved UP the ranking = better. Arrow AND sign, because an arrow
+  // alone inherits whichever direction the reader assumes "up" means in a table
+  // whose rank numbers get smaller as things improve.
+  return `<span style="color:${v > 0 ? 'var(--accent)' : 'var(--danger)'}">`
+    + `${v > 0 ? '▲' : '▼'}${Math.abs(v)}</span>`;
+}
+
+/** A boolean trend flag. `·` for false rather than a red ✕: it is context, not a fault. */
+const flag = (v: number | null | undefined): string =>
+  v ? `<span style="color:var(--accent)">✓</span>` : `<span class="muted">·</span>`;
+
+function sectorSortVal(r: SectorRow, key: SectorSortKey,
+                       chg: Record<string, Record<string, number | null>>,
+                       wins: number[]): number | string | null {
+  switch (key) {
+    case 'sym': return r.sym ?? '';
+    case 'chg0': return chg[r.sym ?? '']?.[String(wins[0] ?? 5)] ?? null;
+    case 'chg1': return chg[r.sym ?? '']?.[String(wins[1] ?? 21)] ?? null;
+    default: return r[key] ?? null;
+  }
+}
+
+function renderSectors(snap: SectorsSnap | null, topN: number): string {
+  const title = `<div class="section-title-row">`
+    + `<h2 class="section-title">${t('scan.sec.sectors')}</h2>`
+    + `${snap?.d ? `<span class="tag">${esc(snap.d)}</span>` : ''}</div>`;
+  const rows = snap?.rows ?? [];
+  if (!rows.length) return `${title}<p class="muted">${t('scan.sectors.none')}</p>`;
+
+  const chg = snap?.chg ?? {};
+  const wins = snap?.wins?.length ? snap.wins : [5, 21];
+
+  // Defensive sectors in the top 3. This is a real regime signal that the trend
+  // classifier cannot see — SPY can still be above both averages while the money
+  // inside it has already moved to staples and utilities — so it is a banner, not
+  // a table cell.
+  const def = snap?.defensive ?? [];
+  const banner = def.length
+    ? `<div class="notice" style="margin-bottom:8px">`
+      + `${t('scan.sectors.defensive')} <b>${esc(def.join(', '))}</b></div>`
+    : '';
+
+  const cols: { key: SectorSortKey; label: string }[] = [
+    { key: 'rank', label: '#' },
+    { key: 'sym', label: 'Sym' },
+    { key: 'composite', label: 'Score' },
+    { key: 'ret21', label: '21d' },
+    { key: 'ret63', label: '63d' },
+    { key: 'ret126', label: '126d' },
+    { key: 'chg0', label: `Δ${wins[0]}d` },
+    { key: 'chg1', label: `Δ${wins[1]}d` },
+  ];
+
+  const sorted = [...rows].sort((a, b) => {
+    const x = sectorSortVal(a, sectorSort, chg, wins);
+    const y = sectorSortVal(b, sectorSort, chg, wins);
+    // Unknown sorts last in BOTH directions. Treating `null` as 0 would park a
+    // sector with no history in the middle of the ranking as though it had been
+    // measured and found average.
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;
+    if (y == null) return -1;
+    const c = typeof x === 'string' || typeof y === 'string'
+      ? String(x).localeCompare(String(y))
+      : (x as number) - (y as number);
+    return sectorDesc ? -c : c;
+  });
+
+  const arrow = (k: SectorSortKey) => (k === sectorSort ? (sectorDesc ? ' ▾' : ' ▴') : '');
+  const head = cols.map((c) =>
+    `<th class="sortable${c.key === sectorSort ? ' sorted' : ''}"`
+    + ` data-sec-sort="${c.key}">${esc(c.label)}${arrow(c.key)}</th>`).join('')
+    + `<th>&gt;50SMA</th><th>&gt;21EMA</th><th>Slope</th>`;
+
+  const body = sorted.map((r) => {
+    const top = (r.rank ?? 99) <= topN;
+    const cs = chg[r.sym ?? ''] ?? {};
+    // Top 3 is the only highlight: those are the baskets Stage 3 is allowed to
+    // look inside, so "in the top 3" is not a decoration, it is the boundary of
+    // where stock picking happens at all.
+    return `<tr${top ? ' style="background:color-mix(in srgb, var(--accent) 9%, transparent)"' : ''}>`
+      + `<td${top ? ' style="color:var(--accent);font-weight:700"' : ''}>${r.rank ?? '—'}</td>`
+      + `<td${top ? ' style="font-weight:700"' : ''}>${esc(r.sym ?? '—')}</td>`
+      + cell(num(r.composite, 1))
+      + cell(signedFrac(r.ret21), (r.ret21 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + cell(signedFrac(r.ret63), (r.ret63 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + cell(signedFrac(r.ret126), (r.ret126 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + `<td>${rankDelta(cs[String(wins[0] ?? 5)])}</td>`
+      + `<td>${rankDelta(cs[String(wins[1] ?? 21)])}</td>`
+      + `<td>${flag(r.above_sma50)}</td><td>${flag(r.above_ema21)}</td>`
+      + `<td>${flag(r.slope_up)}</td>`
+      + `</tr>`;
+  }).join('');
+
+  return `${title}${banner}
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    </div>
+    ${renderRankChart(snap, topN)}`;
+}
+
+/**
+ * The rank history chart, plus one toggle chip per sector.
+ *
+ * Toggling redraws the SVG from the snapshot already held — no fetch, and the
+ * hidden set is module state so it survives a theme flip or a tab revisit. The
+ * chips carry the line colour so "which line is XLE" needs no legend hunting.
+ */
+function renderRankChart(snap: SectorsSnap | null, topN: number): string {
+  const hist = snap?.hist;
+  const days = hist?.days ?? [];
+  const order = Object.keys(hist?.series ?? {});
+  const title = `<div class="section-title-row">`
+    + `<h3 class="section-title">${t('scan.sec.chart')}</h3>`
+    + (days.length
+      ? `<span class="tag">${days.length} ${t('scan.chart.sessions')}</span>`
+        + `<span class="tag">${esc(days[0]!)} → ${esc(days[days.length - 1]!)}</span>`
+      : `<span class="tag">${t('scan.chart.none')}</span>`)
+    + `</div>`;
+
+  if (days.length < 2 || !order.length) {
+    return `${title}<p class="muted">${t('scan.chart.none')}</p>`;
+  }
+
+  const emphasis = new Set((snap?.rows ?? [])
+    .filter((r) => (r.rank ?? 99) <= topN)
+    .map((r) => r.sym ?? ''));
+
+  const chips = order.map((sym) => {
+    const off = chartOff.has(sym);
+    const c = rankChartColor(order, sym);
+    return `<button class="tag" data-chart-sym="${esc(sym)}"`
+      + ` style="cursor:pointer;border:1px solid ${off ? 'var(--border)' : c};`
+      + `background:transparent;color:${off ? 'var(--faint)' : c};`
+      + `${off ? 'text-decoration:line-through;' : ''}font-weight:600">${esc(sym)}</button>`;
+  }).join('');
+
+  return `${title}
+    <div class="card">
+      ${rankChartSvg(hist, { order, hidden: chartOff, emphasis })}
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px">${chips}</div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">${t('scan.chart.note')}</p>
+    </div>`;
+}
+
+const tvHref = (sym: string): string =>
+  `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(sym)}`;
+
+const tvLink = (sym: string): string =>
+  `<a href="${tvHref(sym)}" target="_blank" rel="noopener" title="${t('scan.watch.tv')}"`
+  + ` data-tv="1" style="color:inherit">${esc(sym)} ↗</a>`;
+
+/**
+ * The swing watch list — the nightly output, and the only list the intraday
+ * process is ever allowed to alert on (prompt 2).
+ *
+ * `blocked` matters here: an empty table means "nothing cleared the floor" on a
+ * normal day and "the filter never ran" on a broken one, and those two read almost
+ * identically while calling for opposite actions. So the caller passes whether the
+ * filter stage actually completed rather than letting the reader guess.
+ */
+function renderWatch(snap: WatchSnap | null, blocked: boolean): string {
+  const rows = snap?.rows ?? [];
+  const total = snap?.total ?? rows.length;
+  const title = `<div class="section-title-row">`
+    + `<h2 class="section-title">${t('scan.sec.watch')}</h2>`
+    + `${snap?.d ? `<span class="tag">${esc(snap.d)}</span>` : ''}`
+    + `${rows.length ? `<span class="tag">${total > rows.length ? `${rows.length} / ${total}` : total}</span>` : ''}`
+    + `</div>`;
+
+  if (!rows.length) {
+    return `${title}<p class="muted">`
+      + `${blocked ? t('scan.watch.blocked') : t('scan.watch.none')}</p>`;
+  }
+
+  // Two header rows: the plan you act on, then the evidence that put the ticker
+  // there. They are genuinely different kinds of number and reading them as one
+  // flat strip of 15 columns is how you end up entering at the pivot instead of
+  // at the trigger.
+  const PLAN = [t('scan.watch.entry'), t('scan.watch.togo'), t('scan.watch.stop'),
+    t('scan.watch.target'), t('scan.watch.sizepct')];
+  const CTX = ['Sector', 'Qual', 'Close', 'ATR%', 'Off high', 'RS21', 'RS63',
+    'Base', 'ADV20'];
+  const head = `<tr>`
+    + `<th rowspan="2" class="wl-sep-r">Sym</th>`
+    + `<th colspan="${PLAN.length}" class="wl-grp wl-sep-r">${t('scan.watch.grp.plan')}</th>`
+    + `<th colspan="${CTX.length}" class="wl-grp">${t('scan.watch.grp.ctx')}</th>`
+    + `</tr><tr>`
+    + PLAN.map((h, i) => `<th${i === PLAN.length - 1 ? ' class="wl-sep-r"' : ''}>${h}</th>`).join('')
+    + CTX.map((h) => `<th>${h}</th>`).join('')
+    + `</tr>`;
+
+  const body = rows.map((r) => {
+    // Distance still to travel to the planned trigger. Negative means price is
+    // already through it — that is a ticker to look at first, not last, so it
+    // gets the accent colour.
+    const togo = r.trigger != null && r.ref_close != null && r.ref_close > 0
+      ? r.trigger / r.ref_close - 1 : null;
+    const togoColor = togo == null ? undefined
+      : togo <= 0 ? 'var(--accent)'
+      : togo <= 0.02 ? 'var(--warn)'
+      : undefined;
+    // …and the same distance in ATR, because 2% is close for a quiet stock and
+    // nothing at all for a volatile one.
+    const atr = r.atr_pct != null && r.ref_close != null ? r.atr_pct * r.ref_close : null;
+    const togoAtr = togo != null && atr && atr > 0
+      ? `<span class="muted" style="font-size:11px"> ${((togo * (r.ref_close ?? 0)) / atr).toFixed(1)}×A</span>`
+      : '';
+    const noPlan = r.trigger == null || r.stop == null;
+    return `<tr data-sym="${esc(r.sym ?? '')}">`
+      + `<td class="wl-sep-r">${r.sym ? tvLink(r.sym) : '—'}</td>`
+      + (noPlan
+        // One dash per cell would read as "zero"; one spanned note reads as
+        // "this row has no plan", which is the actual state.
+        ? `<td colspan="${PLAN.length}" class="muted wl-sep-r">${t('scan.watch.noplan')}</td>`
+        : cell(num(r.trigger, 2), 'var(--text)')
+          + cell(togo == null ? '—' : signedFrac(togo) + togoAtr, togoColor)
+          + cell(`${num(r.stop, 2)}<span class="muted" style="font-size:11px">`
+            + ` ${r.stop_pct == null ? '—' : `−${frac(r.stop_pct, 1)}`}</span>`,
+            'var(--danger)')
+          + cell(num(r.target, 2), 'var(--accent)')
+          + `<td class="wl-sep-r">${sizeText(r.size_pct)}</td>`)
+      + `<td><span class="tag">${esc(r.sector ?? '—')}</span></td>`
+      + cell(num(r.quality, 2))
+      + cell(num(r.ref_close, 2))
+      + cell(frac(r.atr_pct, 1))
+      + cell(frac(r.off_high, 1))
+      // Relative strength vs the benchmark, as excess return in percentage points.
+      // Both windows are shown because a single positive window can be luck and
+      // Stage 3 requires both — so seeing both is seeing the reason it qualified.
+      + cell(signedFrac(r.rs21), (r.rs21 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + cell(signedFrac(r.rs63), (r.rs63 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + cell(r.base_len == null ? '—' : String(r.base_len))
+      + cell(fmtBig(r.adv20))
+      + `</tr>`;
+  }).join('');
+
+  return `${title}
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table class="wl"><thead>${head}</thead><tbody>${body}</tbody></table>
+    </div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">${t('scan.watch.note')}</p>`;
+}
+
+const STAGE_MARK: Record<string, [string, string]> = {
+  ok: ['✓', 'var(--accent)'],
+  failed: ['✕', 'var(--danger)'],
+  blocked: ['–', 'var(--faint)'],
+  skipped: ['·', 'var(--faint)'],
+};
+
+/**
+ * The nightly run report: when it last ran, when it last SUCCEEDED, and which
+ * stage broke.
+ *
+ * `failed` and `blocked` are two different columns of the same table on purpose.
+ * A blocked stage is a consequence — it never ran because something ahead of it
+ * died — and counting it as an error turns one root cause into four, leaving the
+ * reader to work out which one to go and fix. The same split exists in
+ * `render_night._failed/_blocked` and in `push._night`; all three have to agree.
+ */
+function renderNight(night: NightBlock | null | undefined): string {
+  const title = `<h2 class="section-title">${t('scan.sec.night')}</h2>`;
+  const last = night?.last;
+  if (!last) return `${title}<p class="muted">${t('scan.night.none')}</p>`;
+
+  const ok = !!last.ok;
+  const st = night?.stale;
+  const tiles = [
+    stat(t('scan.night.last'), esc((last.run_id ?? '').slice(0, 16) || '—'),
+      ok ? undefined : 'var(--danger)'),
+    stat(t('scan.night.lastok'),
+      night?.last_ok?.run_id
+        ? esc(night.last_ok.run_id.slice(0, 16))
+        : `<span style="color:var(--danger)">${t('scan.night.never')}</span>`,
+      st?.stale ? 'var(--danger)' : undefined),
+    stat(t('scan.night.took'), last.sec == null ? '—' : `${last.sec.toFixed(1)}s`),
+    stat(t('scan.night.exit'), String(last.code ?? '—'),
+      last.code ? 'var(--danger)' : 'var(--accent)'),
+    stat(t('scan.today.bar'), esc(last.bar ?? '—'),
+      // The chain records the bar it decided on; when it equals the run day the
+      // bar had not closed. nightly._check_bar already warns, and the warning
+      // shows up in the list below — this colour is a second place to notice it.
+      last.bar && last.bar === last.day ? 'var(--danger)' : undefined),
+    stat(t('scan.night.source'), `<span style="font-size:12px;font-weight:500">`
+      + `${t('scan.night.sourceval')}</span>`),
+  ].join('');
+
+  const stages = (last.stages ?? []).map((s) => {
+    // `skipped` and `blocked` are tested BEFORE `ok`, and the order is the whole
+    // point: the chain records a skipped stage as `ok: true` so that the stages
+    // behind it still run, so testing `ok` first files every skip under a green
+    // tick. That produced a row reading "push ✓ done — not configured (missing
+    // SCANNER_PUSH_URL)", which is a page telling the reader two opposite things
+    // at once about the one stage they would need to go and fix.
+    const state = s.skipped ? 'skipped' : s.blocked ? 'blocked' : s.ok ? 'ok' : 'failed';
+    const [glyph, color] = STAGE_MARK[state]!;
+    return `<tr><td style="color:${color};text-align:center">${glyph}</td>`
+      + `<td>${esc(s.stage ?? '—')}</td>`
+      + `<td style="color:${color}">${t(`scan.night.${state}`)}</td>`
+      + `<td>${s.sec == null ? '—' : `${s.sec.toFixed(2)}s`}</td>`
+      + `<td>${esc(s.err ?? s.detail ?? '—')}</td></tr>`;
+  }).join('');
+
+  const warns = (last.warn ?? []).map((w) =>
+    `<div class="notice" style="margin-top:6px;font-size:12px">${esc(w)}</div>`).join('');
+
+  const dry = last.dry
+    ? `<div class="notice" style="margin-top:8px">${t('scan.night.dry')}</div>` : '';
+
+  return `${title}
+    <div class="grid grid-cards">${tiles}</div>
+    ${dry}
+    ${stages ? `<div class="card" style="padding:0;overflow-x:auto;margin-top:10px">
+      <table><thead><tr><th></th><th>${t('scan.night.stage')}</th><th></th>
+      <th>${t('scan.night.sec')}</th><th>${t('scan.night.detail')}</th></tr></thead>
+      <tbody>${stages}</tbody></table></div>` : ''}
+    ${warns}`;
+}
+
+/** One config value, flattened for display. Tuples arrive as JSON arrays. */
+function thValue(v: unknown): string {
+  if (v == null) return '—';
+  if (Array.isArray(v)) return esc(v.map((x) => String(x)).join(' · '));
+  if (typeof v === 'object') return esc(JSON.stringify(v));
+  return esc(String(v));
+}
+
+/**
+ * The thresholds actually in force, read-only.
+ *
+ * Collapsed by default: it is a reference you open when a number on this page
+ * surprises you, not something to scroll past every visit. It is the running
+ * `config.snapshot()` from the VM, so if a figure here looks wrong, that IS the
+ * figure the scanner used — the page cannot be out of date with respect to itself.
+ */
+function renderThresholds(snap: ThresholdsSnap | null): string {
+  const title = `<h2 class="section-title">${t('scan.sec.thresholds')}</h2>`;
+  const cfg = snap?.config;
+  if (!cfg) return `${title}<p class="muted">${t('scan.th.none')}</p>`;
+
+  const sections = Object.entries(cfg).map(([group, val]) => {
+    // `playbook` is the 12-row lookup table, not a bag of scalars — the one group
+    // that has to keep its own shape to be readable at all.
+    if (group === 'playbook' && Array.isArray(val)) {
+      const rows = (val as Record<string, unknown>[]).map((p) =>
+        `<tr><td>${esc(String(p.trend ?? ''))}</td>`
+        + `<td>${esc(String(p.vol ?? ''))}</td>`
+        + `<td>${thValue(p.setups)}</td>`
+        + `<td>${sizeText(typeof p.size === 'number' ? p.size : null)}</td>`
+        + `<td>${esc(String(p.note ?? ''))}</td></tr>`).join('');
+      return `<h3 class="section-title">playbook</h3>
+        <div class="card" style="padding:0;overflow-x:auto">
+        <table><thead><tr><th>Regime</th><th>Vol</th><th>Setups</th><th>Size</th>
+        <th>Note</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const rows = Object.entries(val as Record<string, unknown>).map(([k, v]) =>
+        `<tr><td>${esc(k)}</td><td>${thValue(v)}</td></tr>`).join('');
+      return `<h3 class="section-title">${esc(group)}</h3>
+        <div class="card" style="padding:0;overflow-x:auto">
+        <table><tbody>${rows}</tbody></table></div>`;
+    }
+    return `<div class="stat"><div class="k">${esc(group)}</div>`
+      + `<div class="v" style="font-size:13px">${thValue(val)}</div></div>`;
+  });
+
+  // Scalars first in one card row, then the grouped tables.
+  const scalars = sections.filter((s) => s.startsWith('<div class="stat"'));
+  const groups = sections.filter((s) => !s.startsWith('<div class="stat"'));
+
+  return `<details><summary style="cursor:pointer;margin:18px 0 4px">
+      <span class="section-title" style="display:inline">${t('scan.sec.thresholds')}</span>
+      <span class="muted" style="font-size:12px"> — ${t('scan.th.show')}</span>
+    </summary>
+    <p class="muted" style="font-size:12px;margin:0 0 8px">${t('scan.th.note')}</p>
+    ${scalars.length ? `<div class="grid grid-cards">${scalars.join('')}</div>` : ''}
+    ${groups.join('')}
+  </details>`;
 }
 
 // ── sections ─────────────────────────────────────────────────────────────────
@@ -384,7 +1044,7 @@ function renderCandidates(snap: CandidatesSnap | null): string {
       </div>`;
   });
 
-  return `<h2 class="section-title">${t('scan.sec.watch')}</h2>${blocks.join('')}`;
+  return `<h2 class="section-title">${t('scan.sec.cand')}</h2>${blocks.join('')}`;
 }
 
 function renderRejects(snap: RejectsSnap | null): string {
@@ -507,6 +1167,23 @@ function draw(ctx: AppContext): void {
           : '';
 
   const alertsKey = newestAlertsKey();
+  const thresholds = get<ThresholdsSnap>(KEY_THRESHOLDS);
+  const sectors = get<SectorsSnap>(KEY_SECTORS);
+
+  // `top_n` from the thresholds the VM pushed, not a constant here. It decides
+  // which rows are highlighted and which lines are emphasised, so a copy kept in
+  // the browser would eventually highlight a different number of sectors than the
+  // scanner actually picked from. 3 only until the first push arrives.
+  const topN = (() => {
+    const s = (thresholds?.config as { sectors?: { top_n?: number } } | undefined)?.sectors;
+    return typeof s?.top_n === 'number' ? s.top_n : 3;
+  })();
+
+  // Did the filter stage run? An empty watch list means two opposite things and
+  // only the run record can tell them apart. Absent a run record, assume it ran:
+  // accusing a stage of having failed on no evidence is its own kind of wrong.
+  const setupsStage = status?.night?.last?.stages?.find((s) => s.stage === 'setups');
+  const watchBlocked = !!setupsStage && !setupsStage.ok;
 
   root.innerHTML = `
     <h1>${t('scan.title')}</h1>
@@ -518,19 +1195,56 @@ function draw(ctx: AppContext): void {
     </div>
     ${notes.map((n) => `<div class="notice" style="margin-bottom:8px">${esc(n)}</div>`).join('')}
     ${status || !lastLoad ? '' : `<p class="muted">${t('scan.nodata')}</p>`}
+    ${renderToday(get<RegimeSnap>(KEY_REGIME))}
+    ${renderSectors(sectors, topN)}
+    ${renderWatch(get<WatchSnap>(KEY_WATCH), watchBlocked)}
+    ${renderNight(status?.night)}
     ${renderStatus(status, pushedAt)}
     ${renderCandidates(get<CandidatesSnap>(KEY_CANDIDATES))}
     ${renderRejects(get<RejectsSnap>(KEY_REJECTS))}
-    ${renderAlerts(alertsKey ? get<AlertsSnap>(alertsKey) : null)}`;
+    ${renderAlerts(alertsKey ? get<AlertsSnap>(alertsKey) : null)}
+    ${renderThresholds(thresholds)}`;
 
   root.querySelector('#scan-refresh')?.addEventListener('click', () => void load(ctx, true));
+
+  // Sector table sort. Client-side only: the 11 rows are already in hand, so
+  // sorting must not cost a D1 read.
+  root.querySelectorAll<HTMLElement>('[data-sec-sort]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.secSort as SectorSortKey;
+      if (key === sectorSort) sectorDesc = !sectorDesc;
+      else {
+        sectorSort = key;
+        // Rank and ticker read naturally ascending (1 first, A first); every other
+        // column is a magnitude, where the interesting end is the big one.
+        sectorDesc = key !== 'rank' && key !== 'sym';
+      }
+      draw(ctx);
+    });
+  });
+
+  // Rank-chart line toggles.
+  root.querySelectorAll<HTMLElement>('[data-chart-sym]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const sym = b.dataset.chartSym!;
+      if (chartOff.has(sym)) chartOff.delete(sym);
+      else chartOff.add(sym);
+      draw(ctx);
+    });
+  });
+
   // Any row carrying a ticker opens the app's own chart for it — the whole point
   // of a watch list is to look at the chart of what is on it.
   root.querySelectorAll<HTMLElement>('tr[data-sym]').forEach((tr) => {
     const sym = tr.dataset.sym;
     if (!sym) return;
     tr.style.cursor = 'pointer';
-    tr.addEventListener('click', () => void openStock(ctx, sym));
+    tr.addEventListener('click', (e) => {
+      // The TradingView link inside the row is a different destination. Without
+      // this the modal opens behind the new tab on every single click of it.
+      if ((e.target as HTMLElement).closest('[data-tv]')) return;
+      void openStock(ctx, sym);
+    });
   });
 }
 

@@ -2032,6 +2032,20 @@ html.light #tl-menu {
 .sector-rank { width: 30px; height: 30px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--subtext); font-family: var(--font-mono); }
 .sector-detail { border-top: 1px solid var(--border); padding: 12px 15px; }
 
+/* ── Watch list: trade plan vs context ───────────────────────────────────── */
+/* Two header rows. The base rule makes every `th` sticky at top:0, which with a
+   second row means both rows pin to the same line and overlap; so the cells go
+   static and the whole `thead` becomes the sticky element instead. */
+.wl th { position: static; }
+.wl thead { position: sticky; top: 0; z-index: 1; background: var(--card); }
+.wl th.wl-grp {
+  text-align: center; letter-spacing: .1em; padding-bottom: 4px;
+  color: var(--subtext); border-bottom: 1px solid var(--border);
+}
+/* The divider carries the grouping once the header has scrolled out of sight —
+   without it the plan columns and the evidence columns read as one strip. */
+.wl th.wl-sep-r, .wl td.wl-sep-r { border-right: 1px solid var(--border); }
+
 /* ── Playbook tab ────────────────────────────────────────────────────────── */
 .playbook-section { margin-bottom: 24px; }
 .playbook-pre {
