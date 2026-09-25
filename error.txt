@@ -365,10 +365,28 @@ cả bot lẫn backtest đổi theo (có test khoá việc này).
 
 ## VM-4. cron — thay chuỗi `&&` bằng MỘT dòng `nightly.py`
 
+BỐN DÒNG DƯỚI ĐÂY LÀ NỘI DUNG CRONTAB, KHÔNG PHẢI LỆNH SHELL. Dán chúng vào
+trong trình soạn thảo của `crontab -e`. Dán vào thẳng terminal thì bash đọc số
+phút `0` là tên lệnh và trả về `0: command not found` — không phải timeout, không
+phải thiếu file, chỉ là dán sai chỗ.
+
+    crontab -e          # user ubuntu, KHÔNG sudo — rồi dán:
+
     CRON_TZ=America/New_York
     0 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1
     0 9 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py >> state/prep.log 2>&1
     5 9 * * 1-5  /usr/bin/systemctl restart scanner
+
+    crontab -l          # đọc lại, phải thấy đủ cả dòng CRON_TZ
+
+Muốn chạy tay một dòng thì bỏ 5 trường lịch ở đầu, giữ phần sau:
+
+    cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py
+
+`mark_etf.py` tải một file text của Nasdaq Trader (`timeout=45`) rồi UPDATE cột
+`is_etf` của bảng `base` — vài giây là xong. Nó đòi bảng `base` đã tồn tại, nên
+chạy sau VM-1. Chạy tay thì bỏ luôn `>> state/prep.log 2>&1` để thấy lỗi ngay
+trên màn hình thay vì phải đi mở log.
 
 Hai dòng `push.py` đang có: GIỮ NGUYÊN, không sửa.
 
