@@ -675,3 +675,51 @@ Lúc đó mới đến giả thiết B trong docstring của `scripts/db_lock.py
 trình khác đang giữ transaction ghi lâu. Mục 3 in pid + cmdline, đối chiếu với
 mục 4. Đừng nâng `busy_timeout` lên quá 30 giây — nó chỉ làm nightly chết muộn
 hơn, và che đúng cái cần thấy.
+
+
+════════════════════════════════════════════════════════════════════════════════
+# `mktcap LỖI TypeError: ... not Connection` — SỬA XONG (26/09)
+════════════════════════════════════════════════════════════════════════════════
+
+## MKT-1. Nguyên nhân
+
+`nightly.run()` mở MỘT kết nối cho cả chuỗi chạy đêm rồi đưa chính nó vào từng
+bước: `do(name, fatal, fn, c, dry, lg)`. `watchlist.refresh_mktcap()` lại gọi
+`sqlite3.connect(db)` trần, nên khi `db` là một `Connection` nó nổ:
+
+    TypeError: expected str, bytes or os.PathLike object, not Connection
+
+Đúng cái bẫy mà `structure`/`sectors`/`setups` đã sửa trước đó bằng khuôn
+`bars._c()` (nhận cả đường dẫn và Connection). `watchlist.py` thuần stdlib và
+không import `bars`, nên khuôn đó được viết lại tại chỗ.
+
+Sửa (`watchlist.py`, `refresh_mktcap`), ba thứ cùng lúc:
+
+  - `mine = not isinstance(db, sqlite3.Connection)` → chỉ tự mở khi là đường dẫn,
+    và khi đó thêm `busy_timeout=30000` như `bars.con()`.
+  - `finally: if mine: con.close()`. Đóng kết nối của nightly ở đây thì bước
+    `push`/`telegram` ngay sau đọc trên một kết nối đã chết.
+  - `with con:` cho ALTER TABLE và cho từng UPDATE, thay cho `con.commit()` ở
+    cuối. Hai lý do: một ALTER nổ trên kết nối DÙNG CHUNG sẽ để lại transaction
+    ghi MỞ (đúng gốc của LOCK-1 ở trên), và commit từng mã thì không giữ khoá ghi
+    xuyên qua các cú gọi yfinance dài vài giây giữa hai lần UPDATE.
+  - KHÔNG đổi `row_factory` của kết nối người khác nữa (các bước sau đọc tiếp
+    trên nó). Mọi truy cập trong hàm đều theo chỉ số nên chạy đúng với cả tuple.
+
+## MKT-2. Vì sao `--dry-run` không bắt được
+
+`st_mktcap` thoát ngay ở dòng đầu khi `dry=True` ("--dry-run: không gọi mạng"),
+nên đường đi tới DB KHÔNG BAO GIỜ được chạy trong dry-run. Bài học: `--dry-run`
+xanh không có nghĩa là chuỗi thật xanh, với bất kỳ bước nào bỏ qua khi dry.
+
+Test giữ lại bất biến: `tests/test_watchlist.py` —
+`test_refresh_mktcap_nhan_Connection_nhu_nightly_dua_vao` truyền một Connection
+thật và kiểm cả ba: không nổ, không đóng kết nối của người khác, không để lại
+transaction mở, không đổi `row_factory`. 761 test xanh trên laptop.
+
+## MKT-3. Trên VM
+
+    cd ~/scanner && git pull && python nightly.py
+
+Không cần restart gì: lỗi nằm trong code chạy một lần mỗi đêm, không phải trong
+tiến trình thường trú. `mktcap` phải ra `OK   x/y mã lấy được`.
