@@ -12,6 +12,7 @@ import { formDialog } from '../ui/forms.js';
 import { sanitizeNoteHtml, richNoteDialog, isNoteEmpty } from '../ui/richNote.js';
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
 import { swingPlaybookHtml, wireSwingPlaybook } from './swingPlaybook.js';
+import { mountStickyToc } from '../ui/stickyToc.js';
 
 let activeId: string | null = null;
 
@@ -936,4 +937,7 @@ export function renderLearn(): void {
   const playbook = el(swingPlaybookHtml(lang));
   root.appendChild(playbook);
   wireSwingPlaybook(playbook, lang);
+  // Last: the TOC discovers its entries from the finished DOM, so it must run
+  // after every section is in place.
+  mountStickyToc(root, lang);
 }

@@ -8,6 +8,7 @@
 //   /api/nasdaqcal/calendar/splits?date=2026-08-10
 //   /api/nasdaqcal/calendar/economicevents?date=2026-08-10
 //   /api/nasdaqcal/ipo/calendar?date=2026-08          ← month, not day
+//   /api/nasdaqcal/company/AAPL/earnings-surprise     ← last 4 report dates
 //
 // NOTE: this is a DUMB one-day passthrough on purpose. Cloudflare's free plan
 // caps a Function at 50 subrequests, and a 30-day window across 4 endpoints is
@@ -29,7 +30,13 @@ const UA =
 
 /** Only these upstream paths are reachable — keeps the proxy from becoming an
  * open relay to any api.nasdaq.com endpoint. */
-const ALLOWED = [/^calendar\/(earnings|dividends|splits|economicevents)$/, /^ipo\/calendar$/];
+const ALLOWED = [
+  /^calendar\/(earnings|dividends|splits|economicevents)$/,
+  /^ipo\/calendar$/,
+  // Per-symbol earnings-surprise table: the only free source of real report
+  // DATES (last 4 quarters), used for the "E" markers on the candle chart.
+  /^company\/[A-Za-z0-9.\-^]{1,12}\/earnings-surprise$/,
+];
 
 export const onRequestGet = async (ctx: Ctx): Promise<Response> => {
   const url = new URL(ctx.request.url);

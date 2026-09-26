@@ -30,7 +30,8 @@
         "https://query2.finance.yahoo.com/*",
         "https://finnhub.io/*",
         "https://en.wikipedia.org/*",
-        "https://www.nasdaqtrader.com/*"
+        "https://www.nasdaqtrader.com/*",
+        "https://api.nasdaq.com/*"
       ]
     }
   },

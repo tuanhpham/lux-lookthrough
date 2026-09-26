@@ -95,8 +95,8 @@ export const GLOSSARY: Record<string, Entry> = {
   pivot: {
     term: { en: 'Pivot / Pivot High', vi: 'Pivot / Đỉnh pivot' },
     long: {
-      en: 'The most recent significant high acting as resistance — the line in the sand. A decisive move above the pivot (ideally on big volume) is the classic breakout entry trigger.',
-      vi: 'Đỉnh quan trọng gần nhất đóng vai trò kháng cự — lằn ranh. Một cú vượt dứt khoát qua pivot (lý tưởng với khối lượng lớn) là tín hiệu vào lệnh bứt phá kinh điển.',
+      en: 'The most recent significant high acting as resistance — the line in the sand. Exactly: the highest HIGH within the last 90 sessions (the base window), rounded to 2 decimals. Not the 52-week high: on a stock that peaked a year ago the pivot sits far below it. The 52-week high only appears as a filter (setups must be within ~25% of it), never in the levels. A decisive move above the pivot (ideally on big volume) is the classic breakout trigger.',
+      vi: 'Đỉnh quan trọng gần nhất đóng vai trò kháng cự — lằn ranh. Cụ thể: mức GIÁ CAO NHẤT trong 90 phiên gần nhất (cửa sổ nền giá), làm tròn 2 chữ số. Không phải đỉnh 52 tuần: với cổ phiếu đã tạo đỉnh một năm trước, pivot nằm thấp hơn đỉnh 52 tuần rất nhiều. Đỉnh 52 tuần chỉ dùng để LỌC (thiết lập phải nằm trong ~25% dưới đỉnh), không bao giờ dùng để tính các mức giá. Một cú vượt dứt khoát qua pivot (lý tưởng với khối lượng lớn) là tín hiệu bứt phá kinh điển.',
     },
   },
   distance: {
@@ -109,29 +109,29 @@ export const GLOSSARY: Record<string, Entry> = {
   entry: {
     term: { en: 'Entry Price', vi: 'Giá vào lệnh' },
     long: {
-      en: 'The breakout entry: a fraction above the pivot high. Buy strength as the stock clears resistance, ideally confirmed by a surge in volume.',
-      vi: 'Điểm vào lệnh bứt phá: cao hơn đỉnh pivot một chút. Mua theo sức mạnh khi cổ phiếu vượt kháng cự, lý tưởng được xác nhận bằng khối lượng tăng vọt.',
+      en: 'The breakout trigger: pivot × 1.001 — one tenth of a percent above the pivot, so the order only fills once resistance is actually cleared. It is therefore ALWAYS just above the recent high by construction; it is a trigger price, not a valuation. Buy strength as the stock clears resistance, ideally confirmed by a surge in volume.',
+      vi: 'Điểm kích hoạt bứt phá: pivot × 1,001 — cao hơn pivot 0,1%, để lệnh chỉ khớp khi kháng cự thực sự bị vượt. Vì vậy nó LUÔN nằm ngay trên đỉnh gần nhất — đó là giá kích hoạt, không phải mức giá "hợp lý". Mua theo sức mạnh khi cổ phiếu vượt kháng cự, lý tưởng được xác nhận bằng khối lượng tăng vọt.',
     },
   },
   stop: {
     term: { en: 'Stop-Loss', vi: 'Cắt lỗ' },
     long: {
-      en: 'A protective exit below entry, sized using ATR (≈1.5× ATR by default) so the stop respects the stock\'s normal noise. If price falls here, the setup has failed and you cut the loss.',
-      vi: 'Điểm thoát bảo vệ đặt dưới giá vào lệnh, tính theo ATR (mặc định ≈1,5× ATR) để tôn trọng nhiễu giá bình thường. Nếu giá rơi tới đây, thiết lập đã thất bại và bạn cắt lỗ.',
+      en: 'entry − 1.5 × ATR(14): a protective exit placed a volatility unit below the trigger, so the stop respects the stock\'s normal noise instead of a round number. This is the only level that reacts to the individual stock — a quiet stock gets a tight stop, a wild one a wide stop. If price falls here, the setup has failed and you cut the loss.',
+      vi: 'giá vào − 1,5 × ATR(14): điểm thoát bảo vệ đặt dưới điểm kích hoạt một đơn vị biến động, để tôn trọng nhiễu giá bình thường thay vì một con số tròn. Đây là mức DUY NHẤT phản ứng theo từng cổ phiếu — mã êm thì cắt lỗ gần, mã động thì cắt lỗ xa. Nếu giá rơi tới đây, thiết lập đã thất bại và bạn cắt lỗ.',
     },
   },
   target: {
     term: { en: 'Target Price', vi: 'Giá mục tiêu' },
     long: {
-      en: 'The first profit objective, computed from the risk distance (entry − stop) times the reward multiple (3R by default). A concrete level to plan profit-taking.',
-      vi: 'Mục tiêu lợi nhuận đầu tiên, tính từ khoảng rủi ro (giá vào − cắt lỗ) nhân hệ số lợi nhuận (mặc định 3R). Một mức cụ thể để lên kế hoạch chốt lời.',
+      en: 'entry + 3 × (entry − stop), i.e. entry + 4.5 × ATR(14). A planning level derived from your own risk, NOT a forecast read off the chart — no resistance level, measured move or analyst figure enters it. Change the reward multiple and the target moves with it.',
+      vi: 'giá vào + 3 × (giá vào − cắt lỗ), tức giá vào + 4,5 × ATR(14). Đây là mức để LÊN KẾ HOẠCH, suy ra từ rủi ro của chính bạn, KHÔNG phải dự báo đọc từ đồ thị — không có kháng cự, "measured move" hay giá mục tiêu của chuyên gia nào tham gia vào đây. Đổi hệ số lợi nhuận thì mục tiêu đổi theo.',
     },
   },
   rr: {
     term: { en: 'Risk : Reward (R:R)', vi: 'Rủi ro : Lợi nhuận (R:R)' },
     long: {
-      en: 'The ratio of potential profit (target − entry) to potential loss (entry − stop). A 3:1 R:R means a winning trade pays three times what a losing trade costs — favorable math even if you are right less than half the time.',
-      vi: 'Tỷ lệ giữa lợi nhuận tiềm năng (mục tiêu − giá vào) và rủi ro tiềm năng (giá vào − cắt lỗ). R:R 3:1 nghĩa là một lệnh thắng mang lại gấp ba lần chi phí một lệnh thua — phép toán có lợi ngay cả khi bạn đúng dưới một nửa số lần.',
+      en: 'The ratio of potential profit (target − entry) to potential loss (entry − stop). A 3:1 R:R means a winning trade pays three times what a losing trade costs — favorable math even if you are right less than half the time. Note that on these cards R:R always reads 3.0 because the target is DEFINED as 3 × risk: it says nothing about the individual stock. What does vary per stock is Risk % (the ATR-based stop distance).',
+      vi: 'Tỷ lệ giữa lợi nhuận tiềm năng (mục tiêu − giá vào) và rủi ro tiềm năng (giá vào − cắt lỗ). R:R 3:1 nghĩa là một lệnh thắng mang lại gấp ba lần chi phí một lệnh thua — phép toán có lợi ngay cả khi bạn đúng dưới một nửa số lần. Lưu ý: trên các thẻ này R:R luôn hiện 3,0 vì mục tiêu được ĐỊNH NGHĨA bằng 3 × rủi ro — nó không nói gì về riêng cổ phiếu đó. Chỉ số thay đổi theo từng mã là Risk % (khoảng cắt lỗ tính theo ATR).',
     },
   },
   r_multiple: {

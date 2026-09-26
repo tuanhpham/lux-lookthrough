@@ -19,6 +19,7 @@ import { loadGptUrl, renderPromptSection } from './promptSection.js';
 import { vnTradingViewSymbol } from '../adapters/universe.js';
 import { sliceBars, fundamentalsAsOf } from './asOf.js';
 import { listSnapshotDays, loadWindow } from '../tabs/catalystCache.js';
+import { fetchEarningsReports, type EarningsReport } from '../adapters/earningsDates.js';
 import { loadCalendarScan } from '../tabs/calendarScan.js';
 
 const RANGES: { label: string; period: Period }[] = [
@@ -30,6 +31,15 @@ const RANGES: { label: string; period: Period }[] = [
 
 let chart: CandleChart | null = null;
 const emaState: Record<number, boolean> = Object.fromEntries(EMA_CONFIG.map((e) => [e.period, e.on]));
+
+/** Earnings markers: the reports for the symbol currently open, and whether the
+ * user wants them drawn. Like `emaState`, the on/off choice is sticky across
+ * opens; the rows are not (they're per symbol, so `openStock` resets them). */
+let earnReports: EarningsReport[] = [];
+let showEarnings = true;
+/** Bumped on every `openStock`, so a slow earnings fetch for a symbol the user
+ * has already navigated away from can't paint over the current chart. */
+let openToken = 0;
 
 // Re-render the (hand-drawn SVG) fundamentals chart on resize/rotate. The SVG
 // has a fixed pixel width computed at draw time, so unlike the candle chart it
@@ -70,6 +80,8 @@ function closeModal(): void {
 
 export async function openStock(ctx: AppContext, symbol: string, asOf: string | null = null): Promise<void> {
   symbol = symbol.toUpperCase();
+  const myToken = ++openToken;
+  earnReports = [];
   const modal = $('#modal')!;
   modal.classList.remove('hidden');
   $('#modal-title')!.textContent = symbol;
@@ -121,6 +133,28 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
       }),
     );
 
+    // Earnings markers. Drawn AFTER the chart, from the network, so the candles
+    // never wait on them; `paintEarnings` is idempotent and re-run on every
+    // redraw (range change) because markers live on the series, not the chart.
+    const paintEarnings = (): void => {
+      chart?.setEarnings(showEarnings ? earnReports.map((r) => ({ date: r.date })) : []);
+      const box = body.querySelector<HTMLElement>('#detail-earn');
+      if (box) box.innerHTML = earnLegendHtml(earnReports, showEarnings, getLang() === 'vi');
+    };
+    const earnBtn = body.querySelector<HTMLElement>('[data-earn]');
+    earnBtn?.addEventListener('click', () => {
+      showEarnings = !showEarnings;
+      earnBtn.classList.toggle('active', showEarnings);
+      paintEarnings();
+    });
+    void fetchEarningsReports(symbol).then((rows) => {
+      // As-of mode is a time machine: a report dated after the as-of date is
+      // information the user did not have, so it must not appear.
+      earnReports = asOf ? rows.filter((r) => r.date <= asOf) : rows;
+      if (myToken !== openToken || modal.classList.contains('hidden')) return;
+      paintEarnings();
+    });
+
     // Range buttons re-fetch + redraw. In as-of mode the longer fetch is sliced
     // to the date so the historical window is preserved.
     body.querySelectorAll<HTMLElement>('[data-period]').forEach((btn) =>
@@ -134,6 +168,7 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
         const q2 = bars.length >= 60 ? scanQm(symbol, bars) : null;
         chart?.destroy();
         chart = drawCandles(chartEl, bars, qmOverlay(q2), emaState);
+        paintEarnings();
       }),
     );
 
@@ -269,9 +304,15 @@ function renderDetail(
         </div>
       </div>
       <div class="row" style="margin:0 6px 6px">
-        ${EMA_CONFIG.map((e) => `<button class="range-btn ${e.on ? 'active' : ''}" data-ema="${e.period}">EMA${e.period}</button>`).join('')}
+        ${EMA_CONFIG.map(
+          // `emaState`, not `e.on`: the toggles persist across opens, so the
+          // button must show what the chart is actually drawing.
+          (e) => `<button class="range-btn ${emaState[e.period] ? 'active' : ''}" data-ema="${e.period}">EMA${e.period}</button>`,
+        ).join('')}
+        <button class="range-btn ${showEarnings ? 'active' : ''}" data-earn="1" title="${vi ? 'Ngày báo cáo lợi nhuận' : 'Earnings report dates'}">⬤ E</button>
       </div>
       <div id="detail-chart" class="chart"></div>
+      <div id="detail-earn" class="muted" style="font-size:10.5px;margin:6px 6px 2px"></div>
     </div>
     <div class="card" style="margin-top:14px;padding:8px">
       <div class="toolbar" style="margin:4px 6px">
@@ -302,6 +343,34 @@ function renderDetail(
     <div id="about-block">${aboutHtml(symbol, f, true)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
   `;
+}
+
+/**
+ * Caption under the candle chart for the earnings markers. lightweight-charts
+ * markers carry no tooltip, so the actual vs consensus EPS that TradingView shows
+ * on hover is spelled out here instead — and the source/coverage is stated, since
+ * "only four dots" is a property of the free data, not a bug.
+ */
+function earnLegendHtml(rows: EarningsReport[], on: boolean, vi: boolean): string {
+  const head = vi ? '⬤ E = ngày báo cáo KQKD' : '⬤ E = earnings report';
+  if (!rows.length)
+    return `<span style="opacity:.75">${head} — ${
+      vi
+        ? 'chưa có dữ liệu cho mã này (nguồn Nasdaq: cổ phiếu Mỹ, 4 quý gần nhất).'
+        : 'none available for this symbol (source: Nasdaq — US listings, last 4 quarters).'
+    }</span>`;
+  if (!on) return `<span style="opacity:.6">${head} — ${vi ? 'đang ẩn' : 'hidden'}</span>`;
+  const items = rows
+    .map((r) => {
+      const s = r.surprisePct;
+      const tone = s == null ? 'var(--faint)' : s >= 0 ? 'var(--accent)' : 'var(--danger)';
+      const sur = s == null ? '' : ` <span style="color:${tone}">${s >= 0 ? '+' : ''}${s.toFixed(1)}%</span>`;
+      const eps =
+        r.eps == null ? '' : ` EPS ${r.eps}${r.consensus == null ? '' : ` ${vi ? 'vs dự báo' : 'vs est.'} ${r.consensus}`}`;
+      return `<span style="white-space:nowrap">${r.date}${eps}${sur}</span>`;
+    })
+    .join(' <span style="opacity:.35">·</span> ');
+  return `${head}: ${items}`;
 }
 
 /** Truncate to ~`max` chars on a word boundary, like the backend's 600-char cap. */

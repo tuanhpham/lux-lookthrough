@@ -2,6 +2,8 @@ import {
   createChart,
   type IChartApi,
   type ISeriesApi,
+  type SeriesMarker,
+  type Time,
   ColorType,
   LineStyle,
 } from 'lightweight-charts';
@@ -22,6 +24,8 @@ export interface TradeOverlay {
 // tokens here: --up (#18d89a) / --down (#ff5266).
 const UP = '#18d89a';
 const DOWN = '#ff5266';
+/** Earnings markers — violet, so they read as "event", not "price level". */
+const EARN = '#a855f7';
 
 function themeOptions() {
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -34,18 +38,33 @@ function themeOptions() {
   };
 }
 
+/** `on` is the DEFAULT state of each overlay when a caller doesn't pass its own
+ * `emaState`. All six are on: the short EMAs (5/10/21) are what a swing entry is
+ * actually timed against, and the toolbar can still switch any of them off.
+ * Callers with their own literal state (portfolioTab) are unaffected. */
 const EMA_CONFIG: { period: number; color: string; on: boolean }[] = [
-  { period: 5, color: '#8a95a8', on: false },
-  { period: 10, color: '#c084fc', on: false },
-  { period: 21, color: '#3b82f6', on: false },
+  { period: 5, color: '#8a95a8', on: true },
+  { period: 10, color: '#c084fc', on: true },
+  { period: 21, color: '#3b82f6', on: true },
   { period: 50, color: '#f5a623', on: true },
   { period: 150, color: '#18d89a', on: true },
   { period: 200, color: '#ff5266', on: true },
 ];
 
+/** One earnings-report marker. `date` is a calendar date (YYYY-MM-DD) that need
+ * not be a trading day — it gets snapped to a real bar. */
+export interface EarningsMark {
+  date: string;
+  /** Glyph drawn under the bar. Default 'E'. */
+  label?: string;
+}
+
 export interface CandleChart {
   chart: IChartApi;
   setEma(period: number, on: boolean): void;
+  /** Replace the earnings markers (pass `[]` to clear). Safe to call late — the
+   * chart is drawn synchronously and the dates arrive from the network after. */
+  setEarnings(marks: EarningsMark[]): void;
   destroy(): void;
 }
 
@@ -137,6 +156,34 @@ export function drawCandles(
 
   return {
     chart,
+    setEarnings(marks) {
+      // A report date can fall on a weekend/holiday, or on a day this range
+      // doesn't contain. lightweight-charts drops markers whose time isn't in the
+      // series, so snap each date FORWARD to the first bar at or after it — that
+      // bar is the session the market reacted in. Dates past the last bar (an
+      // upcoming report) have no bar to sit on and are skipped.
+      const seen = new Set<string>();
+      const first = bars[0]?.date;
+      const out: SeriesMarker<Time>[] = [];
+      for (const m of marks) {
+        // Older than the window (a 6M range with a report from 8 months ago):
+        // snapping forward would plant a bogus marker on the leftmost bar.
+        if (!first || m.date < first) continue;
+        const bar = bars.find((b) => b.date >= m.date);
+        if (!bar || seen.has(bar.date)) continue;
+        seen.add(bar.date);
+        out.push({
+          time: bar.date as Time,
+          position: 'belowBar',
+          color: EARN,
+          shape: 'circle',
+          text: m.label ?? 'E',
+        });
+      }
+      // setMarkers requires ascending time; `bars` is ascending, the input may not be.
+      out.sort((a, b) => (String(a.time) < String(b.time) ? -1 : 1));
+      candle.setMarkers(out);
+    },
     setEma(period, on) {
       const cfg = EMA_CONFIG.find((e) => e.period === period);
       if (!cfg) return;
