@@ -1163,25 +1163,52 @@ Kiểm tra: đã XEM panel thật render ở cả hai theme, và thang cỡ 16/1
 64px trên nền đen và nền trắng cùng ảnh zoom pixel ở 16 và 22 — đọc được ở mọi cỡ,
 tròn thật, không còn mảnh vụn nào bị chặt.
 
-## CHAT-11. "look-through CI all jobs have failed" — không phải CI của mình
+## CHAT-11. "look-through CI all jobs have failed" — Pages đổ build, KHÔNG phải code
 
-Repo này KHÔNG có `.github/workflows` (không có trên nhánh nào, cả remote), và số
-lần chạy GitHub Actions trên cả `tuanhpham/lux-lookthrough` lẫn
-`tuanhpham-aimlux/lux-lookthrough` là 0. Check duy nhất gắn vào commit là
-Cloudflare Pages (project `the-professional`), tự deploy mỗi lần push vào `main`:
-- `4313f05d` success
-- `ec9ab5da` FAILURE  ← cái bạn thấy
-- `71139ec0` success (preview `https://56cc90e2.the-professional.pages.dev`)
+Ghi cả cái bẫy đọc sai ở đây, vì tôi đã sa vào nó: `/commits/<sha>/status` trả
+`state: pending, statuses: []` và tôi tưởng là "không có check nào". Sai. Pages
+báo bằng **check-run**, không phải commit status. Phải gọi
+`/commits/<sha>/check-runs`. Repo này thật sự KHÔNG có `.github/workflows` và 0
+lần chạy GitHub Actions — check duy nhất là Cloudflare Pages (project
+`the-professional`), tự build mỗi lần push vào `main`. Và nó đổ thật, nhiều lần:
 
-`git show --stat ec9ab5da` cho thấy nó CHỈ thêm `hinhamduong.jpg` — một file
-binary, 0 dòng code. Không có gì trong đó làm build vỡ được, nên đó là lỗi nhất
-thời của Pages, và commit sau đã xanh lại. Không sửa gì.
+    96061d1e error.txt                     failure
+    1d79abbe dieu huong nhat quan          failure
+    73bac9bc error.txt                     success
+    b77dbcf7 cam nang swing trading        success
+    89f1b6c6 error.txt LOCK-1..4           failure
+    8fff634a Learn: muc luc dinh           success
+    9aeadfe8 error.txt MKT-1..3            failure
+    f366ca89 .. 4313f05d  (4 commit)       success
+    ec9ab5da hinhamduong.jpg               failure
+    71139ec0 Emblem: thoi ve rong SVG      success
+    111c3aab Emblem: qua cau 3D            failure
+    90e8b4ff Emblem: ?v=                   failure
 
-Xác nhận bằng `curl` trên production, không phải đoán:
-`https://the-professional.pages.dev/images/emblem-orb.webp` → 200, image/webp
-`https://the-professional.pages.dev/images/emblem.webp` → 200, 76152 B
-Tức là push là đủ, chỉ cần refresh máy kia. (Log build của Pages thì không đọc
-được từ CLI, cần đăng nhập dashboard.)
+Xanh-đỏ KHÔNG theo nội dung commit: có commit chỉ sửa `error.txt` mà đổ, có commit
+chỉ sửa `error.txt` mà xanh. Nên đừng đi tìm "commit nào làm vỡ build".
+
+Kiểm chứng bằng cách DỰNG LẠI đúng build của Pages, không suy diễn: clone sạch
+repo ở đúng commit Cloudflare bảo đổ (`90e8b4ff`) ra thư mục tạm, `npm ci` ở
+`screener-ts/` (ci sạch, 56 package, 0 vulnerability), rồi
+`npm run build --workspace @screener/desktop` — chạy cả `tsc --noEmit` cả
+`vite build`, **exit 0**. Tức là lỗi nằm ở phía Cloudflare, không nằm trong repo.
+
+Nghi vấn số một: hạn mức **500 build / tháng** của Pages free (xem bảng ở SYNC-10)
+— hôm nay push rất nhiều lần, và hết hạn mức thì build đổ ngay ở bước "Building"
+không kèm log gì trong check-run. Không xác nhận được từ CLI: `output.text` rỗng,
+chỉ có link dashboard, mà dashboard cần đăng nhập. `npx wrangler whoami` ở máy này
+→ "You are not authenticated" (đúng như ERR-0: việc cần xác thực Cloudflare phải
+làm ở máy kia).
+
+HỆ QUẢ PHẢI BIẾT: production đang ĐỨNG Ở `71139ec0`. `curl` production vẫn trả
+`emblem-orb.webp` 16158 B — tức là icon CŨ, bản cắt nhăm nhở. Commit thì đã có,
+deploy thì chưa. Muốn lên bản mới, ở máy có đăng nhập Cloudflare:
+
+    cd screener-ts/apps/desktop && npm run build
+    npx wrangler pages deploy dist --project-name the-professional
+
+hoặc bấm "Retry deployment" trong dashboard Pages. Đừng sửa code để "chữa build".
 
 ## CHAT-12. `?v=` sau tên file ảnh emblem
 
