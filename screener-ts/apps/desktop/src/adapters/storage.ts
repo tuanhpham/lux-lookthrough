@@ -315,6 +315,11 @@ export class SyncedStorage implements Storage {
     return (await this.timestamps())[key] ?? 0;
   }
 
+  /** Every local timestamp in one read — see `applyRemote` for why that matters. */
+  async allTimestamps(): Promise<Record<string, number>> {
+    return this.timestamps();
+  }
+
   async get<T>(key: string): Promise<T | null> {
     return this.local.get<T>(key);
   }
@@ -378,6 +383,44 @@ export class SyncedStorage implements Storage {
   }
 
   /**
+   * Apply every remote winner, then write the timestamp map ONCE.
+   *
+   * `setLocalFromRemote` per key was quadratic: `stamp()` re-reads, re-parses and
+   * re-serialises the whole timestamp map on every single key, and that map grows
+   * with the number of keys. Two hundred keys meant two hundred full rewrites of a
+   * map of two hundred entries, all on the main thread — on a laptop it is a
+   * shrug, on a phone it is the "Pulling your data…" that never ends. Reading once
+   * and writing once makes the merge linear.
+   *
+   * `onEach` exists so the caller can show progress: a slow merge that is visibly
+   * moving is a different bug report from one that has hung.
+   */
+  async applyRemote(
+    entries: ReadonlyArray<{ key: string; value: unknown; ts: number }>,
+    onEach?: (done: number) => void,
+  ): Promise<void> {
+    const map = await this.timestamps();
+    let done = 0;
+    try {
+      for (const e of entries) {
+        await this.local.set(e.key, e.value);
+        map[e.key] = e.ts;
+        onEach?.(++done);
+      }
+    } finally {
+      // Even on a partial apply (a storage quota error halfway through) the stamps
+      // of what DID land must be recorded, or those keys look unwritten and the
+      // next merge re-applies them. Wrapped because this write can fail too, and
+      // the original error is the one worth reporting.
+      try {
+        await this.local.set(TS_KEY, map);
+      } catch {
+        /* keep the original failure */
+      }
+    }
+  }
+
+  /**
    * Copy the CURRENT local value of every key a merge is about to touch into one
    * snapshot slot, before anything is overwritten. Cheap insurance: without it a
    * bad merge is terminal, because the server keeps no history and its DELETE is
@@ -420,12 +463,30 @@ export class SyncedStorage implements Storage {
   }
 }
 
+/** How far a merge has got. `down` = applying server data, `up` = uploading. */
+export interface PullProgress {
+  phase: 'down' | 'up';
+  done: number;
+  total: number;
+}
+
 export interface PullOpts {
   /** The user has just entered a code on this device — download, never overwrite. */
   freshCode?: boolean;
   /** Internal: this call is an automatic retry of a pull that failed. */
   retry?: boolean;
+  /**
+   * Called as keys are applied and uploaded, so a caller showing a spinner can
+   * show a count instead. The point is not decoration: "34/120" and "0/120" are
+   * different bug reports, and a merge with no feedback is indistinguishable from
+   * a hang — which is how this was reported in the first place.
+   */
+  onProgress?: (p: PullProgress) => void;
 }
+
+/** Parallel uploads in the push-up half. Enough to hide mobile latency, small
+ * enough not to look like a flood to the Pages function. */
+const PUSH_CONCURRENCY = 4;
 
 /** Serialises merges; see the comment in `pullAndMerge`. */
 let chain: Promise<void> = Promise.resolve();
@@ -470,14 +531,18 @@ function schedulePullRetry(storage: SyncedStorage, opts: PullOpts): void {
   retryStep++;
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    void retryPullNow();
+    // The rejection is already recorded in `pullError`; swallow it here so an
+    // automatic attempt never surfaces as an unhandled rejection.
+    void retryPullNow().catch(() => 0);
   }, wait);
 }
 
 function retryPullNow(): Promise<number> {
   if (!retryArgs) return Promise.resolve(0);
   const { storage, opts } = retryArgs;
-  return pullAndMerge(storage, { ...opts, retry: true });
+  // `onProgress` is dropped: it points at the dialog that started this attempt,
+  // which is long closed by the time a background retry fires.
+  return pullAndMerge(storage, { ...opts, retry: true, onProgress: undefined });
 }
 
 /**
@@ -502,7 +567,7 @@ function wireReconnect(): void {
     // next moment anyway.
     if (!pullError || retryTimer) return;
     retryStep = 0; // a real signal; start the backoff over
-    void retryPullNow();
+    void retryPullNow().catch(() => 0);
   };
   window.addEventListener('online', kick);
   if (typeof document !== 'undefined') {
@@ -576,10 +641,7 @@ async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number
     // queued writes for the rest of the session and showed a calm grey 'Syncing…'
     // the whole time. Record the failure (the pill turns red and says so) and keep
     // trying.
-    pullError = String((e as Error)?.message ?? e);
-    emitActivity();
-    schedulePullRetry(storage, opts);
-    return 0;
+    throw stall(e, storage, opts);
   }
   // The gate will open below; from here on the device is genuinely syncing. Emit
   // here rather than leaving it to `openSyncGate`, which no-ops when the gate is
@@ -602,17 +664,34 @@ async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number
     writtenBeforeFirstPull: preHydrationWrites.has(key),
   });
 
-  // 1) Remote → local.
+  // 1) Remote → local. Every decision is taken against ONE read of the timestamp
+  // map, and the winners are applied in one batch (see `applyRemote`): the old
+  // per-key `tsOf` + `setLocalFromRemote` pair re-read and re-wrote that whole map
+  // twice per entry.
   let applied = 0;
-  for (const e of entries) {
-    const localTs = await storage.tsOf(e.key);
-    if (decidePull(e.updatedAt, localTs, ctxFor(e.key)) === 'apply-remote') {
-      await storage.setLocalFromRemote(e.key, e.value, e.updatedAt);
+  try {
+    const localTs = await storage.allTimestamps();
+    const winners = entries.filter(
+      (e) => decidePull(e.updatedAt, localTs[e.key] ?? 0, ctxFor(e.key)) === 'apply-remote',
+    );
+    await storage.applyRemote(
+      winners.map((e) => ({ key: e.key, value: e.value, ts: e.updatedAt })),
+      (done) => opts.onProgress?.({ phase: 'down', done, total: winners.length }),
+    );
+    for (const e of winners) {
       // Cancel any queued push for this key: it lost, and flushing it on gate
       // open would undo the value we just restored.
       pendingPushes.delete(e.key);
-      applied++;
     }
+    applied = winners.length;
+  } catch (e) {
+    // The download half failed while writing locally — on a phone this is almost
+    // always the storage quota (a few MB, and the pre-merge snapshot doubles what
+    // the payload needs). It used to escape as an unhandled rejection: the gate
+    // stayed shut, the pill pulsed grey, and the sign-in dialog sat on "Pulling
+    // your data…" for the rest of the session with the reason nowhere on screen.
+    // Same treatment as a failed pull: say so, and keep retrying.
+    throw stall(e, storage, opts);
   }
 
   // 2) Local → remote.
@@ -620,25 +699,57 @@ async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number
   // from a user action, so if one would collapse a server row the server's 409 is
   // the right answer. The value stays safe remotely and arrives on the next pull.
   try {
+    const ups: Array<() => Promise<void>> = [];
     for (const { key, value, ts } of await storage.localEntries()) {
       const remote = remoteByKey.get(key);
       switch (decidePush(ts, remote ? remote.updatedAt : null, ctxFor(key))) {
         case 'push':
-          await remotePut(key, value, ts).catch(() => {});
+          ups.push(() => remotePut(key, value, ts));
           break;
         case 'push-as-unstamped':
-          await remotePut(key, value, UNSTAMPED_PUSH_TS).catch(() => {});
+          ups.push(() => remotePut(key, value, UNSTAMPED_PUSH_TS));
           break;
         case 'skip':
           break;
       }
     }
+    // A few at a time rather than one after another. These were strictly
+    // sequential: on a first sign-in that uploads everything this device already
+    // had, n keys meant n round trips end to end — minutes on a phone, with the
+    // dialog frozen on its "Pulling…" message throughout. The keys are
+    // independent, so the only reason to serialise them was that it was simpler.
+    let next = 0;
+    let done = 0;
+    const worker = async (): Promise<void> => {
+      for (;;) {
+        const i = next++;
+        if (i >= ups.length) return;
+        await ups[i]!().catch(() => {});
+        opts.onProgress?.({ phase: 'up', done: ++done, total: ups.length });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PUSH_CONCURRENCY, ups.length) }, worker));
   } catch {
     /* push-up is best-effort; the pull half already succeeded */
   }
 
   openSyncGate();
   return applied;
+}
+
+/**
+ * Record a stall and return the error to throw.
+ *
+ * Every way a merge can fail ends here, so there is exactly one place that decides
+ * what a stalled device looks like: `pullError` set (the pill goes red and names
+ * the reason), a retry queued, and the caller given a real rejection to report
+ * instead of a promise that never settles.
+ */
+function stall(e: unknown, storage: SyncedStorage, opts: PullOpts): Error {
+  pullError = String((e as Error)?.message ?? e);
+  emitActivity();
+  schedulePullRetry(storage, opts);
+  return e instanceof Error ? e : new Error(pullError);
 }
 
 export function makeStorage(): Storage {

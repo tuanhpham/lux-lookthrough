@@ -795,3 +795,91 @@ Chưa cần deploy, làm ngay được: ☰ → ☁️ Đồng bộ thiết bị
   - ô CÓ MÃ mà vẫn không xanh → là stall thật. Sau khi deploy bản này: chấm đỏ,
     mở hộp thoại đọc dòng trạng thái. `HTTP 401` = mã không còn hợp lệ;
     `Failed to fetch` = mạng/chặn request.
+
+
+════════════════════════════════════════════════════════════════════════════════
+# Điện thoại: nhập mã → "Pulling your data…" MÃI KHÔNG XONG — SỬA XONG (26/09)
+════════════════════════════════════════════════════════════════════════════════
+
+Tiếp ngay sau SYNC-1..SYNC-4: ô mã đã có mã, bấm "Lưu & đồng bộ", hộp thoại đứng
+ở "Đang tải dữ liệu…" vô hạn, chấm vẫn xám và nhấp nháy.
+
+## SYNC-5. Điều mà triệu chứng này loại trừ ngay
+
+Hộp thoại chỉ ghi "Đang tải dữ liệu…" SAU KHI `verifyCode()` trả về ok. Mà
+`verifyCode` là một GET tới `/api/sync/whoami` mang đúng cái mã đó. Vậy: mạng
+chạy, mã đúng, server sống. Lỗi nằm ở NỬA SAU — payload kéo về, hoặc đường ghi
+vào localStorage của máy. Ba lỗ hổng cùng cho ra một triệu chứng:
+
+  a. `fetch` KHÔNG có deadline. Trên điện thoại, radio đổi trạng thái giữa request
+     (Wi-Fi → 4G, khoá màn hình, captive portal) để lại promise KHÔNG BAO GIỜ
+     settle — không resolve, không reject. `await` treo vĩnh viễn, không có lỗi
+     nào để ghi vào `pullError`, nên cả cơ chế thử-lại của SYNC-3 cũng không bao
+     giờ được kích hoạt.
+  b. Merge bậc hai. Mỗi key áp về gọi `stamp()`, mà `stamp()` đọc + parse + ghi
+     LẠI TOÀN BỘ bảng timestamp. n key = n lần đọc/ghi cả bảng, chạy trên main
+     thread của thiết bị yếu nhất. Vài trăm key là đứng hình thật, không phải cảm
+     giác.
+  c. `local.set` nổ giữa merge. iOS cho mỗi trang ~5MB localStorage, và
+     `snapshotBeforeMerge` nhân đôi chỗ cần cho payload → QuotaExceededError.
+     Nhánh này không ai bắt: nó bay ra khỏi `await pullAndMerge(...)` trong
+     `syncSettings.ts` — chỗ KHÔNG có try/catch — thành unhandled rejection. Chữ
+     "Đang tải dữ liệu…" nằm nguyên trên hộp thoại vì không có dòng code nào chạy
+     tiếp để đổi nó.
+
+## SYNC-6. Đã sửa
+
+  - `syncClient.ts`: mọi request đi qua `req()` với `TIMEOUT_MS = 25s`
+    (AbortController). Hết giờ → `Error("no answer after 25s")` chứ không phải
+    "AbortError" vô nghĩa. Treo vô hình trở thành lỗi thường, mà lỗi thường thì
+    SYNC-3 đã biết cách thử lại.
+  - `storage.ts`: thêm `applyRemote(entries)` — áp cả batch rồi ghi bảng timestamp
+    ĐÚNG MỘT LẦN (trong `finally`, nên các stamp đã kịp vào vẫn được giữ khi nửa
+    đường mới nổ). Bỏ hẳn cặp `tsOf` + `setLocalFromRemote` từng key.
+  - Nửa đẩy lên chạy 4 request song song (`PUSH_CONCURRENCY`). Lần đăng nhập đầu
+    trên máy đã có dữ liệu trước đó phải đẩy n key: trước là n round-trip nối
+    đuôi nhau — vài phút trên điện thoại, hộp thoại đứng im suốt.
+  - MỌI đường thất bại của merge đi qua một hàm duy nhất `stall()`: ghi
+    `pullError` → hẹn thử lại → **throw**. Trước đây pull lỗi thì `return 0`, tức
+    caller không phân biệt được "xong, 0 thay đổi" với "chết". Giờ là reject.
+  - Vì merge đã biết throw, đã soát lại TẤT CẢ caller: `main.ts` và
+    `ui/syncStatus.ts` sẵn có `.catch`; `syncSettings.ts` được bọc try/catch (cả
+    hai chỗ gọi); hai đường thử-lại tự động dùng `.catch(() => 0)`.
+  - Hộp thoại ☁️ hiện đếm tiến độ trực tiếp (`onProgress`): "Đang tải dữ liệu…
+    tải về 34/120". "34/120" và "0/120" là hai báo lỗi khác nhau, và một merge
+    không phản hồi thì không phân biệt được với treo. Thất bại thì đổi sang chữ
+    ĐỎ ghi rõ lý do + "mã đã lưu, app sẽ tự thử lại."
+
+## SYNC-7. Vì sao KHÔNG bỏ snapshot để tiết kiệm quota
+
+Bỏ `snapshotBeforeMerge` là cách nhanh nhất giải phóng chỗ trong localStorage, và
+là cách sai: đó là undo LOCAL duy nhất cho một merge sai, vì server không giữ
+history cho DELETE và merge là last-write-wins. Chọn cách ngược lại — nói ra lỗi
+quota — vì hộp thoại đã có nút Export, tức người dùng có đường sao lưu thật.
+
+## SYNC-8. Test: `apps/desktop` từ nay CÓ test
+
+Trước đó cả `apps/desktop` không có test runner nào — luật merge trong
+`packages/core` thì được test kỹ, còn phần ống nước quanh nó (hydration gate,
+thử-lại, báo lỗi ghi local) không có gì. Đó chính là lý do một lần đăng nhập đầu
+trên điện thoại có thể treo vĩnh viễn mà không ai biết.
+
+  - `apps/desktop/vitest.config.ts` (`environment: 'node'` — cả tầng này phải chạy
+    được với Storage giả + fetch giả, không cần DOM).
+  - `apps/desktop/tests/syncMerge.test.ts`: 5 test, mỗi test đúng một triệu chứng
+    ở SYNC-5 — ghi bảng timestamp một lần cho cả batch; lỗi quota được BÁO chứ
+    không treo (và gate phải còn ĐÓNG); request không trả lời bị timeout; có
+    tiến độ; máy chưa có mã thì gate vẫn mở (không xếp hàng vô ích).
+  - `npm test` ở gốc giờ chạy CẢ HAI workspace: **605 core + 5 desktop**.
+    Typecheck + build sạch.
+  - `vitest` KHÔNG thêm vào devDependencies của desktop (xem note `//test` trong
+    `apps/desktop/package.json`): thêm là đổi package-lock.json, mà Cloudflare
+    Pages build bằng `npm ci` — lock lệch là build đổ.
+
+## SYNC-9. Cần deploy mới có tác dụng
+
+Toàn bộ mục này là code phía browser: phải `wrangler pages deploy` (xem UI-1..UI-4)
+rồi trên điện thoại XOÁ CACHE / gỡ-cài lại PWA, vì bản cũ nằm trong
+service-worker cache. Sau đó nhập lại mã trong ☰ → ☁️: hộp thoại phải chạy số
+đếm, và nếu lỗi thì phải hiện chữ đỏ có lý do — không còn "Đang tải dữ liệu…"
+đứng im.

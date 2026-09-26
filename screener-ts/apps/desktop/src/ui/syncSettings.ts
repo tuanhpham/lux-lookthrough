@@ -247,17 +247,41 @@ export function openSyncSettings(ctx: AppContext): void {
     }
     setSyncCode(code);
     msg.style.color = 'var(--faint)';
-    msg.textContent = vi ? 'Đang tải dữ liệu…' : 'Pulling your data…';
-    // `freshCode` matters: this device has been running WITHOUT a code, so its
-    // local defaults carry "now" timestamps that would beat the account's real
-    // data under last-write-wins. Signing in must download, never overwrite.
-    const n = await pullAndMerge(ctx.synced, { freshCode: true });
-    msg.style.color = 'var(--accent)';
-    msg.textContent =
-      (res.name ? `${vi ? 'Xin chào' : 'Hi'} ${res.name}. ` : '') +
-      (vi ? `Đã đồng bộ ${n} mục.` : `Synced ${n} item(s).`);
-    onSyncedCb?.();
-    setTimeout(close, 900);
+    const pulling = vi ? 'Đang tải dữ liệu…' : 'Pulling your data…';
+    msg.textContent = pulling;
+    try {
+      // `freshCode` matters: this device has been running WITHOUT a code, so its
+      // local defaults carry "now" timestamps that would beat the account's real
+      // data under last-write-wins. Signing in must download, never overwrite.
+      //
+      // The progress counter is not decoration. This message used to be the last
+      // thing a phone ever showed: the merge could be slow (it was quadratic in the
+      // number of keys) or could throw (the storage quota), and either way the
+      // dialog said "Pulling your data…" forever with the reason nowhere on screen.
+      const n = await pullAndMerge(ctx.synced, {
+        freshCode: true,
+        onProgress: ({ phase, done, total }) => {
+          if (!total) return;
+          const what = phase === 'down' ? (vi ? 'tải về' : 'download') : vi ? 'gửi lên' : 'upload';
+          msg.textContent = `${pulling} ${what} ${done}/${total}`;
+        },
+      });
+      msg.style.color = 'var(--accent)';
+      msg.textContent =
+        (res.name ? `${vi ? 'Xin chào' : 'Hi'} ${res.name}. ` : '') +
+        (vi ? `Đã đồng bộ ${n} mục.` : `Synced ${n} item(s).`);
+      onSyncedCb?.();
+      setTimeout(close, 900);
+    } catch (e) {
+      // The code itself was accepted (verifyCode passed), so this is the transport
+      // or the device's own storage. Name it: the difference between "no answer
+      // after 25s" and a quota error decides what the user should do next.
+      msg.style.color = 'var(--danger)';
+      msg.textContent =
+        (vi ? 'Không tải được dữ liệu: ' : 'Could not pull your data: ') +
+        String((e as Error)?.message ?? e) +
+        (vi ? ' — mã đã lưu, app sẽ tự thử lại.' : ' — the code is saved; the app keeps retrying.');
+    }
   });
 
   // ── Offline backup: export / import (works without a sync code) ─────────────

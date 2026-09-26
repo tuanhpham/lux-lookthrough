@@ -45,6 +45,38 @@ export function setSyncCode(code: string | null): void {
   }
 }
 
+/**
+ * Every sync request gets a deadline.
+ *
+ * `fetch` has no timeout of its own: a request can stay pending for as long as the
+ * platform allows, and on a phone that is routinely forever — a radio that changes
+ * state mid-request (Wi-Fi → cellular, screen lock, a captive portal) leaves the
+ * promise unsettled rather than rejecting it. That is the difference between "sync
+ * failed, retrying" and a dialog stuck on "Pulling your data…" with a grey pulsing
+ * dot and nothing to read. A deadline converts an invisible hang into an ordinary
+ * error, which the retry path already knows how to handle.
+ *
+ * Generous on purpose: the bulk pull can legitimately take a while on a slow link,
+ * and a timeout that fires on a working-but-slow connection would be its own bug.
+ */
+const TIMEOUT_MS = 25_000;
+
+async function req(url: string, init: RequestInit = {}): Promise<Response> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: ctl.signal });
+  } catch (e) {
+    // An abort arrives as a bare "AbortError", which tells the user nothing.
+    if ((e as Error)?.name === 'AbortError') {
+      throw new Error(`no answer after ${TIMEOUT_MS / 1000}s`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function headers(): Record<string, string> {
   const code = loadCode();
   return {
@@ -62,7 +94,7 @@ export interface SyncEntry {
 /** Validate a code against the server. Returns the user's name on success. */
 export async function verifyCode(code: string): Promise<{ ok: boolean; name?: string | null }> {
   try {
-    const res = await fetch(`${BASE}/whoami`, { headers: { 'x-sync-code': code.trim() } });
+    const res = await req(`${BASE}/whoami`, { headers: { 'x-sync-code': code.trim() } });
     if (!res.ok) return { ok: false };
     const body = (await res.json()) as { ok?: boolean; name?: string | null };
     return { ok: !!body.ok, name: body.name };
@@ -74,7 +106,7 @@ export async function verifyCode(code: string): Promise<{ ok: boolean; name?: st
 /** Read one key. Returns null when absent or when sync is off. */
 export async function remoteGet<T>(key: string): Promise<{ value: T; updatedAt: number } | null> {
   if (!isSyncEnabled()) return null;
-  const res = await fetch(`${BASE}/kv/${encodeURI(key)}`, { headers: headers() });
+  const res = await req(`${BASE}/kv/${encodeURI(key)}`, { headers: headers() });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`sync get ${key}: HTTP ${res.status}`);
   return (await res.json()) as { value: T; updatedAt: number };
@@ -102,7 +134,7 @@ export async function remotePut<T>(
   if (!isSyncEnabled()) return;
   const body = JSON.stringify({ value, updatedAt });
   const put = (qs = '') =>
-    fetch(`${BASE}/kv/${encodeURI(key)}${qs}`, { method: 'PUT', headers: headers(), body });
+    req(`${BASE}/kv/${encodeURI(key)}${qs}`, { method: 'PUT', headers: headers(), body });
 
   let res = await put();
   if (res.status === 409 && opts.deliberate) {
@@ -115,13 +147,13 @@ export async function remotePut<T>(
 
 export async function remoteDelete(key: string): Promise<void> {
   if (!isSyncEnabled()) return;
-  const res = await fetch(`${BASE}/kv/${encodeURI(key)}`, { method: 'DELETE', headers: headers() });
+  const res = await req(`${BASE}/kv/${encodeURI(key)}`, { method: 'DELETE', headers: headers() });
   if (!res.ok && res.status !== 404) throw new Error(`sync delete ${key}: HTTP ${res.status}`);
 }
 
 export async function remoteList(prefix = ''): Promise<string[]> {
   if (!isSyncEnabled()) return [];
-  const res = await fetch(`${BASE}/kv?prefix=${encodeURIComponent(prefix)}`, { headers: headers() });
+  const res = await req(`${BASE}/kv?prefix=${encodeURIComponent(prefix)}`, { headers: headers() });
   if (!res.ok) throw new Error(`sync list: HTTP ${res.status}`);
   const body = (await res.json()) as { keys: string[] };
   return body.keys ?? [];
@@ -147,7 +179,7 @@ export interface SyncVersion {
 export async function remoteHistory(key?: string): Promise<SyncVersion[]> {
   if (!isSyncEnabled()) return [];
   const qs = key ? `?key=${encodeURIComponent(key)}` : '';
-  const res = await fetch(`${BASE}/history${qs}`, { headers: headers() });
+  const res = await req(`${BASE}/history${qs}`, { headers: headers() });
   if (!res.ok) throw new Error(`sync history: HTTP ${res.status}`);
   const body = (await res.json()) as { versions: SyncVersion[] };
   return body.versions ?? [];
@@ -156,7 +188,7 @@ export async function remoteHistory(key?: string): Promise<SyncVersion[]> {
 /** Promote an archived version back to live, stamped now so it syncs everywhere. */
 export async function remoteRestore(key: string, archivedAt: number): Promise<void> {
   if (!isSyncEnabled()) return;
-  const res = await fetch(`${BASE}/restore`, {
+  const res = await req(`${BASE}/restore`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ key, archivedAt }),
@@ -167,7 +199,7 @@ export async function remoteRestore(key: string, archivedAt: number): Promise<vo
 /** Bulk download every entry (optionally only those newer than `since`). */
 export async function remotePull(since = 0): Promise<SyncEntry[]> {
   if (!isSyncEnabled()) return [];
-  const res = await fetch(`${BASE}/pull`, {
+  const res = await req(`${BASE}/pull`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ since }),

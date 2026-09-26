@@ -9,6 +9,8 @@
     "build": "npm run build:core && tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "npm run build:core && tsc -p tsconfig.json --noEmit",
+    "//test": "Runs on the vitest hoisted by @screener/core, deliberately NOT listed here: adding a devDependency rewrites package-lock.json, and Cloudflare Pages builds with `npm ci`, which fails outright on a lock that does not match. If this ever errors with 'vitest not found', install it in packages/core, not here.",
+    "test": "vitest run",
     "//build:core": "@screener/core resolves to its dist/, which is gitignored — so a fresh clone has none, and adding a core file leaves it stale. Both surface here as bogus 'has no exported member' errors. Building it first makes that impossible to hit.",
     "build:core": "npm --prefix ../../packages/core run build",
     "tauri": "tauri",
