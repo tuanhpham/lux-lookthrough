@@ -3485,12 +3485,16 @@ html[lang="vi"] #app-menu .sl-menu-item { letter-spacing: .04em; }
   margin: auto 0; display: flex; flex-direction: column; align-items: center;
   gap: 5px; text-align: center; padding: 8px 0 4px;
 }
-.chat-hero { width: 118px; height: 118px; margin-bottom: 8px; }
+/* Big, because the dragons are the point and at 118px they were two smudges.
+   `aspect-ratio` rather than a matched height: the plate is 640×667, and forcing
+   it square squashed it by 4% — enough to thicken the disc into an oval. */
+.chat-hero { width: 184px; aspect-ratio: 640 / 667; margin-bottom: 10px; }
 .chat-hero .lux-emblem {
-  width: 100%; height: 100%; display: block;
-  /* Cast, not glow: the drop-shadow is the accent at low alpha and offset down,
-     which is what makes a flat SVG sit ON the panel instead of in it. */
-  filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 34%, transparent));
+  width: 100%; height: auto; display: block;
+  /* Cast, not glow: the accent at low alpha, offset down, which is what makes the
+     plate sit ON the panel instead of being pasted onto it. It also gives the
+     monochrome ink one thread of the app's own colour. */
+  filter: drop-shadow(0 12px 26px color-mix(in srgb, var(--accent) 30%, transparent));
   animation: chatHero 9s ease-in-out infinite;
 }
 /* A slow drift. Fast enough to notice on arrival, slow enough to ignore after. */
@@ -3581,13 +3585,13 @@ html[lang="vi"] #app-menu .sl-menu-item { letter-spacing: .04em; }
 }
 
 /* ── the taijitu mark ──
-   The drawing is in `ui/emblem.ts`, shaded with gradients from one shared <defs>
-   rather than painted from theme variables: a sphere needs a highlight and a shade
-   of the accent, which `currentColor` cannot supply, and the pair it does supply
-   reads on both the near-black and the bone-white background.
+   A crop of the ink painting rather than anything drawn here; `ui/emblem.ts` says
+   why. It is monochrome on purpose and NOT tinted with the accent: the disc has to
+   read on the near-black theme and the bone-white one, and ink does that on both
+   where a single hue does it on neither.
 
-   Only the SIZE lives here. The mark is inline SVG with no width of its own beyond
-   its 24-unit box, so every place that uses it states how big it is. */
+   Only the SIZE lives here. The image is 192px square with a circular alpha, so
+   every place that uses it says how big it is and the roundness comes for free. */
 .yy { width: 16px; height: 16px; }
 /* On a menu row it is one item among many, so it sits at the row's own weight
    rather than glowing out of it. */
@@ -3647,7 +3651,7 @@ html[lang="vi"] #app-menu .sl-menu-item { letter-spacing: .04em; }
   /* The hero is the first thing to give up its room: on a short phone screen the
      emblem plus four suggestions plus the composer do not all fit, and the
      suggestions are the part that is there to be tapped. */
-  .chat-hero { width: 92px; height: 92px; margin-bottom: 4px; }
+  .chat-hero { width: 140px; margin-bottom: 6px; }
   #chat-fab { right: 14px; bottom: 14px; width: 44px; height: 44px; }
   #chat-fab .yy { width: 27px; height: 27px; }
 }

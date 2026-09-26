@@ -22,7 +22,7 @@ import { openSyncSettings, onSynced } from './ui/syncSettings.js';
 import { mountSyncStatus, refreshSyncStatus } from './ui/syncStatus.js';
 import { openLlmSettings } from './ui/llmSettings.js';
 import { openChatPanel, closeChatPanel, isChatOpen } from './ui/chatPanel.js';
-import { mountEmblemDefs, ORB_MARK } from './ui/emblem.js';
+import { ORB_MARK } from './ui/emblem.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
 import { pullAndMerge, openSyncGate } from './adapters/storage.js';
 
@@ -244,14 +244,11 @@ function openStory(trigger?: Element): void {
 }
 
 /**
- * The assistant's mark: the shaded taijitu, in both the menu and the launcher.
+ * The assistant's mark: the taijitu disc, in both the menu and the launcher.
  *
- * The drawing, and why the small one carries no dragon and no phoenix, is in
- * `ui/emblem.ts`. Its paint servers have to be in the document before anything
- * referencing them is painted, which is why this is mounted at module load rather
- * than when the panel first opens.
+ * Why the small mark is the disc alone and not the whole painting — and why the
+ * painting is a cropped image rather than SVG at all — is in `ui/emblem.ts`.
  */
-mountEmblemDefs();
 const CHAT_ICON = ORB_MARK;
 
 // ── App cinematic menu overlay ────────────────────────────────────────────────

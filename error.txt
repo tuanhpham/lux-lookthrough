@@ -1070,3 +1070,58 @@ nó full-width và không có avatar.
 Kiểm tra: typecheck + build sạch, 8 test desktop xanh. Đã xem ảnh render thật ở
 cả theme tối và sáng (headless Chrome dựng panel bằng chính `styles.css` của
 repo), không phải đoán.
+
+
+================================================================================
+CHAT-7..CHAT-9. Bỏ SVG, dùng thẳng tranh `hinhamduong.jpg` làm emblem
+================================================================================
+
+## CHAT-7. Vì sao thôi không vẽ rồng bằng SVG nữa
+
+Bạn nói thẳng: "rồng của bạn xấu thế", rồi "bạn có thể lấy giống hết cái
+hinhamduong.jpg đó mà, adapt cho nó phù hợp thôi". Đúng. Trước đó đã vẽ tay SVG
+hai vòng: xương sống toạ độ cực có BÁN KÍNH thay đổi (rộng ở đầu, thắt ở bụng,
+loe ra ở đuôi — bán kính không đổi thì chỉ vẽ ra được cái vành tròn), dải thân
+thu nhỏ dần, bờm, sừng gạc, râu, chân có vuốt. Kết quả cao nhất chỉ tới mức
+"nhận ra là con rồng".
+
+Lý do không thể hơn: cái làm rồng Á Đông đẹp là NÉT BÚT — vảy, độ đậm mực, cách
+khói tan dần. `<path>` + gradient không có thứ đó, và không có số lượng điểm điều
+khiển nào bù lại được. Nên tranh CHÍNH LÀ emblem. Ảnh gốc `hinhamduong.jpg` nằm ở
+gốc repo; `screener-ts/apps/desktop/scripts/emblem-assets.py` cắt ra lại được, để
+số liệu cắt là thứ tái lập được chứ không phải phép màu.
+
+## CHAT-8. HAI bản cắt, không phải một ảnh thu nhỏ hai lần
+
+- `public/images/emblem-orb.webp` — 192px, CHỈ cái đĩa thái cực, alpha tròn, đẩy
+  contrast lên. Dùng cho mọi chỗ nhỏ: nút launcher, dòng menu, header panel,
+  avatar từng câu trả lời (16–34px). Rồng chỉ có mặt ở phần nó cắt qua đĩa.
+- `public/images/emblem.webp` — 640×667, bản vuông: hai cái đầu rồng, đĩa, viên
+  minh châu. Mép làm mờ dần về trong suốt nên khói ngồi được trên cả theme
+  gần-đen và theme trắng ngà. Dùng ĐÚNG MỘT LẦN, thật to, làm hero của empty
+  state.
+
+Vì sao phải hai bản: cả tấm tranh ở 20px là một vũng xám. Còn riêng cái đĩa vẫn
+đọc được tới 16px, vì nó là ba hình tương phản mạnh — hai thuỳ và hai chấm mầm.
+Đây là cùng một bài học với CHAT-2, chỉ khác là lần này đo trên ảnh thật.
+
+Tâm đĩa trên tranh tìm bằng HAI CHẤM MẦM chứ không ướm theo vành khói: chấm tối
+ở (368, 437), viên minh châu ở (372, 765), hai chấm nằm ở ±r/2 trên trục dọc →
+tâm là trung điểm (370, 602), r = 328. Ổn định hơn nhiều so với đoán vành.
+
+## CHAT-9. Kích cỡ hero, và một cái bẫy tỷ lệ
+
+Hero từ 118px → 184px (điện thoại 92 → 140), vì bạn bảo "làm cho nó to hơn đi" và
+ở 118px hai con rồng chỉ là hai vệt mờ.
+
+Bẫy: `.chat-hero { width: 184px; height: 184px }` + ảnh `width:100%;height:100%`
+sẽ BÓP ảnh, vì tấm plate là 640×667 chứ không vuông — 4% thôi nhưng đủ làm cái
+đĩa thành hình bầu dục. Đã dùng `aspect-ratio: 640 / 667` + `height: auto`.
+
+`mountEmblemDefs()` đã xoá hẳn: không còn gradient nào để mount. Mọi rule kích cỡ
+trong `styles.css` (`.yy`, `.lux-emblem`) giữ nguyên vì `<img>` mang đúng class cũ
+— kể cả `#chat-fab:hover .yy { transform: rotate(180deg) }`, quay nửa vòng vẫn
+đúng nghĩa với ảnh y như với SVG.
+
+Kiểm tra: typecheck sạch; đã XEM ảnh render thật của panel ở cả hai theme và
+thang cỡ icon 16/18/22/26/34/44px, không phải đoán.
