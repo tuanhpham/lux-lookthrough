@@ -981,3 +981,92 @@ Nghĩa là dữ liệu THẬT của account không vừa 5 MB localStorage nữa
 thoát không phải xoá thêm cache mà là đổi tầng lưu trữ: IndexedDB (hàng trăm MB)
 thay cho localStorage trong `LocalStorageAdapter`. Đó là việc riêng, không nhét
 vào lần sửa này.
+
+================================================================================
+CHAT-1..CHAT-6. Icon trợ lý (rồng + phượng) và giao diện chatbot
+================================================================================
+
+## CHAT-1. Câu hỏi của bạn: mỗi bên có 1 chấm màu của bên kia — ĐÚNG
+
+Đúng, và icon cũ đã vẽ đủ cả hai chấm rồi: chấm sáng nằm trong nửa tối, chấm tối
+nằm trong nửa sáng. Đó là ý nghĩa của thái cực (mỗi bên chứa mầm của bên đối
+lập), nên trong `ui/emblem.ts` hai chấm tô bằng CHÍNH hai gradient của hai nửa,
+không phải hai màu rời — không thể bỏ, không thể lệch màu.
+
+## CHAT-2. Vì sao có HAI hình chứ không phải một
+
+Rồng và phượng KHÔNG đọc được ở 44px. Đã render thử và xem thật (6 vòng), ở
+44px chúng không còn là con vật mà thành một vành sạn quanh đĩa, còn ăn cả độ
+tương phản của đĩa — tức là xấu HƠN khi không có con nào. Nên:
+
+    ORB_MARK       chỉ quả cầu thái cực có khối. Dùng cho nút nổi, dòng menu,
+                   avatar mỗi câu trả lời — mọi chỗ 16–34px.
+    GUARDIAN_MARK  quả cầu + rồng cuộn bên trái + phượng bên phải. Dùng ĐÚNG
+                   MỘT chỗ, to (118px): hero của trạng thái rỗng trong panel.
+
+Muốn xem lại rồng/phượng thì mở panel khi chưa hỏi gì (hoặc bấm + để bắt đầu
+lượt mới) — đó là chỗ duy nhất có đủ đất cho nó.
+
+## CHAT-3. Vì sao 5 bản đầu vẽ ra vành tròn chứ không ra con rồng
+
+Thân vẽ theo cung tròn BÁN KÍNH KHÔNG ĐỔI. Bán kính không đổi thì luôn ra vòng
+tròn, và không thêm bao nhiêu chi tiết đầu cũng không cứu được. Bản dùng được
+cho bán kính thay đổi dọc thân: rộng ở đầu, thắt ở bụng, loe lại ở đuôi — đó mới
+là hình một con đang cuộn.
+
+Hai lỗi nữa đã sửa trên đường:
+  • `blade()` lấy pháp tuyến CHƯA chuẩn hoá, nên bề rộng lông tỉ lệ với chính
+    chiều dài lông → bộ lông đuôi phượng phình thành một khối xanh che cả đĩa.
+  • Cánh phượng vẽ cùng bán kính với thân → hai hình dính thành một mảng vô
+    hình dạng. Cánh phải nằm NGOÀI thân.
+Và phượng KHÔNG được có gai/lông bay ở cánh: thêm vào là nó thành con rồng thứ
+hai. Phân biệt bằng KHỐI (rồng gầy + gai, phượng cánh liền + đuôi dài), không
+phải bằng cái đầu.
+
+## CHAT-4. Gradient nằm trong MỘT <defs> dùng chung
+
+`url(#id)` là toàn cục trong document. Icon xuất hiện nhiều chỗ cùng lúc (nút
+nổi + header + 1 avatar mỗi câu trả lời), nên nếu nhúng gradient theo từng bản
+sao thì hoặc lặp chục paint server giống nhau, hoặc tệ hơn là trùng id và bản
+mount sau tô hết cho tất cả. `mountEmblemDefs()` gọi một lần trong `main.ts`;
+mọi bản sao sau đó chỉ còn là hình.
+
+Gradient để hệ toạ độ objectBoundingBox là CỐ Ý: cùng `luxOrbLight` tô cả đĩa
+23 đơn vị và con mắt 1.85 đơn vị, mỗi cái theo hộp của chính nó, nên mắt nhỏ có
+highlight nhỏ chứ không phải một mảnh cắt của highlight lớn.
+
+## CHAT-5. Giao diện panel: bỏ cái làm nó trông như chatbot đời cũ
+
+Thứ làm nó cũ không phải màu mà là KHUNG XÁM viền quanh MỌI câu trả lời. Nó đóng
+hộp một đoạn văn dài, rồi cái hộp đó lại đánh nhau với bảng/danh sách bên trong.
+
+  • Câu trả lời: không khung, không viền. Icon trong lề trái đã nói ai đang nói.
+    Câu HỎI thì vẫn giữ bong bóng — một dòng ngắn không viền khó phân biệt với
+    tiêu đề.
+  • Composer: MỘT ô bo tròn chứa cả textarea VÀ các nút, focus ring trên ô chứ
+    không trên input. Trước là hai hộp xếp lên nhau, viền trong chỉ để vạch một
+    đường giữa câu hỏi và cái nút gửi nó.
+  • Nút gửi: tròn, mũi tên. Nút vuông chữ "Gửi" ăn 1/4 chiều ngang composer cho
+    một nhãn mà mũi tên đã nói.
+  • "Đang nghĩ…" → ba chấm nhảy. `appendDelta()` ghi đè textContent nên animation
+    tự mất ngay khi token đầu về, không cần dọn gì thêm.
+  • Header: không thanh đặc, không viền dưới — thêm một đường ngang ngay sát mép
+    panel là chặt cột làm hai. Tên model thành chip (nó là một DỮ KIỆN về kết
+    nối, không phải phụ đề).
+  • Gợi ý: hàng full-width có mũi tên, không phải pill. Đây là các CÂU dài khác
+    nhau; một cột pill lệch đầu lệch cuối là hình của tag cloud, không phải menu.
+  • Panel hơi trong + blur: app bên dưới vẫn còn mờ mờ — panel ở CẠNH việc đang
+    làm, không thay thế nó.
+
+Mọi hook `data-act` / `data-role` giữ nguyên, nên logic hỏi/đáp không đổi dòng nào.
+
+## CHAT-6. Một lỗi tự bắt khi xem ảnh render
+
+Khối lỗi (`chat-msg--err`) tụt vào cột avatar 26px và chữ xuống dòng từng KÝ TỰ
+— vì `.chat-turn--bot` là grid 2 cột mà hàng lỗi chỉ có 1 con. Đã thêm
+`.chat-turn--sys` một cột: lỗi là APP nói về trợ lý, không phải trợ lý nói, nên
+nó full-width và không có avatar.
+
+Kiểm tra: typecheck + build sạch, 8 test desktop xanh. Đã xem ảnh render thật ở
+cả theme tối và sáng (headless Chrome dựng panel bằng chính `styles.css` của
+repo), không phải đoán.

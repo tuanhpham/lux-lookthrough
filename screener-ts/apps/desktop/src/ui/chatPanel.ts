@@ -39,6 +39,7 @@ import { renderLocalAnswer } from '../ai/localAnswer.js';
 import { getApiKey, loadLlmConfig, isConfigured } from '../ai/llmClient.js';
 import { openLlmSettings, onLlmConfigChange } from './llmSettings.js';
 import { askChatGpt } from './askChatGpt.js';
+import { GUARDIAN_MARK, ORB_MARK } from './emblem.js';
 import { t, onLangChange } from './i18n.js';
 import { accounts } from '../portfolio/store.js';
 
@@ -68,6 +69,9 @@ function icon(path: string): string {
 }
 const GEAR = icon('<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2m0 14v2m-9-9h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4"/>');
 const NEW = icon('<path d="M12 5v14M5 12h14"/>');
+const CLOSE = icon('<path d="M6 6l12 12M18 6 6 18"/>');
+/** An arrow, not the word "Send": the composer is already full of words. */
+const SEND = icon('<path d="M12 19V5M5 12l7-7 7 7"/>');
 
 function build(): HTMLElement {
   const el = document.createElement('div');
@@ -76,6 +80,7 @@ function build(): HTMLElement {
     <div class="chat-backdrop" data-act="close"></div>
     <aside class="chat-shell" role="dialog" aria-label="${t('chat.title')}">
       <header class="chat-head">
+        <span class="chat-mark">${ORB_MARK}</span>
         <div class="chat-head-main">
           <span class="chat-title">${t('chat.title')}</span>
           <span class="chat-model" data-role="model"></span>
@@ -84,19 +89,25 @@ function build(): HTMLElement {
           <span class="chat-meter" data-role="meter" title="${t('chat.meter.help')}"></span>
           <button class="chat-icon" data-act="new" title="${t('chat.new')}">${NEW}</button>
           <button class="chat-icon" data-act="settings" title="${t('ai.settings.title')}">${GEAR}</button>
-          <button class="chat-icon" data-act="close" aria-label="${t('chat.close')}">✕</button>
+          <button class="chat-icon" data-act="close" aria-label="${t('chat.close')}">${CLOSE}</button>
         </div>
       </header>
       <div class="chat-log" data-role="log"></div>
       <div class="chat-composer">
-        <textarea class="chat-input" data-role="input" rows="1"
-          placeholder="${t('chat.placeholder')}"></textarea>
-        <div class="chat-composer-actions">
-          <button class="chat-gpt" data-act="askgpt" title="${t('chat.askgpt.help')}">${t('chat.askgpt')}</button>
-          <button class="chat-send" data-act="send">${t('chat.send')}</button>
+        <!-- One field, with the buttons INSIDE it: a textarea in its own box above a
+             row of buttons is the shape every chatbot had in 2016, and it spends two
+             borders and a gap saying nothing. -->
+        <div class="chat-field">
+          <textarea class="chat-input" data-role="input" rows="1"
+            placeholder="${t('chat.placeholder')}"></textarea>
+          <div class="chat-field-actions">
+            <button class="chat-gpt" data-act="askgpt" title="${t('chat.askgpt.help')}">${t('chat.askgpt')}</button>
+            <button class="chat-send" data-act="send" title="${t('chat.send')}"
+              aria-label="${t('chat.send')}">${SEND}</button>
+          </div>
         </div>
+        <div class="chat-foot">${t('chat.disclaimer')}</div>
       </div>
-      <div class="chat-foot">${t('chat.disclaimer')}</div>
     </aside>`;
   document.body.appendChild(el);
   wire(el);
@@ -264,18 +275,36 @@ function costLine(usage?: TokenUsage, costUsd?: number | null): string {
 
 const SUGGESTIONS = ['chat.s1', 'chat.s2', 'chat.s3', 'chat.s4'];
 
+/**
+ * The one place the full emblem is used.
+ *
+ * An empty transcript is the only moment in the panel's life with space to spare,
+ * and a blank column with four grey pills in it was the single most dated thing
+ * here. At this size the dragon and the phoenix are actually legible; anywhere
+ * else in the panel they would be grit.
+ */
 function emptyState(): string {
   return `
     <div class="chat-empty">
+      <div class="chat-hero">${GUARDIAN_MARK}</div>
       <p class="chat-empty-title">${t('chat.empty.title')}</p>
       <p class="chat-empty-hint">${t(ready ? 'chat.empty.hint' : 'chat.empty.nokey')}</p>
       <div class="chat-suggests">
         ${SUGGESTIONS.map((k) => {
           const q = t(k);
-          return `<button class="chat-suggest" data-act="suggest" data-q="${esc(q)}">${esc(q)}</button>`;
+          return `<button class="chat-suggest" data-act="suggest" data-q="${esc(q)}">
+            <span>${esc(q)}</span>${icon('<path d="M5 12h14M13 6l6 6-6 6"/>')}</button>`;
         }).join('')}
       </div>
     </div>`;
+}
+
+/** An assistant turn: the mark in the gutter, the words beside it. */
+function botTurn(body: string, live = false): string {
+  return `<div class="chat-turn chat-turn--bot">
+    <span class="chat-avatar${live ? ' chat-avatar--live' : ''}">${ORB_MARK}</span>
+    ${body}
+  </div>`;
 }
 
 function render(): void {
@@ -288,32 +317,44 @@ function render(): void {
   }
   box.innerHTML = entries
     .map((e) => {
-      if (e.role === 'user') return `<div class="chat-msg chat-msg--user">${esc(e.text)}</div>`;
+      if (e.role === 'user') {
+        return `<div class="chat-turn chat-turn--user">
+          <div class="chat-msg chat-msg--user">${esc(e.text)}</div></div>`;
+      }
       if (e.role === 'pending') {
         // Escaped and NOT run through the markdown renderer while it streams: half a
         // table or an unclosed `**` renders as garbage that reflows on every token.
         // The finished answer is re-rendered as markdown the moment it lands.
-        return e.text
-          ? `<div class="chat-msg chat-msg--bot chat-stream" data-role="pending">${esc(e.text)}</div>`
-          : `<div class="chat-msg chat-msg--bot chat-pending" data-role="pending">${t('chat.thinking')}</div>`;
+        // Three dots rather than the word "Thinking…": `appendDelta` replaces the
+        // node's text content wholesale, so the animation removes itself the instant
+        // the first token lands, with no extra bookkeeping.
+        return botTurn(
+          e.text
+            ? `<div class="chat-msg chat-msg--bot chat-stream" data-role="pending">${esc(e.text)}</div>`
+            : `<div class="chat-msg chat-msg--bot chat-pending" data-role="pending"
+                 aria-label="${t('chat.thinking')}"><i></i><i></i><i></i></div>`,
+          true,
+        );
       }
       if (e.role === 'error') {
-        return `<div class="chat-msg chat-msg--err">
+        // Full width and no avatar: a failure is the app speaking about the
+        // assistant, not the assistant speaking.
+        return `<div class="chat-turn chat-turn--sys"><div class="chat-msg chat-msg--err">
           <div class="chat-err-title">${t('chat.error')}</div>
           <div class="chat-err-body">${esc(e.text)}</div>
           ${e.canRetry ? `<button class="chat-suggest" data-act="retry">${t('chat.retry')}</button>` : ''}
-        </div>`;
+        </div></div>`;
       }
       const badges = [
         e.local ? `<span class="chat-badge chat-badge--local">${t('chat.local.badge')}</span>` : '',
         e.truncated ? `<span class="chat-badge chat-badge--cut">${t('chat.truncated')}</span>` : '',
       ].join('');
-      return `<div class="chat-msg chat-msg--bot">
+      return botTurn(`<div class="chat-msg chat-msg--bot">
         ${badges}
         ${renderAssistantMarkdown(e.text)}
         ${toolChips(e.tools)}
         ${e.local ? '' : costLine(e.usage, e.costUsd)}
-      </div>`;
+      </div>`);
     })
     .join('');
   box.scrollTop = box.scrollHeight;

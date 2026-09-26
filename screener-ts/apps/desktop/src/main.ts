@@ -22,6 +22,7 @@ import { openSyncSettings, onSynced } from './ui/syncSettings.js';
 import { mountSyncStatus, refreshSyncStatus } from './ui/syncStatus.js';
 import { openLlmSettings } from './ui/llmSettings.js';
 import { openChatPanel, closeChatPanel, isChatOpen } from './ui/chatPanel.js';
+import { mountEmblemDefs, ORB_MARK } from './ui/emblem.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
 import { pullAndMerge, openSyncGate } from './adapters/storage.js';
 
@@ -243,29 +244,15 @@ function openStory(trigger?: Element): void {
 }
 
 /**
- * The assistant's mark: a taijitu, in both the menu and the launcher.
+ * The assistant's mark: the shaded taijitu, in both the menu and the launcher.
  *
- * ── HOW IT IS DRAWN ─────────────────────────────────────────────────────────
- * The classic four-arc construction, filled rather than stroked, so it stays a
- * crisp two-tone disc at 16px and at 46px with no hairline artefacts:
- *   outer circle r12 → the light half
- *   one path: the right semicircle, then the r6 lobe bulging left at the bottom
- *             and the r6 lobe bulging right at the top → the dark half
- *   two eyes at the lobe centres (12,6) and (12,18), each the other's colour
- *
- * ── AND WHY IT IS TWO CLASSES, NOT TWO LITERAL COLOURS ──────────────────────
- * `.yy-a` is the accent, `.yy-b` is `currentColor`. That is what lets the same
- * markup sit on the menu row (inheriting the row's ink) and on the launcher
- * (inheriting the page's) and invert correctly between the light and dark themes,
- * which a hard-coded black-and-white pair could not do on either.
+ * The drawing, and why the small one carries no dragon and no phoenix, is in
+ * `ui/emblem.ts`. Its paint servers have to be in the document before anything
+ * referencing them is painted, which is why this is mounted at module load rather
+ * than when the panel first opens.
  */
-const CHAT_ICON =
-  '<svg class="yy" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">' +
-  '<circle class="yy-a" cx="12" cy="12" r="12"/>' +
-  '<path class="yy-b" d="M12 0A12 12 0 0 1 12 24A6 6 0 0 1 12 12A6 6 0 0 0 12 0Z"/>' +
-  '<circle class="yy-a" cx="12" cy="6" r="1.9"/>' +
-  '<circle class="yy-b" cx="12" cy="18" r="1.9"/>' +
-  '</svg>';
+mountEmblemDefs();
+const CHAT_ICON = ORB_MARK;
 
 // ── App cinematic menu overlay ────────────────────────────────────────────────
 function buildAppMenu(): HTMLElement {
