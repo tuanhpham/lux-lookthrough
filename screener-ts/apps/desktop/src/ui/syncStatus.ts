@@ -18,7 +18,7 @@ import {
   isHydrated,
   onSyncActivity,
   primeLastPushAt,
-  pullAndMerge,
+  retryPull,
   syncActivity,
   type SyncActivity,
 } from '../adapters/storage.js';
@@ -59,6 +59,7 @@ function render(): void {
     queued: activity.queued,
     lastPushAt: activity.lastPushAt,
     lastError: activity.lastError,
+    pullError: activity.pullError,
   });
   phase = view.phase;
 
@@ -75,10 +76,14 @@ function render(): void {
   // screens without losing the only visible part of the indicator.
   el.innerHTML = `<span class="sync-status-dot"></span><span class="sync-status-label"></span>`;
   el.querySelector('.sync-status-label')!.textContent = label;
-  // The error text is the useful detail, so it goes in the tooltip verbatim.
-  el.title = activity.lastError
-    ? `${t('sync.state.error')}: ${activity.lastError}`
-    : `${label} — ${t('sync.status.hint')}`;
+  // The error text is the useful detail, so it goes in the tooltip verbatim: an
+  // `HTTP 401` there is the difference between "no signal" and "this code was
+  // revoked", and neither is guessable from a coloured dot.
+  el.title = activity.pullError
+    ? `${label}: ${activity.pullError}`
+    : activity.lastError
+      ? `${t('sync.state.error')}: ${activity.lastError}`
+      : `${label} — ${t('sync.status.hint')}`;
   el.setAttribute('aria-label', el.title);
 }
 
@@ -115,11 +120,19 @@ export function mountSyncStatus(ctx: AppContext): void {
       // merge's push-up half already re-sends every locally-newer key, so a retry
       // needs no new push logic. If it fails again the pill stays red and a second
       // click is available; the dialog is one menu item away for anything else.
+      //
+      // `retryPull`, not `pullAndMerge`: when the stall was a failed sign-in the
+      // retry has to keep that call's `freshCode`, or it becomes an upload of this
+      // device's pre-account data.
       if (phase === 'error') {
-        void pullAndMerge(ctx.synced)
+        const stalled = syncActivity().pullError !== null;
+        void retryPull(ctx.synced)
           .catch(() => {})
           .finally(render);
-        return;
+        // A stalled pull also OPENS the dialog, where the state is spelled out. On
+        // a phone the pill is a bare dot with no tooltip, so a tap that silently
+        // retried and failed again would leave nothing to read at all.
+        if (!stalled) return;
       }
       openSyncSettings(ctx);
     });

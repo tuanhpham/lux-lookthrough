@@ -12,9 +12,13 @@
  *   1. No access code → nothing is being saved anywhere but this device. This
  *      outranks everything, including a queue or an error, because it is not a
  *      transient condition and it is the one the user can act on.
- *   2. A failed push → the local copy is ahead of the server. Silent until now.
- *   3. Work still queued or the gate still shut → in flight, outcome unknown.
- *   4. Otherwise → saved, and `lastPushAt` says when.
+ *   2. The first pull FAILED → the hydration gate never opened, so every write of
+ *      this session is sitting in a queue that nothing will ever flush. Worse than
+ *      a failed push (which loses one key), and it must not read as 'pending':
+ *      that is a spinner promising an outcome that will never arrive.
+ *   3. A failed push → the local copy is ahead of the server. Silent until now.
+ *   4. Work still queued or the gate still shut → in flight, outcome unknown.
+ *   5. Otherwise → saved, and `lastPushAt` says when.
  *
  * Note `error` beats `pending`: with a failure recorded, a later queued write does
  * not make the earlier loss less real, and "Syncing…" would imply it was handled.
@@ -42,6 +46,13 @@ export interface SyncStatusInput {
   lastPushAt: number | null;
   /** Message from the most recent failed push, cleared by the next success. */
   lastError: string | null;
+  /**
+   * Message from the most recent failed PULL, cleared by the next success — the
+   * download half, which is what opens the hydration gate. Separate from
+   * `lastError` because the consequence is different in kind: a failed push is one
+   * key behind, a failed pull is a device that has not started syncing at all.
+   */
+  pullError: string | null;
 }
 
 export interface SyncStatusView {
@@ -70,6 +81,13 @@ export interface SyncStatusView {
 export function deriveSyncStatus(input: SyncStatusInput): SyncStatusView {
   if (!input.hasCode) {
     return { phase: 'off', labelKey: 'sync.state.off', showTime: false, verbose: true };
+  }
+  if (input.pullError) {
+    // Same 'error' phase — red, bordered, retryable by clicking the pill — but its
+    // own label, because the remedy differs: a failed push usually just needs
+    // another try, while a pull that keeps failing is a connection or a code that
+    // no longer works, and the message says which.
+    return { phase: 'error', labelKey: 'sync.state.stalled', showTime: false, verbose: true };
   }
   if (input.lastError) {
     return { phase: 'error', labelKey: 'sync.state.error', showTime: false, verbose: true };

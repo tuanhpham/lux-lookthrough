@@ -162,19 +162,26 @@ export interface SyncActivity {
   lastPushAt: number | null;
   /** Message from the most recent failed push; cleared by the next success. */
   lastError: string | null;
+  /**
+   * Message from the most recent failed PULL; cleared by the next success. While
+   * this is set the hydration gate is still shut, so nothing is being uploaded at
+   * all — see `deriveSyncStatus`, which ranks it above a failed push.
+   */
+  pullError: string | null;
   /** Writes waiting on the hydration gate, or in flight right now. */
   queued: number;
 }
 
 let lastPushAt: number | null = null;
 let lastError: string | null = null;
+let pullError: string | null = null;
 /** Pushes handed to fetch but not yet resolved — 'pending', not yet 'ok'. */
 let inFlight = 0;
 const activityListeners: Array<(a: SyncActivity) => void> = [];
 
 /** A snapshot of push health. Cheap; safe to call on every render. */
 export function syncActivity(): SyncActivity {
-  return { lastPushAt, lastError, queued: pendingPushes.size + inFlight };
+  return { lastPushAt, lastError, pullError, queued: pendingPushes.size + inFlight };
 }
 
 /** Subscribe to push-health changes. Multi-subscriber, unlike `onSynced`. */
@@ -413,6 +420,98 @@ export class SyncedStorage implements Storage {
   }
 }
 
+export interface PullOpts {
+  /** The user has just entered a code on this device — download, never overwrite. */
+  freshCode?: boolean;
+  /** Internal: this call is an automatic retry of a pull that failed. */
+  retry?: boolean;
+}
+
+/** Serialises merges; see the comment in `pullAndMerge`. */
+let chain: Promise<void> = Promise.resolve();
+
+/**
+ * Retry backoff for a failed pull, in ms, then every 3 minutes.
+ *
+ * Front-loaded because the common cause is mundane: a phone cold-starting the
+ * installed PWA before the radio is up, so the app boots from the service-worker
+ * cache and the first request loses a race it will win three seconds later. The
+ * tail is slow because the other causes (offline, a revoked code) are not fixed by
+ * hammering, and this runs on a battery.
+ */
+const PULL_RETRY_MS = [3_000, 8_000, 20_000, 60_000, 180_000];
+
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let retryStep = 0;
+let retryArgs: { storage: SyncedStorage; opts: PullOpts } | null = null;
+let reconnectWired = false;
+
+function cancelPullRetry(): void {
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
+  retryStep = 0;
+  // `retryArgs` is the record of an OUTSTANDING stall, so it is dropped here too:
+  // `retryPull` below uses its presence to decide whether a manual retry is
+  // repeating a stalled attempt or starting a fresh one.
+  retryArgs = null;
+}
+
+/**
+ * Queue another attempt, and start listening for the events that mean "try now":
+ * regaining the network, and the app coming back to the foreground. On a phone the
+ * foreground event is the important one — a backgrounded PWA's timers are frozen,
+ * so waking up is the only moment a stalled device can recover.
+ */
+function schedulePullRetry(storage: SyncedStorage, opts: PullOpts): void {
+  retryArgs = { storage, opts };
+  wireReconnect();
+  if (retryTimer) return;
+  const wait = PULL_RETRY_MS[Math.min(retryStep, PULL_RETRY_MS.length - 1)]!;
+  retryStep++;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void retryPullNow();
+  }, wait);
+}
+
+function retryPullNow(): Promise<number> {
+  if (!retryArgs) return Promise.resolve(0);
+  const { storage, opts } = retryArgs;
+  return pullAndMerge(storage, { ...opts, retry: true });
+}
+
+/**
+ * Try again now, at the user's request (the status pill). Replays the attempt that
+ * stalled, WITH its original options: a sign-in whose pull failed must be retried
+ * as a sign-in, because `freshCode` is what stops this device's pre-account values
+ * being uploaded over the account's real data. A plain `pullAndMerge()` here would
+ * turn one failed request into the wipe that RECOVERY.md documents.
+ */
+export function retryPull(storage: SyncedStorage): Promise<number> {
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
+  retryStep = 0;
+  return retryArgs ? retryPullNow() : pullAndMerge(storage);
+}
+
+function wireReconnect(): void {
+  if (reconnectWired || typeof window === 'undefined') return;
+  reconnectWired = true;
+  const kick = (): void => {
+    // Only when still stalled, and not on top of an attempt already queued for the
+    // next moment anyway.
+    if (!pullError || retryTimer) return;
+    retryStep = 0; // a real signal; start the backoff over
+    void retryPullNow();
+  };
+  window.addEventListener('online', kick);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') kick();
+    });
+  }
+}
+
 /**
  * Two-way merge between local and the D1 backend, last-write-wins by timestamp.
  * Called at startup and after entering a fresh code:
@@ -435,10 +534,21 @@ export class SyncedStorage implements Storage {
  *   • A local snapshot is taken BEFORE the first destructive apply, so a bad
  *     merge is recoverable instead of terminal.
  */
-export async function pullAndMerge(
-  storage: SyncedStorage,
-  opts: { freshCode?: boolean } = {},
-): Promise<number> {
+export function pullAndMerge(storage: SyncedStorage, opts: PullOpts = {}): Promise<number> {
+  // Serialise every merge. Sign-in, the boot pull, the pill's retry button and the
+  // retry timer can all fire within the same second, and two merges running side by
+  // side interleave their per-key decisions and overwrite each other's pre-merge
+  // snapshot. `chain` is assigned synchronously so a second caller in the same tick
+  // still queues behind the first.
+  const next = chain.then(() => mergeOnce(storage, opts));
+  chain = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
+
+async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number> {
   if (!isSyncEnabled()) {
     openSyncGate(); // sync off → nothing to wait for
     return 0;
@@ -447,16 +557,38 @@ export async function pullAndMerge(
   // running code-free, so every tab already seeded and stamped its defaults with
   // a "now" that outranks the real remote data. Shut the gate so this merge lets
   // the server win, and discard pushes queued under the old (code-less) identity.
-  if (opts.freshCode) shutSyncGate();
+  //
+  // NOT on a retry: the gate is already shut there, and re-shutting it would throw
+  // away both the queue and `preHydrationWrites` — the record of which keys were
+  // written during the stall and must therefore lose to the server. Those writes
+  // would then be neither pushed nor beaten, i.e. silently stranded on the device.
+  if (opts.freshCode && !opts.retry) shutSyncGate();
   let entries: SyncEntry[];
   try {
     entries = await remotePull(0);
-  } catch {
-    // Offline / unreachable → keep local as-is. Deliberately do NOT hydrate:
-    // pushing local defaults up on a flaky first boot is the whole hazard. The
-    // gate opens on the next successful pull.
+  } catch (e) {
+    // Offline / unreachable / a code the server no longer accepts → keep local as
+    // is. Deliberately do NOT hydrate: pushing local defaults up on a flaky first
+    // boot is the whole hazard.
+    //
+    // But the gate stays shut until a pull succeeds, so "the next pull" cannot be
+    // left to chance — before this, a single failed boot pull meant a device that
+    // queued writes for the rest of the session and showed a calm grey 'Syncing…'
+    // the whole time. Record the failure (the pill turns red and says so) and keep
+    // trying.
+    pullError = String((e as Error)?.message ?? e);
+    emitActivity();
+    schedulePullRetry(storage, opts);
     return 0;
   }
+  // The gate will open below; from here on the device is genuinely syncing. Emit
+  // here rather than leaving it to `openSyncGate`, which no-ops when the gate is
+  // already open — that would leave the pill red after a recovered pull.
+  if (pullError !== null) {
+    pullError = null;
+    emitActivity();
+  }
+  cancelPullRetry();
 
   const remoteByKey = new Map(entries.map((e) => [e.key, e]));
   // Snapshot the keys the server is about to overwrite, so this merge is undoable.

@@ -11,7 +11,8 @@ import {
   remoteHistory,
   remoteRestore,
 } from '../adapters/syncClient.js';
-import { pullAndMerge } from '../adapters/storage.js';
+import { pullAndMerge, isHydrated, syncActivity } from '../adapters/storage.js';
+import { deriveSyncStatus } from '@screener/core';
 import { getLang } from './i18n.js';
 
 let onSyncedCb: (() => void) | null = null;
@@ -78,6 +79,80 @@ async function importAllData(ctx: AppContext, text: string): Promise<number> {
   return entries.length;
 }
 
+/**
+ * The current sync state, in words, at the top of this dialog.
+ *
+ * Why it is here and not only in the pill: on a phone the pill is a bare coloured
+ * dot. The label is hidden for want of room in the top bar and there is no hover,
+ * so a tooltip cannot be read at all — which is exactly how "it is green on the
+ * laptop and grey on my phone" became unanswerable. Tapping the dot opens this
+ * dialog, so this is the one place a phone can be told what the dot means.
+ */
+function stateLineHtml(vi: boolean): string {
+  const a = syncActivity();
+  const view = deriveSyncStatus({
+    hasCode: !!getSyncCode(),
+    hydrated: isHydrated(),
+    queued: a.queued,
+    lastPushAt: a.lastPushAt,
+    lastError: a.lastError,
+    pullError: a.pullError,
+  });
+  const TONE: Record<string, string> = {
+    ok: 'var(--accent)',
+    pending: 'var(--faint)',
+    off: 'var(--warn)',
+    error: 'var(--danger)',
+  };
+  const time =
+    a.lastPushAt !== null
+      ? new Date(a.lastPushAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      : null;
+  let head: string;
+  let detail: string;
+  if (view.phase === 'off') {
+    head = vi ? 'Chỉ lưu trên máy này' : 'Local only';
+    detail = vi
+      ? 'Thiết bị này chưa có mã truy cập, nên không có gì được tải lên. Nhập mã bên dưới rồi bấm “Lưu & đồng bộ”.'
+      : 'This device has no access code, so nothing is uploaded. Enter the code below and press “Save & Sync”.';
+  } else if (a.pullError) {
+    head = vi ? 'Không đồng bộ được' : 'Not syncing';
+    detail =
+      (vi
+        ? 'Không tải được dữ liệu từ server, nên mọi thay đổi trên thiết bị này đang nằm chờ. App sẽ tự thử lại; lý do: '
+        : 'The download from the server failed, so every change on this device is waiting. The app keeps retrying; reason: ') +
+      a.pullError;
+  } else if (a.lastError) {
+    head = vi ? 'Chưa lưu được' : 'Not saved';
+    detail =
+      (vi ? 'Một thay đổi chưa gửi lên được. Lý do: ' : 'A change could not be uploaded. Reason: ') +
+      a.lastError;
+  } else if (view.phase === 'pending') {
+    head = vi ? 'Đang đồng bộ…' : 'Syncing…';
+    detail = vi
+      ? 'Đang tải dữ liệu của bạn về. Các thay đổi sẽ được gửi lên ngay sau đó.'
+      : 'Downloading your data. Changes are uploaded as soon as it lands.';
+  } else {
+    head = vi ? 'Đã đồng bộ' : 'Synced';
+    detail = time
+      ? (vi ? 'Lần gửi lên gần nhất: ' : 'Last upload: ') + time
+      : vi
+        ? 'Thiết bị này chưa thay đổi gì trong phiên này.'
+        : 'Nothing has changed on this device this session.';
+  }
+  return `
+    <div style="display:flex;gap:8px;align-items:flex-start;margin:0 0 12px;padding:9px 11px;
+                border:1px solid var(--border);border-radius:10px;background:var(--card)">
+      <span style="width:8px;height:8px;border-radius:999px;flex:0 0 auto;margin-top:5px;
+                   background:${TONE[view.phase]}"></span>
+      <div style="min-width:0">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+                    color:${TONE[view.phase]}">${head}</div>
+        <div class="muted" style="font-size:12px;line-height:1.5;margin-top:2px;overflow-wrap:anywhere">${detail}</div>
+      </div>
+    </div>`;
+}
+
 export function openSyncSettings(ctx: AppContext): void {
   const vi = getLang() === 'vi';
   const existing = getSyncCode() ?? '';
@@ -92,6 +167,7 @@ export function openSyncSettings(ctx: AppContext): void {
         <button class="sync-x" style="background:0;border:0;color:var(--faint);font-size:22px;cursor:pointer">×</button>
       </div>
       <div class="modal-body" style="padding:16px">
+        ${stateLineHtml(vi)}
         <p class="muted" style="font-size:13px;line-height:1.6;margin-top:0">
           ${
             vi

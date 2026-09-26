@@ -9,6 +9,7 @@ const healthy: SyncStatusInput = {
   queued: 0,
   lastPushAt: 1_780_000_000_000,
   lastError: null,
+  pullError: null,
 };
 
 const at = (over: Partial<SyncStatusInput>): SyncStatusInput => ({ ...healthy, ...over });
@@ -44,6 +45,31 @@ describe('deriveSyncStatus', () => {
     // it is not transient. Reporting a stale error instead would send the user
     // looking for a network problem.
     expect(deriveSyncStatus(at({ hasCode: false, lastError: 'HTTP 500' })).phase).toBe('off');
+  });
+
+  it('reports a failed first pull as an error, not as pending', () => {
+    // The bug this rule exists for: the gate only opens on a successful pull, so a
+    // device whose pull failed queues every write forever. It used to render as a
+    // grey pulsing 'Syncing…' dot — indistinguishable from healthy work in flight,
+    // on a phone where there is no tooltip to check. It is the loudest state there
+    // is apart from having no code at all.
+    const v = deriveSyncStatus(at({ hydrated: false, pullError: 'sync pull: HTTP 401' }));
+    expect(v.phase).toBe('error');
+    expect(v.verbose).toBe(true);
+    expect(v.labelKey).toBe('sync.state.stalled');
+  });
+
+  it('prefers the pull failure over a push failure', () => {
+    // Both are red; the label must name the blocking one. With the gate shut no
+    // push can succeed, so "a push failed" would describe a symptom.
+    const v = deriveSyncStatus(at({ hydrated: false, pullError: 'offline', lastError: 'HTTP 500' }));
+    expect(v.labelKey).toBe('sync.state.stalled');
+  });
+
+  it('still prefers off over a pull failure', () => {
+    // No code means the pull was never attempted for real; a stale pull error from
+    // before signing out must not send the user hunting a network problem.
+    expect(deriveSyncStatus(at({ hasCode: false, pullError: 'offline' })).phase).toBe('off');
   });
 
   it('is pending before the first pull lands', () => {
@@ -88,9 +114,10 @@ describe('deriveSyncStatus', () => {
     const keys = [
       deriveSyncStatus(at({ hasCode: false })).labelKey,
       deriveSyncStatus(at({ lastError: 'x' })).labelKey,
+      deriveSyncStatus(at({ pullError: 'x' })).labelKey,
       deriveSyncStatus(at({ hydrated: false })).labelKey,
       deriveSyncStatus(healthy).labelKey,
     ];
-    expect(new Set(keys).size).toBe(4);
+    expect(new Set(keys).size).toBe(5);
   });
 });

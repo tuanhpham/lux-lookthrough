@@ -1031,6 +1031,9 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // Sync indicator (top bar)
   'sync.state.off': { en: 'Local only', vi: 'Chỉ lưu máy này' },
   'sync.state.error': { en: 'Not saved', vi: 'Chưa lưu được' },
+  // The pull failed, so nothing is being uploaded at all. Worded as "not syncing"
+  // rather than "offline" because a rejected code produces it too.
+  'sync.state.stalled': { en: 'Not syncing', vi: 'Không đồng bộ được' },
   'sync.state.pending': { en: 'Syncing…', vi: 'Đang đồng bộ…' },
   'sync.state.ok': { en: 'Synced', vi: 'Đã đồng bộ' },
   'sync.status.hint': {

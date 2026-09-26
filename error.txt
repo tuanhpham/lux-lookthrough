@@ -723,3 +723,75 @@ transaction mở, không đổi `row_factory`. 761 test xanh trên laptop.
 
 Không cần restart gì: lỗi nằm trong code chạy một lần mỗi đêm, không phải trong
 tiến trình thường trú. `mktcap` phải ra `OK   x/y mã lấy được`.
+
+
+════════════════════════════════════════════════════════════════════════════════
+# Chấm đồng bộ XANH trên một máy, XÁM trên điện thoại — SỬA XONG (26/09)
+════════════════════════════════════════════════════════════════════════════════
+
+## SYNC-1. Đọc màu cho đúng: mỗi màu một nguyên nhân khác nhau
+
+Chấm ở góc trên (`#sync-status`) lấy màu từ `deriveSyncStatus()` trong
+`packages/core/src/storage/syncStatus.ts`:
+
+    xanh  --accent  #18d89a   ok        đã đồng bộ
+    xám   --faint   #5c6575   pending   chưa kéo xong dữ liệu về (gate còn đóng)
+    vàng  --warn    #ffb648   off       THIẾT BỊ NÀY CHƯA CÓ MÃ ĐỒNG BỘ
+    đỏ    --danger  #ff5266   error     gửi lên hoặc kéo về thất bại
+
+Hai điều hay bị nhầm:
+
+  - Mã vào app (`auth_unlocked`, hộp "Private access" lúc mở app) KHÁC mã đồng bộ
+    (`sync:code`, ô trong ☰ → ☁️ Đồng bộ thiết bị). Qua cửa app KHÔNG bật đồng bộ.
+    Máy mới chỉ nhập mã vào app thì chấm là VÀNG, và dữ liệu chỉ nằm trên máy đó.
+  - `sync:code` nằm trong localStorage và có tiền tố `sync:` nên `syncable()`
+    không bao giờ tải nó lên. Đúng như thiết kế: mã phải nhập TAY trên từng thiết
+    bị. Không có chuyện "máy kia đã nhập rồi thì điện thoại tự có".
+
+## SYNC-2. Gốc của "xám mãi mãi"
+
+`main.ts` gọi `pullAndMerge()` MỘT LẦN lúc boot. Trong đó, nếu `remotePull()` nổ
+(mất mạng, PWA khởi động lạnh trước khi có sóng, mã bị thu hồi → HTTP 401) thì
+hàm `return 0` và CỐ Ý không mở hydration gate — vì đẩy default của máy mới lên
+server chính là tai nạn trong RECOVERY.md.
+
+Nhưng gate chỉ mở khi có một lần pull THÀNH CÔNG, mà không có gì thử lại. Kết quả
+cho cả phiên đó: mọi thay đổi xếp hàng trong `pendingPushes` và không bao giờ
+được gửi, trong khi chấm vẫn xám và nhấp nháy "Đang đồng bộ…" — tức là đúng kiểu
+im lặng mà cả module này được viết ra để diệt. Trên điện thoại còn tệ hơn: dưới
+640px nhãn chữ bị ẩn cho vừa thanh trên, và không có hover nên tooltip cũng không
+đọc được → chỉ còn một chấm màu, không cách nào biết vì sao.
+
+## SYNC-3. Đã sửa
+
+  - `pullAndMerge` thất bại → ghi `pullError` (kèm nguyên văn lý do, ví dụ
+    `sync pull: HTTP 401`) và HẸN THỬ LẠI: 3s · 8s · 20s · 60s · 180s, rồi mỗi
+    3 phút; thử lại ngay khi có sự kiện `online` hoặc khi app trở lại foreground
+    (timer của PWA bị đóng băng lúc ở background, nên lần quay lại là cơ hội
+    thật sự duy nhất).
+  - `deriveSyncStatus` xếp `pullError` TRÊN `lastError`, ra phase `error` với nhãn
+    riêng `sync.state.stalled` ("Không đồng bộ được"). Máy đang stall giờ ĐỎ + có
+    chữ, không còn xám giả vờ đang chạy.
+  - Bấm vào chấm khi đỏ: gọi `retryPull()` — KHÔNG phải `pullAndMerge()` — để giữ
+    `freshCode` của lần đăng nhập đã thất bại. Bỏ `freshCode` ở đây là biến một
+    request lỗi thành cú ghi đè dữ liệu thật trên server (chính tai nạn cũ).
+  - Lần thử lại KHÔNG gọi lại `shutSyncGate()`: gate đang đóng sẵn, mà xoá lại
+    hàng đợi + `preHydrationWrites` thì các key ghi trong lúc stall vừa không được
+    đẩy lên vừa không bị server thắng — mắc kẹt trên máy.
+  - Mọi merge chạy tuần tự qua một `chain`: boot / đăng nhập / timer / nút bấm có
+    thể nổ cùng lúc, hai merge song song thì trộn quyết định từng key và ghi đè
+    snapshot trước merge của nhau.
+  - Hộp thoại ☁️ có thêm một dòng TRẠNG THÁI BẰNG CHỮ ở trên cùng (màu + tiêu đề
+    + lý do). Đây là chỗ duy nhất điện thoại đọc được ý nghĩa của cái chấm.
+
+605 test core xanh (thêm 3 test cho luật mới), typecheck + build sạch.
+
+## SYNC-4. Kiểm trên điện thoại
+
+Chưa cần deploy, làm ngay được: ☰ → ☁️ Đồng bộ thiết bị, xem ô "Mã truy cập".
+
+  - ô TRỐNG → chấm là vàng, không phải xám: máy đó chưa bao giờ bật đồng bộ. Dán
+    mã, "Lưu & đồng bộ". Xong là xanh.
+  - ô CÓ MÃ mà vẫn không xanh → là stall thật. Sau khi deploy bản này: chấm đỏ,
+    mở hộp thoại đọc dòng trạng thái. `HTTP 401` = mã không còn hợp lệ;
+    `Failed to fetch` = mạng/chặn request.
