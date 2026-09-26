@@ -1182,3 +1182,11 @@ Xác nhận bằng `curl` trên production, không phải đoán:
 `https://the-professional.pages.dev/images/emblem.webp` → 200, 76152 B
 Tức là push là đủ, chỉ cần refresh máy kia. (Log build của Pages thì không đọc
 được từ CLI, cần đăng nhập dashboard.)
+
+## CHAT-12. `?v=` sau tên file ảnh emblem
+
+Pages trả hai file ảnh này với `cache-control: public, max-age=86400`, mà tên file
+thì cố định trong khi bytes thì không. Nghĩa là cắt lại tranh rồi push xong, máy
+nào đã từng mở app vẫn xem icon CŨ thêm một ngày nữa — đúng cái bẫy sẽ làm bạn
+tưởng mình chưa sửa gì. Nên `src` giờ mang `?v=`: `emblem-orb.webp?v=2`,
+`emblem.webp?v=1`. Mỗi lần `emblem-assets.py` cho ra bytes khác thì tăng số lên.

@@ -45,12 +45,19 @@
  * a click, and a synchronous decode there is a visible hitch.
  */
 
-/** The disc, for everything small. */
+/**
+ * The disc, for everything small.
+ *
+ * `?v=` because these two filenames are stable while their bytes are not: Pages
+ * serves them `cache-control: max-age=86400`, so re-cutting the art and pushing
+ * leaves every browser that has already seen the old one showing it for another
+ * day. Bump the number whenever `emblem-assets.py` produces different bytes.
+ */
 export const ORB_MARK =
-  '<img class="yy" src="/images/emblem-orb.webp" width="192" height="192"' +
+  '<img class="yy" src="/images/emblem-orb.webp?v=2" width="192" height="192"' +
   ' alt="" aria-hidden="true" draggable="false" decoding="async">';
 
-/** The full plate, for the one place with room for it. */
+/** The full plate, for the one place with room for it. Versioned as above. */
 export const GUARDIAN_MARK =
-  '<img class="lux-emblem" src="/images/emblem.webp" width="640" height="667"' +
+  '<img class="lux-emblem" src="/images/emblem.webp?v=1" width="640" height="667"' +
   ' alt="" aria-hidden="true" draggable="false" decoding="async">';
