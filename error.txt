@@ -883,3 +883,101 @@ rồi trên điện thoại XOÁ CACHE / gỡ-cài lại PWA, vì bản cũ nằ
 service-worker cache. Sau đó nhập lại mã trong ☰ → ☁️: hộp thoại phải chạy số
 đếm, và nếu lỗi thì phải hiện chữ đỏ có lý do — không còn "Đang tải dữ liệu…"
 đứng im.
+
+
+════════════════════════════════════════════════════════════════════════════════
+# "The quota has been exceeded." trên điện thoại — KHÔNG phải quota theo thời gian
+════════════════════════════════════════════════════════════════════════════════
+
+## SYNC-10. Đọc đúng chữ "quota": chờ KHÔNG bao giờ hết
+
+Điện thoại báo (đúng bản mới của SYNC-3): "NOT Syncing… reason: The quota has been
+exceeded." Máy Mac vẫn xanh.
+
+"The quota has been exceeded." là NGUYÊN VĂN cách Safari báo `QuotaExceededError`
+của localStorage. Đó là GIỚI HẠN DUNG LƯỢNG (~5 MB cho mỗi origin), KHÔNG phải
+hạn mức theo ngày hay theo tháng. Không có gì reset. Chờ sang tháng, chờ sang
+ngày, đều vô ích — phải làm cho dữ liệu NHỎ LẠI.
+
+Ba loại quota trong stack này, đừng nhầm:
+
+    QuotaExceededError (browser)  dung luong ~5MB/origin   KHONG reset theo gio
+    D1 free tier                  5M doc / 100k ghi / ngay  reset HANG NGAY 00:00 UTC
+    Cloudflare Pages builds       500 build / thang         chi anh huong DEPLOY
+
+Mac xanh mà điện thoại chết là chỉ dấu quan trọng, không phải may mắn: Mac lớn
+lên DẦN, mỗi ngày một ít, có prune ở giữa, nên chưa bao giờ phải ghi cả account
+trong một lần. Điện thoại đăng nhập lần đầu thì phải ghi TẤT CẢ cùng lúc.
+
+## SYNC-11. Gốc: payload toàn cache, không phải dữ liệu người dùng
+
+Đo thật (comment trong `catalystCache.ts`, `portfolio/store.ts`): một cửa sổ
+calendar ~500 KB và giữ 3 ngày; `accounts` từng 912 KB. Còn thứ người dùng thật
+sự gõ — watchlist, portfolio, case study, post — chỉ vài KB. Nghĩa là gần hết
+payload là cache dán theo ngày.
+
+Tệ hơn: `syncable()` LÂU NAY chỉ lọc nửa ĐẨY LÊN (`localEntries`). Server vẫn giữ
+mọi dòng đã đẩy lên TRƯỚC KHI một prefix bị chuyển thành local-only — cụ thể là
+`pf_bars:` (giá lịch sử của mọi mã trong portfolio) và `sectorlabels`. Nửa TẢI VỀ
+không lọc gì, nên điện thoại vẫn tải hết chỗ đó về, để rồi nổ quota — vì dữ liệu
+mà chính app đã quyết định KHÔNG máy nào cần nhận.
+
+## SYNC-12. Đã sửa
+
+  - Nửa TẢI VỀ giờ cũng lọc `syncable()`: `entries = entries.filter(...)`. Quyết
+    định "prefix này local-only" có hiệu lực HỒI TỐ, không cần migration, không
+    cần DELETE nào trên D1.
+  - Thêm `EXPENDABLE_PREFIXES = ['calendar:', 'scan:']`: VẪN đồng bộ bình thường,
+    nhưng là thứ ĐẦU TIÊN bị bỏ khi máy hết chỗ. Merge áp dữ liệu thật TRƯỚC, rồi
+    mới tới cache (ngày mới nhất trước). Cache không vừa thì KHÔNG phải stall:
+    máy vẫn hydrate, vẫn đồng bộ, chỉ giữ ít ngày quá khứ hơn.
+  - KHÔNG chuyển `calendar:` thành local-only, dù đó là cách nhanh nhất giảm
+    payload: API calendar chỉ trả về từ hôm nay trở đi, nên snapshot của một ngày
+    QUÁ KHỨ là không thể tạo lại. Đổi lịch sử point-in-time để lấy dung lượng là
+    cái giá không được phép trả. Server vẫn giữ đủ, nên laptop có chỗ vẫn có đủ.
+  - Hết chỗ ở nửa dữ liệu thật → `purgeLocalCaches()` xoá các cache thuần
+    (`pf_bars:`, `pf_eurusd_bars`, `sectorlabels` — lấy lại được từ mạng) rồi thử
+    LẠI một lần. Chỉ chạy SAU khi đã lỗi thật, nên máy có chỗ không mất cache.
+    Dùng `this.local.delete`, KHÔNG phải `this.delete`: cái sau đẩy DELETE lên
+    server, biến "điện thoại hết chỗ" thành xoá dữ liệu của cả tài khoản.
+  - Lỗi quota KHÔNG còn hẹn timer thử lại (3s..3 phút): ghi cùng số byte vào cùng
+    cái store đầy thì vô nghĩa, chỉ tốn pin. Vẫn giữ `retryArgs` nên nút chấm và
+    cú kick lúc online/quay lại foreground vẫn chạy — đó mới là thứ cứu được máy
+    sau khi có thêm chỗ.
+  - Lý do hiện ra đổi thành "this device is out of storage space, even after
+    clearing its caches" — tới lúc đó cache đã bị xoá và đã thử lại, nên nói
+    nguyên văn "The quota has been exceeded." là nói triệu chứng, không nói điều
+    người dùng làm được.
+  - `isQuotaError()` giờ export từ `adapters/storage.ts` (Safari báo bằng message,
+    Firefox bằng name khác, máy cũ chỉ có code 22); `catalystCache.ts` dùng chung,
+    bỏ bản copy.
+  - `applyRemote([])` return ngay: merge gọi hai lần (thật + cache) mà một trong
+    hai thường rỗng, không thì mỗi lần boot lại đọc + ghi lại cả bảng timestamp
+    thêm một lượt. (Test bắt được đúng chỗ này: 52 writes thay vì 51.)
+
+605 test core + 8 test desktop xanh, typecheck + build sạch.
+
+## SYNC-13. Phải làm gì trên điện thoại
+
+  1. Deploy bản này (UI-1..UI-4). Không deploy thì không có gì đổi.
+  2. Trên điện thoại: gỡ PWA / xoá site data rồi mở lại. Máy đó CHƯA BAO GIỜ
+     hydrate nên không có dữ liệu riêng gì để mất — mọi thứ thật đang ở server và
+     ở Mac. (Xoá site data cũng xoá mã đồng bộ, nhập lại.)
+  3. ☰ → ☁️ → dán mã → "Lưu & đồng bộ". Phải thấy số đếm chạy và kết thúc xanh.
+
+Không bắt buộc, làm khi nào ở máy có `wrangler login`: dọn các dòng cache cũ cho
+D1 nhẹ đi (nửa tải về đã lọc nên KHÔNG dọn cũng không sao):
+
+    cd screener-ts/apps/desktop
+    npx wrangler d1 execute screener-sync --remote --command \
+      "SELECT key, length(value) AS bytes FROM kv ORDER BY bytes DESC LIMIT 20;"
+    # xem cai gi dang to that, roi moi xoa dung prefix:
+    npx wrangler d1 execute screener-sync --remote --command \
+      "DELETE FROM kv WHERE key LIKE 'pf_bars:%' OR key = 'sectorlabels';"
+
+## SYNC-14. Nếu vẫn nổ quota sau khi đã sửa
+
+Nghĩa là dữ liệu THẬT của account không vừa 5 MB localStorage nữa. Lúc đó lối
+thoát không phải xoá thêm cache mà là đổi tầng lưu trữ: IndexedDB (hàng trăm MB)
+thay cho localStorage trong `LocalStorageAdapter`. Đó là việc riêng, không nhét
+vào lần sửa này.

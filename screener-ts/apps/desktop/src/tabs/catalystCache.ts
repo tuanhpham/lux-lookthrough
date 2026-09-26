@@ -15,6 +15,7 @@
  */
 import { type CatalystWindow, type SweepLog, recordSweep } from '@screener/core';
 import type { AppContext } from '../context.js';
+import { isQuotaError } from '../adapters/storage.js';
 
 const PREFIX = 'calendar:';
 
@@ -70,16 +71,6 @@ export class SnapshotTooLargeError extends Error {
     super(`calendar snapshot (${Math.round(bytes / 1024)} KB) does not fit in storage`);
     this.name = 'SnapshotTooLargeError';
   }
-}
-
-/** localStorage signals a full store by name or by legacy code 22. */
-function isQuotaError(e: unknown): boolean {
-  const err = e as { name?: string; code?: number } | null;
-  return (
-    err?.name === 'QuotaExceededError' ||
-    err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-    err?.code === 22
-  );
 }
 
 /**

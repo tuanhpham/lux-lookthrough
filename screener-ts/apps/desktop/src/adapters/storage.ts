@@ -127,8 +127,54 @@ const SNAPSHOT_KEY = '__pre_merge_backup__';
  * are large, they rewrite themselves on every Portfolio open, and syncing them
  * bought nothing — but each rewrite was another "now"-stamped push racing the
  * merge. Keeping them local shrinks the blast radius and the payload.
+ *
+ * The test for belonging here is "can this device rebuild it alone, from scratch":
+ * price bars and sector labels yes. `calendar:` deliberately does NOT qualify — the
+ * calendar APIs only return today-and-forward, so a past day's window is
+ * unrecoverable once deleted (see `catalystCache.ts`). For keys that sync but are
+ * expendable on a device with no room, see `EXPENDABLE_PREFIXES`.
  */
 const LOCAL_ONLY_PREFIXES = ['pf_bars:', 'pf_eurusd_bars', 'sectorlabels'];
+
+/**
+ * Keys that sync normally, but are the FIRST thing a merge gives up on when the
+ * device runs out of storage.
+ *
+ * A phone could not complete its first sign-in at all: Safari answered "The quota
+ * has been exceeded.", the merge threw, the hydration gate never opened, and every
+ * change on that device queued forever. One calendar window is a MEASURED ~500 KB
+ * (three days are kept) and the day's scan results are similar, so most of the
+ * payload was day-stamped cache while the things the user actually typed —
+ * watchlists, portfolio, case studies, posts — are a few KB.
+ *
+ * So the merge applies everything else FIRST and treats these as best-effort. The
+ * result on a full device is a phone that syncs its real data and simply holds
+ * fewer past days, instead of a phone that syncs nothing. They are still uploaded
+ * and still kept on the server, so a device WITH room (a laptop) keeps the full
+ * point-in-time history — losing that history was never an acceptable trade.
+ */
+const EXPENDABLE_PREFIXES = ['calendar:', 'scan:'];
+
+function expendable(key: string): boolean {
+  return EXPENDABLE_PREFIXES.some((p) => key.startsWith(p));
+}
+
+/**
+ * A store-is-full failure, as opposed to any other write error.
+ *
+ * Exported because the difference decides behaviour in two layers: here the merge
+ * frees space and retries instead of stalling, and the Calendar evicts old
+ * snapshots. Safari reports it as the message "The quota has been exceeded.",
+ * Firefox by a different name, and older engines only by legacy code 22.
+ */
+export function isQuotaError(e: unknown): boolean {
+  const err = e as { name?: string; code?: number } | null;
+  return (
+    err?.name === 'QuotaExceededError' ||
+    err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    err?.code === 22
+  );
+}
 
 /** Keys that must stay device-local (caches, the sync code itself). */
 function syncable(key: string): boolean {
@@ -399,6 +445,10 @@ export class SyncedStorage implements Storage {
     entries: ReadonlyArray<{ key: string; value: unknown; ts: number }>,
     onEach?: (done: number) => void,
   ): Promise<void> {
+    // Nothing to apply must cost nothing: the merge calls this twice (real data,
+    // then expendable cache) and one of the two is routinely empty, which would
+    // otherwise mean an extra read + full rewrite of the timestamp map every boot.
+    if (!entries.length) return;
     const map = await this.timestamps();
     let done = 0;
     try {
@@ -418,6 +468,26 @@ export class SyncedStorage implements Storage {
         /* keep the original failure */
       }
     }
+  }
+
+  /**
+   * Delete every purely-derived local cache to free storage. Returns how many keys
+   * went. Used by the merge when the store is full, where the alternative is a
+   * device that can never finish signing in.
+   *
+   * Goes through `this.local.delete`, NEVER `this.delete`: the latter pushes a
+   * remote DELETE, which would turn "this phone is out of room" into data removed
+   * from the account for every device. These keys are local-only anyway, so a
+   * remote delete would also be a request for a row that should not exist.
+   */
+  async purgeLocalCaches(): Promise<number> {
+    const doomed = (await this.local.list('')).filter((k) =>
+      LOCAL_ONLY_PREFIXES.some((p) => k.startsWith(p)),
+    );
+    for (const key of doomed) {
+      await this.local.delete(key).catch(() => {});
+    }
+    return doomed.length;
   }
 
   /**
@@ -518,14 +588,26 @@ function cancelPullRetry(): void {
 }
 
 /**
+ * Remember the stalled attempt and start listening for "try now" — WITHOUT putting
+ * an attempt on the clock. This is the whole retry mechanism minus the timer, for
+ * the one failure a timer cannot fix: a full store, where every attempt writes the
+ * same bytes into the same full store and only drains the battery. The user's tap
+ * on the pill and the online/foreground kick both still work, which is what
+ * actually recovers a device after space is freed.
+ */
+function armPullRetry(storage: SyncedStorage, opts: PullOpts): void {
+  retryArgs = { storage, opts };
+  wireReconnect();
+}
+
+/**
  * Queue another attempt, and start listening for the events that mean "try now":
  * regaining the network, and the app coming back to the foreground. On a phone the
  * foreground event is the important one — a backgrounded PWA's timers are frozen,
  * so waking up is the only moment a stalled device can recover.
  */
 function schedulePullRetry(storage: SyncedStorage, opts: PullOpts): void {
-  retryArgs = { storage, opts };
-  wireReconnect();
+  armPullRetry(storage, opts);
   if (retryTimer) return;
   const wait = PULL_RETRY_MS[Math.min(retryStep, PULL_RETRY_MS.length - 1)]!;
   retryStep++;
@@ -652,6 +734,18 @@ async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number
   }
   cancelPullRetry();
 
+  // Ignore anything the server holds that this app no longer syncs. `localEntries`
+  // has always filtered the UPLOAD half, so `syncable()` only ever governed what
+  // LEFT a device — but the server still stores every row pushed before a prefix
+  // became local-only, and without this the download half hands them back out
+  // forever. `pf_bars:` is the reason this matters rather than being housekeeping:
+  // it was synced once, it is price history for every portfolio position, and a
+  // phone was downloading all of it into a ~5 MB localStorage budget only to throw
+  // "The quota has been exceeded." — over data this app had already decided no
+  // device should receive. Filtering here rather than only in `syncable()` makes
+  // that decision retroactive with no migration and no DELETE against D1.
+  entries = entries.filter((e) => syncable(e.key));
+
   const remoteByKey = new Map(entries.map((e) => [e.key, e]));
   // Snapshot the keys the server is about to overwrite, so this merge is undoable.
   await storage.snapshotBeforeMerge(entries.map((e) => e.key));
@@ -668,30 +762,59 @@ async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number
   // map, and the winners are applied in one batch (see `applyRemote`): the old
   // per-key `tsOf` + `setLocalFromRemote` pair re-read and re-wrote that whole map
   // twice per entry.
-  let applied = 0;
-  try {
-    const localTs = await storage.allTimestamps();
-    const winners = entries.filter(
-      (e) => decidePull(e.updatedAt, localTs[e.key] ?? 0, ctxFor(e.key)) === 'apply-remote',
-    );
+  const localTs = await storage.allTimestamps();
+  const winners = entries.filter(
+    (e) => decidePull(e.updatedAt, localTs[e.key] ?? 0, ctxFor(e.key)) === 'apply-remote',
+  );
+  // Real data before day-stamped cache, so a device that runs out of room runs out
+  // of it on something expendable. Newest cache first for the same reason: if only
+  // some of the past days fit, they should be the useful ones.
+  const essential = winners.filter((e) => !expendable(e.key));
+  const optional = winners
+    .filter((e) => expendable(e.key))
+    .sort((a, b) => b.key.localeCompare(a.key));
+
+  const apply = async (batch: typeof winners, from: number): Promise<number> => {
     await storage.applyRemote(
-      winners.map((e) => ({ key: e.key, value: e.value, ts: e.updatedAt })),
-      (done) => opts.onProgress?.({ phase: 'down', done, total: winners.length }),
+      batch.map((e) => ({ key: e.key, value: e.value, ts: e.updatedAt })),
+      (done) => opts.onProgress?.({ phase: 'down', done: from + done, total: winners.length }),
     );
-    for (const e of winners) {
+    for (const e of batch) {
       // Cancel any queued push for this key: it lost, and flushing it on gate
       // open would undo the value we just restored.
       pendingPushes.delete(e.key);
     }
-    applied = winners.length;
+    return batch.length;
+  };
+
+  let applied = 0;
+  try {
+    applied = await apply(essential, 0);
   } catch (e) {
-    // The download half failed while writing locally — on a phone this is almost
-    // always the storage quota (a few MB, and the pre-merge snapshot doubles what
-    // the payload needs). It used to escape as an unhandled rejection: the gate
-    // stayed shut, the pill pulsed grey, and the sign-in dialog sat on "Pulling
-    // your data…" for the rest of the session with the reason nowhere on screen.
-    // Same treatment as a failed pull: say so, and keep retrying.
-    throw stall(e, storage, opts);
+    // Writing locally failed. On a phone that is almost always the storage quota,
+    // and it used to escape as an unhandled rejection: the gate stayed shut, the
+    // pill pulsed grey, and the sign-in dialog sat on "Pulling your data…" for the
+    // rest of the session with the reason nowhere on screen.
+    if (!isQuotaError(e)) throw stall(e, storage, opts);
+    // Out of room, and the account's own data has not fitted yet. Retrying the same
+    // bytes into the same full store is pointless, so make room first: the
+    // local-only prefixes are caches this device can rebuild from the network
+    // alone. Only AFTER a real failure — a device with room keeps its caches.
+    await storage.purgeLocalCaches().catch(() => 0);
+    try {
+      applied = await apply(essential, 0);
+    } catch (again) {
+      throw stall(again, storage, opts);
+    }
+  }
+
+  // The expendable half. A failure here is NOT a stall: the user's own data is
+  // already local, so the right outcome is a hydrated device holding fewer past
+  // days — not a device that refuses to sync because a cache did not fit.
+  try {
+    applied += await apply(optional, applied);
+  } catch (e) {
+    if (!isQuotaError(e)) throw stall(e, storage, opts);
   }
 
   // 2) Local → remote.
@@ -746,9 +869,18 @@ async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number
  * instead of a promise that never settles.
  */
 function stall(e: unknown, storage: SyncedStorage, opts: PullOpts): Error {
-  pullError = String((e as Error)?.message ?? e);
+  const full = isQuotaError(e);
+  // A raw "The quota has been exceeded." names the symptom and no cause, and by
+  // this point the rebuildable caches have already been cleared — so what is left
+  // is the account's own data not fitting on this device. Say that instead.
+  pullError = full
+    ? 'this device is out of storage space, even after clearing its caches'
+    : String((e as Error)?.message ?? e);
   emitActivity();
-  schedulePullRetry(storage, opts);
+  // No timer for a full store (see `armPullRetry`); every other cause is transient
+  // and gets the backoff.
+  if (full) armPullRetry(storage, opts);
+  else schedulePullRetry(storage, opts);
   return e instanceof Error ? e : new Error(pullError);
 }
 
