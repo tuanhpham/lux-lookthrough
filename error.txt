@@ -1163,7 +1163,13 @@ Kiểm tra: đã XEM panel thật render ở cả hai theme, và thang cỡ 16/1
 64px trên nền đen và nền trắng cùng ảnh zoom pixel ở 16 và 22 — đọc được ở mọi cỡ,
 tròn thật, không còn mảnh vụn nào bị chặt.
 
-## CHAT-11. "look-through CI all jobs have failed" — Pages đổ build, KHÔNG phải code
+## CHAT-11. Hai chuyện CI khác nhau, đừng nhập làm một
+
+CI "all jobs have failed" mà bạn thấy là của **repo scanner**, không phải repo
+này — xem CHAT-13. Nhưng khi đi tìm, tôi phát hiện repo NÀY cũng đang đỏ, vì một
+lý do hoàn toàn khác. Ghi cả hai, vì chúng cần hai cách xử lý khác nhau.
+
+### Repo này: Pages đổ build, KHÔNG phải code
 
 Ghi cả cái bẫy đọc sai ở đây, vì tôi đã sa vào nó: `/commits/<sha>/status` trả
 `state: pending, statuses: []` và tôi tưởng là "không có check nào". Sai. Pages
@@ -1217,3 +1223,37 @@ thì cố định trong khi bytes thì không. Nghĩa là cắt lại tranh rồ
 nào đã từng mở app vẫn xem icon CŨ thêm một ngày nữa — đúng cái bẫy sẽ làm bạn
 tưởng mình chưa sửa gì. Nên `src` giờ mang `?v=`: `emblem-orb.webp?v=2`,
 `emblem.webp?v=1`. Mỗi lần `emblem-assets.py` cho ra bytes khác thì tăng số lên.
+
+## CHAT-13. CI của repo scanner đỏ: chính tôi làm đổ, ở commit trước
+
+`tuanhpham/scanner` CÓ GitHub Actions thật (`.github/workflows/ci.yml`, ba job:
+compile 3.12, compile 3.14, pytest). 31 run trước đó đều xanh; run 32 —
+`e0a7e921` "Tin dem: dong chu thich xep hang nganh viet co dau" — đỏ cả ba job.
+Tức là chính cái sửa dấu tiếng Việt bạn yêu cầu, tôi làm sai chỗ.
+
+Đọc log không cần mở web: `/repos/tuanhpham/scanner/actions/runs/<id>/jobs` chỉ
+đúng step đổ. Rồi chạy lại ở máy này (pip chạy được ở đây) và nó hiện nguyên văn:
+
+    test_panel_pre_chi_dung_ascii
+    AssertionError: panel co chu co dau: ' # ETF    SCORE ...
+
+Luật mà test đó giữ: **font monospace của Telegram không có glyph tiếng Việt**.
+Chữ có dấu đặt trong `<pre>` không chỉ xấu — nó rơi sang font thay thế có bề rộng
+khác, kéo lệch CẢ bảng ASCII ở trên. Comment tôi viết lúc đó ("dòng chú thích,
+không phải một dòng của bảng, nên viết có dấu") lý luận đúng một nửa và bỏ qua
+đúng nửa quan trọng: vấn đề không phải thẳng cột, mà là không có glyph.
+
+Chỗ đúng của nó là NGAY DƯỚI panel, dạng `<i>`, như mọi dòng chú thích khác trong
+tin nhắn (`render_watch` đã làm thế từ trước — đó là convention có sẵn):
+
+    out = ["<b>XẾP HẠNG NGÀNH</b>", _pre(lines),
+           "<i>* = 3 ngành dẫn dắt (nguồn của danh sách theo dõi).</i>"]
+
+Vẫn đủ dấu, panel vẫn ASCII thuần. Thêm `test_chu_thich_dau_sao_o_ngoai_panel_
+va_co_dau` khoá cả hai đầu: phải CÓ dấu, và phải ở NGOÀI `<pre>` — vì hai ràng
+buộc này kéo ngược nhau, sửa một đầu rất dễ làm đổ đầu kia.
+
+Chạy lại đúng cả ba job ở máy này trước khi push (không đợi CI):
+`pytest -q` → 761 passed; `python -m compileall -q .` → sạch; và vòng
+`for f in tests/test_*.py; do python "$f"; done` (step "Test chay duoc ma khong
+co thu vien") → sạch. Commit `0cfa82e`.
