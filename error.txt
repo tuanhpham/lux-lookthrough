@@ -1125,3 +1125,60 @@ trong `styles.css` (`.yy`, `.lux-emblem`) giữ nguyên vì `<img>` mang đúng 
 
 Kiểm tra: typecheck sạch; đã XEM ảnh render thật của panel ở cả hai theme và
 thang cỡ icon 16/18/22/26/34/44px, không phải đoán.
+
+## CHAT-10. Icon KHÔNG còn là ảnh cắt: nó được vẽ ra như một quả cầu 3D
+
+Bạn nói "hình âm dương cắt rất nhăm nhở … sửa cho nó giống 3D và thực sự chỉ cắt
+hình tròn". Đúng, và lý do đáng ghi lại: đĩa thái cực trên tranh KHÔNG phải hình
+tròn thật, mà hai con rồng lại cắt qua nó. Nên cắt một vòng tròn ra khỏi tranh thì
+chặt mất cái sừng của rồng trắng ở góc trên-trái, chặt mất bờm rồng đen ở bên
+phải, còn lại là một vòng tròn gọn gàng đầy mảnh vụn. Và nó bẹt, vì tranh chiếu
+sáng cả khung cảnh chứ không chiếu sáng riêng cái đĩa.
+
+Cách làm mới (`scripts/emblem-assets.py`, hàm `build_icon`): VẼ hình chứ không cắt.
+- Hình học thái cực bằng đại số tập hợp: vùng tối = nửa phải ∪ đường tròn nhỏ
+  dưới tâm (r/2) − đường tròn nhỏ trên tâm. Vẽ ở 3× rồi hạ mẫu BOX, vì đường cong
+  S chính LÀ cái ký hiệu, và một đường S răng cưa là thứ mắt bắt được đầu tiên.
+- Bề mặt lấy mực TỪ tranh: quét tấm plate theo khối 180px tìm hai vùng sáng nhất
+  và tối nhất mà PHƯƠNG SAI THẤP (vùng có mép rồng hay vành mây sẽ lộ đường ghép).
+  Được khói dưới đuôi rồng trắng, và thuỳ tối ở trên-phải.
+- Mỗi thuỳ được CHUẨN HOÁ về đúng một mức trung bình / độ tản (0.945±0.042 và
+  0.085±0.038), không phải xoay núm brightness/contrast. Vì thứ duy nhất icon này
+  không được phép mất là tương phản thuỳ-với-thuỳ — đó là cái còn đọc được ở 16px.
+  Ghim mức lại thì khoảng cách đó là hằng số, thay vì trôi mỗi lần đổi vùng mực.
+- Ánh sáng quả cầu: pháp tuyến z = √(1−x²−y²). Khuếch tán CỐ Ý nông
+  (0.62 + 0.46·key^1.2): nếu để Lambert đủ dải 0..1 thì góc dưới-phải của thuỳ
+  sáng bị tối hơn góc trên-trái của thuỳ tối, và đường S thôi không đọc được nữa
+  — ở đây cái đó quan trọng hơn đúng vật lý. Thêm specular hẹp (^72), một vành
+  dội sáng từ dưới-phải để thuỳ tối vẫn có mép trên theme gần-đen, và hai đường
+  tắt dần ở biên — đường hẹp hơn là thứ vẽ mép cho thuỳ sáng trên theme trắng
+  ngà, nơi không có gì khác vẽ được.
+- Chấm mầm dưới có thêm quầng sáng, để nó là viên minh châu chứ không phải một
+  chấm dán vào.
+
+Hero `emblem.webp` KHÔNG đổi (bạn không phàn nàn về nó) — chạy lại script ra file
+giống hệt từng byte, đúng như mong đợi.
+
+Kiểm tra: đã XEM panel thật render ở cả hai theme, và thang cỡ 16/18/22/26/30/44/
+64px trên nền đen và nền trắng cùng ảnh zoom pixel ở 16 và 22 — đọc được ở mọi cỡ,
+tròn thật, không còn mảnh vụn nào bị chặt.
+
+## CHAT-11. "look-through CI all jobs have failed" — không phải CI của mình
+
+Repo này KHÔNG có `.github/workflows` (không có trên nhánh nào, cả remote), và số
+lần chạy GitHub Actions trên cả `tuanhpham/lux-lookthrough` lẫn
+`tuanhpham-aimlux/lux-lookthrough` là 0. Check duy nhất gắn vào commit là
+Cloudflare Pages (project `the-professional`), tự deploy mỗi lần push vào `main`:
+- `4313f05d` success
+- `ec9ab5da` FAILURE  ← cái bạn thấy
+- `71139ec0` success (preview `https://56cc90e2.the-professional.pages.dev`)
+
+`git show --stat ec9ab5da` cho thấy nó CHỈ thêm `hinhamduong.jpg` — một file
+binary, 0 dòng code. Không có gì trong đó làm build vỡ được, nên đó là lỗi nhất
+thời của Pages, và commit sau đã xanh lại. Không sửa gì.
+
+Xác nhận bằng `curl` trên production, không phải đoán:
+`https://the-professional.pages.dev/images/emblem-orb.webp` → 200, image/webp
+`https://the-professional.pages.dev/images/emblem.webp` → 200, 76152 B
+Tức là push là đủ, chỉ cần refresh máy kia. (Log build của Pages thì không đọc
+được từ CLI, cần đăng nhập dashboard.)

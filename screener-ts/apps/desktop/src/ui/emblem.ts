@@ -11,15 +11,19 @@
  * from, it was not a close call.
  *
  * So the artwork IS the mark. `hinhamduong.jpg` at the repo root is the source
- * plate; both files below are crops of it, and `scripts/emblem-assets.py`
- * reproduces them from it, so the crop is a build artefact and not a mystery.
+ * plate, and `scripts/emblem-assets.py` builds both files below from it, so they
+ * are build artefacts and not mysteries that arrived from an image editor.
  *
- * ── TWO CROPS, NOT ONE IMAGE AT TWO SIZES ───────────────────────────────────
- *   emblem-orb.webp  the disc alone: circular alpha, contrast pushed. Every small
- *                    use — launcher, menu row, panel header, message avatars, all
- *                    16–34px. The dragons are in it only where they cross the
- *                    disc, and that is the point: the whole plate at 20px is grey
- *                    mud, while the S-curve and its two dots survive down to 16.
+ * ── TWO MARKS, NOT ONE IMAGE AT TWO SIZES ───────────────────────────────────
+ *   emblem-orb.webp  the disc, for every small use — launcher, menu row, panel
+ *                    header, message avatars, all 16–34px. NOT a crop of the
+ *                    painting: the painted disc is not a true circle and the
+ *                    dragons cross it, so cutting a circle out of it lopped off a
+ *                    horn and a mane and left a tidy ring full of clipped debris.
+ *                    It is drawn instead — exact taijitu geometry, lit as a
+ *                    sphere, surfaced with ink sampled from the plate so it still
+ *                    belongs to the same picture. The whole plate at 20px is grey
+ *                    mud; this keeps the S-curve and its two dots down to 16.
  *   emblem.webp      the square plate: both heads, the disc, the pearl. Feathered
  *                    to transparent at the edges, so the smoke sits on the
  *                    near-black theme and the bone-white one alike instead of
