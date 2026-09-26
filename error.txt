@@ -501,6 +501,9 @@ Deploy cùng lượt với VIỆC B ở trên (build + `wrangler pages deploy di
     Sửa một bên thì sửa cả bên kia.
   - đọc DB bằng shell thứ hai trong lúc sync đang chạy là an toàn: WAL +
     `busy_timeout=30000`.
+  - `bars` chết `database is locked` thì ĐỪNG đi sửa yfinance hay chế độ journal:
+    xem khối LOCK-1 ở cuối file, thủ phạm là một transaction bỏ mở trong
+    `watchd.py`. Chế độ journal chỉ là nạn nhân.
 
 Đáng sửa khi rảnh: câu "bỏ dòng restart đi" trong README mục 5.8 (xem VM-4), và
 khối ```bash hở ở README khoảng dòng 671-680.
@@ -578,3 +581,97 @@ tai nạn, không phải bố cục), panel và mục "không phải là gì" x�
 
 rồi rollback trong dashboard Cloudflare. Lượt này không có migration nào đi kèm,
 nên lùi site tĩnh là đủ — D1 không liên quan.
+
+
+================================================================================
+# `database is locked` Ở BƯỚC `bars` — ĐÃ TÌM RA THỦ PHẠM
+================================================================================
+
+Viết ngày 2026-09-26, sau lần `bars LOI* 42.5s` thứ ba. Việc trên VM chỉ là
+`git pull` + restart hai service: KHÔNG schema, KHÔNG wrangler, KHÔNG đụng dữ
+liệu.
+
+
+## LOCK-1. Nguyên nhân (đọc một lần là quên được)
+
+Không phải yfinance, không phải quyền file, và cũng KHÔNG phải "kho nến chưa ở
+WAL" — chế độ journal là nạn nhân, không phải thủ phạm. Thủ phạm là
+`watch.record()` / `watch.once()` trong `watch.py`:
+
+    c.execute("INSERT INTO watch_alert ...")   # python mở transaction ngầm
+    c.commit()                                 # ← không tới được
+    except sqlite3.IntegrityError: return False
+
+Khoá chính `(d, sym, rule)` chặn bản ghi trùng, nên `IntegrityError` bay ra
+TRƯỚC `commit()` và bỏ lại một transaction GHI đang mở. `watchd.py` giữ đúng MỘT
+kết nối cho cả phiên, và `watch.once(c, d, "open", now)` chạy mỗi vòng quét — từ
+vòng thứ hai trở đi nó luôn trả False. Nghĩa là watchd giữ khoá ghi liên tục từ
+phút thứ hai của phiên cho tới lúc restart.
+
+Hậu quả đổ lên đầu người khác, ở file khác, vài giờ sau:
+
+  - `bars.sync()` của nightly đợi hết `busy_timeout` 30 giây rồi chết
+    `database is locked`: `bars LOI* 42.5s` = ~12s tải + 30s đợi. Đúng con số
+    đang thấy.
+  - `PRAGMA journal_mode=WAL` cũng không đổi được chế độ khi còn transaction mở,
+    nên `baseline.db` kẹt ở rollback journal — và đó là lý do cảnh báo
+    "đang ở journal_mode=delete" in mãi dù `store._con()` thử đổi mỗi 20 giây.
+  - `sudo fuser -v state/baseline.db` chỉ đúng pid watchd (193387). Nó không sai.
+
+Đã sửa: `with c:` trong `watch.record()`/`watch.once()` — commit khi thành công,
+ROLLBACK khi ném, nên khoá được thả ở CẢ HAI đường. Kèm hai chỗ cùng lớp lỗi:
+
+  - `main.py` giữ `con = db()` ngoài `while True` của `loop_score`. Một
+    `commit()` đổ vì lock sẽ bay lên `except Exception` của vòng lặp và để lại
+    transaction mở VĨNH VIỄN — tức là nightly ghi làm main.py kẹt, rồi main.py
+    kẹt làm nightly đêm sau chết. Giờ mỗi alert mở/đóng kết nối riêng
+    (`save_alert()`), và `db()` có `busy_timeout=30000` + thử bật WAL.
+  - `scorer.enrich_float()` ghi bằng `sqlite3.connect(DB)` trần: mặc định 5 giây,
+    ngắn hơn một lô ghi của nightly. Hết 5 giây là mất CẢ vòng quét (lỗi bay lên
+    `except` của `loop_score`), không chỉ mất số float.
+
+Test giữ lại bất biến này: `tests/test_watch.py`, BẤT BIẾN 6 —
+`test_ghi_trung_khong_de_lai_transaction_giu_khoa` ghi trùng hai lần rồi đòi
+`BEGIN IMMEDIATE` từ một kết nối KHÁC trong 2 giây. 760 test xanh trên laptop.
+
+
+## LOCK-2. Trên VM
+
+    cd ~/scanner
+    git pull
+    sudo systemctl restart watchd
+    sudo systemctl restart scanner        # unit của main.py, tên có thể khác
+    systemctl status watchd --no-pager | head -5
+
+Restart là BẮT BUỘC chứ không phải cho gọn: transaction đang mở nằm trong tiến
+trình đang chạy, `git pull` không chạm tới nó. Vẫn là luật cũ — cùng lúc chỉ MỘT
+`main.py` (getUpdates 409), nên restart chứ đừng start thêm.
+
+
+## LOCK-3. Xác nhận TRƯỚC khi chạy nightly
+
+    python scripts/db_lock.py
+
+Phải thấy đủ hai thứ:
+
+  - `journal_mode = wal`. Nếu vẫn `delete` thì còn tiến trình giữ DB — xem mục 3
+    của chính script, nó in pid + cmdline.
+  - mục 4: `✓ xin được sau 0.0Xs`.
+
+KHÔNG cần chạy `sqlite3 ... 'PRAGMA journal_mode=WAL;'` bằng tay. Sau khi không
+còn ai giữ khoá, `bars.con()` tự đổi ngay lần mở đầu tiên — đã dựng lại đúng
+tình huống này trên laptop (kho ở `delete`, một kết nối kiểu watchd đang mở
+nhưng rảnh) và nó đổi được. WAL là thuộc tính của FILE, đổi một lần là xong cho
+mọi tiến trình.
+
+    python nightly.py
+
+`bars` phải ra `OK`.
+
+
+## LOCK-4. Nếu vẫn `database is locked`
+
+Lúc đó mới đến giả thiết B trong docstring của `scripts/db_lock.py`: một tiến
+trình khác đang giữ transaction ghi lâu. Mục 3 in pid + cmdline, đối chiếu với
+mục 4. Đừng nâng `busy_timeout` lên quá 30 giây — nó chỉ làm nightly chết muộn
+hơn, và che đúng cái cần thấy.
