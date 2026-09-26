@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cẩm nang Swing Trading — Playbook theo Market Regime</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0e14;
+  --bg-soft:#111722;
+  --bg-card:#151d2b;
+  --bg-elev:#1c2636;
+  --line:#243043;
+  --line-soft:#1b2433;
+  --tx:#e6edf6;
+  --tx-dim:#9aa9bf;
+  --tx-mute:#66748c;
+  --up:#26d07c;
+  --up-soft:rgba(38,208,124,.12);
+  --down:#ff5c5c;
+  --down-soft:rgba(255,92,92,.12);
+  --gold:#f5b942;
+  --gold-soft:rgba(245,185,66,.12);
+  --blue:#4c9aff;
+  --blue-soft:rgba(76,154,255,.12);
+  --purple:#a78bfa;
+  --radius:14px;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
+body{
+  background:var(--bg);
+  color:var(--tx);
+  font-family:'Inter',system-ui,sans-serif;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(900px 500px at 12% -5%, rgba(38,208,124,.07), transparent 60%),
+    radial-gradient(800px 500px at 88% 8%, rgba(76,154,255,.07), transparent 60%);
+}
+
+/* ---------- TOP BAR ---------- */
+.topbar{
+  position:sticky;top:0;z-index:100;
+  background:rgba(10,14,20,.86);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{
+  max-width:1400px;margin:0 auto;padding:12px 24px;
+  display:flex;align-items:center;gap:20px;
+}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:15px;letter-spacing:-.2px}
+.brand-mark{
+  width:30px;height:30px;border-radius:9px;
+  background:linear-gradient(135deg,var(--up),var(--blue));
+  display:grid;place-items:center;font-size:15px;
+}
+.progress-wrap{flex:1;height:4px;background:var(--line-soft);border-radius:99px;overflow:hidden;max-width:380px}
+#progressBar{height:100%;width:0;background:linear-gradient(90deg,var(--up),var(--gold));transition:width .15s}
+.topbar-actions{margin-left:auto;display:flex;gap:8px}
+.btn{
+  background:var(--bg-elev);border:1px solid var(--line);color:var(--tx-dim);
+  padding:7px 14px;border-radius:9px;font-size:12.5px;font-weight:500;cursor:pointer;
+  font-family:inherit;transition:.15s;
+}
+.btn:hover{border-color:var(--up);color:var(--up)}
+.menu-btn{display:none}
+
+/* ---------- LAYOUT ---------- */
+.shell{max-width:1400px;margin:0 auto;display:flex;gap:36px;padding:0 24px;position:relative;z-index:1}
+.sidebar{
+  width:250px;flex-shrink:0;position:sticky;top:70px;height:calc(100vh - 70px);
+  overflow-y:auto;padding:28px 0 60px;
+}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
+.nav-group{margin-bottom:22px}
+.nav-label{
+  font-size:10.5px;text-transform:uppercase;letter-spacing:1.4px;
+  color:var(--tx-mute);font-weight:700;padding:0 12px;margin-bottom:8px;
+}
+.sidebar a{
+  display:block;padding:7px 12px;color:var(--tx-dim);text-decoration:none;
+  font-size:13.5px;border-left:2px solid transparent;transition:.15s;border-radius:0 7px 7px 0;
+}
+.sidebar a:hover{color:var(--tx);background:var(--bg-soft)}
+.sidebar a.active{color:var(--up);border-left-color:var(--up);background:var(--up-soft);font-weight:500}
+main{flex:1;min-width:0;padding:0 0 120px}
+
+/* ---------- HERO ---------- */
+.hero{padding:70px 0 50px;border-bottom:1px solid var(--line);margin-bottom:56px}
+.eyebrow{
+  display:inline-block;font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--gold);font-weight:700;margin-bottom:18px;
+  padding:5px 12px;background:var(--gold-soft);border-radius:99px;border:1px solid rgba(245,185,66,.25);
+}
+h1{
+  font-size:clamp(32px,5vw,52px);line-height:1.12;font-weight:800;letter-spacing:-1.4px;
+  margin-bottom:20px;
+}
+h1 .grad{background:linear-gradient(120deg,var(--up),var(--blue) 60%,var(--purple));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.lede{font-size:17.5px;color:var(--tx-dim);max-width:660px;line-height:1.75}
+.hero-stats{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap}
+.hstat{background:var(--bg-card);border:1px solid var(--line);border-radius:12px;padding:14px 20px;min-width:120px}
+.hstat b{display:block;font-size:24px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
+.hstat span{font-size:11.5px;color:var(--tx-mute);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+
+/* ---------- SECTIONS ---------- */
+section{margin-bottom:76px;scroll-margin-top:80px}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:10px}
+.sec-num{
+  font-family:var(--mono);font-size:12.5px;color:var(--up);font-weight:600;
+  padding:3px 9px;background:var(--up-soft);border-radius:6px;border:1px solid rgba(38,208,124,.22);
+}
+h2{font-size:clamp(24px,3.4vw,32px);font-weight:800;letter-spacing:-.9px;line-height:1.25}
+.sec-sub{color:var(--tx-dim);font-size:15.5px;margin-bottom:30px;max-width:720px}
+h3{font-size:19px;font-weight:700;margin:38px 0 14px;letter-spacing:-.35px;display:flex;align-items:center;gap:10px}
+h3::before{content:'';width:3px;height:17px;background:var(--up);border-radius:2px}
+h4{font-size:15px;font-weight:700;margin:22px 0 10px;color:var(--tx)}
+p{margin-bottom:14px;color:var(--tx-dim)}
+p strong,li strong{color:var(--tx);font-weight:600}
+a.inline{color:var(--blue)}
+
+/* ---------- CARDS ---------- */
+.card{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin:20px 0}
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+
+.callout{
+  border-left:3px solid var(--gold);background:var(--gold-soft);
+  padding:18px 22px;border-radius:0 12px 12px 0;margin:22px 0;
+}
+.callout.good{border-left-color:var(--up);background:var(--up-soft)}
+.callout.bad{border-left-color:var(--down);background:var(--down-soft)}
+.callout.info{border-left-color:var(--blue);background:var(--blue-soft)}
+.callout-t{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;color:var(--gold)}
+.callout.good .callout-t{color:var(--up)}
+.callout.bad .callout-t{color:var(--down)}
+.callout.info .callout-t{color:var(--blue)}
+.callout p:last-child{margin-bottom:0}
+
+/* ---------- TABLES ---------- */
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}
+th{
+  background:var(--bg-elev);padding:12px 15px;text-align:left;font-weight:700;
+  font-size:11.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--tx-dim);
+  border-bottom:1px solid var(--line);white-space:nowrap;
+}
+td{padding:12px 15px;border-bottom:1px solid var(--line-soft);color:var(--tx-dim);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,255,255,.017)}
+td strong{color:var(--tx)}
+.mono{font-family:var(--mono);font-size:13px}
+
+/* ---------- BADGES ---------- */
+.b{display:inline-block;padding:2.5px 9px;border-radius:99px;font-size:11.5px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+.b-up{background:var(--up-soft);color:var(--up);border:1px solid rgba(38,208,124,.25)}
+.b-down{background:var(--down-soft);color:var(--down);border:1px solid rgba(255,92,92,.25)}
+.b-gold{background:var(--gold-soft);color:var(--gold);border:1px solid rgba(245,185,66,.25)}
+.b-blue{background:var(--blue-soft);color:var(--blue);border:1px solid rgba(76,154,255,.25)}
+.b-mute{background:var(--bg-elev);color:var(--tx-mute);border:1px solid var(--line)}
+
+/* ---------- CHART FIGURES ---------- */
+figure{margin:0}
+.fig{
+  background:linear-gradient(180deg,#0d131c,#0a0f16);
+  border:1px solid var(--line);border-radius:12px;padding:16px;margin:18px 0;
+}
+.fig-t{font-size:13px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+.fig-c{font-size:12.5px;color:var(--tx-mute);margin-bottom:12px;line-height:1.6}
+.chart{width:100%;display:block}
+.fig-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:11px;font-size:11.5px;color:var(--tx-mute)}
+.lg{display:flex;align-items:center;gap:6px}
+.lg i{width:13px;height:3px;border-radius:2px;display:block}
+
+/* ---------- FLOW ---------- */
+.flow{display:flex;flex-direction:column;gap:9px;margin:20px 0}
+.flow-step{
+  display:flex;align-items:center;gap:14px;background:var(--bg-card);
+  border:1px solid var(--line);border-radius:11px;padding:14px 18px;position:relative;
+}
+.flow-step::after{
+  content:'↓';position:absolute;left:31px;bottom:-16px;color:var(--tx-mute);font-size:13px;z-index:2;
+}
+.flow-step:last-child::after{display:none}
+.flow-n{
+  width:30px;height:30px;flex-shrink:0;border-radius:9px;background:var(--bg-elev);
+  border:1px solid var(--line);display:grid;place-items:center;
+  font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--up);
+}
+.flow-b{font-size:14px}
+.flow-b b{display:block;color:var(--tx);font-size:14.5px;margin-bottom:1px}
+.flow-b span{color:var(--tx-mute);font-size:13px}
+
+/* ---------- REGIME TABS ---------- */
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:14px}
+.tab{
+  background:var(--bg-card);border:1px solid var(--line);color:var(--tx-dim);
+  padding:9px 16px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:.15s;display:flex;align-items:center;gap:7px;
+}
+.tab:hover{color:var(--tx);border-color:var(--tx-mute)}
+.tab .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.tab.active{background:var(--bg-elev);color:var(--tx);border-color:var(--up);box-shadow:0 0 0 1px rgba(38,208,124,.2)}
+.tab[data-c="up"].active{border-color:var(--up);color:var(--up)}
+.tab[data-c="down"].active{border-color:var(--down);color:var(--down)}
+.tab[data-c="range"].active{border-color:var(--gold);color:var(--gold)}
+.tab[data-c="stress"].active{border-color:var(--purple);color:var(--purple)}
+.tab[data-c="vol"].active{border-color:var(--blue);color:var(--blue)}
+.panel{display:none;animation:fade .28s ease}
+.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+.regime-banner{
+  display:flex;align-items:center;gap:18px;padding:20px 24px;border-radius:13px;
+  margin-bottom:24px;border:1px solid;
+}
+.rb-up{background:var(--up-soft);border-color:rgba(38,208,124,.3)}
+.rb-down{background:var(--down-soft);border-color:rgba(255,92,92,.3)}
+.rb-range{background:var(--gold-soft);border-color:rgba(245,185,66,.3)}
+.rb-stress{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.3)}
+.rb-vol{background:var(--blue-soft);border-color:rgba(76,154,255,.3)}
+.rb-icon{font-size:34px;line-height:1}
+.rb-body b{display:block;font-size:19px;font-weight:800;margin-bottom:3px;letter-spacing:-.4px}
+.rb-body span{font-size:13.5px;color:var(--tx-dim)}
+
+/* ---------- PLAY CARD ---------- */
+.play{border:1px solid var(--line);border-radius:13px;overflow:hidden;margin:22px 0;background:var(--bg-card)}
+.play-h{padding:16px 22px;background:var(--bg-elev);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.play-h b{font-size:16px;font-weight:700}
+.play-b{padding:20px 22px}
+.spec{display:grid;grid-template-columns:120px 1fr;gap:10px 18px;font-size:14px;margin:14px 0}
+.spec dt{font-weight:700;color:var(--tx-mute);font-size:11.5px;text-transform:uppercase;letter-spacing:.8px;padding-top:2px}
+.spec dd{color:var(--tx-dim)}
+.spec dd b{color:var(--tx)}
+
+/* ---------- CHECKLIST TOOL ---------- */
+.tool{background:linear-gradient(160deg,var(--bg-elev),var(--bg-card));border:1px solid var(--line);border-radius:15px;padding:26px;margin:24px 0}
+.tool-h{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+.tool-h b{font-size:17px;font-weight:700}
+.tool-sub{font-size:13.5px;color:var(--tx-mute);margin-bottom:20px}
+.ck{display:flex;align-items:flex-start;gap:11px;padding:10px 13px;border-radius:9px;cursor:pointer;transition:.13s;border:1px solid transparent}
+.ck:hover{background:rgba(255,255,255,.028)}
+.ck input{
+  appearance:none;width:18px;height:18px;border:1.5px solid var(--line);border-radius:5px;
+  flex-shrink:0;margin-top:2px;cursor:pointer;position:relative;transition:.15s;background:var(--bg);
+}
+.ck input:checked{background:var(--up);border-color:var(--up)}
+.ck input:checked::after{content:'✓';position:absolute;inset:0;display:grid;place-items:center;color:#062;font-size:12px;font-weight:800}
+.ck.must input:checked{background:var(--gold);border-color:var(--gold)}
+.ck.must input:checked::after{color:#3a2a00}
+.ck-t{font-size:13.8px;line-height:1.55}
+.ck-t small{display:block;color:var(--tx-mute);font-size:12px;margin-top:1px}
+.ck-grp{margin-bottom:18px}
+.ck-lbl{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;color:var(--tx-mute);margin:0 0 8px 3px}
+.verdict{margin-top:18px;padding:18px 22px;border-radius:12px;border:1px solid var(--line);background:var(--bg);transition:.25s}
+.verdict b{font-size:17px;display:block;margin-bottom:4px}
+.verdict span{font-size:13.5px;color:var(--tx-dim)}
+.score-row{display:flex;gap:22px;margin-bottom:14px;flex-wrap:wrap}
+.score-item{flex:1;min-width:110px}
+.score-item span{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx-mute);font-weight:700;display:block}
+.score-item b{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-1px}
+
+/* ---------- CALC ---------- */
+.calc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:14px;margin-bottom:18px}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--tx-mute);font-weight:700;margin-bottom:6px}
+.field input{
+  width:100%;background:var(--bg);border:1px solid var(--line);color:var(--tx);
+  padding:10px 12px;border-radius:9px;font-family:var(--mono);font-size:14px;transition:.15s;
+}
+.field input:focus{outline:none;border-color:var(--up);box-shadow:0 0 0 3px var(--up-soft)}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:14px;margin-top:6px}
+.out-box{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
+.out-box span{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx-mute);font-weight:700;display:block;margin-bottom:5px}
+.out-box b{font-family:var(--mono);font-size:21px;font-weight:600;letter-spacing:-.6px}
+
+/* ---------- CODE ---------- */
+pre{
+  background:#070b11;border:1px solid var(--line);border-radius:11px;padding:18px 20px;
+  overflow-x:auto;margin:18px 0;font-family:var(--mono);font-size:12.8px;line-height:1.75;color:var(--tx-dim);
+}
+pre .c{color:var(--tx-mute)}
+pre .k{color:var(--up)}
+pre .n{color:var(--gold)}
+code{font-family:var(--mono);font-size:.9em;background:var(--bg-elev);padding:1.5px 6px;border-radius:5px;color:var(--gold);border:1px solid var(--line-soft)}
+
+ul,ol{margin:0 0 16px 20px;color:var(--tx-dim)}
+li{margin-bottom:7px}
+li::marker{color:var(--tx-mute)}
+
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}
+.vs-col{border-radius:12px;padding:18px 20px;border:1px solid}
+.vs-good{background:var(--up-soft);border-color:rgba(38,208,124,.25)}
+.vs-bad{background:var(--down-soft);border-color:rgba(255,92,92,.25)}
+.vs-col h5{font-size:13px;text-transform:uppercase;letter-spacing:1px;margin-bottom:11px;font-weight:700}
+.vs-good h5{color:var(--up)}
+.vs-bad h5{color:var(--down)}
+.vs-col ul{margin:0 0 0 17px;font-size:13.5px}
+
+footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--tx-mute);font-size:13px}
+
+@media(max-width:1000px){
+  .sidebar{display:none}
+  .sidebar.open{
+    display:block;position:fixed;top:56px;left:0;width:270px;height:calc(100vh - 56px);
+    background:var(--bg-soft);border-right:1px solid var(--line);padding:22px 14px;z-index:99;
+  }
+  .menu-btn{display:block}
+  .shell{padding:0 18px}
+  .g2,.g3,.g4,.vs{grid-template-columns:1fr}
+  .spec{grid-template-columns:1fr;gap:3px 0}
+  .spec dt{margin-top:9px}
+}
+@media(max-width:600px){
+  .hero{padding:44px 0 34px}
+  .card,.tool{padding:18px}
+  .progress-wrap{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <button class="btn menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+    <div class="brand"><span class="brand-mark">📈</span> Swing Playbook</div>
+    <div class="progress-wrap"><div id="progressBar"></div></div>
+    <div class="topbar-actions">
+      <button class="btn" onclick="window.print()">In / PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+<nav class="sidebar">
+  <div class="nav-group">
+    <div class="nav-label">Nền tảng</div>
+    <a href="#intro">Nguyên tắc cốt lõi</a>
+    <a href="#funnel">Phễu 3 tầng</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Tầng 1 — Thị trường</div>
+    <a href="#regime">Xác định Market Regime</a>
+    <a href="#vol">Trạng thái biến động</a>
+    <a href="#breadth">Độ rộng thị trường</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Tầng 2 &amp; 3</div>
+    <a href="#sector">Sector dẫn dắt</a>
+    <a href="#inplay">Cổ phiếu In-Play</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Playbook</div>
+    <a href="#playbook">Setup theo từng Regime</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Kỹ thuật đọc chart</div>
+    <a href="#candles">Nến đảo chiều</a>
+    <a href="#volume">Khối lượng</a>
+    <a href="#others">Yếu tố khác</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Thực hành</div>
+    <a href="#scorecard">Bảng chấm điểm</a>
+    <a href="#sizing">Tính size &amp; rủi ro</a>
+    <a href="#exit">Luật thoát lệnh</a>
+    <a href="#journal">Nhật ký &amp; Expectancy</a>
+    <a href="#routine">Quy trình hằng ngày</a>
+    <a href="#mistakes">Sai lầm chí mạng</a>
+  </div>
+</nav>
+
+<main>
+<section class="hero" id="intro">
+  <div class="eyebrow">Cẩm nang thực chiến · Swing Trading</div>
+  <h1>Playbook theo <span class="grad">Market Regime</span><br>từ môi trường thị trường đến điểm vào lệnh</h1>
+  <p class="lede">Không có "setup tốt nhất". Chỉ có setup <b>phù hợp với môi trường hiện tại</b>. Cuốn cẩm nang này đi theo đúng thứ tự mà một lệnh được sinh ra: xác định môi trường → chọn nhóm ngành → lọc cổ phiếu in-play → chờ tín hiệu → vào lệnh → thoát lệnh.</p>
+  <div class="hero-stats">
+    <div class="hstat"><b style="color:var(--up)">5</b><span>Setup chính</span></div>
+    <div class="hstat"><b style="color:var(--gold)">4</b><span>Market regime</span></div>
+    <div class="hstat"><b style="color:var(--blue)">3</b><span>Tầng lọc</span></div>
+    <div class="hstat"><b style="color:var(--purple)">1%</b><span>Rủi ro tối đa/lệnh</span></div>
+  </div>
+</section>
+
+<section id="funnel">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Nguyên tắc cốt lõi</h2></div>
+  <p class="sec-sub">Ba câu này quyết định 80% kết quả. Phần còn lại của cẩm nang chỉ là chi tiết triển khai.</p>
+
+  <div class="grid g3">
+    <div class="card">
+      <div class="b b-up" style="margin-bottom:10px">NGUYÊN TẮC 1</div>
+      <h4 style="margin-top:0">Entry quyết định rủi ro.<br>Exit quyết định lợi nhuận.</h4>
+      <p style="margin:0;font-size:13.5px">Anh không vào lệnh vì "giá sẽ lên". Anh vào lệnh vì có một mức giá mà <b>nếu thủng thì luận điểm sai ngay lập tức</b>. Entry chỉ có một nhiệm vụ: cho anh một điểm stop gần và rõ ràng.</p>
+    </div>
+    <div class="card">
+      <div class="b b-gold" style="margin-bottom:10px">NGUYÊN TẮC 2</div>
+      <h4 style="margin-top:0">Vị trí quan trọng hơn<br>hình dạng nến.</h4>
+      <p style="margin:0;font-size:13.5px">Một cây hammer giữa vùng trống không có ý nghĩa gì. Cũng cây hammer đó tại 21 EMA trong uptrend, với volume cạn trước đó, mới là tín hiệu. <b>Đừng quét thị trường tìm mẫu nến.</b></p>
+    </div>
+    <div class="card">
+      <div class="b b-blue" style="margin-bottom:10px">NGUYÊN TẮC 3</div>
+      <h4 style="margin-top:0">Regime lọc trước,<br>cổ phiếu chọn sau.</h4>
+      <p style="margin:0;font-size:13.5px">Dùng setup trend-following trong thị trường sideway, hoặc mean-reversion trong xu hướng mạnh — đó là sai lầm phổ biến nhất và tốn kém nhất của swing trader.</p>
+    </div>
+  </div>
+
+  <h3>Phễu 3 tầng — thứ tự không được đảo</h3>
+  <div class="flow">
+    <div class="flow-step"><div class="flow-n">1</div><div class="flow-b"><b>Market Regime (chỉ số)</b><span>Quyết định: được phép chơi kiểu gì, size bao nhiêu, hay đứng ngoài</span></div></div>
+    <div class="flow-step"><div class="flow-n">2</div><div class="flow-b"><b>Sector dẫn dắt (nhóm ngành)</b><span>Thu hẹp vũ trụ cổ phiếu xuống còn 2–3 nhóm đang hút dòng tiền</span></div></div>
+    <div class="flow-step"><div class="flow-n">3</div><div class="flow-b"><b>Cổ phiếu In-Play</b><span>Lọc còn 5–10 mã thực sự có người chơi: RVol, thanh khoản, RS, chất xúc tác</span></div></div>
+    <div class="flow-step"><div class="flow-n">4</div><div class="flow-b"><b>Setup &amp; tín hiệu vào lệnh</b><span>Chờ nến xác nhận tại vùng tham chiếu — chỉ trong số 5–10 mã đó</span></div></div>
+  </div>
+  <div class="callout info">
+    <div class="callout-t">Tại sao không được bỏ tầng giữa</div>
+    <p>Đây là lý do phổ biến khiến một setup nhìn rất đẹp vẫn thất bại: <b>mẫu hình đúng nhưng đặt trên một cổ phiếu không có dòng tiền</b>. Mỗi tầng loại bớt. Nếu tầng trên không rõ ràng thì dừng lại — đứng ngoài cũng là một quyết định.</p>
+  </div>
+</section>
+
+<section id="regime">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Tầng 1 — Xác định Market Regime</h2></div>
+  <p class="sec-sub">Làm việc này trước khi nhìn bất kỳ cổ phiếu nào. Mục tiêu là biến nó thành <b>phép tính máy móc</b>, không phải cảm nhận.</p>
+
+  <h3>Ba câu hỏi, theo đúng thứ tự</h3>
+  <div class="grid g3">
+    <div class="card" style="padding:18px">
+      <b style="color:var(--up);font-size:13px">1 · HƯỚNG</b>
+      <p style="margin:6px 0 0;font-size:13.5px">Trend hay range? → cho biết <b>dùng playbook nào</b></p>
+    </div>
+    <div class="card" style="padding:18px">
+      <b style="color:var(--blue);font-size:13px">2 · BIẾN ĐỘNG</b>
+      <p style="margin:6px 0 0;font-size:13.5px">Nở hay co? → cho biết <b>size bao nhiêu</b></p>
+    </div>
+    <div class="card" style="padding:18px">
+      <b style="color:var(--gold);font-size:13px">3 · ĐỘ RỘNG</b>
+      <p style="margin:6px 0 0;font-size:13.5px">Lan tỏa hay hẹp? → cho biết <b>tin xu hướng đến mức nào</b></p>
+    </div>
+  </div>
+
+  <h3>Bốn trạng thái — định nghĩa khách quan</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Điều kiện trên SPY (khung ngày)</th><th>Regime</th><th>Playbook được mở</th></tr></thead>
+    <tbody>
+      <tr><td>Giá &gt; 50MA, &gt; 200MA, 50MA dốc lên</td><td><span class="b b-up">UPTREND</span></td><td>Pullback · Breakout · VCP</td></tr>
+      <tr><td>Giá &lt; 50MA, &lt; 200MA, 50MA dốc xuống</td><td><span class="b b-down">DOWNTREND</span></td><td>Tiền mặt, hoặc short nhịp hồi vào 21 EMA</td></tr>
+      <tr><td>Giá dao động qua lại quanh 50MA đi ngang</td><td><span class="b b-gold">RANGE</span></td><td>Chỉ mean reversion</td></tr>
+      <tr><td>50MA &gt; 200MA nhưng giá &lt; 50MA</td><td><span class="b" style="background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3)">UPTREND UNDER STRESS</span></td><td>Không mở lệnh mới, chỉ quản lý lệnh cũ</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+    <div class="callout-t">Độ dốc quan trọng hơn vị trí cắt nhau</div>
+    <p>Một đường 50MA đi ngang với giá dao động quanh nó là <b>range</b>, kể cả khi 50MA đang nằm trên 200MA. Lượng hóa độ dốc để không phải phán đoán: so <b>50MA hôm nay với 50MA của 10 phiên trước</b> — trên +0,5% là dốc lên, dưới −0,5% là dốc xuống, ở giữa là đi ngang.</p>
+  </div>
+
+  <figure class="fig">
+    <div class="fig-t">📈 Hình 1 — Bốn trạng thái thị trường trông như thế nào</div>
+    <div class="fig-c">Cùng một cách đọc: vị trí giá so với 50MA/200MA, cộng với độ dốc của 50MA.</div>
+    <div class="grid g2" style="gap:14px">
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--up);margin-bottom:5px">UPTREND — giá trên cả hai MA, 50MA dốc lên</div><svg class="chart" id="ch-reg-up" height="150"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--down);margin-bottom:5px">DOWNTREND — giá dưới cả hai MA, 50MA dốc xuống</div><svg class="chart" id="ch-reg-down" height="150"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--gold);margin-bottom:5px">RANGE — 50MA đi ngang, giá cắt qua lại</div><svg class="chart" id="ch-reg-range" height="150"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--purple);margin-bottom:5px">UNDER STRESS — 50MA còn trên 200MA nhưng giá đã thủng 50MA</div><svg class="chart" id="ch-reg-stress" height="150"></svg></div>
+    </div>
+    <div class="fig-legend">
+      <span class="lg"><i style="background:#4c9aff"></i> 50MA</span>
+      <span class="lg"><i style="background:#a78bfa"></i> 200MA</span>
+    </div>
+  </figure>
+
+  <pre><span class="c"># Pseudocode — chạy mỗi tối, in ra 1 dòng</span>
+slope50 = (MA50[<span class="n">0</span>] / MA50[<span class="n">-10</span>] - <span class="n">1</span>) * <span class="n">100</span>
+
+<span class="k">if</span>   close &gt; MA50 <span class="k">and</span> close &gt; MA200 <span class="k">and</span> slope50 &gt;  <span class="n">0.5</span>: regime = <span class="n">"UPTREND"</span>
+<span class="k">elif</span> close &lt; MA50 <span class="k">and</span> close &lt; MA200 <span class="k">and</span> slope50 &lt; <span class="n">-0.5</span>: regime = <span class="n">"DOWNTREND"</span>
+<span class="k">elif</span> MA50 &gt; MA200 <span class="k">and</span> close &lt; MA50:              regime = <span class="n">"UPTREND_UNDER_STRESS"</span>
+<span class="k">else</span>:                                            regime = <span class="n">"RANGE"</span></pre>
+</section>
+
+<section id="vol">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Trạng thái biến động — núm chỉnh size</h2></div>
+  <p class="sec-sub">Đây <b>không phải</b> tín hiệu hướng đi. Nó chỉ trả lời một câu: cùng mức rủi ro 1%, hôm nay tôi được mua bao nhiêu cổ phiếu?</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>ATR% so với trung bình 100 phiên của chính nó</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">&lt; 0.8×</td><td><span class="b b-blue">CO HẸP</span></td><td>Ưu tiên setup breakout, size chuẩn</td></tr>
+      <tr><td class="mono">0.8× – 1.3×</td><td><span class="b b-up">BÌNH THƯỜNG</span></td><td>Toàn bộ playbook, size chuẩn</td></tr>
+      <tr><td class="mono">&gt; 1.3×</td><td><span class="b b-down">NỞ RỘNG</span></td><td>Nửa size, stop rộng hơn, ít vị thế hơn</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout good">
+    <div class="callout-t">Hiểu đúng</div>
+    <p>Biến động cao <b>không có nghĩa là "đừng giao dịch"</b>. Nó có nghĩa là cùng 1% rủi ro giờ đòi hỏi số lượng cổ phiếu ít hơn, vì stop của anh phải đặt xa hơn. Người mới thường giữ nguyên số lượng cổ phiếu và vô tình tăng gấp đôi rủi ro thật.</p>
+  </div>
+
+  <figure class="fig">
+    <div class="fig-t">📊 Hình 2 — Cùng một tỷ lệ rủi ro, hai môi trường biến động</div>
+    <div class="fig-c">Bên trái: ATR thấp, stop gần → mua được nhiều. Bên phải: ATR cao, stop xa → phải mua ít lại. Số tiền mất nếu sai là như nhau.</div>
+    <div class="grid g2" style="gap:14px">
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--blue);margin-bottom:5px">ATR THẤP · stop 3% · size 100%</div><svg class="chart" id="ch-vol-low" height="160"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--down);margin-bottom:5px">ATR CAO · stop 8% · size 37%</div><svg class="chart" id="ch-vol-high" height="160"></svg></div>
+    </div>
+  </figure>
+</section>
+
+<section id="breadth">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Độ rộng thị trường — cảnh báo sớm</h2></div>
+  <p class="sec-sub">Bước hay bị bỏ qua nhất, nhưng lại là thứ báo động <b>trước khi chỉ số báo động</b>.</p>
+
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">% cổ phiếu trên 200MA</h4>
+      <p style="font-size:13.5px"><span class="b b-up">&gt; 60%</span> độ rộng lành mạnh — breakout có tỷ lệ thành công tốt.</p>
+      <p style="font-size:13.5px;margin-bottom:0"><span class="b b-down">&lt; 40%</span> chỉ số đang được gánh bởi vài mã lớn. Breakout sẽ thất bại nhiều hơn <b>dù SPY nhìn vẫn đẹp</b>.</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">Ngày phân phối (Distribution Day)</h4>
+      <p style="font-size:13.5px">Phiên chỉ số <b>giảm</b> với volume <b>cao hơn</b> hôm trước = tổ chức đang bán.</p>
+      <p style="font-size:13.5px;margin-bottom:0">Đếm trong 4 tuần gần nhất. <b>4–5 ngày trở lên là cảnh báo regime sắp đổi</b> — thường đến sớm hơn tín hiệu thủng 50MA.</p>
+    </div>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-t">Nên thêm vào script buổi tối</div>
+    <p>Đếm ngày phân phối là <b>chỉ báo sớm</b>, khác hẳn với đường trung bình vốn luôn trễ. Nó cho anh lý do để thu nhỏ size <i>trước khi</i> biểu đồ SPY xác nhận có vấn đề.</p>
+  </div>
+
+  <h3>Kết quả cuối cùng — một dòng trong nhật ký</h3>
+  <pre>2026-09-25 | UPTREND | Vol: NORMAL | Breadth: 58% &gt; 200MA | DistDays: 2
+→ Playbook: pullback + breakout | Size: FULL | Tối đa 4 vị thế</pre>
+  <div class="callout bad">
+    <div class="callout-t">Luật kỷ luật</div>
+    <p>Nếu anh không viết được dòng này một cách tự tin, <b>anh không giao dịch ngày mai</b>. Đó chính là giá trị thật mà bước xác định regime mang lại.</p>
+  </div>
+  <div class="callout">
+    <div class="callout-t">Cần trung thực</div>
+    <p>Phân loại regime <b>trễ theo thiết kế</b>. Anh sẽ bị whipsaw ở các điểm đảo chiều — đó là cái giá của sự khách quan, và nó rẻ hơn nhiều so với việc đoán đỉnh đoán đáy. <b>Đừng tinh chỉnh tham số để triệt tiêu whipsaw</b>, anh chỉ đang overfit vào hai năm dữ liệu gần nhất.</p>
+  </div>
+</section>
+
+<section id="sector">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Tầng 2 — Sector dẫn dắt</h2></div>
+  <p class="sec-sub">Dùng 11 sector ETF của Mỹ làm thước đo khách quan: <span class="mono">XLK XLF XLE XLV XLI XLY XLP XLU XLB XLRE XLC</span></p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Tiêu chí</th><th>Cách đo</th><th>Ý nghĩa</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Sức mạnh tương đối</strong></td><td>Tỷ số ETF/SPY đang tạo đỉnh cao hơn?</td><td>Tiền chảy vào nhóm này nhanh hơn thị trường chung</td></tr>
+      <tr><td><strong>Đa khung thời gian</strong></td><td>Xếp hạng lợi nhuận 21 / 63 / 126 phiên</td><td>Mạnh ở cả ba khung = xu hướng thật, không phải nhịp bật</td></tr>
+      <tr><td><strong>Cấu trúc kỹ thuật</strong></td><td>ETF trên 50MA &amp; 21EMA, 50MA dốc lên</td><td>Xác nhận xu hướng nhóm còn nguyên vẹn</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><b>Luật thực hành:</b> chỉ tìm cổ phiếu trong <b>top 3 sector</b>. Một cổ phiếu mạnh nằm trong sector yếu phải bơi ngược dòng — nó vẫn có thể thắng, nhưng xác suất thấp hơn và anh không cần nó khi đang có hàng trăm lựa chọn ở nhóm dẫn dắt.</p>
+
+  <div class="callout good">
+    <div class="callout-t">Điểm tinh tế quan trọng nhất</div>
+    <p>Phân biệt <i>sector đang mạnh nhất</i> với <i>sector vừa bắt đầu mạnh lên</i>. Nhóm mới lọt vào top (ví dụ từ hạng 8 lên hạng 3 trong 4 tuần) thường cho breakout sạch hơn nhóm đã dẫn dắt 6 tháng — vì ở nhóm dẫn dắt lâu, nhiều mã đã đi quá xa vùng tham chiếu, buộc stop phải đặt rộng. <b>Hãy theo dõi sự thay đổi thứ hạng, không chỉ thứ hạng.</b></p>
+  </div>
+
+  <figure class="fig">
+    <div class="fig-t">🔄 Hình 3 — Biểu đồ xoay vòng thứ hạng sector (90 phiên)</div>
+    <div class="fig-c">Trục dọc là thứ hạng (1 ở trên cùng). Điều đáng nhìn không phải ai đang đứng đầu, mà <b>đường nào đang đi lên</b>. XLK và XLI đang hút dòng tiền; XLU leo vào top là tín hiệu phòng thủ.</div>
+    <svg class="chart" id="ch-rotation" height="250"></svg>
+  </figure>
+
+  <div class="callout bad">
+    <div class="callout-t">⚠️ Tín hiệu cảnh báo miễn phí</div>
+    <p>Khi <b>XLP</b> (hàng tiêu dùng thiết yếu) và <b>XLU</b> (tiện ích) bất ngờ lọt vào top 3, tiền đang tìm chỗ trú ẩn. Chỉ số có thể vẫn đang tạo đỉnh mới, nhưng đó là lúc thu hẹp size — trước khi biểu đồ SPY báo cho anh biết.</p>
+  </div>
+</section>
+
+<section id="inplay">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Tầng 3 — Cổ phiếu In-Play</h2></div>
+  <p class="sec-sub">"In-play" nghĩa là <b>có lý do để nó chuyển động hôm nay</b> — không phải cổ phiếu tốt nói chung, mà cổ phiếu đang được thị trường chú ý.</p>
+
+  <h3>Bộ lọc định lượng (bắt buộc)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Chỉ số</th><th>Ngưỡng khởi đầu</th><th>Tại sao</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Relative Volume</strong></td><td class="mono">&gt; 1.5× TB 50 phiên</td><td>Dòng tiền bất thường = có người quan tâm thật</td></tr>
+      <tr><td><strong>Thanh khoản</strong></td><td class="mono">&gt; 20 triệu USD/phiên</td><td>Vào/ra được, spread không ăn mòn lợi nhuận</td></tr>
+      <tr><td><strong>Giá</strong></td><td class="mono">&gt; 10 USD</td><td>Dưới mức này biến động do spread, không do cung cầu</td></tr>
+      <tr><td><strong>ATR%</strong></td><td class="mono">2% – 6%</td><td>Dưới 2% không đủ biên độ đạt 3R; trên 6% stop phải quá rộng</td></tr>
+      <tr><td><strong>RS vs SPY</strong></td><td class="mono">Dương ở cả 21d &amp; 63d</td><td>Mạnh hơn thị trường <i>trước</i> khi anh mua, không phải sau</td></tr>
+      <tr><td><strong>Khoảng cách đỉnh 52 tuần</strong></td><td class="mono">Trong 15%</td><td>Còn là leader, chưa bị bỏ lại</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Chất xúc tác (định tính)</h3>
+  <div class="grid g2">
+    <div class="card" style="padding:18px">
+      <ul style="margin:0 0 0 17px;font-size:13.8px">
+        <li>Báo cáo lợi nhuận vượt kỳ vọng — đặc biệt là <b>gap tăng rồi giữ được vùng gap</b></li>
+        <li>Nâng hạng khuyến nghị, nâng dự báo (guidance)</li>
+      </ul>
+    </div>
+    <div class="card" style="padding:18px">
+      <ul style="margin:0 0 0 17px;font-size:13.8px">
+        <li>Tin ngành: giá hàng hóa, chính sách, quy định mới</li>
+        <li>Thuộc nhóm dẫn dắt <b>vừa được dòng tiền xoay vào</b></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-t">Luật lọc nhanh 5 giây</div>
+    <p>Nếu anh không nói được <b>một câu</b> tại sao cổ phiếu này đang chuyển động, thì nó không in-play. <b>"Biểu đồ đẹp" không phải là lý do.</b></p>
+  </div>
+
+  <div class="callout bad">
+    <div class="callout-t">Bẫy penny stock</div>
+    <p>Nếu anh quét "cổ phiếu tăng mạnh nhất theo %", kết quả sẽ gần như toàn hàng rác giá thấp — vì từ $0,80 lên $0,95 là +19%. Chúng không giao dịch được: spread rộng, không có tổ chức tham gia, rủi ro gap lớn. <b>Sàng lọc phải bắt đầu bằng giá và thanh khoản, không bao giờ bằng % tăng.</b></p>
+  </div>
+
+  <h3>Ghép loại cổ phiếu với regime</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Regime</th><th>Sector nên tìm</th><th>Loại cổ phiếu</th><th>Tránh</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b b-up">Uptrend · vol thấp</span></td><td>XLK, XLY, XLC (tăng trưởng)</td><td>Leader gần đỉnh 52T, nền chặt</td><td>Cổ phiếu phòng thủ (không chạy)</td></tr>
+      <tr><td><span class="b b-blue">Uptrend · vol cao</span></td><td>Nhóm dẫn dắt, nhưng nửa size</td><td>Thanh khoản lớn, ATR vừa phải</td><td>Small-cap, ATR &gt; 6%</td></tr>
+      <tr><td><span class="b b-gold">Range</span></td><td>Các sector luân phiên nhau</td><td>Mã dao động trong biên rõ ràng</td><td>Breakout — tỷ lệ thất bại rất cao</td></tr>
+      <tr><td><span class="b" style="background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3)">Under stress</span></td><td>XLP, XLU, XLV nổi lên = cảnh báo</td><td>Không vào mới, quản lý lệnh cũ</td><td>Mọi thứ</td></tr>
+      <tr><td><span class="b b-down">Downtrend</span></td><td>Phòng thủ dẫn dắt</td><td>Tiền mặt, hoặc short nhịp hồi yếu</td><td>Bắt đáy cổ phiếu tăng trưởng</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="playbook">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Playbook — Setup theo từng Regime</h2></div>
+  <p class="sec-sub">Chọn regime để xem chính xác những setup nào được phép dùng, vào ở đâu, thoát ở đâu, và <b>tại sao</b>.</p>
+
+  <div data-tabs>
+    <div class="tabs">
+      <button class="tab active" data-c="up" data-panel="p-up"><span class="dot"></span>Uptrend</button>
+      <button class="tab" data-c="vol" data-panel="p-volatile"><span class="dot"></span>Uptrend · Vol cao</button>
+      <button class="tab" data-c="range" data-panel="p-range"><span class="dot"></span>Range</button>
+      <button class="tab" data-c="stress" data-panel="p-stress"><span class="dot"></span>Under Stress</button>
+      <button class="tab" data-c="down" data-panel="p-down"><span class="dot"></span>Downtrend</button>
+    </div>
+
+    <!-- ============ UPTREND ============ -->
+    <div class="panel active" id="p-up">
+      <div class="regime-banner rb-up">
+        <div class="rb-icon">📈</div>
+        <div class="rb-body"><b>UPTREND · Biến động bình thường</b><span>Giá &gt; 50MA &gt; 200MA · 50MA dốc lên · Đây là môi trường kiếm tiền chính. Size đầy đủ, tối đa 4–5 vị thế.</span></div>
+      </div>
+
+      <!-- Setup 1 -->
+      <div class="play">
+        <div class="play-h"><b>Setup 1 · Pullback trong xu hướng tăng</b><span class="b b-up">XÁC SUẤT CAO NHẤT</span></div>
+        <div class="play-b">
+          <p style="margin-bottom:18px"><b>Tại sao setup này tốt nhất:</b> anh đứng cùng phía với xu hướng (được xác suất), nhưng mua ở điểm đám đông vừa nản (được giá tốt). Hầu hết setup khác chỉ có một trong hai thứ đó.</p>
+
+          <figure class="fig" style="margin-top:0">
+            <div class="fig-t">Cấu trúc điển hình</div>
+            <div class="fig-c">Xu hướng tăng → điều chỉnh 3–5 phiên với <b>volume cạn dần</b> (cột xám) → nến đảo chiều tại 21 EMA kèm volume nở → mua khi vượt đỉnh nến tín hiệu ở phiên kế tiếp.</div>
+            <svg class="chart" id="ch-pullback" height="290"></svg>
+            <div class="fig-legend">
+              <span class="lg"><i style="background:#4c9aff"></i> 10 EMA</span>
+              <span class="lg"><i style="background:#f5b942"></i> 21 EMA</span>
+              <span class="lg"><i style="background:rgba(102,116,140,.6)"></i> Volume cạn</span>
+              <span class="lg"><i style="background:#26d07c"></i> Volume nở</span>
+            </div>
+          </figure>
+
+          <dl class="spec">
+            <dt>Vào lệnh</dt><dd><b>Mua khi giá vượt đỉnh của nến đảo chiều</b> tại 10/21 EMA. <i>Tại sao:</i> chờ nến xác nhận = chờ người bán cạn lực; vượt đỉnh nến = người mua đã thực sự giành lại quyền kiểm soát.</dd>
+            <dt>Điều kiện</dt><dd>Volume <b>giảm dần</b> trong lúc điều chỉnh. <i>Tại sao:</i> volume thấp = không có bán tháo thật, chỉ là thiếu người mua tạm thời. Volume cao khi giảm = phân phối, phải tránh dù mẫu hình đẹp.</dd>
+            <dt>Stop</dt><dd><b>Dưới đáy pullback.</b> <i>Tại sao:</i> đáy đó là nơi người mua đã bảo vệ. Thủng = cấu trúc higher-low gãy = lý do vào lệnh biến mất.</dd>
+            <dt>Chốt 1</dt><dd>Bán <b>1/2 tại 2R</b>. <i>Tại sao:</i> đưa lệnh về trạng thái không rủi ro, giảm áp lực tâm lý để giữ phần còn lại.</dd>
+            <dt>Chốt 2</dt><dd><b>Trail dưới 21 EMA</b>, thoát khi <b>đóng cửa</b> dưới. <i>Tại sao:</i> 21 EMA là "nhịp thở" của xu hướng; đóng cửa dưới nó = nhịp đã đổi, không phải nhiễu trong phiên.</dd>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Setup 2 -->
+      <div class="play">
+        <div class="play-h"><b>Setup 2 · Breakout khỏi nền tích lũy</b><span class="b b-blue">CẦN VOLUME XÁC NHẬN</span></div>
+        <div class="play-b">
+          <figure class="fig" style="margin-top:0">
+            <div class="fig-t">Cấu trúc điển hình</div>
+            <div class="fig-c">Nền 2–8 tuần, biên độ thu hẹp dần, volume cạn kiệt → phiên phá kháng cự với <b>volume &gt; 1,5× trung bình 50 phiên</b>. Mục tiêu = chiều cao nền cộng từ điểm phá (measured move).</div>
+            <svg class="chart" id="ch-breakout" height="290"></svg>
+          </figure>
+
+          <dl class="spec">
+            <dt>Vào lệnh</dt><dd>Mua khi <b>phá kháng cự kèm volume &gt; 1,5× TB50</b>. <i>Tại sao:</i> volume là bằng chứng có dòng tiền tổ chức. Breakout volume thấp = không ai bảo vệ mức giá mới, dễ thất bại.</dd>
+            <dt>Điều kiện</dt><dd>Nền 2–8 tuần, biên độ hẹp dần. <i>Tại sao:</i> biên độ hẹp = người bán đã hết hàng. Nén càng chặt, bung càng mạnh.</dd>
+            <dt>Stop</dt><dd>Dưới mức breakout, hoặc dưới đáy nến breakout. <i>Tại sao:</i> breakout thật thì không quay lại dưới điểm phá. Quay lại = bẫy.</dd>
+            <dt>Thoát khi sai</dt><dd><b>Thoát NGAY nếu giá đóng cửa trở lại trong nền.</b> Đây là tín hiệu rõ nhất của false breakout — đừng "cho nó thêm thời gian".</dd>
+            <dt>Chốt lời</dt><dd>Measured move, hoặc <b>trail 10 EMA</b> (không phải 21). <i>Tại sao:</i> breakout thường chạy nhanh rồi hụt hơi; EMA nhanh hơn giữ được nhiều lợi nhuận hơn trước khi nó trả lại.</dd>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Setup 3 -->
+      <div class="play">
+        <div class="play-h"><b>Setup 3 · VCP — Nén biến động</b><span class="b b-gold">R-MULTIPLE LỚN NHẤT</span></div>
+        <div class="play-b">
+          <figure class="fig" style="margin-top:0">
+            <div class="fig-t">Cấu trúc điển hình</div>
+            <div class="fig-c">Các đợt điều chỉnh <b>thu hẹp dần</b>: 10% → 7% → 5% → 3%. Mỗi đợt nông hơn nghĩa là người bán yếu hơn. Volume cạn kiệt ở đợt nén cuối — dấu vết của việc đổi chủ từ tay yếu sang tay mạnh.</div>
+            <svg class="chart" id="ch-vcp" height="290"></svg>
+          </figure>
+
+          <dl class="spec">
+            <dt>Vào lệnh</dt><dd>Mua tại <b>pivot</b> khi giá phá đỉnh của đợt nén cuối, volume nở.</dd>
+            <dt>Điều kiện</dt><dd>Volume <b>cạn kiệt</b> ở đợt nén cuối. <i>Lưu ý ngược với setup breakout:</i> ở đây luận điểm là "không còn ai muốn bán ở giá này", không phải "có người mua mạnh".</dd>
+            <dt>Stop</dt><dd>Dưới đáy đợt nén cuối cùng — thường <b>rất hẹp, chỉ 3–5%</b>. <i>Tại sao quan trọng:</i> chính vì stop hẹp nên R-multiple của VCP rất lớn. Đó là toàn bộ sức hấp dẫn của mẫu hình này.</dd>
+            <dt>Thoát khi sai</dt><dd>Giá rơi lại vào trong nền = quá trình tích lũy chưa xong, cần thêm thời gian.</dd>
+            <dt>Chốt lời</dt><dd>Trail dưới 10/21 EMA.</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ VOLATILE UPTREND ============ -->
+    <div class="panel" id="p-volatile">
+      <div class="regime-banner rb-vol">
+        <div class="rb-icon">⚡</div>
+        <div class="rb-body"><b>UPTREND · Biến động nở rộng (ATR &gt; 1.3×)</b><span>Xu hướng còn nguyên nhưng biên độ dao động lớn. Playbook không đổi — <b>cách thực thi đổi</b>.</span></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="card">
+          <h4 style="margin-top:0;color:var(--up)">✓ Điều chỉnh</h4>
+          <ul style="margin:0 0 0 17px;font-size:13.8px">
+            <li><b>Nửa size</b> cho mọi lệnh</li>
+            <li>Tối đa <b>2–3 vị thế</b> thay vì 4–5</li>
+            <li>Stop tính theo <b>bội số ATR</b>, không theo % cố định</li>
+            <li>Chỉ chọn mã thanh khoản lớn</li>
+            <li>Chốt 1/2 sớm hơn, tại <b>1,5R</b> thay vì 2R</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;color:var(--down)">✗ Tránh</h4>
+          <ul style="margin:0 0 0 17px;font-size:13.8px">
+            <li>Mã có ATR% &gt; 6% — stop sẽ quá xa</li>
+            <li>Small-cap, mã thanh khoản mỏng</li>
+            <li>Nới stop để "chịu được biến động" — đó là tăng rủi ro trá hình</li>
+            <li>Giữ nhiều vị thế cùng một sector</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-t">Sai lầm kinh điển ở môi trường này</div>
+        <p>Giữ nguyên số lượng cổ phiếu như lúc biến động thấp, rồi nới stop ra cho "khỏi bị quét". Kết quả: rủi ro thật tăng gấp đôi hoặc gấp ba trong khi anh tưởng mình vẫn rủi ro 1%. <b>Stop rộng hơn bắt buộc phải đi kèm số lượng cổ phiếu ít hơn.</b></p>
+      </div>
+    </div>
+
+    <!-- ============ RANGE ============ -->
+    <div class="panel" id="p-range">
+      <div class="regime-banner rb-range">
+        <div class="rb-icon">↔️</div>
+        <div class="rb-body"><b>RANGE · Thị trường đi ngang</b><span>50MA đi ngang, giá cắt qua lại. <b>Breakout có tỷ lệ thất bại rất cao ở đây.</b> Chỉ dùng mean reversion, kỳ vọng thấp, kỳ giữ ngắn.</span></div>
+      </div>
+
+      <div class="play">
+        <div class="play-h"><b>Setup 4 · Mean Reversion</b><span class="b b-gold">CHỈ DÙNG TRONG RANGE</span></div>
+        <div class="play-b">
+          <figure class="fig" style="margin-top:0">
+            <div class="fig-t">Cấu trúc điển hình</div>
+            <div class="fig-c">Giá chạm <b>biên dưới của range</b>, RSI &lt; 30, xuất hiện nến đảo chiều có bóng dưới dài → mua. Mục tiêu là 20 EMA hoặc giữa biên độ — <b>không phải xu hướng</b>.</div>
+            <svg class="chart" id="ch-meanrev" height="290"></svg>
+          </figure>
+
+          <dl class="spec">
+            <dt>Vào lệnh</dt><dd>Cần <b>đủ cả ba</b>: RSI &lt; 30 <b>và</b> nến đảo chiều <b>và</b> giá ở hỗ trợ. <i>Tại sao:</i> RSI đơn lẻ không phải tín hiệu — trong downtrend nó có thể nằm dưới 30 suốt nhiều tuần.</dd>
+            <dt>Stop</dt><dd>Dưới đáy nến tín hiệu. <i>Tại sao:</i> nếu đáy đó thủng thì đây không phải "quá bán", đây là xu hướng giảm.</dd>
+            <dt>Chốt lời</dt><dd><b>20 EMA hoặc giữa biên độ — nhanh, không tham.</b> <i>Tại sao:</i> setup này kiếm tiền từ sự trở lại trung bình, không phải từ xu hướng. Giữ lâu là dùng sai công cụ.</dd>
+            <dt>Thoát theo thời gian</dt><dd><b>Thoát sau 5–7 phiên dù lãi hay lỗ.</b> <i>Tại sao:</i> mean reversion có "hạn sử dụng". Không hồi trong một tuần nghĩa là luận điểm sai.</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="callout bad">
+        <div class="callout-t">Tại sao breakout thất bại trong range</div>
+        <p>Trong thị trường đi ngang, mỗi lần giá phá biên trên thường là <b>bẫy</b> — không có dòng tiền xu hướng nào đẩy tiếp, và giá quay lại vào nền trong vài phiên. Đây chính là lý do phải xác định regime trước: cùng một mẫu hình breakout cho kết quả hoàn toàn khác nhau ở hai môi trường.</p>
+      </div>
+    </div>
+
+    <!-- ============ STRESS ============ -->
+    <div class="panel" id="p-stress">
+      <div class="regime-banner rb-stress">
+        <div class="rb-icon">⚠️</div>
+        <div class="rb-body"><b>UPTREND UNDER STRESS</b><span>50MA vẫn trên 200MA nhưng giá đã thủng 50MA. Đây là vùng xám nguy hiểm nhất — thường bị nhầm là "cơ hội mua giá rẻ".</span></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="card">
+          <h4 style="margin-top:0;color:var(--gold)">Quy tắc duy nhất</h4>
+          <ul style="margin:0 0 0 17px;font-size:13.8px">
+            <li><b>Không mở vị thế mới.</b> Không ngoại lệ.</li>
+            <li>Quản lý lệnh đang có: siết stop lên hòa vốn</li>
+            <li>Chốt bớt vị thế yếu nhất</li>
+            <li>Đếm ngày phân phối mỗi tối</li>
+            <li>Theo dõi XLP/XLU có leo vào top 3 không</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0">Chờ tín hiệu gì để quay lại</h4>
+          <ul style="margin:0 0 0 17px;font-size:13.8px">
+            <li>Giá lấy lại 50MA và <b>đóng cửa trên</b> 2–3 phiên</li>
+            <li>Độ rộng cải thiện (&gt; 50% trên 200MA)</li>
+            <li>Sector tăng trưởng quay lại top 3</li>
+            <li>Ngày phân phối ngừng tích lũy thêm</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-t">Tại sao đây là vùng tốn kém nhất</div>
+        <p>Mọi setup vẫn <i>trông</i> giống hệt lúc uptrend: vẫn có pullback về MA, vẫn có nến đảo chiều đẹp. Khác biệt duy nhất nằm ở <b>xác suất nền</b> — tỷ lệ thất bại tăng rõ rệt khi chỉ số mất 50MA. Đó là lý do bộ lọc regime phải nằm <i>trước</i> bộ lọc mẫu hình, chứ không phải ngược lại.</p>
+      </div>
+    </div>
+
+    <!-- ============ DOWNTREND ============ -->
+    <div class="panel" id="p-down">
+      <div class="regime-banner rb-down">
+        <div class="rb-icon">📉</div>
+        <div class="rb-body"><b>DOWNTREND</b><span>Giá &lt; 50MA &lt; 200MA, 50MA dốc xuống. <b>Tiền mặt cũng là một vị thế.</b> Đây là lúc nghiên cứu và backtest, không phải lúc giao dịch.</span></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="card">
+          <h4 style="margin-top:0;color:var(--up)">Lựa chọn A — Đứng ngoài <span class="b b-up">KHUYẾN NGHỊ</span></h4>
+          <p style="font-size:13.7px;margin-bottom:8px">Với swing trader bán thời gian, đây gần như luôn là lựa chọn đúng.</p>
+          <ul style="margin:0 0 0 17px;font-size:13.7px">
+            <li>Vốn được bảo toàn cho môi trường thuận lợi</li>
+            <li>Dùng thời gian để backtest và xây danh sách theo dõi</li>
+            <li>Chuẩn bị sẵn danh sách leader cho đợt phục hồi</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0;color:var(--down)">Lựa chọn B — Short nhịp hồi</h4>
+          <p style="font-size:13.7px;margin-bottom:8px">Chỉ nếu anh đã có kinh nghiệm và tài khoản cho phép.</p>
+          <ul style="margin:0 0 0 17px;font-size:13.7px">
+            <li>Chờ giá hồi lên <b>21 EMA</b> rồi bị từ chối</li>
+            <li>Cần nến đảo chiều giảm + volume nở</li>
+            <li>Stop trên đỉnh nhịp hồi</li>
+            <li><b>Nửa size</b> — nhịp hồi trong downtrend rất dữ dội</li>
+            <li>Chốt nhanh, mục tiêu 1,5–2R</li>
+          </ul>
+        </div>
+      </div>
+
+      <figure class="fig">
+        <div class="fig-t">Cấu trúc short nhịp hồi</div>
+        <div class="fig-c">Xu hướng giảm → hồi lên chạm 21 EMA → nến đảo chiều giảm (bóng trên dài, đóng cửa yếu) kèm volume → bán khi thủng đáy nến tín hiệu.</div>
+        <svg class="chart" id="ch-shortrally" height="270"></svg>
+      </figure>
+
+      <div class="callout bad">
+        <div class="callout-t">Sai lầm đắt giá nhất trong downtrend</div>
+        <p><b>Bắt đáy cổ phiếu tăng trưởng đã giảm 40%.</b> "Rẻ" không phải là một luận điểm giao dịch — một cổ phiếu giảm 40% có thể giảm tiếp 40% nữa. Mean reversion chỉ hoạt động trong <i>range</i>, không hoạt động trong <i>xu hướng giảm</i>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="candles">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Nến đảo chiều — đọc theo cấu trúc, không theo tên</h2></div>
+  <p class="sec-sub">Đừng học thuộc 40 mẫu nến. Mọi nến đảo chiều tăng đều nói cùng một câu: <b>người bán đã cố đẩy giá xuống trong phiên và thất bại.</b></p>
+
+  <h3>Thứ tự đọc một tín hiệu — không được đảo</h3>
+  <div class="flow">
+    <div class="flow-step"><div class="flow-n">1</div><div class="flow-b"><b>VỊ TRÍ</b><span>Nến xuất hiện ở đâu? Có chạm vùng tham chiếu (MA, hỗ trợ) không? — Quan trọng nhất</span></div></div>
+    <div class="flow-step"><div class="flow-n">2</div><div class="flow-b"><b>BỐI CẢNH</b><span>Volume trước đó hành xử thế nào? Cạn dần hay tăng khi giảm?</span></div></div>
+    <div class="flow-step"><div class="flow-n">3</div><div class="flow-b"><b>HÌNH DẠNG</b><span>Nến là gì? Bóng dưới bao nhiêu, đóng cửa ở đâu trong biên?</span></div></div>
+    <div class="flow-step"><div class="flow-n">4</div><div class="flow-b"><b>XÁC NHẬN</b><span>Phiên sau có vượt đỉnh nến tín hiệu không? — Đây mới là lúc vào lệnh</span></div></div>
+  </div>
+  <div class="callout bad">
+    <div class="callout-t">Lỗi phổ biến nhất</div>
+    <p>Quét cả thị trường để tìm "bullish engulfing" mà không hỏi nó nằm ở đâu. <b>Nếu bước 1 không đạt, đừng xét bước 3.</b></p>
+  </div>
+
+  <h3>Ba chỉ số thay cho việc nhận dạng hình ảnh</h3>
+  <p>Ba con số này <b>code được</b> — rất hợp với hệ thống tự động của anh, và nhất quán hơn nhiều so với nhận dạng mẫu hình bằng mắt hoặc bằng AI.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Thành phần</th><th>Công thức</th><th>Ngưỡng</th><th>Ý nghĩa</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Vị trí đóng cửa trong biên</strong></td><td class="mono">(C − L) / (H − L)</td><td class="mono">&gt; 0.7</td><td>Người mua thắng phiên</td></tr>
+      <tr><td><strong>Tỷ lệ bóng dưới</strong></td><td class="mono">(min(O,C) − L) / (H − L)</td><td class="mono">&gt; 0.5</td><td>Bị từ chối mạnh ở vùng giá thấp</td></tr>
+      <tr><td><strong>Biên độ so với thường</strong></td><td class="mono">Range / ATR(14)</td><td class="mono">&gt; 1.0</td><td>Có tranh chấp thật, không phải phiên chết</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Ba mẫu thực sự đáng dùng</h3>
+  <figure class="fig">
+    <div class="fig-t">🕯️ Hình 4 — Giải phẫu ba mẫu nến đảo chiều tăng</div>
+    <div class="fig-c">Chú ý phần tô đậm: mỗi mẫu đều kể cùng một câu chuyện — giá bị đẩy xuống rồi bị mua lại hết trước khi đóng cửa.</div>
+    <div class="grid g3" style="gap:14px">
+      <div><div style="font-size:12px;font-weight:700;color:var(--up);margin-bottom:4px">HAMMER</div><svg class="chart" id="ch-c-hammer" height="185"></svg><p style="font-size:12.3px;color:var(--tx-mute);margin:6px 0 0">Bóng dưới ≥ 2× thân, đóng cửa gần đỉnh. <b>Bán tháo trong phiên bị hấp thụ hết.</b> Tin cậy cao — nếu ở hỗ trợ.</p></div>
+      <div><div style="font-size:12px;font-weight:700;color:var(--up);margin-bottom:4px">BULLISH ENGULFING</div><svg class="chart" id="ch-c-engulf" height="185"></svg><p style="font-size:12.3px;color:var(--tx-mute);margin:6px 0 0">Thân bao trọn thân nến đỏ hôm trước. <b>Đổi chủ hoàn toàn trong một phiên.</b> Mạnh nhất khi kèm volume lớn.</p></div>
+      <div><div style="font-size:12px;font-weight:700;color:var(--up);margin-bottom:4px">REVERSAL BAR</div><svg class="chart" id="ch-c-reversal" height="185"></svg><p style="font-size:12.3px;color:var(--tx-mute);margin:6px 0 0">Đáy thấp hơn hôm trước nhưng đóng ở top 25%. <b>Phá đáy giả — bẫy người bán.</b> Rất mạnh, ít người để ý.</p></div>
+    </div>
+  </figure>
+
+  <div class="vs">
+    <div class="vs-col vs-good">
+      <h5>✓ Dùng</h5>
+      <ul>
+        <li><b>Hammer</b> / bóng dưới dài tại MA</li>
+        <li><b>Bullish engulfing</b> kèm volume</li>
+        <li><b>Reversal bar</b> phá đáy giả</li>
+        <li>Phiên bản giảm của cả ba, cho lệnh short</li>
+      </ul>
+    </div>
+    <div class="vs-col vs-bad">
+      <h5>✗ Bỏ qua</h5>
+      <ul>
+        <li><b>Doji đơn lẻ</b> — chỉ là do dự, không phải đảo chiều</li>
+        <li><b>Mọi mẫu từ 3 nến trở lên</b> — quá hiếm, quá chậm, khó code nhất quán</li>
+        <li>Nến có biên độ <b>&gt; 2× ATR</b> — xem giải thích bên dưới</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout good">
+    <div class="callout-t">Chi tiết quyết định thành bại</div>
+    <p><b>Nến đảo chiều KHÔNG phải điểm vào lệnh. Nó là tín hiệu để đặt lệnh chờ.</b></p>
+    <p>Anh mua khi giá <b>vượt đỉnh nến tín hiệu</b> ở phiên sau. Lý do: nếu hôm sau không ai chịu mua vượt qua đỉnh đó, nghĩa là người mua hôm qua chỉ là nhất thời. Chờ xác nhận làm <i>giảm</i> win rate trên giấy nhưng <i>tăng mạnh</i> expectancy — vì loại bỏ được nhóm tín hiệu chết yểu.</p>
+    <p style="margin-bottom:0">Và stop nằm <b>dưới đáy nến tín hiệu</b> — chính cây nến đó định nghĩa cả điểm vào lẫn điểm sai. Đó là lý do nến biên độ quá rộng lại là tín hiệu <b>tệ</b>: stop quá xa, R-multiple sụp đổ dù mẫu hình nhìn rất đẹp.</p>
+  </div>
+
+  <figure class="fig">
+    <div class="fig-t">⚖️ Hình 5 — Cùng một mẫu hình, hai chất lượng khác nhau</div>
+    <div class="fig-c">Bên trái: nến gọn, stop gần, cùng mục tiêu đó cho khoảng <b>3R</b>. Bên phải: cùng hammer nhưng biên độ gấp 2,5× ATR — stop quá xa, cùng mục tiêu giá đó giờ chỉ còn khoảng <b>1R</b>. <b>Mẫu hình giống nhau, kết quả kỳ vọng khác hẳn.</b></div>
+    <div class="grid g2" style="gap:14px">
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--up);margin-bottom:5px">✓ NẾN GỌN · stop hẹp</div><svg class="chart" id="ch-rr-good" height="200"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--down);margin-bottom:5px">✗ NẾN QUÁ RỘNG · stop xa</div><svg class="chart" id="ch-rr-bad" height="200"></svg></div>
+    </div>
+  </figure>
+</section>
+
+<section id="volume">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Khối lượng — bốn cách đọc</h2></div>
+  <p class="sec-sub">Volume tuyệt đối vô nghĩa. <b>Luôn so tương đối</b> — với chính nó trong quá khứ, hoặc với các phiên xung quanh.</p>
+
+  <figure class="fig">
+    <div class="fig-t">📊 Hình 6 — Bốn tình huống volume và ý nghĩa ngược nhau của chúng</div>
+    <div class="fig-c">Điểm quan trọng: <b>volume cạn có thể là tốt hoặc xấu tùy setup</b>. Không có luật chung "volume cao là tốt".</div>
+    <div class="grid g2" style="gap:16px">
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--up);margin-bottom:5px">① PULLBACK — volume phải CẠN ✓</div><svg class="chart" id="ch-v-dryup" height="180"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--down);margin-bottom:5px">① PHÂN PHỐI — volume tăng khi giảm ✗</div><svg class="chart" id="ch-v-distrib" height="180"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--up);margin-bottom:5px">② NẾN ĐẢO CHIỀU — volume phải NỞ ✓</div><svg class="chart" id="ch-v-reversal" height="180"></svg></div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--gold);margin-bottom:5px">③ BREAKOUT — volume phải BÙNG ✓</div><svg class="chart" id="ch-v-breakout" height="180"></svg></div>
+    </div>
+  </figure>
+
+  <h3>① Volume trong pullback — phải CẠN</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Hành vi</th><th>Ý nghĩa</th><th>Hành động</th></tr></thead>
+    <tbody>
+      <tr><td>Volume giảm dần qua 3–5 phiên điều chỉnh</td><td>Không ai muốn bán ở giá này</td><td><span class="b b-up">Chờ mua là đúng</span></td></tr>
+      <tr><td>Volume tăng khi giá giảm</td><td>Tổ chức đang thoát hàng</td><td><span class="b b-down">Tránh xa dù mẫu hình đẹp</span></td></tr>
+    </tbody>
+  </table></div>
+  <p>Đây là <b>bộ lọc mạnh nhất</b> của setup pullback. Đo cụ thể: volume trung bình 3 phiên điều chỉnh chia cho volume trung bình 3 phiên tăng trước đó — muốn tỷ số <b>&lt; 0,7</b>.</p>
+
+  <h3>② Volume tại nến đảo chiều — phải NỞ</h3>
+  <p>Nến hammer với volume gấp <b>1,5–2× trung bình</b> nghĩa là có người thật sự hấp thụ hàng bán. Cũng cây nến đó với volume thấp chỉ nghĩa là thiếu người bán — dễ gãy tiếp.</p>
+  <div class="callout">
+    <div class="callout-t">Ngoại lệ quan trọng: VCP</div>
+    <p>Trong mẫu hình VCP, <b>volume cạn kiệt ở đáy lại là tín hiệu tốt nhất</b> — vì luận điểm ở đó là "hết hàng để bán", không phải "có người mua mạnh". Hai logic ngược nhau, tùy setup. Đây là lý do không thể áp một luật volume duy nhất cho toàn bộ hệ thống.</p>
+  </div>
+
+  <h3>③ Volume tại breakout — phải BÙNG</h3>
+  <p>Ngưỡng khởi đầu: <b>&gt; 1,5× trung bình 50 phiên</b> tại phiên phá. Dưới mức đó, xác suất false breakout tăng rõ rệt — không có dòng tiền lớn nào bảo vệ mức giá mới.</p>
+
+  <h3>④ Dấu vết tổ chức — tinh tế hơn, giá trị cao hơn</h3>
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0;color:var(--up)">Accumulation Day</h4>
+      <p style="font-size:13.7px;margin-bottom:6px">Giá tăng <b>&gt; 1%</b> với volume <b>cao hơn</b> phiên trước.</p>
+      <p style="font-size:13.7px;margin-bottom:0">Đếm số ngày này trong 25 phiên. Nhiều = có tổ chức đang gom.</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0;color:var(--down)">Distribution Day</h4>
+      <p style="font-size:13.7px;margin-bottom:6px">Giá <b>giảm</b> với volume <b>cao hơn</b> phiên trước.</p>
+      <p style="font-size:13.7px;margin-bottom:0">Trên chỉ số: <b>4–5 ngày trong 4 tuần</b> = cảnh báo regime sắp đổi. Thường đến <i>trước</i> khi giá thủng 50MA.</p>
+    </div>
+  </div>
+
+  <h3>Relative Volume trong phiên — chi tiết dễ làm sai nhất</h3>
+  <div class="callout bad">
+    <div class="callout-t">Đừng so volume tích lũy với trung bình cả ngày</div>
+    <p>Nếu làm vậy, <b>mọi cổ phiếu đều trông "ít volume" vào buổi sáng và "nhiều volume" lúc đóng cửa</b> — chỉ số vô dụng. Với anh ở châu Âu, 16h00 CET là lúc thị trường Mỹ vừa mở, và mọi cảnh báo volume sẽ im lặng suốt buổi tối.</p>
+  </div>
+  <p>Cách đúng: xây <b>đường cong phân bổ volume trong phiên</b> — tỷ lệ volume thường được giao dịch trong mỗi khung 5 phút, tính trên 20 phiên gần nhất. Sau đó:</p>
+  <pre><span class="c"># RVol điều chỉnh theo thời điểm trong phiên</span>
+expected = avg_daily_volume * fraction_expected_by_now
+RVol_adj = volume_so_far / expected
+
+<span class="c"># Ví dụ 16:15 CET (15 phút sau khi Mỹ mở cửa):</span>
+<span class="c">#   thường ~8% volume ngày đã giao dịch</span>
+<span class="c">#   volume hiện tại 1.2M, TB ngày 6M</span>
+<span class="c">#   → expected = 6M * 0.08 = 480K</span>
+<span class="c">#   → RVol_adj = 1.2M / 480K = 2.5x  ← ĐÁNG CHÚ Ý</span>
+<span class="c">#   (nếu tính sai: 1.2M / 6M = 0.2x  ← bỏ lỡ hoàn toàn)</span></pre>
+</section>
+
+<section id="others">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Những yếu tố khác ảnh hưởng đến kết quả</h2></div>
+  <p class="sec-sub">Ngoài nến và volume, đây là các biến số tác động mạnh nhất đến kỳ vọng của một lệnh.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Yếu tố</th><th>Đo thế nào</th><th>Ngưỡng</th><th>Tại sao quan trọng</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Vị trí so với MA</strong></td><td>Nến có chạm 10/21/50 EMA?</td><td class="mono">Bắt buộc</td><td>Đây là "vùng tham chiếu" — không có nó thì stop đặt tùy tiện</td></tr>
+      <tr><td><strong>Cấu trúc higher-low</strong></td><td>Đáy pullback &gt; đáy trước?</td><td class="mono">Bắt buộc</td><td>Vi phạm = xu hướng gãy, mọi tín hiệu nến vô hiệu</td></tr>
+      <tr><td><strong>Độ sâu pullback</strong></td><td>% từ đỉnh gần nhất</td><td class="mono">3–8%</td><td>&gt; 15% trong uptrend = có vấn đề cơ bản, không phải điều chỉnh</td></tr>
+      <tr><td><strong>Số phiên điều chỉnh</strong></td><td>Đếm phiên</td><td class="mono">3–7</td><td>&gt; 12 phiên = động lượng đã mất, nền cần xây lại</td></tr>
+      <tr><td><strong>ATR%</strong></td><td>ATR(14) / giá</td><td class="mono">2–6%</td><td>Quyết định stop rộng bao nhiêu → quyết định size</td></tr>
+      <tr><td><strong>Khoảng cách đỉnh 52T</strong></td><td>% dưới đỉnh</td><td class="mono">Trong 15%</td><td>Còn là leader, chưa bị dòng tiền bỏ lại</td></tr>
+      <tr><td><strong>Ngày công bố lợi nhuận</strong></td><td>Lịch earnings</td><td class="mono">&gt; 10 phiên</td><td>Giữ lệnh qua earnings = đánh bạc; stop không bảo vệ được vì gap</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout bad">
+    <div class="callout-t">Luật earnings — đáng nhấn mạnh riêng</div>
+    <p>Swing trade giữ 3–10 phiên, nên earnings gần như <b>luôn nằm trong khung thời gian của anh</b>. Luật đơn giản: <b>không mở lệnh mới nếu earnings rơi vào 10 phiên tới</b>, trừ khi anh cố ý chơi earnings với size nhỏ hơn hẳn. Một cú gap −18% qua đêm sẽ xuyên thủng mọi stop và biến lệnh rủi ro 1% thành lệnh mất 4%.</p>
+  </div>
+</section>
+
+<section id="scorecard">
+  <div class="sec-head"><span class="sec-num">11</span><h2>Bảng chấm điểm — biến trực giác thành luật</h2></div>
+  <p class="sec-sub">Chuyển toàn bộ phần trên thành checklist tính điểm thay vì nhận dạng hình ảnh. Cấu trúc này <b>code được, log được, và quan trọng nhất là backtest được</b>.</p>
+
+  <div class="tool">
+    <div class="tool-h"><span style="font-size:21px">✅</span><b>Chấm điểm setup</b></div>
+    <div class="tool-sub">Tick từng mục cho lệnh anh đang cân nhắc. Dùng thử ngay bây giờ với một biểu đồ bất kỳ để làm quen.</div>
+
+    <div class="ck-grp">
+      <div class="ck-lbl" style="color:var(--gold)">Điều kiện bắt buộc — thiếu 1 là loại</div>
+      <label class="ck must"><input type="checkbox"><span class="ck-t">Regime hiện tại cho phép setup này<small>Uptrend → pullback/breakout/VCP · Range → chỉ mean reversion</small></span></label>
+      <label class="ck must"><input type="checkbox"><span class="ck-t">Cổ phiếu thuộc top 3 sector<small>Ưu tiên sector đang tăng hạng, không chỉ sector đang đứng đầu</small></span></label>
+      <label class="ck must"><input type="checkbox"><span class="ck-t">Chạm vùng MA tham chiếu (10 / 21 / 50 EMA)<small>Không có vùng tham chiếu = không có chỗ đặt stop hợp lý</small></span></label>
+      <label class="ck must"><input type="checkbox"><span class="ck-t">Cấu trúc higher-low còn nguyên vẹn<small>Đáy pullback này cao hơn đáy pullback trước</small></span></label>
+      <label class="ck must"><input type="checkbox"><span class="ck-t">Không có earnings trong 10 phiên tới<small>Gap qua đêm xuyên thủng mọi stop</small></span></label>
+      <label class="ck must"><input type="checkbox"><span class="ck-t">Đóng cửa nằm ở top 30% biên nến<small>(C − L) / (H − L) &gt; 0.7</small></span></label>
+    </div>
+
+    <div class="ck-grp">
+      <div class="ck-lbl" style="color:var(--up)">Điểm cộng — cần ít nhất 4</div>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">Volume pullback / volume tăng &lt; 0.7<small>Người bán đã cạn lực</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">Volume nến tín hiệu &gt; 1.3× trung bình<small>Có người thật sự hấp thụ hàng bán</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">Bóng dưới chiếm &gt; 50% biên nến<small>Bị từ chối mạnh ở vùng giá thấp</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">RS dương so với SPY ở cả 21 và 63 phiên<small>Mạnh hơn thị trường trước khi anh mua</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">Nằm trong 15% so với đỉnh 52 tuần<small>Vẫn là cổ phiếu dẫn dắt</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">Pullback sâu 3–8%, kéo dài 3–7 phiên<small>Điều chỉnh lành mạnh, không phải gãy trend</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">ATR% nằm trong khoảng 2–6%<small>Đủ biên độ để đạt 3R nhưng stop không quá xa</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">Có chất xúc tác rõ ràng (tin, earnings beat, nâng hạng)<small>Nói được một câu tại sao nó đang chuyển động</small></span></label>
+      <label class="ck plus"><input type="checkbox"><span class="ck-t">Mục tiêu gần nhất cho ít nhất 2R<small>Dưới 2R thì bỏ qua, bất kể mẫu hình đẹp đến đâu</small></span></label>
+    </div>
+
+    <div class="score-row">
+      <div class="score-item"><span>Bắt buộc</span><b id="mScore">0/6</b></div>
+      <div class="score-item"><span>Điểm cộng</span><b id="pScore">0/9</b></div>
+      <div class="score-item" style="display:flex;align-items:flex-end"><button class="btn" onclick="resetCk()">Làm lại</button></div>
+    </div>
+    <div class="verdict" id="verdict"><b>—</b><span>—</span></div>
+  </div>
+
+  <pre><span class="c"># Luật vào lệnh cuối cùng</span>
+<span class="k">if</span> tat_ca_bat_buoc <span class="k">and</span> diem_cong &gt;= <span class="n">4</span>:
+    vao_lenh(size=size_theo_regime)
+<span class="k">else</span>:
+    bo_qua()   <span class="c"># luôn còn lệnh khác vào ngày mai</span></pre>
+
+  <div class="callout info">
+    <div class="callout-t">Giá trị thật của bảng điểm này</div>
+    <p>Sau 100+ lệnh, anh sẽ <b>biết điểm cộng nào thực sự có giá trị thống kê</b> và điểm nào chỉ là niềm tin phổ biến được truyền tay. Đó là thứ không sách nào dạy được — nó đến từ dữ liệu của chính anh.</p>
+  </div>
+</section>
+
+<section id="sizing">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Tính size &amp; quản trị rủi ro</h2></div>
+  <p class="sec-sub">Đây là phần quyết định anh sống sót hay không — quan trọng hơn mọi kỹ thuật chọn điểm vào ở trên.</p>
+
+  <div class="callout good">
+    <div class="callout-t">Thứ tự tính toán không được đảo</div>
+    <p>Hỏi <b>"giá nào chứng minh tôi sai?"</b> trước → rồi mới tính số lượng cổ phiếu. Làm ngược lại (đặt stop ở mức −5% vì đó là mức anh chịu được) là đặt stop vào một chỗ hoàn toàn vô nghĩa với thị trường — và nó sẽ bị quét liên tục.</p>
+  </div>
+
+  <div class="tool">
+    <div class="tool-h"><span style="font-size:21px">🧮</span><b>Máy tính size vị thế</b></div>
+    <div class="tool-sub">Nhập kế hoạch lệnh, công cụ tính số lượng cổ phiếu sao cho rủi ro đúng bằng tỷ lệ anh đặt ra.</div>
+    <div class="calc-grid">
+      <div class="field"><label>Tài khoản (€)</label><input type="number" id="cAcc" value="50000"></div>
+      <div class="field"><label>Rủi ro/lệnh (%)</label><input type="number" id="cRisk" value="1" step="0.25"></div>
+      <div class="field"><label>Giá vào</label><input type="number" id="cEntry" value="142.10" step="0.01"></div>
+      <div class="field"><label>Giá stop</label><input type="number" id="cStop" value="138.40" step="0.01"></div>
+      <div class="field"><label>Mục tiêu</label><input type="number" id="cTarget" value="153.30" step="0.01"></div>
+    </div>
+    <div class="out">
+      <div class="out-box"><span>Tiền rủi ro</span><b id="oRisk" style="color:var(--gold)">—</b></div>
+      <div class="out-box"><span>Số cổ phiếu</span><b id="oShares" style="color:var(--up)">—</b></div>
+      <div class="out-box"><span>Giá trị vị thế</span><b id="oPos">—</b></div>
+      <div class="out-box"><span>Stop cách</span><b id="oStopPct">—</b></div>
+      <div class="out-box"><span>Tỷ lệ R</span><b id="oR">—</b></div>
+    </div>
+    <p id="calcWarn" style="margin:16px 0 0;font-size:13.5px;font-weight:600"></p>
+  </div>
+
+  <h3>Luật rủi ro theo giai đoạn</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Giai đoạn</th><th>Rủi ro/lệnh</th><th>Số vị thế tối đa</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>50 lệnh đầu tiên (thật)</td><td class="mono">0.25%</td><td class="mono">2–3</td><td>Lợi thế chưa được chứng minh. Đây là học phí, giữ nó rẻ.</td></tr>
+      <tr><td>Sau khi expectancy dương</td><td class="mono">0.5%</td><td class="mono">3–4</td><td>Tăng dần, không nhảy vọt</td></tr>
+      <tr><td>Hệ thống ổn định &gt; 100 lệnh</td><td class="mono">1.0%</td><td class="mono">4–5</td><td>Mức trần. Không có lý do chính đáng để vượt.</td></tr>
+      <tr><td>Uptrend + vol cao</td><td class="mono">Nửa mức thường</td><td class="mono">2–3</td><td>Biến động cao = size nhỏ lại</td></tr>
+      <tr><td>Sau 3 lệnh thua liên tiếp</td><td class="mono">Nửa mức thường</td><td class="mono">2</td><td>Giảm cho đến khi có 2 lệnh thắng</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+    <div class="callout-t">Rủi ro toàn danh mục</div>
+    <p>Tổng rủi ro của tất cả vị thế đang mở không nên vượt <b>3–4% tài khoản</b>. Và cẩn thận với <b>tương quan</b>: 4 lệnh cùng nằm trong XLK không phải 4 lệnh độc lập — đó thực chất là một lệnh lớn gấp bốn lần.</p>
+  </div>
+</section>
+
+<section id="exit">
+  <div class="sec-head"><span class="sec-num">13</span><h2>Ba nguyên tắc thoát lệnh — áp dụng cho mọi setup</h2></div>
+
+  <div class="grid g3">
+    <div class="card">
+      <div class="b b-gold" style="margin-bottom:10px">01</div>
+      <h4 style="margin-top:0">Stop đặt theo cấu trúc,<br>không theo số tiền</h4>
+      <p style="margin:0;font-size:13.5px">Thị trường không biết anh chịu được bao nhiêu. Stop phải nằm ở nơi mà nếu giá tới đó, <b>luận điểm của anh đã sai</b>. Số tiền mất được điều chỉnh bằng số lượng cổ phiếu, không bằng cách dời stop.</p>
+    </div>
+    <div class="card">
+      <div class="b b-gold" style="margin-bottom:10px">02</div>
+      <h4 style="margin-top:0">Chốt 1/2 tại 2R là để<br>quản lý tâm lý</h4>
+      <p style="margin:0;font-size:13.5px">Về kỳ vọng toán học thuần túy, giữ full position và trail thường cho kết quả cao hơn. Nhưng điều đó chỉ đúng <b>nếu anh thực sự giữ được</b> — mà phần lớn người không. Chốt một nửa là mua lấy khả năng tuân thủ luật.</p>
+    </div>
+    <div class="card">
+      <div class="b b-gold" style="margin-bottom:10px">03</div>
+      <h4 style="margin-top:0">Thoát khi lý do vào lệnh<br>biến mất</h4>
+      <p style="margin:0;font-size:13.5px">Vào vì volume mạnh mà volume cạn dần → thoát. Vào vì dẫn dắt ngành mà ngành quay đầu → thoát. <b>Stop là phòng tuyến cuối cùng, không phải điều kiện thoát duy nhất.</b></p>
+    </div>
+  </div>
+
+  <h3>Bảng tra nhanh — thoát lệnh theo setup</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Setup</th><th>Stop ban đầu</th><th>Chốt một phần</th><th>Trail</th><th>Thoát khi sai</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Pullback</strong></td><td>Dưới đáy pullback</td><td>1/2 tại 2R</td><td>Đóng cửa dưới 21 EMA</td><td>Gãy higher-low</td></tr>
+      <tr><td><strong>Breakout</strong></td><td>Dưới điểm phá</td><td>1/2 tại measured move</td><td>Đóng cửa dưới 10 EMA</td><td>Đóng cửa lại trong nền</td></tr>
+      <tr><td><strong>VCP</strong></td><td>Dưới đáy nén cuối (3–5%)</td><td>1/2 tại 3R</td><td>Đóng cửa dưới 10/21 EMA</td><td>Rơi lại vào nền</td></tr>
+      <tr><td><strong>Mean reversion</strong></td><td>Dưới đáy nến tín hiệu</td><td>Toàn bộ tại 20 EMA</td><td>Không trail</td><td>Quá 5–7 phiên</td></tr>
+      <tr><td><strong>Short nhịp hồi</strong></td><td>Trên đỉnh nhịp hồi</td><td>1/2 tại 1.5R</td><td>Đóng cửa trên 10 EMA</td><td>Lấy lại 21 EMA</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="journal">
+  <div class="sec-head"><span class="sec-num">14</span><h2>Nhật ký &amp; Expectancy</h2></div>
+  <p class="sec-sub">Đây là nơi anh khám phá ra hệ thống của <b>chính mình</b>, thay vì tin vào hệ thống của người khác.</p>
+
+  <h3>Cấu trúc bảng nhật ký</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Nhóm</th><th>Cột</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Bối cảnh</strong></td><td class="mono">Ngày · Mã · Market Regime · Trạng thái Vol · Sector · Thứ hạng sector</td></tr>
+      <tr><td><strong>Setup</strong></td><td class="mono">Loại setup · Điểm bắt buộc · Điểm cộng · Chất xúc tác</td></tr>
+      <tr><td><strong>Thực thi</strong></td><td class="mono">Giá vào · Giá stop · Mục tiêu · Số cp · Rủi ro € · Rủi ro %</td></tr>
+      <tr><td><strong>Kết quả</strong></td><td class="mono">Giá ra · Lý do thoát · R-multiple · Số phiên giữ · MAE · MFE</td></tr>
+      <tr><td><strong>Hành vi</strong></td><td class="mono">Có tuân thủ kế hoạch? · Vào sớm/muộn? · Thoát sớm/muộn? · Ghi chú</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout info">
+    <div class="callout-t">Hai cột quan trọng nhất mà ít người ghi</div>
+    <p><b>MAE</b> (mức lỗ sâu nhất trong lệnh) cho biết stop của anh có đang quá rộng không. <b>MFE</b> (mức lãi cao nhất đạt được) cho biết anh có đang chốt lời quá sớm không. Không có hai cột này, anh không thể biết vấn đề nằm ở entry hay ở exit.</p>
+  </div>
+
+  <h3>Công thức phải tính</h3>
+  <pre><span class="c"># Tính riêng cho TỪNG setup × TỪNG regime — đây mới là điểm mấu chốt</span>
+Win Rate    = so_lenh_thang / tong_so_lenh
+Avg Win     = trung_binh(R cua cac lenh thang)
+Avg Loss    = trung_binh(|R| cua cac lenh thua)
+
+Expectancy  = (WinRate × AvgWin) - ((<span class="n">1</span>-WinRate) × AvgLoss)
+Profit Factor = tong_lai / tong_lo
+
+<span class="c"># Ví dụ kết quả thật anh sẽ thấy sau 100 lệnh:</span>
+<span class="c">#   Pullback  × Uptrend  →  +0.62R   ← đây là chén cơm</span>
+<span class="c">#   Breakout  × Uptrend  →  +0.41R</span>
+<span class="c">#   Breakout  × Range    →  -0.28R   ← BỎ HẲN setup này trong range</span>
+<span class="c">#   MeanRev   × Range    →  +0.33R</span>
+<span class="c">#   MeanRev   × Downtrend→  -0.71R   ← bắt đáy là cái bẫy</span></pre>
+  <div class="callout good">
+    <div class="callout-t">Tại sao phải tách theo regime</div>
+    <p>Nếu chỉ tính expectancy tổng cho "setup breakout", anh sẽ thấy một con số trung bình vô nghĩa — che giấu sự thật rằng nó kiếm tiền rất tốt trong uptrend và đốt tiền đều đặn trong range. <b>Con số gộp sẽ khiến anh bỏ đi một setup tốt, hoặc giữ lại một setup xấu.</b></p>
+  </div>
+</section>
+
+<section id="routine">
+  <div class="sec-head"><span class="sec-num">15</span><h2>Quy trình hằng ngày</h2></div>
+  <p class="sec-sub">Thiết kế cho múi giờ châu Âu — chạy sau khi thị trường Mỹ đóng cửa, không cần theo dõi trong phiên.</p>
+
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">🌙 Buổi tối · 30–45 phút</h4>
+      <pre style="margin:10px 0 0;font-size:12.3px">1. Viết dòng regime                  5'
+   (trend · vol · breadth · dist days)
+2. Xếp hạng 11 sector ETF (1M/3M/6M)  5'
+3. Ghi thay đổi thứ hạng tuần này     2'
+4. Screener CHỈ trong top 3 sector     5'
+5. Lọc in-play (RVol, TK, ATR, RS)     3'
+6. Chấm điểm 5 biểu đồ                15'
+7. Viết kế hoạch: entry/stop/target   10'</pre>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">📅 Cuối tuần · 1–2 giờ</h4>
+      <pre style="margin:10px 0 0;font-size:12.3px">1. Xem lại toàn bộ lệnh trong tuần
+2. Cập nhật expectancy theo setup × regime
+3. Đánh dấu lệnh phá luật — tại sao?
+4. Xem biểu đồ xoay vòng sector 90 phiên
+5. Kiểm tra lịch earnings tuần tới
+6. Chuẩn bị danh sách theo dõi
+7. Đọc lại 1 mục trong cẩm nang này</pre>
+    </div>
+  </div>
+
+  <h3>Nơi AI thực sự giúp được — và nơi nó gây hại</h3>
+  <div class="vs">
+    <div class="vs-col vs-good">
+      <h5>✓ AI mạnh</h5>
+      <ul>
+        <li>Viết code tính regime, xếp hạng sector, screener</li>
+        <li>Viết và debug script backtest</li>
+        <li><b>Phân tích nhật ký</b> tìm lỗi hành vi — giá trị cao nhất</li>
+        <li>Đóng vai người phản biện <i>sau khi</i> anh đã tự phân tích</li>
+        <li>Tóm tắt tin tức, báo cáo để tìm chất xúc tác</li>
+      </ul>
+    </div>
+    <div class="vs-col vs-bad">
+      <h5>✗ AI yếu / nguy hiểm</h5>
+      <ul>
+        <li><b>Hỏi số liệu thị trường</b> — chatbot không có bảng giá, nó sẽ bịa ra con số nghe rất thuyết phục</li>
+        <li>Chấm điểm mẫu hình trên ảnh chart — không nhất quán</li>
+        <li>Dự báo hướng đi — không ai làm được</li>
+        <li>Backtest do AI viết <b>rất dễ có lookahead bias</b> và cho kết quả đẹp giả tạo</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout bad">
+    <div class="callout-t">Luật an toàn khi dùng AI</div>
+    <p><b>AI viết công thức · dữ liệu do anh lấy về · máy tính chạy phép tính.</b> AI không bao giờ được là nguồn của một con số thị trường. Một giá trị ATR bịa ra sẽ đi thẳng vào công thức tính size và vào lệnh thật của anh.</p>
+  </div>
+</section>
+
+<section id="mistakes">
+  <div class="sec-head"><span class="sec-num">16</span><h2>Sai lầm chí mạng</h2></div>
+  <p class="sec-sub">Xếp theo mức độ tốn kém. Phần lớn tài khoản mất tiền vì 1–3, không phải vì chọn sai điểm vào.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th style="width:38px">#</th><th>Sai lầm</th><th>Tại sao chết người</th><th>Cách sửa</th></tr></thead>
+    <tbody>
+      <tr><td class="mono" style="color:var(--down)">1</td><td><strong>Dời stop khi giá sắp chạm</strong></td><td>Biến lệnh rủi ro 1% thành lệnh mất 5%. Một lần làm xóa sạch 5 lệnh thắng.</td><td>Đặt stop ngay khi vào lệnh và không bao giờ nới rộng — chỉ được siết lại</td></tr>
+      <tr><td class="mono" style="color:var(--down)">2</td><td><strong>Tăng size sau chuỗi thua</strong></td><td>"Gỡ lại" là bản năng tự nhiên và là con đường nhanh nhất đến cháy tài khoản</td><td>Luật ngược lại: thua 3 lệnh liên tiếp → giảm nửa size</td></tr>
+      <tr><td class="mono" style="color:var(--down)">3</td><td><strong>Giao dịch sai regime</strong></td><td>Breakout trong range, bắt đáy trong downtrend — expectancy âm có hệ thống</td><td>Viết dòng regime trước khi mở screener. Không có dòng đó thì không giao dịch.</td></tr>
+      <tr><td class="mono" style="color:var(--gold)">4</td><td><strong>Đuổi giá sau khi đã chạy</strong></td><td>Stop buộc phải rộng ra → cùng mục tiêu giá đó chỉ còn 1R thay vì 3R</td><td>Bỏ lỡ là chuyện bình thường. Luôn còn lệnh khác vào tuần sau.</td></tr>
+      <tr><td class="mono" style="color:var(--gold)">5</td><td><strong>Giữ lệnh qua earnings</strong></td><td>Gap qua đêm xuyên thủng stop — rủi ro thật gấp 3–4 lần dự tính</td><td>Không mở lệnh mới nếu earnings trong 10 phiên tới</td></tr>
+      <tr><td class="mono" style="color:var(--gold)">6</td><td><strong>Quá nhiều vị thế cùng sector</strong></td><td>4 lệnh trong XLK thực chất là một lệnh lớn gấp bốn</td><td>Tối đa 2 vị thế mỗi sector</td></tr>
+      <tr><td class="mono" style="color:var(--blue)">7</td><td><strong>Chốt lời quá sớm, cắt lỗ quá muộn</strong></td><td>Đảo ngược tỷ lệ R — thắng 0,8R nhưng thua 1,5R thì không hệ thống nào cứu được</td><td>Theo dõi MFE trong nhật ký để phát hiện thói quen này</td></tr>
+      <tr><td class="mono" style="color:var(--blue)">8</td><td><strong>Đổi hệ thống sau vài lệnh thua</strong></td><td>Không bao giờ tích lũy đủ dữ liệu để biết hệ thống nào thật sự hoạt động</td><td>Cam kết tối thiểu 50 lệnh trước khi đánh giá lại</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+    <div class="callout-t">Một điểm cần trung thực</div>
+    <p>Mọi thông số cụ thể trong cẩm nang này — 21 EMA, 2R, 1,5× volume, top 3 sector, 5–7 phiên — là <b>điểm khởi đầu hợp lý để anh kiểm chứng</b>, không phải hằng số thiêng liêng. Chúng phổ biến vì logic đằng sau vững, không phải vì đã được chứng minh là tối ưu.</p>
+    <p style="margin-bottom:0">Riêng về mẫu hình nến: các nghiên cứu về hiệu quả <i>độc lập</i> của chúng khá mâu thuẫn — bản thân hình dạng nến có lợi thế rất mỏng hoặc không có. Thứ tạo ra kết quả là <b>tổ hợp: vị trí + volume + xu hướng nền + xác nhận phiên sau</b>. Đừng đầu tư thời gian học thêm mẫu nến mới; hãy đầu tư vào việc kiểm chứng xem tổ hợp nào thực sự nâng được expectancy trên dữ liệu của chính anh.</p>
+  </div>
+
+  <div class="callout bad">
+    <div class="callout-t">Lời cuối</div>
+    <p>Phần lớn nhà đầu tư cá nhân thua lỗ, và nguyên nhân chính thường là <b>quản lý vốn và tâm lý</b>, chứ không phải chọn sai setup. Thời gian của anh sẽ sinh lời cao hơn nhiều nếu dành cho luật rủi ro và kỷ luật ghi nhật ký, thay vì đi săn một mẫu hình vào lệnh tốt hơn. Tài liệu này là khung tham khảo để nghiên cứu và luyện tập — không phải lời khuyên đầu tư.</p>
+  </div>
+</section>
+
+<footer>
+  <p style="margin:0">Cẩm nang Swing Trading · Playbook theo Market Regime — tài liệu học tập cá nhân, dùng để nghiên cứu và backtest.</p>
+</footer>
+
+</main>
+</div>
+
+<script>
+/* ============ CANDLESTICK RENDERER ============ */
+function drawChart(svgEl, cfg){
+  const W = cfg.width || 640, H = cfg.height || 260;
+  const volH = cfg.showVolume === false ? 0 : (cfg.volHeight || 54);
+  const padT = 14, padB = 14, padL = 8, padR = 46;
+  const priceH = H - volH - padT - padB - (volH?10:0);
+  const d = cfg.data;
+  const n = d.length;
+
+  let lo = Math.min(...d.map(x=>x.l)), hi = Math.max(...d.map(x=>x.h));
+  (cfg.overlays||[]).forEach(o=>{ if(o.values) o.values.forEach(v=>{ if(v!=null){lo=Math.min(lo,v);hi=Math.max(hi,v);} }); });
+  (cfg.levels||[]).forEach(l=>{ lo=Math.min(lo,l.y); hi=Math.max(hi,l.y); });
+  const pad = (hi-lo)*0.12 || 1;
+  lo -= pad; hi += pad;
+
+  const cw = (W - padL - padR)/n;
+  const bw = Math.max(2.5, cw*0.58);
+  const X = i => padL + cw*i + cw/2;
+  const Y = p => padT + priceH - ((p-lo)/(hi-lo))*priceH;
+
+  const maxV = Math.max(...d.map(x=>x.v||0)) || 1;
+  const volTop = padT + priceH + 10;
+  const VY = v => volTop + volH - (v/maxV)*volH;
+
+  let s = '';
+
+  // grid
+  for(let g=0; g<=3; g++){
+    const y = padT + (priceH/3)*g;
+    s += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR+4}" y2="${y.toFixed(1)}" stroke="#1b2433" stroke-width="1" stroke-dasharray="2 5"/>`;
+  }
+
+  // zones
+  (cfg.zones||[]).forEach(z=>{
+    const x1 = padL + cw*z.from, x2 = padL + cw*(z.to+1);
+    s += `<rect x="${x1.toFixed(1)}" y="${padT}" width="${(x2-x1).toFixed(1)}" height="${priceH}" fill="${z.fill||'rgba(245,185,66,.07)'}"/>`;
+    if(z.label) s += `<text x="${((x1+x2)/2).toFixed(1)}" y="${padT+13}" fill="${z.color||'#f5b942'}" font-size="10" font-weight="700" text-anchor="middle" font-family="Inter,sans-serif" letter-spacing=".5">${z.label}</text>`;
+  });
+
+  // horizontal levels
+  (cfg.levels||[]).forEach(l=>{
+    const y = Y(l.y);
+    s += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR+2}" y2="${y.toFixed(1)}" stroke="${l.color||'#66748c'}" stroke-width="1.2" stroke-dasharray="${l.dash||'5 4'}" opacity=".85"/>`;
+    if(l.label) s += `<text x="${W-padR+6}" y="${(y+3.5).toFixed(1)}" fill="${l.color||'#66748c'}" font-size="9.5" font-weight="700" font-family="JetBrains Mono,monospace">${l.label}</text>`;
+  });
+
+  // overlays (MA lines)
+  (cfg.overlays||[]).forEach(o=>{
+    let path='', started=false;
+    o.values.forEach((v,i)=>{
+      if(v==null) return;
+      path += (started?'L':'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' ';
+      started=true;
+    });
+    s += `<path d="${path}" fill="none" stroke="${o.color}" stroke-width="${o.width||1.6}" stroke-linejoin="round" opacity=".9"/>`;
+    const last = o.values.filter(v=>v!=null).pop();
+    if(o.label && last!=null) s += `<text x="${W-padR+6}" y="${(Y(last)+3.5).toFixed(1)}" fill="${o.color}" font-size="9.5" font-weight="700" font-family="Inter,sans-serif">${o.label}</text>`;
+  });
+
+  // volume bars
+  if(volH){
+    d.forEach((c,i)=>{
+      if(!c.v) return;
+      const up = c.c>=c.o;
+      let col = up ? 'rgba(38,208,124,.42)' : 'rgba(255,92,92,.42)';
+      if(c.vhi) col = up ? 'rgba(38,208,124,.95)' : 'rgba(255,92,92,.95)';
+      if(c.vlo) col = 'rgba(102,116,140,.3)';
+      const y = VY(c.v);
+      s += `<rect x="${(X(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(volTop+volH-y).toFixed(1)}" fill="${col}" rx="1"/>`;
+    });
+    s += `<line x1="${padL}" y1="${volTop+volH}" x2="${W-padR+4}" y2="${volTop+volH}" stroke="#243043" stroke-width="1"/>`;
+    s += `<text x="${W-padR+6}" y="${volTop+11}" fill="#66748c" font-size="9" font-weight="700" font-family="Inter,sans-serif">VOL</text>`;
+  }
+
+  // candles
+  d.forEach((c,i)=>{
+    const up = c.c>=c.o;
+    const col = c.color || (up ? '#26d07c' : '#ff5c5c');
+    const x = X(i);
+    const dim = c.dim ? ' opacity=".4"' : '';
+    s += `<line x1="${x.toFixed(1)}" y1="${Y(c.h).toFixed(1)}" x2="${x.toFixed(1)}" y2="${Y(c.l).toFixed(1)}" stroke="${col}" stroke-width="1.3"${dim}/>`;
+    const yo=Y(c.o), yc=Y(c.c);
+    const top=Math.min(yo,yc), hgt=Math.max(1.6,Math.abs(yc-yo));
+    if(up && !c.hollow)
+      s += `<rect x="${(x-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${col}" rx="1"${dim}/>`;
+    else
+      s += `<rect x="${(x-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${up?col:col}" rx="1"${dim}/>`;
+    if(c.ring)
+      s += `<rect x="${(x-bw/2-4).toFixed(1)}" y="${(Y(c.h)-5).toFixed(1)}" width="${(bw+8).toFixed(1)}" height="${(Y(c.l)-Y(c.h)+10).toFixed(1)}" fill="none" stroke="${c.ring}" stroke-width="1.4" rx="5" stroke-dasharray="3 3"/>`;
+  });
+
+  // arrows / annotations
+  (cfg.notes||[]).forEach(a=>{
+    const x = X(a.i);
+    const y = a.at==='below' ? Y(d[a.i].l)+(a.dy||16) : Y(d[a.i].h)-(a.dy||14);
+    const col = a.color||'#f5b942';
+    if(a.arrow){
+      const dir = a.at==='below' ? -1 : 1;
+      s += `<path d="M${x} ${y+dir*7} l-4 ${dir*6} h8 z" fill="${col}"/>`;
+    }
+    const ty = a.at==='below' ? y+(a.arrow?22:4) : y-(a.arrow?10:0);
+    s += `<text x="${x.toFixed(1)}" y="${ty.toFixed(1)}" fill="${col}" font-size="10" font-weight="700" text-anchor="middle" font-family="Inter,sans-serif">${a.text}</text>`;
+  });
+
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svgEl.innerHTML = s;
+}
+function C(o,h,l,c,v,extra){ return Object.assign({o,h,l,c,v:v||0}, extra||{}); }
+function sma(arr, p){
+  return arr.map((_,i)=> i<p-1 ? null : arr.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p);
+}
+</script>
+<script>
+/* ============================================================
+   Dữ liệu minh họa + khởi tạo toàn bộ biểu đồ
+   ============================================================ */
+
+/* --- PRNG cố định để hình luôn giống nhau --- */
+let _s = 7;
+function rnd(){ _s = (_s*1664525 + 1013904223) % 4294967296; return _s/4294967296; }
+function reseed(n){ _s = n; }
+
+/* --- Biến mảng giá đóng cửa thành nến OHLC --- */
+function mk(closes, opts){
+  opts = opts || {};
+  const body = opts.body || 0.45, wick = opts.wick || 0.5;
+  const vBase = opts.vBase || 100, vJit = opts.vJit || 0.3;
+  const out = [];
+  for(let i=0;i<closes.length;i++){
+    const c = closes[i];
+    const prev = i ? closes[i-1] : c*0.995;
+    const move = c - prev;
+    const amp = Math.max(Math.abs(move), c*0.004);
+    const o = prev + move*(rnd()*body - body/2);
+    const hi = Math.max(o,c) + amp*wick*(0.4+rnd()*0.9);
+    const lo = Math.min(o,c) - amp*wick*(0.4+rnd()*0.9);
+    out.push({o:o, h:hi, l:lo, c:c, v: vBase*(0.75 + rnd()*vJit*2)});
+  }
+  return out;
+}
+function ema(vals, p){
+  const k = 2/(p+1); const out = []; let e = null;
+  vals.forEach((v,i)=>{ e = (e===null) ? v : v*k + e*(1-k); out.push(i<p-1?null:e); });
+  return out;
+}
+function smaArr(vals,p){
+  return vals.map((_,i)=> i<p-1?null:vals.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p);
+}
+const closesOf = d => d.map(x=>x.c);
+const $ = id => document.getElementById(id);
+
+/* ============================================================
+   1. BỐN MARKET REGIME
+   ============================================================ */
+function regimeSeries(kind){
+  reseed(kind.length*137+11);
+  const n = 70, out = [];
+  let p = 100;
+  for(let i=0;i<n;i++){
+    let drift = 0;
+    if(kind==='up')     drift = 0.42 + Math.sin(i/7)*0.55;
+    if(kind==='down')   drift = -0.42 + Math.sin(i/7)*0.55;
+    if(kind==='range')  drift = Math.sin(i/6.2)*1.5 + Math.sin(i/2.4)*0.5;
+    if(kind==='stress') drift = (i<45 ? 0.45 : -0.75) + Math.sin(i/6)*0.6;
+    p += drift + (rnd()-0.5)*0.8;
+    out.push(p);
+  }
+  return out;
+}
+['up','down','range','stress'].forEach(k=>{
+  const cl = regimeSeries(k);
+  const d = mk(cl,{vBase:60,wick:0.55});
+  const m50 = smaArr(cl,14), m200 = smaArr(cl,30);
+  drawChart($('ch-reg-'+k), {
+    width:520, height:150, volHeight:0, showVolume:false,
+    data:d,
+    overlays:[
+      {values:m50, color:'#4c9aff', width:1.7, label:'50'},
+      {values:m200, color:'#a78bfa', width:1.7, label:'200'}
+    ]
+  });
+});
+
+/* ============================================================
+   2. BIẾN ĐỘNG THẤP vs CAO
+   ============================================================ */
+(function(){
+  reseed(42);
+  const n=46, lowC=[], highC=[];
+  let a=100,b=100;
+  for(let i=0;i<n;i++){
+    a += 0.30 + (rnd()-0.5)*0.55;
+    b += 0.30 + (rnd()-0.5)*3.4;
+    lowC.push(a); highC.push(b);
+  }
+  const dl = mk(lowC,{wick:0.5,vBase:55}), dh = mk(highC,{wick:0.9,vBase:55});
+  const lastL = lowC[n-1], lastH = highC[n-1];
+  drawChart($('ch-vol-low'),{
+    width:500,height:160,volHeight:0,showVolume:false,data:dl,
+    overlays:[{values:ema(lowC,21),color:'#f5b942',width:1.6,label:'21'}],
+    levels:[
+      {y:lastL, color:'#26d07c', label:'vào', dash:'6 3'},
+      {y:lastL*0.97, color:'#ff5c5c', label:'stop −3%', dash:'4 4'}
+    ]
+  });
+  drawChart($('ch-vol-high'),{
+    width:500,height:160,volHeight:0,showVolume:false,data:dh,
+    overlays:[{values:ema(highC,21),color:'#f5b942',width:1.6,label:'21'}],
+    levels:[
+      {y:lastH, color:'#26d07c', label:'vào', dash:'6 3'},
+      {y:lastH*0.92, color:'#ff5c5c', label:'stop −8%', dash:'4 4'}
+    ]
+  });
+})();
+
+/* ============================================================
+   3. BIỂU ĐỒ XOAY VÒNG SECTOR (line chart riêng)
+   ============================================================ */
+(function(){
+  const svg = $('ch-rotation'); if(!svg) return;
+  const W=760,H=250,padL=14,padR=66,padT=34,padB=26;
+  const secs = [
+    {n:'XLK', c:'#26d07c', path:[6,6,5,5,4,4,3,3,2,2,1,1]},
+    {n:'XLI', c:'#4c9aff', path:[4,4,3,3,3,2,2,2,3,3,2,2]},
+    {n:'XLF', c:'#f5b942', path:[9,8,8,7,7,6,5,5,4,4,4,4]},
+    {n:'XLE', c:'#ff5c5c', path:[1,1,2,2,2,3,4,5,6,7,8,8]},
+    {n:'XLU', c:'#a78bfa', path:[11,11,10,10,9,9,8,7,6,5,4,3]},
+    {n:'XLY', c:'#66748c', path:[3,3,4,4,5,5,6,6,5,5,6,6]}
+  ];
+  const N = secs[0].path.length;
+  const X = i => padL + (W-padL-padR)*(i/(N-1));
+  const Y = r => padT + ((r-1)/10)*(H-padT-padB);
+  let s='';
+  for(let r=1;r<=11;r+=2){
+    s+=`<line x1="${padL}" y1="${Y(r).toFixed(1)}" x2="${W-padR}" y2="${Y(r).toFixed(1)}" stroke="#1b2433" stroke-width="1" stroke-dasharray="2 5"/>`;
+    s+=`<text x="${padL-4}" y="${(Y(r)+3.5).toFixed(1)}" fill="#66748c" font-size="9" text-anchor="end" font-family="JetBrains Mono,monospace">${r}</text>`;
+  }
+  s+=`<rect x="${padL}" y="${Y(1)-9}" width="${W-padL-padR}" height="${Y(3)-Y(1)+18}" fill="rgba(38,208,124,.055)"/>`;
+  s+=`<text x="${W-padR-6}" y="${Y(1)-15}" fill="#26d07c" font-size="10" font-weight="700" text-anchor="end" font-family="Inter,sans-serif">VÙNG TOP 3 — chỉ săn cổ phiếu ở đây</text>`;
+  secs.forEach(se=>{
+    let p='';
+    se.path.forEach((r,i)=>{ p += (i?'L':'M')+X(i).toFixed(1)+' '+Y(r).toFixed(1)+' '; });
+    s+=`<path d="${p}" fill="none" stroke="${se.c}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>`;
+    se.path.forEach((r,i)=>{ if(i%3===0||i===N-1) s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(r).toFixed(1)}" r="2.6" fill="${se.c}"/>`; });
+    const last = se.path[N-1], first = se.path[0];
+    const delta = first-last;
+    const tag = delta>0 ? `↑${delta}` : delta<0 ? `↓${-delta}` : '—';
+    s+=`<text x="${W-padR+7}" y="${(Y(last)+4).toFixed(1)}" fill="${se.c}" font-size="10.5" font-weight="700" font-family="Inter,sans-serif">${se.n} ${tag}</text>`;
+  });
+  ['-90p','-60p','-30p','hôm nay'].forEach((lab,i)=>{
+    const x = X(i*(N-1)/3);
+    s+=`<text x="${x.toFixed(1)}" y="${H-7}" fill="#66748c" font-size="9.5" text-anchor="middle" font-family="Inter,sans-serif">${lab}</text>`;
+  });
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.innerHTML = s;
+})();
+
+/* ============================================================
+   4. SETUP: PULLBACK
+   ============================================================ */
+(function(){
+  reseed(99);
+  const cl=[]; let p=100;
+  for(let i=0;i<18;i++){ p += 0.62+(rnd()-0.5)*0.7; cl.push(p); }        // trend lên
+  const top=p;
+  for(let i=0;i<5;i++){ p -= 1.05+(rnd()-0.5)*0.3; cl.push(p); }          // pullback
+  const lowPt=p;
+  cl.push(p+0.25);                                                        // nến tín hiệu
+  for(let i=0;i<9;i++){ p += 0.95+(rnd()-0.5)*0.5; cl.push(p+1.2); }      // chạy tiếp
+  const d = mk(cl,{vBase:70,wick:0.5});
+  const sig = 23;
+  // volume: cạn trong pullback, nở ở nến tín hiệu
+  for(let i=18;i<23;i++){ d[i].v = 36 - (i-18)*4.5; d[i].vlo = true; }
+  d[sig].v = 155; d[sig].vhi = true; d[sig].ring='#f5b942';
+  d[sig+1].v = 140; d[sig+1].vhi = true;
+  for(let i=0;i<18;i++){ d[i].v = 66 + rnd()*38; }
+  for(let i=24;i<d.length;i++){ d[i].v = 88 + rnd()*36; d[i].vhi = true; }
+  // nến tín hiệu: hammer rõ
+  d[sig].o = lowPt+0.05; d[sig].c = lowPt+0.9; d[sig].h = lowPt+1.05; d[sig].l = lowPt-1.75;
+  const c = closesOf(cl.map(x=>x)).length ? cl : cl;
+  drawChart($('ch-pullback'),{
+    width:760,height:290,volHeight:52,data:d,
+    overlays:[
+      {values:ema(cl,8),color:'#4c9aff',width:1.6,label:''},
+      {values:ema(cl,16),color:'#f5b942',width:1.8,label:''}
+    ],
+    zones:[{from:18,to:22,fill:'rgba(102,116,140,.10)',label:'VOLUME CẠN',color:'#9aa9bf'}],
+    levels:[
+      {y:d[sig].h, color:'#26d07c', label:'MUA', dash:'6 3'},
+      {y:d[sig].l, color:'#ff5c5c', label:'STOP', dash:'4 4'},
+      {y:d[sig].h + (d[sig].h-d[sig].l)*2, color:'#4c9aff', label:'2R', dash:'2 5'}
+    ],
+    notes:[
+      {i:sig, at:'below', arrow:true, text:'Nến tín hiệu → mua khi vượt đỉnh nến này', color:'#f5b942', dy:6}
+    ]
+  });
+})();
+
+/* ============================================================
+   5. SETUP: BREAKOUT
+   ============================================================ */
+(function(){
+  reseed(1234);
+  const cl=[]; let p=100;
+  for(let i=0;i<8;i++){ p += 0.9+(rnd()-0.5)*0.6; cl.push(p); }
+  const res = p+0.6;
+  for(let i=0;i<22;i++){                       // nền tích lũy thu hẹp dần
+    const amp = 2.6*(1 - i/28);
+    cl.push(res - 1.4 + Math.sin(i/1.9)*amp + (rnd()-0.5)*0.35);
+  }
+  const bo = cl.length;
+  for(let i=0;i<9;i++){ p = res + 1.5 + i*1.35 + (rnd()-0.5)*0.7; cl.push(p); }
+  const d = mk(cl,{vBase:70,wick:0.45});
+  for(let i=8;i<30;i++){ d[i].v = 46 - (i-8)*1.3; d[i].vlo = true; }
+  d[bo].v = 190; d[bo].vhi = true; d[bo].ring='#26d07c';
+  d[bo+1].v = 150; d[bo+1].vhi = true;
+  const height = 3.4;
+  drawChart($('ch-breakout'),{
+    width:760,height:290,volHeight:52,data:d,
+    overlays:[{values:ema(cl,10),color:'#4c9aff',width:1.6,label:''}],
+    zones:[{from:8,to:29,fill:'rgba(76,154,255,.06)',label:'NỀN TÍCH LŨY — BIÊN ĐỘ THU HẸP',color:'#4c9aff'}],
+    levels:[
+      {y:res, color:'#f5b942', label:'KHÁNG CỰ', dash:'6 3'},
+      {y:res-height, color:'#ff5c5c', label:'STOP', dash:'4 4'},
+      {y:res+height*2.2, color:'#26d07c', label:'MỤC TIÊU', dash:'2 5'}
+    ],
+    notes:[{i:bo, at:'below', arrow:true, text:'Phá + vol 1.5×', color:'#26d07c', dy:6}]
+  });
+})();
+
+/* ============================================================
+   6. SETUP: VCP
+   ============================================================ */
+(function(){
+  reseed(555);
+  const cl=[]; let p=100;
+  for(let i=0;i<7;i++){ p += 1.1; cl.push(p); }
+  const peak = p;
+  const legs = [[10,6],[7,5],[5,4],[3,4]];       // [% điều chỉnh, số phiên]
+  let base = peak;
+  const marks = [];
+  legs.forEach((lg,k)=>{
+    const depth = base*lg[0]/100;
+    for(let i=0;i<lg[1];i++){ cl.push(base - depth*(i+1)/lg[1] + (rnd()-0.5)*0.25); }
+    marks.push({i:cl.length-1, pct:lg[0]});
+    for(let i=0;i<lg[1];i++){ cl.push(base - depth + depth*(i+1)/lg[1] + (rnd()-0.5)*0.25); }
+    base = base*0.997;
+  });
+  const pivot = cl.length;
+  for(let i=0;i<8;i++){ cl.push(base + 1.0 + i*1.5 + (rnd()-0.5)*0.6); }
+  const d = mk(cl,{vBase:80,wick:0.4});
+  for(let i=7;i<pivot;i++){ d[i].v = 78*(1 - (i-7)/(pivot-7)*0.82); d[i].vlo = true; }
+  d[pivot].v = 175; d[pivot].vhi = true; d[pivot].ring='#f5b942';
+  const lastLow = Math.min(...cl.slice(pivot-8,pivot));
+  drawChart($('ch-vcp'),{
+    width:760,height:290,volHeight:52,data:d,
+    overlays:[{values:ema(cl,21),color:'#f5b942',width:1.6,label:''}],
+    levels:[
+      {y:base+0.9, color:'#26d07c', label:'PIVOT', dash:'6 3'},
+      {y:lastLow, color:'#ff5c5c', label:'STOP', dash:'4 4'}
+    ],
+    notes: marks.map((m,k)=>({i:m.i, at:'below', text:'−'+m.pct+'%', color:'#9aa9bf', dy:14}))
+      .concat([{i:pivot-4, at:'above', arrow:false, text:'Volume cạn kiệt → phá pivot', color:'#26d07c', dy:26}])
+  });
+})();
+
+/* ============================================================
+   7. SETUP: MEAN REVERSION
+   ============================================================ */
+(function(){
+  reseed(2026);
+  const hi=106, lo=94;
+  const cl = [100,102.4,104.3,103.1,100.6,98.2,96.6,97.6,100.1,102.6,104.4,105.1,
+              104.0,102.1,100.4,98.6,97.1,95.9,95.1,94.7];
+  const sig = cl.length;                 // 20
+  cl.push(95.3);
+  [96.6,97.7,98.6,99.5,100.3,100.9,101.3,100.7].forEach(v=>cl.push(v));
+  const d = mk(cl,{vBase:60,wick:0.55});
+  d[sig].o = lo+0.35; d[sig].c = lo+1.3; d[sig].h = lo+1.5; d[sig].l = lo-1.7;
+  d[sig].v = 132; d[sig].vhi = true; d[sig].ring='#f5b942';
+  for(let i=15;i<sig;i++){ d[i].v = 58+rnd()*22; }
+  drawChart($('ch-meanrev'),{
+    width:760,height:290,volHeight:52,data:d,
+    overlays:[{values:ema(cl,10),color:'#f5b942',width:1.7,label:''}],
+    levels:[
+      {y:hi, color:'#66748c', label:'BIÊN TRÊN', dash:'5 4'},
+      {y:lo, color:'#66748c', label:'BIÊN DƯỚI', dash:'5 4'},
+      {y:100.3, color:'#4c9aff', label:'MỤC TIÊU', dash:'2 5'},
+      {y:d[sig].l, color:'#ff5c5c', label:'STOP', dash:'4 4'}
+    ],
+    notes:[{i:sig, at:'below', arrow:true, text:'RSI<30 + nến đảo chiều tại hỗ trợ', color:'#f5b942', dy:6}]
+  });
+})();
+
+/* ============================================================
+   8. SETUP: SHORT NHỊP HỒI
+   ============================================================ */
+(function(){
+  reseed(777);
+  const cl=[]; let p=100;
+  for(let i=0;i<16;i++){ p -= 0.85+(rnd()-0.5)*0.6; cl.push(p); }
+  for(let i=0;i<8;i++){ p += 0.95+(rnd()-0.5)*0.4; cl.push(p); }   // hồi
+  const sig = cl.length; const top = p;
+  cl.push(p-0.5);
+  for(let i=0;i<10;i++){ p -= 1.0+(rnd()-0.5)*0.6; cl.push(p-0.6); }
+  const d = mk(cl,{vBase:65,wick:0.5});
+  d[sig].o = top-0.2; d[sig].c = top-1.15; d[sig].h = top+1.7; d[sig].l = top-1.45;
+  d[sig].v = 150; d[sig].vhi = true; d[sig].ring='#ff5c5c';
+  drawChart($('ch-shortrally'),{
+    width:760,height:270,volHeight:48,data:d,
+    overlays:[{values:ema(cl,21),color:'#f5b942',width:1.7,label:''}],
+    levels:[
+      {y:d[sig].h, color:'#ff5c5c', label:'STOP', dash:'4 4'},
+      {y:d[sig].l, color:'#26d07c', label:'BÁN', dash:'6 3'}
+    ],
+    notes:[{i:sig, at:'above', arrow:true, text:'Bị từ chối tại 21 EMA', color:'#ff5c5c', dy:6}]
+  });
+})();
+
+/* ============================================================
+   9. GIẢI PHẪU BA MẪU NẾN
+   ============================================================ */
+function anatomy(id, candles, notes, levels){
+  drawChart($(id), {
+    width:260, height:185, volHeight:34, data:candles,
+    notes:notes||[], levels:levels||[]
+  });
+}
+(function(){
+  // HAMMER
+  const h = [
+    {o:104,h:104.6,l:102.4,c:102.8,v:60},
+    {o:102.8,h:103.1,l:101.2,c:101.5,v:52},
+    {o:101.5,h:101.8,l:100.1,c:100.6,v:44},
+    {o:100.5,h:101.1,l:96.6,c:100.9,v:130,vhi:true,ring:'#26d07c'},
+    {o:101.2,h:103.4,l:101.0,c:103.1,v:115,vhi:true}
+  ];
+  anatomy('ch-c-hammer', h, [
+    {i:3, at:'below', text:'bóng dưới dài, đóng gần đỉnh', color:'#26d07c', dy:10}
+  ]);
+
+  // ENGULFING
+  const e = [
+    {o:104,h:104.4,l:102.6,c:102.9,v:58},
+    {o:102.9,h:103.2,l:101.3,c:101.6,v:50},
+    {o:101.8,h:102.0,l:100.2,c:100.4,v:56},
+    {o:100.0,h:103.6,l:99.7,c:103.4,v:145,vhi:true,ring:'#26d07c'},
+    {o:103.5,h:105.2,l:103.3,c:104.9,v:120,vhi:true}
+  ];
+  anatomy('ch-c-engulf', e, [
+    {i:3, at:'below', text:'bao trọn nến đỏ', color:'#26d07c', dy:10}
+  ]);
+
+  // REVERSAL BAR (phá đáy giả)
+  const r = [
+    {o:104,h:104.5,l:102.8,c:103.0,v:58},
+    {o:103.0,h:103.3,l:101.5,c:101.7,v:54},
+    {o:101.7,h:102.0,l:100.8,c:101.0,v:48},
+    {o:100.9,h:102.6,l:99.2,c:102.4,v:138,vhi:true,ring:'#26d07c'},
+    {o:102.5,h:104.3,l:102.3,c:104.0,v:112,vhi:true}
+  ];
+  anatomy('ch-c-reversal', r, [
+    {i:3, at:'below', text:'phá đáy rồi đóng mạnh', color:'#26d07c', dy:10}
+  ], [{y:100.8, color:'#66748c', label:'đáy cũ', dash:'3 3'}]);
+})();
+
+/* ============================================================
+   10. R-MULTIPLE: NẾN GỌN vs NẾN QUÁ RỘNG
+   ============================================================ */
+(function(){
+  reseed(31337);
+  function build(wide){
+    const cl=[]; let p=100;
+    for(let i=0;i<14;i++){ p += 0.7+(rnd()-0.5)*0.5; cl.push(p); }
+    for(let i=0;i<4;i++){ p -= 1.1; cl.push(p); }
+    const lowP = p;
+    cl.push(p+0.8);
+    for(let i=0;i<6;i++){ cl.push(p + 1.5 + i*1.3); }
+    const d = mk(cl,{vBase:55,wick:0.45});
+    const s = 18;
+    const span = wide ? 7.0 : 2.6;
+    d[s].o = lowP-0.1; d[s].c = lowP+0.75; d[s].h = lowP+0.95; d[s].l = lowP+0.95-span;
+    d[s].v = 120; d[s].vhi = true; d[s].ring = wide?'#ff5c5c':'#26d07c';
+    return {d, s, entry:d[s].h, stop:d[s].l, target: cl[cl.length-1]+1.0};
+  }
+  [['ch-rr-good',false],['ch-rr-bad',true]].forEach(([id,wide])=>{
+    reseed(31337);
+    const b = build(wide);
+    const R = (b.target-b.entry)/(b.entry-b.stop);
+    drawChart($(id),{
+      width:500,height:200,volHeight:0,showVolume:false,data:b.d,
+      levels:[
+        {y:b.entry, color:'#26d07c', label:'vào', dash:'6 3'},
+        {y:b.stop, color:'#ff5c5c', label:'stop', dash:'4 4'},
+        {y:b.target, color:'#4c9aff', label:R.toFixed(1)+'R', dash:'2 5'}
+      ],
+      notes:[{i:b.s, at:'below', text: wide?'biên độ 2.5× ATR':'biên độ 1.0× ATR', color: wide?'#ff5c5c':'#26d07c', dy:12}]
+    });
+  });
+})();
+
+/* ============================================================
+   11. BỐN TÌNH HUỐNG VOLUME
+   ============================================================ */
+(function(){
+  // ① pullback volume cạn
+  reseed(11);
+  let cl=[], p=100;
+  for(let i=0;i<10;i++){ p += 0.9; cl.push(p); }
+  for(let i=0;i<6;i++){ p -= 0.85; cl.push(p); }
+  for(let i=0;i<5;i++){ p += 0.95; cl.push(p); }
+  let d = mk(cl,{vBase:70,wick:0.45});
+  for(let i=0;i<10;i++) d[i].v = 85+rnd()*25;
+  for(let i=10;i<16;i++){ d[i].v = 40-(i-10)*4.5; d[i].vlo=true; }
+  for(let i=16;i<21;i++){ d[i].v = 95+rnd()*35; d[i].vhi=true; }
+  drawChart($('ch-v-dryup'),{width:400,height:180,volHeight:52,data:d,
+    zones:[{from:10,to:15,fill:'rgba(38,208,124,.07)',label:'VOL CẠN DẦN',color:'#26d07c'}]});
+
+  // ① phân phối
+  reseed(12);
+  cl=[]; p=100;
+  for(let i=0;i<10;i++){ p += 0.9; cl.push(p); }
+  for(let i=0;i<6;i++){ p -= 1.05; cl.push(p); }
+  for(let i=0;i<5;i++){ p -= 0.8; cl.push(p); }
+  d = mk(cl,{vBase:70,wick:0.45});
+  for(let i=0;i<10;i++) d[i].v = 80+rnd()*20;
+  for(let i=10;i<16;i++){ d[i].v = 95+(i-10)*14; d[i].vhi=true; }
+  for(let i=16;i<21;i++){ d[i].v = 120+rnd()*30; d[i].vhi=true; }
+  drawChart($('ch-v-distrib'),{width:400,height:180,volHeight:52,data:d,
+    zones:[{from:10,to:15,fill:'rgba(255,92,92,.08)',label:'VOL TĂNG KHI GIẢM',color:'#ff5c5c'}]});
+
+  // ② nến đảo chiều volume nở
+  reseed(13);
+  cl=[]; p=100;
+  for(let i=0;i<7;i++){ p += 0.7; cl.push(p); }
+  for(let i=0;i<5;i++){ p -= 1.0; cl.push(p); }
+  const lp=p; cl.push(p+0.7);
+  for(let i=0;i<6;i++){ cl.push(p+1.4+i*1.1); }
+  d = mk(cl,{vBase:65,wick:0.5});
+  d[12].o=lp-0.1; d[12].c=lp+0.75; d[12].h=lp+0.95; d[12].l=lp-2.3;
+  for(let i=7;i<12;i++){ d[i].v=38; d[i].vlo=true; }
+  d[12].v=165; d[12].vhi=true; d[12].ring='#26d07c';
+  for(let i=13;i<19;i++){ d[i].v=105+rnd()*30; d[i].vhi=true; }
+  drawChart($('ch-v-reversal'),{width:400,height:180,volHeight:52,data:d,
+    notes:[{i:12,at:'below',arrow:true,text:'vol 2.5×',color:'#26d07c',dy:6}]});
+
+  // ③ breakout volume bùng
+  reseed(14);
+  cl=[]; p=100;
+  const rz=102;
+  for(let i=0;i<14;i++){ cl.push(rz-1.3+Math.sin(i/1.8)*1.1+(rnd()-0.5)*0.3); }
+  for(let i=0;i<6;i++){ cl.push(rz+1.0+i*1.25); }
+  d = mk(cl,{vBase:60,wick:0.4});
+  for(let i=0;i<14;i++){ d[i].v=36-i*1.2; d[i].vlo=true; }
+  d[14].v=185; d[14].vhi=true; d[14].ring='#f5b942';
+  for(let i=15;i<20;i++){ d[i].v=120+rnd()*25; d[i].vhi=true; }
+  drawChart($('ch-v-breakout'),{width:400,height:180,volHeight:52,data:d,
+    levels:[{y:rz, color:'#f5b942', label:'kháng cự', dash:'5 4'}],
+    notes:[{i:14,at:'below',arrow:true,text:'vol 3×',color:'#f5b942',dy:6}]});
+})();
+
+</script>
+<script>
+/* ============ NAV / SCROLLSPY ============ */
+const links = [...document.querySelectorAll('.sidebar a')];
+const secs = links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+function onScroll(){
+  const st = window.scrollY, dh = document.body.scrollHeight - innerHeight;
+  document.getElementById('progressBar').style.width = Math.min(100,(st/dh)*100)+'%';
+  let cur = secs[0];
+  secs.forEach(s=>{ if(s.getBoundingClientRect().top <= 140) cur = s; });
+  links.forEach(a=>a.classList.toggle('active', a.getAttribute('href')==='#'+cur.id));
+}
+addEventListener('scroll', onScroll, {passive:true}); onScroll();
+links.forEach(a=>a.addEventListener('click',()=>document.querySelector('.sidebar').classList.remove('open')));
+
+/* ============ TABS ============ */
+function initTabs(root){
+  const tabs = root.querySelectorAll('.tab'), panels = root.querySelectorAll('.panel');
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    tabs.forEach(x=>x.classList.remove('active'));
+    panels.forEach(p=>p.classList.remove('active'));
+    t.classList.add('active');
+    root.querySelector('#'+t.dataset.panel).classList.add('active');
+  }));
+}
+document.querySelectorAll('[data-tabs]').forEach(initTabs);
+
+/* ============ SCORECARD ============ */
+function updateScore(){
+  const musts = [...document.querySelectorAll('.ck.must input')];
+  const plus  = [...document.querySelectorAll('.ck.plus input')];
+  const mOK = musts.filter(i=>i.checked).length;
+  const pOK = plus.filter(i=>i.checked).length;
+  document.getElementById('mScore').textContent = mOK+'/'+musts.length;
+  document.getElementById('pScore').textContent = pOK+'/'+plus.length;
+  const v = document.getElementById('verdict');
+  const allMust = mOK===musts.length;
+  let t,s,c;
+  if(!allMust){ t='❌ KHÔNG VÀO LỆNH'; s=`Còn thiếu ${musts.length-mOK} điều kiện bắt buộc. Thiếu một là loại — không có ngoại lệ, không "gần đủ".`; c='var(--down)'; }
+  else if(pOK>=6){ t='✅ SETUP LOẠI A'; s='Đủ bắt buộc + '+pOK+' điểm cộng. Đây là loại lệnh đáng vào full size theo regime.'; c='var(--up)'; }
+  else if(pOK>=4){ t='✅ ĐỦ ĐIỀU KIỆN VÀO'; s='Đủ bắt buộc + '+pOK+' điểm cộng. Vào lệnh theo kế hoạch, size chuẩn.'; c='var(--up)'; }
+  else { t='⚠️ CHƯA ĐỦ CHẤT LƯỢNG'; s='Đủ bắt buộc nhưng chỉ '+pOK+' điểm cộng (cần ≥4). Bỏ qua — luôn còn lệnh khác.'; c='var(--gold)'; }
+  v.style.borderColor=c; v.querySelector('b').textContent=t; v.querySelector('b').style.color=c; v.querySelector('span').textContent=s;
+  document.getElementById('mScore').style.color = allMust?'var(--up)':'var(--down)';
+  document.getElementById('pScore').style.color = pOK>=4?'var(--up)':'var(--tx-dim)';
+}
+document.querySelectorAll('.ck input').forEach(i=>i.addEventListener('change',updateScore));
+updateScore();
+function resetCk(){ document.querySelectorAll('.ck input').forEach(i=>i.checked=false); updateScore(); }
+
+/* ============ POSITION SIZE CALC ============ */
+function calc(){
+  const acc=+document.getElementById('cAcc').value, rk=+document.getElementById('cRisk').value,
+        en=+document.getElementById('cEntry').value, st=+document.getElementById('cStop').value,
+        tg=+document.getElementById('cTarget').value;
+  const riskAmt = acc*rk/100;
+  const perShare = en-st;
+  const ok = perShare>0 && acc>0 && en>0;
+  const sh = ok ? Math.floor(riskAmt/perShare) : 0;
+  const pos = sh*en;
+  const stopPct = ok ? (perShare/en*100) : 0;
+  const R = (ok && tg>en) ? (tg-en)/perShare : 0;
+  const posPct = acc? pos/acc*100 : 0;
+  document.getElementById('oRisk').textContent = ok? riskAmt.toLocaleString('de-DE',{maximumFractionDigits:0})+' €' : '—';
+  document.getElementById('oShares').textContent = ok? sh.toLocaleString('de-DE') : '—';
+  document.getElementById('oPos').textContent = ok? pos.toLocaleString('de-DE',{maximumFractionDigits:0})+' €' : '—';
+  document.getElementById('oStopPct').textContent = ok? stopPct.toFixed(1)+'%' : '—';
+  const rEl=document.getElementById('oR');
+  rEl.textContent = R? R.toFixed(2)+'R' : '—';
+  rEl.style.color = R>=2 ? 'var(--up)' : R>0 ? 'var(--gold)' : 'var(--tx-dim)';
+  const w=document.getElementById('calcWarn');
+  let msg='';
+  if(ok && stopPct>12) msg='⚠️ Stop rộng '+stopPct.toFixed(1)+'% — entry quá xa vùng tham chiếu. Chờ giá về gần hơn.';
+  else if(ok && R>0 && R<2) msg='⚠️ Chỉ '+R.toFixed(2)+'R — dưới ngưỡng tối thiểu 2R. Bỏ qua lệnh này.';
+  else if(ok && posPct>35) msg='⚠️ Vị thế chiếm '+posPct.toFixed(0)+'% tài khoản. Stop hẹp là tốt nhưng đừng để một mã chi phối danh mục.';
+  else if(ok) msg='✅ Rủi ro '+rk+'% = '+riskAmt.toFixed(0)+'€. Stop '+stopPct.toFixed(1)+'%, mục tiêu '+R.toFixed(2)+'R.';
+  w.textContent=msg;
+  w.style.color = msg.startsWith('⚠️')?'var(--gold)':'var(--up)';
+}
+document.querySelectorAll('.calc-grid input').forEach(i=>i.addEventListener('input',calc));
+calc();
+</script>
+</body>
+</html>

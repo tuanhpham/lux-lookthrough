@@ -11,6 +11,7 @@ import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
 import { sanitizeNoteHtml, richNoteDialog, isNoteEmpty } from '../ui/richNote.js';
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
+import { swingPlaybookHtml, wireSwingPlaybook } from './swingPlaybook.js';
 
 let activeId: string | null = null;
 
@@ -930,4 +931,9 @@ export function renderLearn(): void {
     section.appendChild(grid);
     root.appendChild(section);
   }
+  // The playbook goes last: it is long-form reading, and the glossary above is
+  // what someone lands on this tab to look up.
+  const playbook = el(swingPlaybookHtml(lang));
+  root.appendChild(playbook);
+  wireSwingPlaybook(playbook, lang);
 }
