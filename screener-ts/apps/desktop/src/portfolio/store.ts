@@ -161,7 +161,37 @@ export function migrateAccountsBlob(ctx: AppContext): void {
   });
 }
 
+/**
+ * Whether `accounts` has been read from storage, and whether that read happened
+ * before the first sync pull landed. See `ensureAccountsLoaded`.
+ */
+let loadedAt: 'never' | 'pre-hydration' | 'hydrated' = 'never';
+
+/**
+ * Load the portfolio if this session has not yet.
+ *
+ * ── WHY THIS IS NOT JUST A CONVENIENCE ──────────────────────────────────────
+ * `loadAccounts` was only ever called by the Portfolio tab, so in a session where
+ * the user never opened that tab, `accounts` stayed EMPTY. The assistant reads the
+ * same array, so it answered "you have no accounts" to someone with four — and a
+ * write on top of that would have been worse: `saveAccounts` persists the whole
+ * in-memory list, so booking a trade against an empty list would have written a
+ * one-account blob over the real portfolio and pushed it to every device.
+ *
+ * The second half of the guard is the hydration stamp. A load that happened while
+ * the first pull was still in flight may have read the pre-merge local copy; once
+ * hydration completes, that copy is stale and saving it would clobber whatever the
+ * merge brought in. So a pre-hydration load is re-done, and only a post-hydration
+ * one is trusted for the rest of the session.
+ */
+export async function ensureAccountsLoaded(ctx: AppContext): Promise<void> {
+  if (loadedAt === 'hydrated') return;
+  if (loadedAt === 'pre-hydration' && !isHydrated()) return;
+  await loadAccounts(ctx);
+}
+
 export async function loadAccounts(ctx: AppContext): Promise<void> {
+  loadedAt = isHydrated() ? 'hydrated' : 'pre-hydration';
   const stored = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];
 
   // Strip the cache from the in-memory copy: `accounts` must never hold

@@ -21,20 +21,49 @@
  * model must know the difference between "flat" and "unpriced" — reporting an
  * unpriced portfolio as break-even is a lie the user would act on.
  *
- * Read tools only, for now. Writes land in Phase 4 behind an approval card; until
- * then `execRead` returning `unsupported` is what makes the assistant's "I cannot
- * change anything" honest rather than a promise the code does not keep.
+ * ── WRITES ARE TWO STEPS, NEVER ONE ────────────────────────────────────────
+ * `planWrite` resolves everything — which account, which FX rate, what would
+ * actually be stored — and returns a plan WITHOUT touching the portfolio. The panel
+ * shows that plan as an approval card, and only an accepted plan reaches
+ * `applyApprovedWrite`. So a refusal the app can work out for itself (no such
+ * account, not enough shares, no exchange rate loaded) comes back to the model as a
+ * tool error before the user is ever interrupted, and what the card promises is
+ * exactly the object that gets applied.
+ *
+ * The plan type and the mutations live in `portfolio/writes.ts`; what lives here is
+ * account resolution, the currency reading, and the sentences the model reads back.
  */
 import {
   buildPositions,
   computeAccountMetrics,
   findTool,
   type AccountState,
+  type OrderType,
   type ToolArgs,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { accounts, activeId, active, OVERVIEW_ID, today } from '../portfolio/store.js';
+import {
+  accounts,
+  activeId,
+  active,
+  ensureAccountsLoaded,
+  OVERVIEW_ID,
+  today,
+} from '../portfolio/store.js';
 import { accountPrices, hasPrices } from '../portfolio/prices.js';
+import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
+import { isHydrated } from '../adapters/storage.js';
+import {
+  accountNameTaken,
+  applyWrite,
+  describeWrite,
+  heldShares,
+  openLots,
+  type AccountRef,
+  type PlannedPrice,
+  type Rating,
+  type WritePlan,
+} from '../portfolio/writes.js';
 
 /** What a tool run produces. `isError` becomes the wire flag on the result block. */
 export interface ToolOutcome {
@@ -302,6 +331,262 @@ function staleNote(st: AccountState): Record<string, string> {
       };
 }
 
+// ── the write tools: planning ────────────────────────────────────────────────
+
+/** A plan ready for the approval card, or the reason there is none. */
+export type PlanResult = { plan: WritePlan } | { error: string };
+
+const accRef = (st: AccountState): AccountRef => ({
+  id: st.account.id,
+  name: st.account.name,
+  currency: st.account.currency,
+});
+
+/** Read a validated argument as a number. */
+const numArg = (args: ToolArgs, key: string): number | undefined => {
+  const v = args[key];
+  return typeof v === 'number' ? v : undefined;
+};
+
+/**
+ * Work out what a stated price becomes in the account's own currency.
+ *
+ * REFUSES rather than falling back to a rate of 1. `eurUsdForDate` has to return
+ * something for every display path, so it answers 1 when it knows nothing — and
+ * "1.00" silently turns a $232.50 fill into a €232.50 cost basis, an error of a
+ * tenth of the position that no later screen would flag. A refusal the model can
+ * read out ("press Update first, or give me the euro price") is recoverable.
+ */
+function planPrice(
+  acc: AccountRef,
+  given: number,
+  ccy: 'EUR' | 'USD',
+  date: string,
+): PlannedPrice | { error: string } {
+  const known = hasEurUsd() ? eurUsdForDate(date) : undefined;
+  if (ccy === acc.currency) {
+    return known ? { given, currency: ccy, stored: given, fx: known } : { given, currency: ccy, stored: given };
+  }
+  if (!known || !(known > 0)) {
+    return {
+      error: `No EUR/USD rate is loaded, so a ${ccy} price cannot be recorded in this ${acc.currency} account. Ask the user to press Update on the Portfolio tab first, or to give the price in ${acc.currency}.`,
+    };
+  }
+  if (acc.currency === 'EUR' && ccy === 'USD') {
+    return { given, currency: ccy, stored: given / known, fx: known };
+  }
+  if (acc.currency === 'USD' && ccy === 'EUR') {
+    return { given, currency: ccy, stored: given * known, fx: known };
+  }
+  return {
+    error: `This account is kept in ${acc.currency}, and the app can only convert between EUR and USD. Ask the user for the price in ${acc.currency}.`,
+  };
+}
+
+/**
+ * Turn a validated write call into a plan, or into the reason it cannot be one.
+ *
+ * Nothing here mutates anything. The two `ensure…` calls only fill in state this
+ * session may not have loaded yet: the accounts themselves (the Portfolio tab may
+ * never have been opened) and the cached EUR/USD bars. Neither fetches — a chat
+ * message must not start a market-data download.
+ */
+export async function planWrite(
+  ctx: AppContext,
+  toolName: string,
+  args: ToolArgs,
+): Promise<PlanResult> {
+  await ensureAccountsLoaded(ctx);
+  await ensureEurUsd(ctx);
+
+  // Checked before the card rather than at apply time: being told "still syncing"
+  // after approving a trade is a worse experience than being told before.
+  if (!isHydrated()) {
+    return {
+      error:
+        'The portfolio has not finished syncing on this device, so nothing can be written yet. Tell the user to try again in a few seconds.',
+    };
+  }
+
+  const date = str(args, 'date') ?? today();
+  const ccy = ((str(args, 'priceCurrency') ?? 'USD') as 'EUR' | 'USD');
+
+  if (toolName === 'create_account') {
+    const name = str(args, 'name')!;
+    if (accountNameTaken(name)) {
+      return {
+        error: `An account named "${name}" already exists. Ask the user whether they meant that one, or a different name.`,
+      };
+    }
+    return {
+      plan: {
+        kind: 'create_account',
+        name,
+        initialCapital: numArg(args, 'initialCapital') ?? 0,
+        currency: (str(args, 'currency') ?? 'EUR') as 'EUR' | 'USD',
+        ...(str(args, 'description') ? { description: str(args, 'description')! } : {}),
+      },
+    };
+  }
+
+  const found = resolveAccount(str(args, 'account'));
+  if ('error' in found) return { error: found.error };
+  const st = found;
+  const acc = accRef(st);
+
+  switch (toolName) {
+    case 'record_buy': {
+      const price = planPrice(acc, numArg(args, 'price')!, ccy, date);
+      if ('error' in price) return price;
+      const shares = numArg(args, 'shares')!;
+      const stopRaw = numArg(args, 'stop');
+      const targetRaw = numArg(args, 'target');
+      // Stop and target ride on the same currency flag as the fill, exactly as they
+      // do in the Buy form where one selector governs all three fields.
+      const stop = stopRaw === undefined ? undefined : planPrice(acc, stopRaw, ccy, date);
+      const target = targetRaw === undefined ? undefined : planPrice(acc, targetRaw, ccy, date);
+      if (stop && 'error' in stop) return stop;
+      if (target && 'error' in target) return target;
+      if (stopRaw !== undefined && stopRaw >= numArg(args, 'price')!) {
+        return {
+          error: `A stop at ${stopRaw} is at or above the entry at ${numArg(args, 'price')}. Ask the user to confirm the stop — a buy stop belongs below the entry.`,
+        };
+      }
+      return {
+        plan: {
+          kind: 'record_buy',
+          account: acc,
+          ticker: str(args, 'ticker')!,
+          shares,
+          price,
+          date,
+          ...(stop ? { stop } : {}),
+          ...(target ? { target } : {}),
+          ...(str(args, 'setupType') ? { setupType: str(args, 'setupType')! } : {}),
+          ...(str(args, 'rating') ? { rating: str(args, 'rating') as Rating } : {}),
+          ...(str(args, 'note') ? { note: str(args, 'note')! } : {}),
+          cost: shares * price.stored,
+        },
+      };
+    }
+    case 'record_sell': {
+      const price = planPrice(acc, numArg(args, 'price')!, ccy, date);
+      if ('error' in price) return price;
+      const ticker = str(args, 'ticker')!;
+      const shares = numArg(args, 'shares')!;
+      const held = heldShares(st, ticker);
+      // Checked here so an impossible sell never becomes a card the user has to
+      // decline. `sell()` would throw the same thing at apply time.
+      if (held <= 0) {
+        return {
+          error: `There is no open position in ${ticker} in "${acc.name}", so there is nothing to sell.`,
+        };
+      }
+      if (shares > held) {
+        return {
+          error: `Only ${held} share(s) of ${ticker} are open in "${acc.name}", and the call asked to sell ${shares}. Ask the user which number is right.`,
+        };
+      }
+      return {
+        plan: {
+          kind: 'record_sell',
+          account: acc,
+          ticker,
+          shares,
+          price,
+          date,
+          ...(str(args, 'note') ? { note: str(args, 'note')! } : {}),
+          held,
+          proceeds: shares * price.stored,
+        },
+      };
+    }
+    case 'set_stop': {
+      const ticker = str(args, 'ticker')!;
+      const lots = openLots(st, ticker);
+      if (!lots.length) {
+        return {
+          error: `There is no open position in ${ticker} in "${acc.name}", so there is no stop to move.`,
+        };
+      }
+      const stop = planPrice(acc, numArg(args, 'stop')!, ccy, date);
+      if ('error' in stop) return stop;
+      const stops = new Set(lots.map((l) => l.stop));
+      const previous = stops.size === 1 ? [...stops][0] : undefined;
+      return {
+        plan: {
+          kind: 'set_stop',
+          account: acc,
+          ticker,
+          stop,
+          lots: lots.length,
+          ...(previous === undefined ? {} : { previous }),
+        },
+      };
+    }
+    case 'record_cash_flow': {
+      return {
+        plan: {
+          kind: 'record_cash_flow',
+          account: acc,
+          amount: numArg(args, 'amount')!,
+          date,
+          ...(str(args, 'note') ? { note: str(args, 'note')! } : {}),
+        },
+      };
+    }
+    case 'place_order': {
+      const ticker = str(args, 'ticker')!;
+      const type = str(args, 'type') as OrderType;
+      const shares = numArg(args, 'shares')!;
+      const threshold = planPrice(acc, numArg(args, 'threshold')!, ccy, date);
+      if ('error' in threshold) return threshold;
+      if (type !== 'BUY_STOP') {
+        const held = heldShares(st, ticker);
+        if (shares > held) {
+          return {
+            error: `A ${type} order exits a position, and only ${held} share(s) of ${ticker} are open in "${acc.name}". Ask the user what they meant.`,
+          };
+        }
+      }
+      return {
+        plan: { kind: 'place_order', account: acc, ticker, type, threshold, shares, date },
+      };
+    }
+    default:
+      return { error: `No executor for ${toolName}.` };
+  }
+}
+
+/**
+ * Apply a plan the user accepted, and tell the model what happened.
+ *
+ * `describeWrite` is the same line the audit log stores and the same numbers the card
+ * showed, so the model reports what was recorded rather than what it proposed.
+ */
+export async function applyApprovedWrite(ctx: AppContext, plan: WritePlan): Promise<ToolOutcome> {
+  try {
+    await applyWrite(ctx, plan);
+  } catch (e) {
+    return fail(`Nothing was recorded: ${String((e as Error).message ?? e).slice(0, 200)}`);
+  }
+  const extra =
+    plan.kind === 'create_account'
+      ? ' It is not the account currently open in the app, so pass its name explicitly when acting on it.'
+      : '';
+  return {
+    content: `Done — the user accepted and this is now saved: ${describeWrite(plan)}.${extra}`,
+  };
+}
+
+/** The result for a plan the user turned down. */
+export function declinedWrite(plan: WritePlan): ToolOutcome {
+  return {
+    content: `The user DECLINED this change, so nothing was recorded: ${describeWrite(plan)}. Do not call the same tool again with the same arguments — ask them what to change.`,
+    isError: true,
+  };
+}
+
 // ── dispatch ─────────────────────────────────────────────────────────────────
 
 /**
@@ -318,9 +603,13 @@ export async function execRead(
   if (!def) return fail(`Unknown tool: ${toolName}`);
   if (def.kind !== 'read') {
     return fail(
-      `${toolName} is not available yet — this build can only read the portfolio. Tell the user to make this change on the Portfolio tab.`,
+      `${toolName} is a write tool and was not offered on this turn — this panel only records changes it can show the user an approval card for. Tell the user to make this change on the Portfolio tab.`,
     );
   }
+  // The portfolio is loaded by the Portfolio TAB, which the user may not have opened
+  // in this session. Without this, every read here answered "there are no accounts"
+  // to someone with four of them.
+  await ensureAccountsLoaded(ctx);
   try {
     switch (toolName) {
       case 'list_accounts':

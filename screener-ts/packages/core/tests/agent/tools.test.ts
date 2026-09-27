@@ -71,6 +71,7 @@ describe('the catalogue', () => {
         'ticker',
         'shares',
         'price',
+        'priceCurrency',
         'date',
         'stop',
         'target',
@@ -78,10 +79,10 @@ describe('the catalogue', () => {
         'rating',
         'note',
       ],
-      record_sell: ['account', 'ticker', 'shares', 'price', 'date', 'note'],
-      set_stop: ['account', 'ticker', 'stop'],
+      record_sell: ['account', 'ticker', 'shares', 'price', 'priceCurrency', 'date', 'note'],
+      set_stop: ['account', 'ticker', 'stop', 'priceCurrency'],
       record_cash_flow: ['account', 'amount', 'date', 'note'],
-      place_order: ['account', 'ticker', 'type', 'threshold', 'shares', 'date'],
+      place_order: ['account', 'ticker', 'type', 'threshold', 'priceCurrency', 'shares', 'date'],
     });
   });
 

@@ -103,6 +103,22 @@ const DATE: ToolArg = opt('date', {
     'Trade date as YYYY-MM-DD. Omit for today rather than guessing a date — the app fills it in. Only supply one if the user stated it.',
 });
 
+/**
+ * The currency a stated price is in — NOT the account's currency.
+ *
+ * A European trading US momentum names quotes fills in dollars while the account is
+ * kept in euros, so "I bought at 232.50" and "my cost basis is €209" are the same
+ * trade. Guessing wrong is a ~10% error in the cost basis that nothing downstream
+ * can detect, so the app converts at the EURUSD rate for the trade date and prints
+ * both numbers on the approval card, where the user can see which reading it took.
+ */
+const PRICE_CCY: ToolArg = opt('priceCurrency', {
+  kind: 'enum',
+  description:
+    'Currency the prices in this call are quoted in — the fill price and any stop or target with it. Defaults to USD, which is what a US-listed symbol trades in. Pass EUR only when the user gave a euro price.',
+  values: ['EUR', 'USD'],
+});
+
 export const AGENT_TOOLS: readonly AgentToolDef[] = [
   // ── read ────────────────────────────────────────────────────────────────
   {
@@ -180,6 +196,7 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
       req('ticker', { kind: 'ticker', description: 'Symbol bought.' }),
       req('shares', { kind: 'shares', description: 'Number of shares.' }),
       req('price', { kind: 'money', description: 'Price paid per share.' }),
+      PRICE_CCY,
       DATE,
       opt('stop', { kind: 'money', description: 'Initial stop-loss price, if they set one.' }),
       opt('target', { kind: 'money', description: 'Price target, if they set one.' }),
@@ -210,6 +227,7 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
       req('ticker', { kind: 'ticker', description: 'Symbol sold.' }),
       req('shares', { kind: 'shares', description: 'Number of shares sold.' }),
       req('price', { kind: 'money', description: 'Price received per share.' }),
+      PRICE_CCY,
       DATE,
       opt('note', { kind: 'richText', description: 'Why they sold.', maxLength: 2000 }),
     ],
@@ -223,6 +241,7 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
       ACCOUNT,
       req('ticker', { kind: 'ticker', description: 'Symbol whose stop moves.' }),
       req('stop', { kind: 'money', description: 'New stop price.' }),
+      PRICE_CCY,
     ],
   },
   {
@@ -234,7 +253,8 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
       ACCOUNT,
       req('amount', {
         kind: 'signedMoney',
-        description: 'Positive to deposit, negative to withdraw.',
+        description:
+          "Positive to deposit, negative to withdraw, in the ACCOUNT's own currency. A transfer is money moving into the account, so it is already in that currency — do not convert it.",
       }),
       DATE,
       opt('note', { kind: 'richText', description: 'What the transfer was.', maxLength: 240 }),
@@ -254,6 +274,7 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
         values: ['BUY_STOP', 'STOP_LOSS', 'TAKE_PROFIT'],
       }),
       req('threshold', { kind: 'money', description: 'Trigger price.' }),
+      PRICE_CCY,
       req('shares', { kind: 'shares', description: 'Number of shares.' }),
       DATE,
     ],

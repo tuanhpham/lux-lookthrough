@@ -87,6 +87,17 @@ describe('the prompt describes only the powers it was given', () => {
     expect(p).not.toContain('YOU CANNOT CHANGE ANYTHING');
   });
 
+  it('tells it to chase the missing part of a dictated trade, and only that part', () => {
+    // The point of chat entry: "I bought Apple, 15 shares" should produce a question
+    // about the account and the price — not a refusal, and not a guessed fill.
+    const p = buildSystemPrompt(facts, AGENT_TOOLS);
+    expect(p).toContain('a single short question');
+    // …and NOT a question about the optional fields, which is what turns dictating one
+    // trade into a five-message interrogation.
+    expect(p).toContain('OPTIONAL: record the trade without them rather than asking');
+    expect(p).toContain('leave the date out');
+  });
+
   it('never claims a delete it does not have', () => {
     expect(buildSystemPrompt(facts, AGENT_TOOLS)).toContain('cannot delete anything');
   });

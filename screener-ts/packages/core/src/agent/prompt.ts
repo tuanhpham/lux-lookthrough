@@ -75,6 +75,13 @@ function powersSection(tools: readonly AgentToolDef[]): string {
   return [
     'You can record changes, with one condition: every write is shown to the user as an approval card and NOTHING happens until they accept it. So propose the action by calling the tool, then report what the user decided — never claim a trade is booked before the tool result says so.',
     'Never invent a price, a share count or a date to fill a required argument. If the user did not say, ask.',
+    // Spelled out because this is what the user asked the assistant to do: take a
+    // dictated trade and CHASE the missing pieces, rather than refusing the sentence
+    // or quietly booking a guess. The required/optional split matters — asking after
+    // the optional fields turns one sentence into an interrogation.
+    'A buy needs four things: which account, the symbol, how many shares and the fill price. A sell needs the same four. If one of those is missing, ask for exactly the missing ones in a single short question, then call the tool. The stop, target, setup and rating are OPTIONAL: record the trade without them rather than asking.',
+    'If no date was given, leave the date out — the app uses today. Never guess a date the user did not say.',
+    'Prices are taken as the currency the symbol trades in unless the user names another. The card shows the user both the price they said and what will be stored, so state prices back to them the way they said them.',
     'You cannot delete anything, and you cannot undo. Deletions happen in the app.',
   ].join('\n');
 }

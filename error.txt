@@ -1537,3 +1537,133 @@ tren nen kem chi can vong tron va cai cay con lai; troi giua-toi cua duotone ma 
 o do dam cua theme toi thi thanh mot vet ban. Da xem anh render ca hai theme.
 
 621 tests passed · `npm run build` sach.
+
+## CHAT-18 — Chat dien giao dich ho, va so tay chay lai nightly ngay trong trang Scanner
+
+Hai viec trong mot luot: (A) bao voi tro ly "toi mua Apple ngay 20.09.2026, 15 shares,
+VCP B, account TA Trade Republic" thi no dien dung giao dich do, va hoi lai neu thieu
+thu quan trong; (B) trang Scanner tu no noi duoc cach chay lai chuoi buoi sang.
+
+### A.1 Vi sao moi lenh ghi di qua HAI pha
+
+`planWrite` giai quyet MOI THU va khong ghi gi: tim account, tim lot, doi tien, tu choi
+neu vo ly. Ket qua la mot `WritePlan`. Chi khi nguoi dung bam Luu lai thi
+`applyApprovedWrite` moi chay, va no chay tren dung cai plan da hien ra.
+
+Mot plan la nguon duy nhat cho CA BON thu: the xac nhan, lenh ghi, dong audit, va cau
+tra ve cho model. Neu the tu tinh so cua no va lenh ghi tu tinh so cua no thi mot ngay
+the hien mot gia con so ghi vao la gia khac — va khong co gi o duoi phat hien duoc.
+
+### A.2 `onApprove` la cai cong cua ca tinh nang
+
+`runModel` chi gui `[...readTools(), ...writeTools()]` khi co `onApprove`, va
+`buildSystemPrompt` nhan DUNG cai array do. Bat buoc phai la cung mot array: khong thi
+`powersSection()` hua mot quyen ma model khong duoc cap, va model se tra loi nhu da ghi
+xong mot giao dich khong ton tai. Khong co `onApprove` (vi du goi tu cho khac) thi noi
+chuyen quay ve doc-thoi, va prompt noi thang "YOU CANNOT CHANGE ANYTHING".
+
+### A.3 Cai de vo nhat: loi hua xac nhan PHAI duoc tra loi
+
+`requestApproval` tra ve mot Promise dung cho tool call. Neu Promise do khong bao gio
+settle thi transcript con lai mot `tool_use` khong co `tool_result`, va MOI request sau
+do trong cung cuoc hoi thoai deu bat hop le — ca hai dinh dang wire, khong chi mot.
+Nen bon duong thoat deu goi `settleWrite('decline')`:
+
+  - dong panel (`closeChatPanel`) — goi TRUOC `inFlight?.abort()`, khong thi abort chay
+    truoc va cai the van treo;
+  - New conversation (`startNewState`) — goi truoc khi lam rong `entries`;
+  - `finally` cua `submit()` — cai luoi cuoi, cho moi truong hop chua nghi ra.
+
+### A.4 Thieu ty gia thi TU CHOI, khong duoc lay 1
+
+`eurUsdForDate` rot ve 1 la cho HIEN THI. Duong ghi khong duoc phep the: no hoi
+`hasEurUsd()` truoc, va tu choi ca lenh neu chua co ty gia. Ly do so hoc: $232.50 ma
+luu thanh 232.50 EUR la sai cost basis ~10%, va khong co cho nao o duoi con nhan ra
+duoc nua — the hien ra van dep, PnL van cong duoc, chi la sai mai mai.
+
+Va la ty gia CUA NGAY GIAO DICH, khong phai ty gia moi nhat: mua ngay 18.09 thi dung
+close 18.09. Test ghim dung cho nay (bars co 1.1 o 17.09 va 1.25 o 18.09 — phai ra
+1.25).
+
+### A.5 Ngang bang voi form Buy, khong phai "gan giong"
+
+Mot lenh mua qua chat luu `buyPrice` DA DOI ROI, kem `priceCurrency` va `fxRateAtBuy`
+— y nguyen nhu form. `normalizeLotPrice` co dung MOT cho goi (form Buy), nen neu o day
+luu gia do la la thi moi lan render se chia lai lan nua. Cho nay khong co test nao o
+tang tren bat duoc, nen no duoc ghim bang mot test rieng: gia 232.50 USD vao account
+EUR phai ra `buyPrice ≈ 232.5/1.25`, `priceCurrency 'USD'`, `fxRateAtBuy 1.25`.
+
+### A.6 The xac nhan hien phep tinh, khong chi hien ket qua
+
+`priceCell` in `232.50 $ → 186.00 € · EURUSD 1.2500`. Phep doi tien la con so duy nhat
+app DIEN GIAI chu khong phai ghi lai, nen no phai nam truoc mat nguoi bam Luu.
+
+Hai chi tiet nho o the:
+  - `note`/`description` duoc cam vao THO, moi thu con lai `esc()`. Vi core da escape
+    richText roi (co test o core ghim viec do); escape lan hai thi mot cai note co dau
+    nhay se hien ra `&#39;` giua the.
+  - Nut Luu lai va nut Bo di cung `flex` — bo di phai de bam ngang bang voi luu.
+
+### A.7 Prompt: hoi cai gi, va tuyet doi khong hoi cai gi
+
+Bat buoc bon thu: account, ma, so shares, gia khop. Thieu thi hoi DUNG nhung cai thieu,
+trong MOT cau ngan, roi goi tool. Stop / target / setup / rating la TUY CHON — ghi giao
+dich ma khong co chung, khong duoc hoi. Do la cai bien mot cau noi thanh cuoc hoi cung
+nam luot. Khong noi ngay thi BO TRONG ngay (app lay hom nay), khong duoc doan.
+
+### A.8 Test
+
+`apps/desktop/tests/agentWrites.test.ts`, 20 test. Cac module giu state o muc module,
+nen moi test `vi.resetModules()` roi import lai, shim `localStorage`, va `openSyncGate()`
+de mo cong hydration. Co ghim ca nhung loi TU CHOI: stop >= gia vao, ban nhieu hon dang
+giu ("Only 15 share..."), account khong co thi liet ke account that, ten account trung,
+va ghi truoc khi sync xong ("has not finished syncing"). Va mot test rang pha plan
+khong ghi GI: `mem.writes` phai van la `[]`.
+
+### B.1 So tay nam o dau, va vi sao o trong app
+
+Mot section moi trong trang Scanner, ngay SAU phan run log — vi do dung la cho ban doc
+duoc "buoc nao vo". So thu tu day xuong mot: guide la 05, status 06, ... thresholds 10.
+
+`guideVerdict` doc lan chay cuoi va noi bon truong hop khac nhau: chua tung co lan chay
+nao / lan cuoi sach / mot buoc BAT BUOC vo (`bars`, `sectors`, `structure`, `setups` —
+tuc la trang dang hien thi truong dem truoc voi ngay hom nay) / mot buoc tuy chon vo
+(`push`, `telegram` — dem van chay, chi la no khong bao ve duoc). No goi ten buoc do va
+in luon `err`.
+
+Mot lenh o ngoai: `cd ~/scanner && git pull && python nightly.py`. Muoi buoc con lai
+trong `<details>`, cung ly do nhu thresholds: ban vao day khi co gi lam ban ngac nhien,
+muoi buoc shell giua mot trang thi truong se bi doc mot lan roi khong bao gio nua.
+
+### B.2 Nhung cho de sai, da lam thanh chu trong so tay
+
+  - Nut Chep doc `textContent` cua the `<pre>` ben canh, KHONG doc attribute. `&&`, dau
+    nhay va dau dong ma di qua attribute HTML thi ve bien dang.
+  - Khoi crontab co canh bao rieng: day la NOI DUNG crontab, khong phai lenh shell. Dan
+    vao trong editor ma `crontab -e` mo ra. Dan thang vao terminal thi bash doc so `0` o
+    dau la ten lenh va tra ve `0: command not found` — dan sai cho, khong phai file hong.
+  - `crontab -e` duoi user `ubuntu`, KHONG phai `sudo crontab -e`.
+  - Giu dong restart 09:05: `st.base` chi duoc nap luc khoi dong va luc doi ngay 00:00
+    ET, con nightly ghi no luc 08:00 ET. Va: cron HOAC systemd timer, khong bao gio ca
+    hai.
+  - `nightly.py` tren mot kho nen rong thi khong tu bootstrap duoc (`DAILY_PERIOD =
+    "1mo"`); buoc 06 la `python bars.py --sync --full`, chay lai bao nhieu lan cung an
+    toan.
+  - `database is locked` la LOCK-1, khong phai chuyen journal mode. Buoc 01 la
+    `python scripts/db_lock.py`, va phai thay `journal_mode = wal` cung voi section 4
+    lay duoc lock trong mot phan giay.
+  - Backtick trong van ban so tay duoc doi thanh `<code>` (`codeSpans`), va noi dung
+    ben trong span van `esc()` — vi mot trong nhung literal do la `>> state/prep.log`.
+  - Trang nay KHONG khoi dong duoc gi tren VM. Lam moi chi doc lai cac ban chup ma
+    nightly da day len o cuoi luot. Va `SCANNER_TOKEN` cua VM khong bao gio xuong trinh
+    duyet, khong bao gio go vao trang nay — thu duy nhat go trong app la ma dong bo, o
+    o ☁.
+
+So tay nay dong bo voi error.txt VM-4, VM-7, LOCK-3 bang cach LA CUNG MOT DIEU, khong
+phai bang sinh ra tu do — khong co build step nao kiem duoc, nen sua ben nay thi sua ca
+ben kia.
+
+641/642 test pass · `tsc --noEmit` sach · `npm run build` sach. Mot test do:
+`syncMerge.test.ts > writes the timestamp map once per batch` timeout 5000ms khi chay
+CA suite; chay rieng file do thi 8/8. Da kiem bang cach stash rieng `adapters/storage.ts`
+va chay lai ca suite — van dung mot loi do, nen no co truoc thay doi nay.

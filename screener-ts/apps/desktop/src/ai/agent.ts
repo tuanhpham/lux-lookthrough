@@ -24,6 +24,14 @@
  * context-length error. An auth error retried is an auth error twice; a rate limit
  * retried immediately is a longer rate limit. Every other failure is reported in
  * the provider's own words, because the provider is the only one who knows.
+ *
+ * ── WRITE TOOLS EXIST ONLY WHEN THERE IS A WAY TO APPROVE THEM ──────────────
+ * The caller passes `onApprove` or it does not, and that single fact decides both
+ * which tools are sent AND what the system prompt claims the assistant can do
+ * (`powersSection` reads the same array). A caller with no approval UI therefore gets
+ * a genuinely read-only assistant that says so, instead of one that proposes a trade
+ * nobody can accept — and there is no path where a write runs without a card,
+ * because the card IS the callback.
  */
 import {
   MAX_TOOL_ROUNDS,
@@ -37,6 +45,7 @@ import {
   nextAction,
   parseChatReply,
   readTools,
+  writeTools,
   sumUsage,
   trimForRetry,
   userText,
@@ -44,18 +53,28 @@ import {
   validateToolArgs,
   formatIssues,
   findProvider,
+  findTool,
   type AccountFact,
+  type AgentToolDef,
   type AgentMessage,
   type ApiFailure,
   type LlmConfig,
   type ToolResultBlock,
   type TokenUsage,
+  type ToolArgs,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { accounts, activeId, OVERVIEW_ID } from '../portfolio/store.js';
 import { today } from '../portfolio/store.js';
 import { getApiKey, llmFetch } from './llmClient.js';
-import { execRead, type ToolOutcome } from './toolExec.js';
+import {
+  applyApprovedWrite,
+  declinedWrite,
+  execRead,
+  planWrite,
+  type ToolOutcome,
+} from './toolExec.js';
+import type { WritePlan } from '../portfolio/writes.js';
 import { renderLocalAnswer } from './localAnswer.js';
 import { getLang } from '../ui/i18n.js';
 
@@ -96,6 +115,15 @@ const MAX_OUTPUT_TOKENS = 1500;
  * the panel must not start rendering a table the model has not finished writing.
  */
 export type OnDelta = (chunk: string) => void;
+
+/**
+ * Show the user what a write would do and wait for their answer.
+ *
+ * MUST RESOLVE, always. A tool call left without a result makes the whole transcript
+ * illegal on the next request, so "the user closed the panel" and "the request was
+ * aborted" are both a `'decline'` — never a promise that stays pending.
+ */
+export type OnApprove = (plan: WritePlan) => Promise<'accept' | 'decline'>;
 
 function accountFacts(): AccountFact[] {
   const openId = activeId();
@@ -165,7 +193,12 @@ export class AssistantSession {
    * added, because a half-written exchange is exactly the dangling-tool-result
    * shape the next request would be rejected for.
    */
-  async ask(question: string, signal?: AbortSignal, onDelta?: OnDelta): Promise<AskResult> {
+  async ask(
+    question: string,
+    signal?: AbortSignal,
+    onDelta?: OnDelta,
+    onApprove?: OnApprove,
+  ): Promise<AskResult> {
     const asked = question.trim();
     if (!asked) return { kind: 'error', message: 'Nothing to ask.', tools: [] };
 
@@ -175,7 +208,7 @@ export class AssistantSession {
     const before = this.messages.length;
     this.messages.push(userText(asked));
     try {
-      return await this.runModel(signal, onDelta);
+      return await this.runModel(signal, onDelta, onApprove);
     } catch (e) {
       this.messages.length = before;
       return {
@@ -219,8 +252,15 @@ export class AssistantSession {
   }
 
   /** The model loop: request → maybe run tools → request again → answer. */
-  private async runModel(signal?: AbortSignal, onDelta?: OnDelta): Promise<AskResult> {
-    const tools = readTools();
+  private async runModel(
+    signal?: AbortSignal,
+    onDelta?: OnDelta,
+    onApprove?: OnApprove,
+  ): Promise<AskResult> {
+    // No approval callback, no write tools — see the header. `buildSystemPrompt` is
+    // given this same array, so what the prompt promises and what the model was
+    // handed cannot disagree.
+    const tools = onApprove ? [...readTools(), ...writeTools()] : readTools();
     const system = buildSystemPrompt(
       { today: today(), accounts: accountFacts(), lang: getLang() === 'vi' ? 'vi' : 'en' },
       tools,
@@ -274,7 +314,7 @@ export class AssistantSession {
       rounds += 1;
       const results: ToolResultBlock[] = [];
       for (const call of action.calls) {
-        const outcome = await this.runOne(call.name, call.input, call.inputError);
+        const outcome = await this.runOne(call.name, call.input, call.inputError, onApprove);
         traces.push({
           name: call.name,
           args: outcome.args,
@@ -305,6 +345,7 @@ export class AssistantSession {
     name: string,
     input: Record<string, unknown>,
     inputError?: string,
+    onApprove?: OnApprove,
   ): Promise<{ args: Record<string, string | number>; result: ToolOutcome }> {
     if (inputError) {
       return {
@@ -316,13 +357,45 @@ export class AssistantSession {
     if (!v.ok) {
       return { args: {}, result: { content: formatIssues(v.issues), isError: true } };
     }
-    const result = await execRead(this.ctx, name, v.value);
+    const isWrite = findTool(name)?.kind === 'write';
+    const result = isWrite
+      ? await this.runWrite(name, v.value, onApprove)
+      : await execRead(this.ctx, name, v.value);
     // Unknown fields are reported, not swallowed: a model that passed `currency` to
     // a read tool has misread it, and the note is how it finds out.
     if (v.ignored.length && !result.isError) {
       result.content = `${result.content}\n(ignored unknown argument(s): ${v.ignored.join(', ')})`;
     }
     return { args: v.value, result };
+  }
+
+  /**
+   * Plan a write, ask the user, apply it or report the refusal.
+   *
+   * Three outcomes, three different sentences back to the model, because it has to
+   * say something different in each case: the app could not build the change at all
+   * (wrong account, not enough shares — the user was never interrupted), the user
+   * said no, or it is saved. `onApprove` missing here would mean a write tool was
+   * sent without an approval route, which `runModel` makes impossible — it is handled
+   * anyway rather than trusted.
+   */
+  private async runWrite(
+    name: string,
+    args: ToolArgs,
+    onApprove?: OnApprove,
+  ): Promise<ToolOutcome> {
+    if (!onApprove) {
+      return {
+        content: `${name} cannot run here: this panel has no way to show the user an approval card, and nothing is written without one.`,
+        isError: true,
+      };
+    }
+    const planned = await planWrite(this.ctx, name, args);
+    if ('error' in planned) return { content: planned.error, isError: true };
+    const verdict = await onApprove(planned.plan);
+    return verdict === 'accept'
+      ? await applyApprovedWrite(this.ctx, planned.plan)
+      : declinedWrite(planned.plan);
   }
 
   private answered(
@@ -346,7 +419,7 @@ export class AssistantSession {
   /** One HTTP round trip, parsed. Failures are classified, never thrown. */
   private async send(
     system: string,
-    tools: ReturnType<typeof readTools>,
+    tools: AgentToolDef[],
     apiKey: string,
     signal?: AbortSignal,
     onDelta?: OnDelta,

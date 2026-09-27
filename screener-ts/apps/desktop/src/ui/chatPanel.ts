@@ -20,6 +20,18 @@
  * Provider errors are shown VERBATIM. "Something went wrong" is useless; "your
  * credit balance is too low" tells the user exactly what to do.
  *
+ * ── HOW A TRADE GETS RECORDED FROM A SENTENCE ───────────────────────────────
+ * The model does not write anything. It proposes, by calling a write tool, and this
+ * panel turns the resolved plan into an APPROVAL CARD: which account, the price as
+ * the user said it and as it will be stored, the rate in between, the cost. Nothing
+ * reaches the portfolio until the user presses the button — and the callback that
+ * waits for that press is the only route a write has, so there is no code path where
+ * one happens silently.
+ *
+ * The promise MUST settle. Closing the panel, starting a new conversation and
+ * aborting all count as a decline, because a tool call left without a result makes
+ * every later request in the conversation illegal.
+ *
  * ── AND WHAT IT OFFERS WHEN THERE IS NO KEY ─────────────────────────────────
  * The panel still opens and Tier 0 still answers, because those questions never
  * needed an API. Everything else offers the Ask ChatGPT handoff — the app packs the
@@ -42,6 +54,13 @@ import { askChatGpt } from './askChatGpt.js';
 import { ORB_MARK } from './emblem.js';
 import { t, onLangChange } from './i18n.js';
 import { accounts } from '../portfolio/store.js';
+import {
+  readAuditLog,
+  type AuditEntry,
+  type PlannedPrice,
+  type WritePlan,
+} from '../portfolio/writes.js';
+import { money } from './dom.js';
 
 let host: HTMLElement | null = null;
 let session: AssistantSession | null = null;
@@ -128,6 +147,8 @@ function wire(el: HTMLElement): void {
       input.value = q;
       void submit();
     }
+    else if (act === 'approve') settleWrite('accept');
+    else if (act === 'decline') settleWrite('decline');
     else if (act === 'retry') {
       const input = field();
       input.value = lastAsked;
@@ -188,12 +209,21 @@ export async function openChatPanel(ctx: AppContext): Promise<void> {
     });
   }
   await refreshConfig();
+  // Read on open rather than kept in sync: the only place it shows is the empty
+  // transcript, so it is already stale by the time anything could change it. Failing
+  // to read the log is not a reason to refuse to open the panel.
+  recentWrites = (await readAuditLog(ctx).catch(() => [])).slice(0, 3);
   host.classList.add('chat--open');
   render();
   setTimeout(() => field().focus(), 60);
 }
 
 export function closeChatPanel(): void {
+  // A card the user walked away from is a NO. Settled before the abort, because the
+  // agent is parked on that promise and would never reach the aborted request: an
+  // unsettled call leaves a tool_use with no tool_result, which makes every later
+  // request in the conversation illegal on both wire formats.
+  settleWrite('decline');
   // An in-flight request is abandoned rather than left running: the user closed the
   // panel, and a reply landing into a hidden transcript still costs money.
   inFlight?.abort();
@@ -202,6 +232,9 @@ export function closeChatPanel(): void {
 }
 
 function startNewState(): void {
+  // Same reason as in `closeChatPanel`, and before `entries` is emptied: the card is
+  // about to stop existing, so it has to answer first.
+  settleWrite('decline');
   session?.reset();
   session = null;
   entries.length = 0;
@@ -242,12 +275,29 @@ async function refreshConfig(): Promise<void> {
 
 type Entry =
   | { role: 'user'; text: string }
+  /** A proposed write, waiting on the user or already settled. */
+  | { role: 'approval'; plan: WritePlan; state: 'pending' | 'accepted' | 'declined' }
   | { role: 'assistant'; text: string; local: boolean; truncated: boolean; tools: ToolTrace[]; usage?: TokenUsage; costUsd?: number | null }
   | { role: 'error'; text: string; canRetry: boolean }
   /** The row that is being written into: the placeholder, then the streamed text. */
   | { role: 'pending'; text: string };
 
 const entries: Entry[] = [];
+
+/**
+ * The card the panel is currently waiting on.
+ *
+ * One at a time by construction: the agent loop awaits `onApprove` before it runs the
+ * next call, so a second card cannot appear while this one is open. `resolve` is the
+ * agent's promise — every exit path from the panel has to call it.
+ */
+let pendingWrite: {
+  entry: Extract<Entry, { role: 'approval' }>;
+  resolve: (v: 'accept' | 'decline') => void;
+} | null = null;
+
+/** The last few writes recorded on this device, shown on the empty transcript. */
+let recentWrites: AuditEntry[] = [];
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -297,7 +347,31 @@ function emptyState(): string {
             <span>${esc(q)}</span>${icon('<path d="M5 12h14M13 6l6 6-6 6"/>')}</button>`;
         }).join('')}
       </div>
+      ${recentStrip()}
     </div>`;
+}
+
+/**
+ * The last few things the assistant actually changed, on this device.
+ *
+ * A new conversation has no memory of the previous one, so without this the user has
+ * no way to tell whether the trade they dictated ten minutes ago went in. The lines
+ * come from the audit log and are shown as stored — symbol-shaped, not translated,
+ * because a stored sentence would otherwise freeze in whichever language was on when
+ * it was written.
+ */
+function recentStrip(): string {
+  if (!recentWrites.length) return '';
+  const rows = recentWrites
+    .map(
+      (w) =>
+        `<li><span>${esc(w.line)}</span><time>${new Date(w.at).toLocaleDateString()}</time></li>`,
+    )
+    .join('');
+  return `<div class="chat-recent">
+    <p class="chat-recent-head">${t('chat.write.recent')}</p>
+    <ul>${rows}</ul>
+  </div>`;
 }
 
 /** An assistant turn: the mark in the gutter, the words beside it. */
@@ -306,6 +380,162 @@ function botTurn(body: string, live = false): string {
     <span class="chat-avatar${live ? ' chat-avatar--live' : ''}">${ORB_MARK}</span>
     ${body}
   </div>`;
+}
+
+// ── the approval card ────────────────────────────────────────────────────────
+
+const CCY_SYM: Record<string, string> = { EUR: '€', USD: '$' };
+const sym = (c: string): string => CCY_SYM[c] ?? '';
+
+/**
+ * A price as the user said it, and — when the account keeps its books in another
+ * currency — what will actually be stored, with the rate in between.
+ *
+ * The arithmetic is shown rather than summarised on purpose. This is the one number
+ * the app has to INTERPRET rather than record, and "232.50, read as dollars" is a
+ * mistake the user can catch in a second if they can see it. Hiding the conversion
+ * would make the most error-prone part of a chat-recorded trade the only invisible
+ * one — and a cost basis that is 10% wrong is not detectable anywhere downstream.
+ */
+function priceCell(p: PlannedPrice, acctCcy: string): string {
+  const given = esc(money(p.given, sym(p.currency)));
+  if (p.stored === p.given) return given;
+  const rate = p.fx ? ` · EURUSD ${p.fx.toFixed(4)}` : '';
+  return `${given} <span class="chat-card-conv">→ ${esc(money(p.stored, sym(acctCcy)))}${rate}</span>`;
+}
+
+/** The rows for one plan: an i18n key for the label, ready HTML for the value. */
+function planRows(plan: WritePlan): Array<[string, string]> {
+  const rows: Array<[string, string]> = [];
+  const add = (key: string, value: string | undefined): void => {
+    if (value) rows.push([key, value]);
+  };
+  if (plan.kind === 'create_account') {
+    add('chat.write.capital', esc(money(plan.initialCapital, sym(plan.currency))));
+    add('chat.write.currency', esc(plan.currency));
+    // Notes arrive from the model already escaped — core's `richText` coercion does it,
+    // because notes are rendered as HTML wherever they are shown. Escaping again here
+    // would display the entities.
+    add('chat.write.note', plan.description);
+    return rows;
+  }
+  const ccy = plan.account.currency;
+  add('chat.write.account', esc(plan.account.name));
+  switch (plan.kind) {
+    case 'record_buy':
+      add('chat.write.shares', `${plan.shares} ${esc(plan.ticker)}`);
+      add('chat.write.price', priceCell(plan.price, ccy));
+      add('chat.write.cost', esc(money(plan.cost, sym(ccy))));
+      add('chat.write.date', esc(plan.date));
+      add('chat.write.stop', plan.stop ? priceCell(plan.stop, ccy) : undefined);
+      add('chat.write.target', plan.target ? priceCell(plan.target, ccy) : undefined);
+      add('chat.write.setup', plan.setupType ? esc(plan.setupType) : undefined);
+      add('chat.write.rating', plan.rating);
+      add('chat.write.note', plan.note);
+      break;
+    case 'record_sell':
+      add('chat.write.shares', `${plan.shares} ${esc(plan.ticker)} · ${t('chat.write.of')} ${plan.held}`);
+      add('chat.write.price', priceCell(plan.price, ccy));
+      add('chat.write.proceeds', esc(money(plan.proceeds, sym(ccy))));
+      add('chat.write.date', esc(plan.date));
+      add('chat.write.note', plan.note);
+      break;
+    case 'set_stop':
+      add('chat.write.ticker', esc(plan.ticker));
+      add('chat.write.stop', priceCell(plan.stop, ccy));
+      add(
+        'chat.write.previous',
+        plan.previous === undefined ? undefined : esc(money(plan.previous, sym(ccy))),
+      );
+      add('chat.write.lots', String(plan.lots));
+      break;
+    case 'record_cash_flow':
+      add(
+        plan.amount >= 0 ? 'chat.write.deposit' : 'chat.write.withdraw',
+        esc(money(Math.abs(plan.amount), sym(ccy))),
+      );
+      add('chat.write.date', esc(plan.date));
+      add('chat.write.note', plan.note);
+      break;
+    case 'place_order':
+      add('chat.write.type', esc(plan.type.replace('_', ' ')));
+      add('chat.write.shares', `${plan.shares} ${esc(plan.ticker)}`);
+      add('chat.write.threshold', priceCell(plan.threshold, ccy));
+      add('chat.write.date', esc(plan.date));
+      break;
+  }
+  return rows;
+}
+
+/**
+ * The card: what would happen, then two buttons.
+ *
+ * Full width and no avatar, like an error — this is the app asking, not the assistant
+ * talking. Once settled it keeps showing the same numbers with a status line where the
+ * buttons were, so the transcript stays a record of what was actually agreed to.
+ */
+function approvalCard(e: Extract<Entry, { role: 'approval' }>): string {
+  const rows = planRows(e.plan)
+    .map(
+      ([key, value]) =>
+        `<div class="chat-card-row"><span>${t(key)}</span><span>${value}</span></div>`,
+    )
+    .join('');
+  const head =
+    e.plan.kind === 'create_account'
+      ? `${t('chat.write.title.create_account')} · <b>${esc(e.plan.name)}</b>`
+      : t(`chat.write.title.${e.plan.kind}`);
+  const foot =
+    e.state === 'pending'
+      ? `<div class="chat-card-hint">${t('chat.write.hint')}</div>
+         <div class="chat-card-actions">
+           <button class="chat-card-no" data-act="decline">${t('chat.write.decline')}</button>
+           <button class="chat-card-yes" data-act="approve">${t('chat.write.accept')}</button>
+         </div>`
+      : `<div class="chat-card-state chat-card-state--${e.state}">${t(
+          e.state === 'accepted' ? 'chat.write.accepted' : 'chat.write.declined',
+        )}</div>`;
+  return `<div class="chat-turn chat-turn--sys">
+    <div class="chat-card${e.state === 'pending' ? ' chat-card--live' : ''}">
+      <div class="chat-card-head">${head}</div>
+      ${rows}
+      ${foot}
+    </div></div>`;
+}
+
+/**
+ * Show a plan and wait for an answer. This is the `onApprove` the agent is handed, and
+ * the ONLY route a write has — the agent loop is parked on this promise until one of
+ * the buttons, or one of the exits in `settleWrite`'s callers, settles it.
+ */
+function requestApproval(plan: WritePlan): Promise<'accept' | 'decline'> {
+  return new Promise((resolve) => {
+    const entry: Extract<Entry, { role: 'approval' }> = {
+      role: 'approval',
+      plan,
+      state: 'pending',
+    };
+    // Inserted ABOVE the pending row, so the dots stay at the bottom where the answer
+    // will land — the card is part of this turn, not the end of it.
+    const idx = entries.findIndex((x) => x.role === 'pending');
+    if (idx >= 0) entries.splice(idx, 0, entry);
+    else entries.push(entry);
+    pendingWrite = { entry, resolve };
+    render();
+  });
+}
+
+/**
+ * Answer the open card, if there is one. Safe to call when there is not, which is why
+ * every exit path can call it unconditionally.
+ */
+function settleWrite(verdict: 'accept' | 'decline'): void {
+  const open = pendingWrite;
+  if (!open) return;
+  pendingWrite = null;
+  open.entry.state = verdict === 'accept' ? 'accepted' : 'declined';
+  render();
+  open.resolve(verdict);
 }
 
 function render(): void {
@@ -337,6 +567,7 @@ function render(): void {
           true,
         );
       }
+      if (e.role === 'approval') return approvalCard(e);
       if (e.role === 'error') {
         // Full width and no avatar: a failure is the app speaking about the
         // assistant, not the assistant speaking.
@@ -420,7 +651,11 @@ async function submit(): Promise<void> {
     if (ready) {
       const ctrl = new AbortController();
       inFlight = ctrl;
-      result = await active.ask(question, ctrl.signal, appendDelta);
+      // The fourth argument is what turns the write tools on: `runModel` only sends
+      // them when it has somewhere to ask, and the system prompt is built from the
+      // same array — so the assistant can offer to record a trade exactly when this
+      // panel can show a card for it.
+      result = await active.ask(question, ctrl.signal, appendDelta, requestApproval);
       inFlight = null;
       // Keep the session that holds the transcript, so a follow-up continues it.
       session = active;
@@ -445,6 +680,10 @@ async function submit(): Promise<void> {
     busy = false;
     const idx = entries.findIndex((e) => e.role === 'pending');
     if (idx >= 0) entries.splice(idx, 1);
+    // A no-op in the normal case — the loop cannot finish while parked on a card. It
+    // matters when the turn ended some other way: a card left with live buttons that
+    // resolve a promise nobody is waiting on any more is a dead end on screen.
+    settleWrite('decline');
   }
 
   if (result.kind === 'answer') {

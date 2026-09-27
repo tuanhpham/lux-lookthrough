@@ -139,8 +139,19 @@ const SNAPSHOT_KEY = '__pre_merge_backup__';
  * leave the device, syncing the note would tell a second device the work was done
  * when its own cache is still empty — the exact stale-price bug the automatic
  * refresh exists to fix.
+ *
+ * `agent_audit` is here for a different reason: it is an append-only list under ONE
+ * key, so two devices each adding an entry would resolve last-write-wins and the
+ * loser's entries would disappear. A log that silently drops records is worse than
+ * one that is honestly per-device. The trades it describes sync normally.
  */
-const LOCAL_ONLY_PREFIXES = ['pf_bars:', 'pf_eurusd_bars', 'pf_autoupdate', 'sectorlabels'];
+const LOCAL_ONLY_PREFIXES = [
+  'pf_bars:',
+  'pf_eurusd_bars',
+  'pf_autoupdate',
+  'sectorlabels',
+  'agent_audit',
+];
 
 /**
  * Keys that sync normally, but are the FIRST thing a merge gives up on when the

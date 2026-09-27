@@ -50,6 +50,14 @@ import {
 // Prices moved out for the same reason the accounts did: the assistant must report
 // the numbers this table is showing, and a second price map would drift from it.
 import { accountPrices as prices, setAccountPrices, seedPrice } from '../portfolio/prices.js';
+// The EURUSD table left this file for the same reason: a chat-recorded buy has to
+// divide a USD fill by the rate on the trade date, and a second rate table would
+// give the same trade two different cost bases depending on who booked it.
+import { applyEurUsdBars, eurUsdForDate, latestEurUsd } from '../portfolio/fx.js';
+// `snapshotNow` is shared with the assistant's write path, so a chat buy moves the
+// equity curve today exactly as the Buy button does. `onAgentWrite` fires only for
+// writes this tab did not make — see the note on the notifier.
+import { onAgentWrite, snapshotNow } from '../portfolio/writes.js';
 // The automatic refresh writes through `save()`, so it must never run before the
 // first pull has landed — see `refreshStalePrices`.
 import { isHydrated } from '../adapters/storage.js';
@@ -195,10 +203,6 @@ function ratingBadgeHtml(r: string | undefined): string {
 // EUR/USD display toggle
 // ---------------------------------------------------------------------------
 
-/** Rate at which 1 EUR = N USD (e.g. 1.08). Latest fetched rate. */
-let latestEurUsdRate: number | null = null;
-/** Daily EURUSD rates keyed by ISO date — populated on Update. */
-const eurUsdRateByDate = new Map<string, number>();
 /** Display currency chosen by the user (EUR by default). */
 let displayCurrency: 'EUR' | 'USD' = 'EUR';
 /** Whether portfolio/equity charts include cash. Persisted across redraws. */
@@ -207,21 +211,13 @@ let pfShowCash = true;
 let buyNoteDraft = '';
 
 /**
- * Return the EURUSD rate for a given date, falling back to the latest known rate.
- * 1 EUR = returned value USD.
- */
-function eurUsdForDate(date: string): number {
-  return eurUsdRateByDate.get(date) ?? latestEurUsdRate ?? 1;
-}
-
-/**
  * Convert an amount stored in `stored` currency to `displayCurrency`,
  * using the rate for `date` (or latest if unset).
  * All internal values are in the account's currency (EUR by default).
  */
 function toDisplay(amount: number, date?: string): number {
   if (displayCurrency === 'EUR') return amount;
-  const rate = date ? eurUsdForDate(date) : (latestEurUsdRate ?? 1);
+  const rate = date ? eurUsdForDate(date) : (latestEurUsd() ?? 1);
   return amount * rate;
 }
 
@@ -278,12 +274,6 @@ async function loadEurUsdCache(ctx: AppContext): Promise<Bar[]> {
 
 async function saveEurUsdCache(ctx: AppContext, bars: Bar[]): Promise<void> {
   await ctx.storage.set(EURUSD_CACHE_KEY, bars);
-}
-
-/** Populate eurUsdRateByDate and latestEurUsdRate from cached EURUSD=X bars. */
-function applyEurUsdBars(bars: Bar[]): void {
-  for (const b of bars) eurUsdRateByDate.set(b.date, b.close);
-  if (bars.length) latestEurUsdRate = bars[bars.length - 1]!.close;
 }
 
 /** Shortest Yahoo period covering gapDays. Capped at 5y — Yahoo silently returns
@@ -379,24 +369,6 @@ function buildDailyEquity(
   return result;
 }
 
-/**
- * Record an equity snapshot for today using the latest known prices, replacing
- * any existing snapshot for the same day. Called after a buy/sell so the equity
- * curve moves immediately (snapshots otherwise only appended on Update prices).
- */
-function snapshotNow(st: AccountState): void {
-  const p = prices(st.account.id);
-  const snap = {
-    date: today(),
-    equity: computeEquity(st, p),
-    cash: computeCash(st),
-    positionsValue: computePositionsValue(st, p),
-  };
-  const i = st.snapshots.findIndex((s) => s.date === snap.date);
-  if (i >= 0) st.snapshots[i] = snap;
-  else st.snapshots.push(snap);
-}
-
 /** Share-weighted average holding period across ALL lots — closed use sell date, open use today. */
 function avgHoldingDays(st: AccountState): { days: number; count: number } {
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -417,7 +389,26 @@ function avgHoldingDays(st: AccountState): { days: number; count: number } {
   return { days: shares > 0 ? wSum / shares : 0, count: st.sells.length + st.lots.filter((l) => l.remainingShares > 0).length };
 }
 
+/**
+ * The context this tab last rendered with, and whether it has rendered at all.
+ *
+ * Kept only so an approved assistant write can repaint the table. The tab is a div
+ * that stays in the DOM when another tab is showing, so redrawing while hidden is
+ * harmless and means the numbers are already right when the user comes back — but
+ * redrawing before the first render would draw a table whose bar caches and FX rates
+ * have not been loaded yet, which is why the flag exists.
+ */
+let lastCtx: AppContext | null = null;
+let agentRedrawWired = false;
+
 export async function renderPortfolio(ctx: AppContext): Promise<void> {
+  lastCtx = ctx;
+  if (!agentRedrawWired) {
+    agentRedrawWired = true;
+    onAgentWrite(() => {
+      if (lastCtx) draw(lastCtx);
+    });
+  }
   await load(ctx);
   // Pre-load bar caches for all accounts and EURUSD rates into memory
   await Promise.all([
@@ -487,7 +478,8 @@ function toolbarHtml(): string {
     return `<option value="${a.account.id}"${a.account.id === activeId() ? ' selected' : ''}>${a.account.name}  (${pct(m.totalPnLPct)})</option>`;
   }).join('');
 
-  const fxTitle = latestEurUsdRate ? ` · EURUSD ${latestEurUsdRate.toFixed(4)}` : '';
+  const fx = latestEurUsd();
+  const fxTitle = fx ? ` · EURUSD ${fx.toFixed(4)}` : '';
   return `<div class="pf-toolbar-wrap">
     <div class="pf-toolbar-nav">
       <button class="pf-nav-btn${isOverview ? ' active' : ''}" data-acct="${OVERVIEW_ID}">${t('pf.overview')}</button>
@@ -1281,7 +1273,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         // the comparison and arithmetic are always in consistent units.
         function refInCcy(ccy: string): number | null {
           if (!latestPriceEur) return null;
-          return ccy === 'USD' ? latestPriceEur * (latestEurUsdRate ?? 1) : latestPriceEur;
+          return ccy === 'USD' ? latestPriceEur * (latestEurUsd() ?? 1) : latestPriceEur;
         }
 
         function stopRiskInfo(stopStr: string, ccyStr: string): string {
@@ -1312,7 +1304,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
               prevStopCcy = newCcy;
               const currentVal = Number(stopStr);
               if (currentVal) {
-                const fx = latestEurUsdRate ?? 1;
+                const fx = latestEurUsd() ?? 1;
                 updates.stop = (newCcy === 'EUR' ? currentVal / fx : currentVal * fx).toFixed(2);
               }
             }
@@ -1329,7 +1321,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           return;
         }
         // Normalize to account base currency (EUR)
-        const fxNow = latestEurUsdRate ?? 1;
+        const fxNow = latestEurUsd() ?? 1;
         const stop = (stopRaw != null && active().account.currency === 'EUR' && res.ccy === 'USD' && fxNow > 1)
           ? stopRaw / fxNow : stopRaw;
         for (const l of active().lots) {
@@ -1357,11 +1349,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
         function refInCcy2(ccy: string): number | null {
           if (!latestPriceEur) return null;
-          return ccy === 'USD' ? latestPriceEur * (latestEurUsdRate ?? 1) : latestPriceEur;
+          return ccy === 'USD' ? latestPriceEur * (latestEurUsd() ?? 1) : latestPriceEur;
         }
         function stopInCcy(ccy: string): number | null {
           if (!stopEur) return null;
-          return ccy === 'USD' ? stopEur * (latestEurUsdRate ?? 1) : stopEur;
+          return ccy === 'USD' ? stopEur * (latestEurUsd() ?? 1) : stopEur;
         }
 
         function targetRRInfo(targetStr: string, ccyStr: string): string {
@@ -1397,7 +1389,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
               prevTargetCcy = newCcy;
               const currentVal = Number(targetStr);
               if (currentVal) {
-                const fx = latestEurUsdRate ?? 1;
+                const fx = latestEurUsd() ?? 1;
                 updates.target = (newCcy === 'EUR' ? currentVal / fx : currentVal * fx).toFixed(2);
               }
             }
@@ -1412,7 +1404,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           alert('Invalid target price — use numbers only (e.g. 220.50).');
           return;
         }
-        const fxNow = latestEurUsdRate ?? 1;
+        const fxNow = latestEurUsd() ?? 1;
         const target = (targetRaw != null && active().account.currency === 'EUR' && res.ccy === 'USD' && fxNow > 1)
           ? targetRaw / fxNow : targetRaw;
         for (const l of active().lots) {

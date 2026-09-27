@@ -2350,6 +2350,48 @@ html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c);
 .scan-th > summary:hover { color: var(--text); border-color: var(--faint); }
 .scan-th[open] > summary { margin-bottom: 10px; }
 
+/* ── the runbook ──
+   A command is a thing you copy, so the block is built around the copy: monospace at
+   a readable size (these are long lines with `&&` in them), horizontal scroll rather
+   than wrapping — a wrapped shell line is a line you cannot check — and the button in
+   the corner where it cannot be mistaken for part of the command. */
+.scan-cmd { position: relative; margin: 8px 0 0; }
+.scan-cmd pre {
+  margin: 0; padding: 11px 76px 11px 13px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: 500 12px var(--font-mono, monospace); line-height: 1.7; color: var(--text);
+  overflow-x: auto; white-space: pre;
+}
+.scan-cmd-copy {
+  position: absolute; top: 7px; right: 7px;
+  font: 600 10.5px var(--font-ui); padding: 4px 9px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--border); color: var(--subtext);
+  cursor: pointer; transition: color .14s ease, border-color .14s ease;
+}
+.scan-cmd-copy:hover { color: var(--text); border-color: var(--accent-line); }
+/* The "this is crontab content, not shell" warning, which has to be read BEFORE the
+   block it sits on — hence above it, and in the warning colour. */
+.scan-cmd-warn {
+  margin: 0 0 6px; font-size: 11.5px; line-height: 1.55; color: var(--warn);
+}
+.scan-guide { margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.scan-guide > li { padding: 14px 0; border-top: 1px solid var(--border-soft); }
+.scan-guide > li:first-child { border-top: none; padding-top: 4px; }
+.scan-guide h3 {
+  margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--text);
+  letter-spacing: -.01em;
+}
+.scan-guide p { margin: 0 0 6px; font-size: 12.5px; line-height: 1.65; color: var(--subtext); }
+.scan-guide p:last-of-type { margin-bottom: 0; }
+/* Inline `code` in the prose: these are literal flags and file names, and a reader
+   copying `journal_mode = wal` out of a sentence needs to see where it ends. */
+.scan-guide code {
+  font: 600 11.5px var(--font-mono, monospace);
+  background: var(--cardhover); border: 1px solid var(--border-soft);
+  border-radius: 4px; padding: 0 3px;
+}
+
 .scan-jump {
   gap: 6px; row-gap: 6px; margin-bottom: 26px;
   padding-bottom: 16px; border-bottom: 1px solid var(--border-soft);
@@ -3774,6 +3816,89 @@ html.light .chat-shell::before {
 .chat-msg--err .chat-suggest {
   display: inline-flex; margin-top: 8px; border-radius: 999px; padding: 4px 11px;
 }
+
+/* ── the approval card ──
+   A receipt, deliberately: label left, value right, monospace figures, in the same
+   visual language as the Portfolio tab's own summaries rather than as a chat bubble.
+   It is the last thing between a dictated sentence and a stored trade, so it reads
+   like a form being confirmed and not like the assistant talking. */
+.chat-card {
+  border-radius: var(--radius-sm); padding: 10px 12px 11px;
+  background: var(--card); border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+/* While the answer is pending the card is the only thing on screen that wants
+   something, so it gets the accent edge. Once settled it goes quiet: the numbers stay
+   readable as a record, without still looking like a question. */
+.chat-card--live {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.chat-card-head {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--accent); margin-bottom: 7px;
+}
+.chat-card-head b { color: var(--text); text-transform: none; letter-spacing: 0; }
+.chat-card-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 3px 0; font-size: 12.5px;
+  border-top: 1px solid var(--border-soft);
+}
+.chat-card-row:first-of-type { border-top: none; }
+.chat-card-row > span:first-child { color: var(--subtext); flex: none; }
+/* Tabular figures: the prices line up down the column, which is what makes a wrong
+   decimal place visible at a glance. */
+.chat-card-row > span:last-child {
+  color: var(--text); text-align: right; font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* The conversion. Dimmer than the price the user actually said, because that is the
+   number they are checking — this is the app showing its arithmetic. */
+.chat-card-conv {
+  display: block; font: 600 10.5px var(--font-mono, monospace); color: var(--faint);
+}
+.chat-card-hint { margin-top: 9px; font-size: 11.5px; color: var(--subtext); }
+.chat-card-actions { display: flex; gap: 7px; margin-top: 7px; }
+.chat-card-yes, .chat-card-no {
+  flex: 1 1 0; border-radius: var(--radius-xs); padding: 7px 10px;
+  font: 700 12.5px var(--font-ui); cursor: pointer;
+  transition: filter .14s ease, background .14s ease, border-color .14s ease;
+}
+/* Save is the accented one but NOT the wider one, and No is a real button rather than
+   a link: this is a confirmation, so declining has to be as easy to hit as accepting. */
+.chat-card-yes {
+  background: var(--accent); color: var(--accent-ink); border: 1px solid transparent;
+}
+.chat-card-yes:hover { filter: brightness(1.08); }
+.chat-card-no {
+  background: transparent; color: var(--subtext); border: 1px solid var(--border);
+}
+.chat-card-no:hover { background: var(--cardhover); color: var(--text); border-color: var(--faint); }
+@media (prefers-reduced-motion: reduce) {
+  .chat-card-yes, .chat-card-no { transition: none; }
+}
+.chat-card-state {
+  margin-top: 8px; font-size: 11.5px; font-weight: 700;
+  padding-top: 7px; border-top: 1px solid var(--border-soft);
+}
+.chat-card-state--accepted { color: var(--accent); }
+.chat-card-state--declined { color: var(--faint); }
+
+/* The audit strip on the empty transcript: a new conversation remembers nothing, so
+   this is the only way to see that yesterday's dictated trade did go in. */
+.chat-recent { align-self: stretch; margin-top: 14px; text-align: left; }
+.chat-recent-head {
+  margin: 0 0 5px; font-size: 9.5px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--faint);
+}
+.chat-recent ul { margin: 0; padding: 0; list-style: none; }
+.chat-recent li {
+  display: flex; justify-content: space-between; gap: 10px; padding: 4px 0;
+  font-size: 11.5px; color: var(--subtext);
+  border-top: 1px solid var(--border-soft);
+}
+.chat-recent li:first-child { border-top: none; }
+.chat-recent time { flex: none; font: 600 10px var(--font-mono, monospace); color: var(--faint); }
 
 /* ── composer ──
    One bordered field containing the textarea AND the buttons, with the focus ring

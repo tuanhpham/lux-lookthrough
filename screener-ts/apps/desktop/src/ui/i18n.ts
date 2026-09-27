@@ -685,8 +685,8 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.truncated': { en: 'cut off', vi: 'bị cắt' },
   'chat.local.badge': { en: 'from your data', vi: 'từ dữ liệu của bạn' },
   'chat.disclaimer': {
-    en: 'Reads your portfolio only. It cannot buy, sell or change anything — do that on the Portfolio tab.',
-    vi: 'Chỉ đọc danh mục của bạn. Trợ lý không thể mua, bán hay thay đổi gì — hãy làm việc đó ở tab Danh mục.',
+    en: 'Reads your portfolio, and can fill in a trade for you — nothing is saved until you approve the card it shows you.',
+    vi: 'Đọc danh mục của bạn, và có thể điền giao dịch giúp bạn — không có gì được lưu cho tới khi bạn xác nhận thẻ mà trợ lý hiện ra.',
   },
   'chat.needkey': {
     en: 'That one needs a model. Add an API key in settings, or press Ask ChatGPT to send it to your ChatGPT subscription for free.',
@@ -708,6 +708,49 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.s2': { en: 'How much cash do I have?', vi: 'Tôi còn bao nhiêu tiền mặt?' },
   'chat.s3': { en: 'How am I doing?', vi: 'Hiệu suất của tôi?' },
   'chat.s4': { en: 'My trade history', vi: 'Lịch sử giao dịch' },
+
+  // The approval card. The one screen between a sentence and a stored trade, so it
+  // names the account and shows the price twice when a currency was converted — the
+  // user has to be able to catch "232.50, read as dollars" before pressing the button.
+  'chat.write.title.create_account': { en: 'Create account', vi: 'Tạo tài khoản' },
+  'chat.write.title.record_buy': { en: 'Record a buy', vi: 'Ghi lệnh mua' },
+  'chat.write.title.record_sell': { en: 'Record a sell', vi: 'Ghi lệnh bán' },
+  'chat.write.title.set_stop': { en: 'Move the stop', vi: 'Đổi mức cắt lỗ' },
+  'chat.write.title.record_cash_flow': { en: 'Cash movement', vi: 'Nạp / rút tiền' },
+  'chat.write.title.place_order': { en: 'Place an order', vi: 'Đặt lệnh chờ' },
+  'chat.write.account': { en: 'Account', vi: 'Tài khoản' },
+  'chat.write.shares': { en: 'Shares', vi: 'Số lượng' },
+  'chat.write.ticker': { en: 'Symbol', vi: 'Mã' },
+  'chat.write.price': { en: 'Price', vi: 'Giá' },
+  'chat.write.cost': { en: 'Cost', vi: 'Tổng tiền' },
+  'chat.write.proceeds': { en: 'Proceeds', vi: 'Tiền thu về' },
+  'chat.write.date': { en: 'Date', vi: 'Ngày' },
+  'chat.write.stop': { en: 'Stop', vi: 'Cắt lỗ' },
+  'chat.write.previous': { en: 'Now', vi: 'Hiện tại' },
+  'chat.write.lots': { en: 'Open lots', vi: 'Lô đang mở' },
+  'chat.write.target': { en: 'Target', vi: 'Mục tiêu' },
+  'chat.write.setup': { en: 'Setup', vi: 'Mẫu hình' },
+  'chat.write.rating': { en: 'Rating', vi: 'Xếp loại' },
+  'chat.write.note': { en: 'Note', vi: 'Ghi chú' },
+  'chat.write.type': { en: 'Type', vi: 'Loại' },
+  'chat.write.threshold': { en: 'Trigger', vi: 'Giá kích hoạt' },
+  'chat.write.capital': { en: 'Starting capital', vi: 'Vốn ban đầu' },
+  'chat.write.currency': { en: 'Currency', vi: 'Tiền tệ' },
+  'chat.write.deposit': { en: 'Deposit', vi: 'Nạp vào' },
+  'chat.write.withdraw': { en: 'Withdraw', vi: 'Rút ra' },
+  'chat.write.of': { en: 'of', vi: 'trong' },
+  'chat.write.hint': {
+    en: 'Check it, then save. Nothing is written until you do.',
+    vi: 'Kiểm tra lại rồi lưu. Chưa lưu gì cho tới khi bạn xác nhận.',
+  },
+  'chat.write.accept': { en: 'Save it', vi: 'Lưu lại' },
+  'chat.write.decline': { en: 'No', vi: 'Không' },
+  'chat.write.accepted': { en: 'Saved to your portfolio.', vi: 'Đã lưu vào danh mục.' },
+  'chat.write.declined': { en: 'Not saved.', vi: 'Không lưu.' },
+  'chat.write.recent': {
+    en: 'Recorded from chat on this device',
+    vi: 'Đã ghi từ cửa sổ chat trên máy này',
+  },
 
   // Assistant answers built from local data
   'chat.local.stale': {
@@ -974,6 +1017,162 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'scan.night.sourceval': {
     en: 'yfinance daily bars, cached on the VM — delayed, not realtime',
     vi: 'nến ngày từ yfinance, cache trên VM — có độ trễ, không phải thời gian thực',
+  },
+
+  // The nightly runbook. Commands are NEVER translated — a translated command is a
+  // command that does not run — so only the prose around them has both languages.
+  'scan.sec.guide': { en: 'Re-running the nightly', vi: 'Chạy lại chuỗi buổi sáng' },
+  'scan.lead.guide': {
+    en: 'What to type, in what order, and what to check when it says it finished.',
+    vi: 'Gõ gì, theo thứ tự nào, và kiểm lại gì khi nó báo xong.',
+  },
+  'scan.g.now.none': {
+    en: 'No run has ever been reported, so there is nothing to re-run yet — the chain is either not in cron or push.py cannot reach its table. Step 08 below is the cron it belongs in.',
+    vi: 'Chưa có lần chạy nào được báo về, nên chưa có gì để chạy lại — hoặc chuỗi chưa vào cron, hoặc push.py không đọc được bảng của nó. Bước 08 dưới đây là dòng cron của nó.',
+  },
+  'scan.g.now.ok': {
+    en: 'The last run finished clean. Re-run it only if you want fresher numbers than the ones above.',
+    vi: 'Lần chạy gần nhất sạch. Chỉ chạy lại nếu bạn muốn số mới hơn những gì ở trên.',
+  },
+  'scan.g.now.fail': {
+    en: 'A REQUIRED stage failed, so this page is showing the previous night’s market with today’s date on it. Fix this, then re-run:',
+    vi: 'Một bước BẮT BUỘC đã lỗi, nên trang này đang hiển thị thị trường của đêm trước với ngày của hôm nay. Sửa chỗ này rồi chạy lại:',
+  },
+  'scan.g.now.soft': {
+    en: 'An optional stage failed. The night itself ran, so the lists above are good — the run just could not finish reporting:',
+    vi: 'Một bước không bắt buộc đã lỗi. Bản thân chuỗi vẫn chạy nên các danh sách ở trên vẫn dùng được — chỉ là nó chưa báo xong:',
+  },
+  'scan.g.copy': { en: 'Copy', vi: 'Chép' },
+  'scan.g.then': {
+    en: 'Then press Refresh at the top of this page. The run pushes its new snapshots at the end, and this page only reads them — Refresh cannot start anything on the VM.',
+    vi: 'Xong thì nhấn Làm mới ở đầu trang này. Chuỗi chạy đẩy các bản chụp mới lên ở cuối lượt, còn trang này chỉ đọc chúng — Làm mới không khởi động được gì trên VM.',
+  },
+  'scan.g.secrets': {
+    en: 'The VM’s SCANNER_TOKEN never comes down to the browser, and must never be typed into this page. The only secret you type in the app is the sync code, in the ☁ box. Nothing from .env belongs in a commit.',
+    vi: 'SCANNER_TOKEN của VM không bao giờ xuống trình duyệt, và tuyệt đối không gõ vào trang này. Thứ duy nhất bạn gõ trong app là mã đồng bộ, ở ô ☁. Không có gì trong .env được phép vào commit.',
+  },
+  'scan.g.open': { en: 'The full runbook, step by step', vi: 'Sổ tay đầy đủ, từng bước' },
+  'scan.g.note': {
+    en: 'The same ten steps as error.txt (VM-4, VM-7, LOCK-3), kept here because this is the page you are on when you find out a stage failed. Nothing here runs by itself; you are typing it over SSH as the user ubuntu.',
+    vi: 'Đúng mười bước như trong error.txt (VM-4, VM-7, LOCK-3), để ở đây vì đây chính là trang bạn đang mở khi phát hiện một bước bị lỗi. Không có gì ở đây tự chạy; bạn gõ qua SSH bằng user ubuntu.',
+  },
+  'scan.g.crontab': {
+    en: 'This is crontab CONTENT, not shell. Paste it inside the editor that `crontab -e` opens. Pasted into a terminal, bash reads the leading 0 as a command name and answers `0: command not found` — that is a paste in the wrong place, not a broken file.',
+    vi: 'Đây là NỘI DUNG crontab, không phải lệnh shell. Dán vào trong trình soạn thảo mà `crontab -e` mở ra. Dán thẳng vào terminal thì bash đọc số 0 ở đầu là tên lệnh và trả về `0: command not found` — đó là dán sai chỗ, không phải file hỏng.',
+  },
+
+  'scan.g.s1.h': {
+    en: 'First: make sure nobody is holding the database',
+    vi: 'Trước tiên: chắc chắn không ai đang giữ database',
+  },
+  'scan.g.s1.a': {
+    en: 'Two things have to be true in the output: `journal_mode = wal`, and section 4 saying it got the lock in a fraction of a second. If it still says `delete`, a process is holding the file — section 3 of the script prints its pid and command line.',
+    vi: 'Kết quả phải có đủ hai thứ: `journal_mode = wal`, và mục 4 báo xin được khoá trong một phần của giây. Nếu vẫn là `delete` thì còn tiến trình đang giữ file — mục 3 của chính script in pid và dòng lệnh của nó.',
+  },
+  'scan.g.s1.b': {
+    en: 'Do not set WAL by hand. Once nobody is holding the file, the first connection the scanner opens switches it, and WAL is a property of the FILE — set once, set for every process.',
+    vi: 'Đừng tự bật WAL bằng tay. Khi không còn ai giữ file, kết nối đầu tiên máy quét mở sẽ tự đổi, và WAL là thuộc tính của FILE — đổi một lần là xong cho mọi tiến trình.',
+  },
+  'scan.g.s2.h': {
+    en: 'Only ever one main.py',
+    vi: 'Luôn chỉ một main.py',
+  },
+  'scan.g.s2.a': {
+    en: 'Two of them both call Telegram getUpdates and the second one gets a 409. So restart, never start a second — and a mid-session restart is safe: the alerts table is re-read, so nothing is sent twice, and the watch list is pruned by age rather than rebuilt.',
+    vi: 'Hai tiến trình cùng gọi getUpdates của Telegram và cái thứ hai ăn 409. Nên hãy restart, đừng start thêm — và restart giữa phiên là an toàn: bảng alerts được đọc lại nên không bắn trùng tin, còn danh sách theo dõi dọn theo tuổi chứ không dựng lại.',
+  },
+  'scan.g.s3.h': { en: 'The run itself', vi: 'Chính lượt chạy' },
+  'scan.g.s3.a': {
+    en: 'Required stages: bars, sectors, structure, setups. If one of those fails, the night did not happen. Optional: prep, regime, mktcap, push, telegram — a failure there is a run that worked and could not report.',
+    vi: 'Các bước bắt buộc: bars, sectors, structure, setups. Một trong số đó lỗi thì coi như đêm đó không chạy. Không bắt buộc: prep, regime, mktcap, push, telegram — lỗi ở đây là lượt chạy vẫn tốt, chỉ là chưa báo được.',
+  },
+  'scan.g.s3.b': {
+    en: 'It always sends a Telegram message, including when it fails, and it names the stage and the reason. So the phone tells you before this page does.',
+    vi: 'Nó luôn gửi tin Telegram, kể cả khi lỗi, và nói rõ bước nào lỗi vì cái gì. Nên điện thoại báo cho bạn trước cả trang này.',
+  },
+  'scan.g.s4.h': { en: 'Trying it without downloading anything', vi: 'Thử mà không tải gì' },
+  'scan.g.s4.a': {
+    en: '`--dry-run` chains every step with the bars stage making no network call — for checking the wiring after a change. The run record above marks a dry run as one, so it cannot be mistaken for a real night.',
+    vi: '`--dry-run` xâu đủ các bước nhưng bước bars KHÔNG gọi mạng — dùng để kiểm lại đường dây sau khi sửa. Mục chuỗi chạy ở trên đánh dấu rõ lượt chạy thử, nên không thể nhầm nó với một đêm thật.',
+  },
+  'scan.g.s4.b': {
+    en: '`--status` prints the last run from the night table — the same record the section above this one is showing.',
+    vi: '`--status` in ra lần chạy gần nhất từ bảng night — đúng bản ghi mà mục ngay trên đây đang hiển thị.',
+  },
+  'scan.g.s5.h': {
+    en: 'When it says it finished, check these four things',
+    vi: 'Khi nó báo xong, kiểm bốn thứ này',
+  },
+  'scan.g.s5.a': {
+    en: 'The four required stages read OK in the section above. Exit code 0 is a clean run; 1, 2 and 3 are the failure codes the chain hands out to cron, and the Exit tile shows the last one.',
+    vi: 'Bốn bước bắt buộc phải là OK ở mục trên. Mã thoát 0 là sạch; 1, 2, 3 là các mã lỗi chuỗi chạy trả cho cron, và ô Mã thoát hiện mã của lần cuối.',
+  },
+  'scan.g.s5.b': {
+    en: '`XONG:` from the bars stage does NOT mean everything downloaded — read the failure count in that same line. A batch that errored prints its error and moves on without printing a progress line.',
+    vi: '`XONG:` ở bước bars KHÔNG có nghĩa là tải đủ — đọc số thất bại trong chính dòng đó. Lô nào lỗi thì in lỗi rồi đi tiếp, không in dòng tiến độ.',
+  },
+  'scan.g.s5.c': {
+    en: 'The run refuses to continue when more than 25% of symbols fail to download, and that refusal is correct: percentile ranking across what is left comes out skewed while the list still looks perfectly normal.',
+    vi: 'Lượt chạy tự dừng khi hơn 25% mã tải thất bại, và dừng như vậy là ĐÚNG: xếp hạng percentile trên phần còn lại sẽ lệch, mà danh sách thì vẫn trông bình thường.',
+  },
+  'scan.g.s5.d': {
+    en: 'The bar the run decided on must not equal the day it ran — when they match, the bar had not closed yet. The tile above turns red when they do.',
+    vi: 'Ngày nến mà lượt chạy chốt không được trùng ngày chạy — trùng nghĩa là nến chưa đóng. Ô ở trên chuyển đỏ khi trùng.',
+  },
+  'scan.g.s6.h': {
+    en: 'Never run it on an empty candle store',
+    vi: 'Đừng chạy khi kho nến còn rỗng',
+  },
+  'scan.g.s6.a': {
+    en: 'The bars stage pulls one month, not two years, so it cannot bootstrap the store — it fills a store that already exists. Build the store first with the command below.',
+    vi: 'Bước bars chỉ tải một tháng, không phải hai năm, nên nó không tự dựng được kho — nó chỉ đổ thêm vào kho đã có. Dựng kho trước bằng lệnh dưới đây.',
+  },
+  'scan.g.s6.b': {
+    en: 'Re-running the full sync is safe: it commits batch by batch and has no resume, so a second run costs time, never data.',
+    vi: 'Chạy lại lệnh sync đầy đủ là an toàn: nó commit theo từng lô và không có resume, nên chạy lại chỉ mất thời gian, không mất dữ liệu.',
+  },
+  'scan.g.s7.h': { en: 'If it dies with `database is locked`', vi: 'Nếu nó chết vì `database is locked`' },
+  'scan.g.s7.a': {
+    en: 'Do not go and change yfinance or the journal mode. The journal mode is the victim, not the cause: a write transaction left open elsewhere is. Step 01’s script prints the pid holding it.',
+    vi: 'Đừng đi sửa yfinance hay chế độ journal. Chế độ journal là nạn nhân, không phải nguyên nhân: thủ phạm là một transaction ghi bị bỏ mở ở chỗ khác. Script ở bước 01 in ra pid đang giữ.',
+  },
+  'scan.g.s7.b': {
+    en: 'Do not raise the busy timeout past 30 seconds either. It only makes the run die later, and hides the thing you need to see.',
+    vi: 'Cũng đừng nâng busy timeout quá 30 giây. Nó chỉ làm lượt chạy chết muộn hơn, và che đúng cái cần thấy.',
+  },
+  'scan.g.s8.h': { en: 'The schedule it normally runs on', vi: 'Lịch nó vẫn chạy hàng ngày' },
+  'scan.g.s8.a': {
+    en: 'Run `crontab -e` as the user ubuntu, NOT `sudo crontab -e`. Root has its own crontab, a different working directory and no access to this venv — the lines would look installed and never run. `crontab -l` afterwards must show the CRON_TZ line too.',
+    vi: 'Chạy `crontab -e` bằng user ubuntu, KHÔNG phải `sudo crontab -e`. Root có crontab riêng, thư mục làm việc khác và không dùng được venv này — các dòng sẽ trông như đã cài mà không bao giờ chạy. Chạy `crontab -l` sau đó phải thấy cả dòng CRON_TZ.',
+  },
+  'scan.g.s8.b': {
+    en: 'Keep the 09:05 restart. The run writes the new baseline at 08:00 ET, but main.py only loads a baseline at startup and at the ET day change (00:00) — eight hours earlier. Without the restart the bot trades the whole session on yesterday’s baseline, and nothing says so.',
+    vi: 'GIỮ dòng restart 09:05. Lượt chạy ghi baseline mới lúc 08:00 giờ New York, nhưng main.py chỉ nạp baseline lúc khởi động và lúc sang ngày ET (00:00) — tám tiếng trước đó. Bỏ dòng restart thì bot chạy cả phiên bằng baseline của hôm qua, và không có gì báo.',
+  },
+  'scan.g.s8.c': {
+    en: 'Pick cron OR a systemd timer, never both. Two schedules calling the same run at 08:00 is two downloads of the same day.',
+    vi: 'Chọn cron HOẶC systemd timer, đừng bật cả hai. Hai lịch cùng gọi một lượt chạy lúc 08:00 là tải hai lần cho cùng một ngày.',
+  },
+  'scan.g.s9.h': {
+    en: 'What this page can and cannot tell you',
+    vi: 'Trang này nói được gì và không nói được gì',
+  },
+  'scan.g.s9.a': {
+    en: 'Every table here is a snapshot the VM pushed out. The VM accepts no inbound connection, so nothing on this tab can start, stop or fix anything on it — this section is a list of things to type somewhere else.',
+    vi: 'Mọi bảng ở đây là bản chụp do VM đẩy ra. VM không nhận kết nối vào, nên không gì ở tab này khởi động, dừng hay sửa được thứ gì trên đó — mục này là danh sách những thứ cần gõ ở nơi khác.',
+  },
+  'scan.g.s9.b': {
+    en: 'If "last OK run" is days older than "last run", the runs are failing rather than missing — and that is a different problem from cron never firing.',
+    vi: 'Nếu "lần chạy tốt cuối" cũ hơn "lần chạy cuối" vài ngày thì các lượt chạy đang LỖI chứ không phải không chạy — và đó là vấn đề khác với việc cron không nổ.',
+  },
+  'scan.g.s10.h': { en: 'Two schedules that are not this one', vi: 'Hai lịch khác, không phải lịch này' },
+  'scan.g.s10.a': {
+    en: 'The Saturday 06:30 prep and the 09:00 ETF marking are separate cron lines with separate jobs. Re-running the nightly does not re-run either, and neither of them rebuilds the candle store.',
+    vi: 'Lượt prep 06:30 thứ Bảy và lượt đánh dấu ETF 09:00 là hai dòng cron riêng, việc riêng. Chạy lại nightly không chạy lại hai lượt đó, và không lượt nào trong đó dựng lại kho nến.',
+  },
+  'scan.g.s10.b': {
+    en: 'To run any cron line by hand, drop the five schedule fields at the front and keep the rest — and drop the `>>` redirect too, so the error lands on your screen instead of in a log you then have to go and open.',
+    vi: 'Muốn chạy tay một dòng cron thì bỏ 5 trường lịch ở đầu, giữ phần sau — và bỏ luôn phần `>>` chuyển hướng, để lỗi hiện ngay trên màn hình thay vì nằm trong log rồi phải đi mở.',
   },
 
   // Read-only thresholds.

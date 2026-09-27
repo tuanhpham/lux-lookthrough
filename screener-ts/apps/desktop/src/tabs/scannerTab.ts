@@ -18,6 +18,7 @@ import { t } from '../ui/i18n.js';
 import { isSyncEnabled } from '../adapters/syncClient.js';
 import { scannerPull } from '../adapters/scannerClient.js';
 import { openSyncSettings } from '../ui/syncSettings.js';
+import { copyToClipboard } from '../ui/askChatGpt.js';
 import { rankChartSvg, rankChartColor, type RankHistory } from './scannerRankChart.js';
 
 const KEY_STATUS = 'scanner:status';
@@ -880,6 +881,143 @@ function renderNight(night: NightBlock | null | undefined): string {
     ${warns}`;
 }
 
+// ── the runbook ──────────────────────────────────────────────────────────────
+
+/** The one command that re-runs a night. Kept apart: it is 90% of the visits here. */
+const RERUN_CMD = 'cd ~/scanner && git pull && python nightly.py';
+
+/**
+ * One step of the runbook.
+ *
+ * `p` holds i18n keys; `cmd` holds the command EXACTLY as it is typed and is never
+ * translated — a translated command is a command that does not run.
+ */
+interface GuideStep {
+  h: string;
+  p: string[];
+  cmd?: string;
+  /**
+   * These lines are crontab CONTENT, not shell. Pasted into a terminal, bash reads
+   * the leading `0` as a command name and answers `0: command not found` — which
+   * looks like a broken file and is only a paste into the wrong place.
+   */
+  crontab?: boolean;
+}
+
+/**
+ * The nightly runbook, in the order it is actually performed.
+ *
+ * ── WHY IT IS IN THE APP AND NOT ONLY IN `error.txt` ────────────────────────
+ * Because this is the page you are already looking at when you find out the run
+ * failed. The run record above says WHICH stage broke; a file on another machine
+ * cannot say what to do about it, and the answer is four commands that are easy to
+ * get subtly wrong (`sudo crontab -e` instead of `crontab -e`, a crontab line pasted
+ * into a shell, `nightly.py` on an empty candle store). Every line below is a rule
+ * that was learned by breaking something, so the reasons travel with the commands.
+ *
+ * It stays in sync with `error.txt` VM-4, VM-7 and LOCK-3 by being the same facts,
+ * not by being generated from them — there is no build step that could check that,
+ * so changing one means changing the other.
+ */
+const GUIDE: readonly GuideStep[] = [
+  {
+    h: 'scan.g.s1.h',
+    p: ['scan.g.s1.a', 'scan.g.s1.b'],
+    cmd: 'python scripts/db_lock.py',
+  },
+  { h: 'scan.g.s2.h', p: ['scan.g.s2.a'], cmd: 'sudo systemctl restart scanner' },
+  { h: 'scan.g.s3.h', p: ['scan.g.s3.a', 'scan.g.s3.b'], cmd: RERUN_CMD },
+  {
+    h: 'scan.g.s4.h',
+    p: ['scan.g.s4.a', 'scan.g.s4.b'],
+    cmd: 'python nightly.py --dry-run\npython nightly.py --status',
+  },
+  { h: 'scan.g.s5.h', p: ['scan.g.s5.a', 'scan.g.s5.b', 'scan.g.s5.c', 'scan.g.s5.d'] },
+  { h: 'scan.g.s6.h', p: ['scan.g.s6.a', 'scan.g.s6.b'], cmd: 'python bars.py --sync --full' },
+  { h: 'scan.g.s7.h', p: ['scan.g.s7.a', 'scan.g.s7.b'] },
+  {
+    h: 'scan.g.s8.h',
+    p: ['scan.g.s8.a', 'scan.g.s8.b', 'scan.g.s8.c'],
+    crontab: true,
+    cmd:
+      'CRON_TZ=America/New_York\n'
+      + '0 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1\n'
+      + '5 9 * * 1-5  /usr/bin/systemctl restart scanner',
+  },
+  { h: 'scan.g.s9.h', p: ['scan.g.s9.a', 'scan.g.s9.b'] },
+  { h: 'scan.g.s10.h', p: ['scan.g.s10.a', 'scan.g.s10.b'] },
+];
+
+/**
+ * Backticked fragments in the runbook prose become `<code>`.
+ *
+ * The guide is full of literal flags, filenames and values (`--dry-run`,
+ * `journal_mode = wal`), and a reader who has to retype one needs to see where it
+ * ends. Escaped inside the span because some of those literals are shell redirects.
+ */
+const codeSpans = (s: string): string =>
+  s.replace(/`([^`]+)`/g, (_m, c: string) => `<code>${esc(c)}</code>`);
+
+/** A command block with a copy button. The button reads the `<pre>` beside it. */
+function cmdBlock(cmd: string, warn?: string): string {
+  return `<div class="scan-cmd">
+    ${warn ? `<p class="scan-cmd-warn">${codeSpans(warn)}</p>` : ''}
+    <pre>${esc(cmd)}</pre>
+    <button class="scan-cmd-copy" data-copy>${t('scan.g.copy')}</button>
+  </div>`;
+}
+
+/**
+ * What to do right now, read off the last run.
+ *
+ * The reason this section is worth more than the text file it came from: it can name
+ * the stage that actually broke. A required stage that failed is a night that did not
+ * happen — the page above is showing yesterday's market with today's date on it —
+ * while a failed `push` or `telegram` is a run that worked and could not say so.
+ */
+function guideVerdict(night: NightBlock | null | undefined): string {
+  const last = night?.last;
+  if (!last) return `<div class="notice">${t('scan.g.now.none')}</div>`;
+  const stages = last.stages ?? [];
+  const broke = stages.find((s) => !s.ok && !s.skipped && !s.blocked);
+  if (last.ok && !broke) {
+    return `<p class="muted" style="margin:0 0 10px">${t('scan.g.now.ok')}</p>`;
+  }
+  const required = ['bars', 'sectors', 'structure', 'setups'];
+  const name = broke?.stage ?? '';
+  const key = required.includes(name) ? 'scan.g.now.fail' : 'scan.g.now.soft';
+  return `<div class="notice">${t(key)}${name ? ` <b>${esc(name)}</b>` : ''}${
+    broke?.err ? ` — ${esc(broke.err)}` : ''
+  }</div>`;
+}
+
+/**
+ * The runbook itself: the one command in the open, the rest behind a summary.
+ *
+ * Collapsed for the same reason the thresholds are: you come here when something
+ * surprised you, and ten steps of shell in the middle of a nine-section market page
+ * would be read once and scrolled past forever after.
+ */
+function renderGuide(night: NightBlock | null | undefined): string {
+  const steps = GUIDE.map(
+    (s, i) => `<li>
+      <h3>${String(i + 1).padStart(2, '0')} · ${t(s.h)}</h3>
+      ${s.p.map((k) => `<p>${codeSpans(t(k))}</p>`).join('')}
+      ${s.cmd ? cmdBlock(s.cmd, s.crontab ? t('scan.g.crontab') : undefined) : ''}
+    </li>`,
+  ).join('');
+  return `
+    ${guideVerdict(night)}
+    ${cmdBlock(RERUN_CMD)}
+    <p class="muted" style="font-size:12px;margin:8px 0 0">${codeSpans(t('scan.g.then'))}</p>
+    <div class="notice" style="margin-top:10px">${codeSpans(t('scan.g.secrets'))}</div>
+    <details class="scan-th" style="margin-top:12px">
+      <summary>${t('scan.g.open')}</summary>
+      <p class="muted" style="font-size:12px;margin:0 0 8px">${codeSpans(t('scan.g.note'))}</p>
+      <ol class="scan-guide">${steps}</ol>
+    </details>`;
+}
+
 /** One config value, flattened for display. Tuples arrive as JSON arrays. */
 function thValue(v: unknown): string {
   if (v == null) return '—';
@@ -1149,6 +1287,9 @@ const SECS = [
   { id: 'sectors', key: 'scan.sec.sectors', lead: 'scan.lead.sectors' },
   { id: 'watch', key: 'scan.sec.watch', lead: 'scan.lead.watch' },
   { id: 'night', key: 'scan.sec.night', lead: 'scan.lead.night' },
+  // Straight after the run record on purpose: that section is where you find out a
+  // stage failed, and this one is what to type about it.
+  { id: 'guide', key: 'scan.sec.guide', lead: 'scan.lead.guide' },
   { id: 'status', key: 'scan.sec.status', lead: 'scan.lead.status' },
   { id: 'cand', key: 'scan.sec.cand', lead: 'scan.lead.cand' },
   { id: 'rejects', key: 'scan.sec.rejects', lead: 'scan.lead.rejects' },
@@ -1258,6 +1399,7 @@ function draw(ctx: AppContext): void {
     ${sec('sectors', renderSectors(sectors, topN))}
     ${sec('watch', renderWatch(get<WatchSnap>(KEY_WATCH), watchBlocked))}
     ${sec('night', renderNight(status?.night))}
+    ${sec('guide', renderGuide(status?.night))}
     ${sec('status', renderStatus(status, pushedAt))}
     ${sec('cand', renderCandidates(get<CandidatesSnap>(KEY_CANDIDATES)))}
     ${sec('rejects', renderRejects(get<RejectsSnap>(KEY_REJECTS)))}
@@ -1265,6 +1407,16 @@ function draw(ctx: AppContext): void {
     ${sec('thresholds', renderThresholds(thresholds))}`;
 
   root.querySelector('#scan-refresh')?.addEventListener('click', () => void load(ctx, true));
+
+  // Copy a runbook command. The text is read back out of the `<pre>` rather than
+  // carried in an attribute: these commands contain quotes, `&&` and newlines, and an
+  // attribute round-trip is one escaping mistake away from copying a broken command.
+  root.querySelectorAll<HTMLElement>('[data-copy]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const cmd = b.closest('.scan-cmd')?.querySelector('pre')?.textContent ?? '';
+      if (cmd) void copyToClipboard(cmd, b);
+    });
+  });
 
   // Jump bar. `scroll-margin-top` on .scan-sec keeps the heading clear of the
   // fixed top bar, so this can stay a plain scrollIntoView.
