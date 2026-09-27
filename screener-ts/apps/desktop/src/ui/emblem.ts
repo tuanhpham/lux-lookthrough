@@ -1,5 +1,5 @@
 /**
- * The assistant's mark: the taijitu with its two dragons.
+ * The assistant's mark: the taijitu disc.
  *
  * ── WHY THIS IS A PICTURE AND NOT A DRAWING IN CODE ─────────────────────────
  * This was built as hand-written SVG first, twice: polar spines whose radius
@@ -7,57 +7,53 @@
  * antlers, barbels, clawed legs, the lot. It got as far as "recognisably a
  * dragon" and stopped there, because what makes an Asian dragon beautiful is
  * brushwork — scale texture, ink density, the way smoke dissolves — and paths
- * with gradients have none of it. Side by side with the painting this is cut
+ * with gradients have none of it. Side by side with the painting it was cut
  * from, it was not a close call.
  *
- * So the artwork IS the mark. `hinhamduong.jpg` at the repo root is the source
- * plate, and `scripts/emblem-assets.py` builds both files below from it, so they
- * are build artefacts and not mysteries that arrived from an image editor.
+ * So the artwork IS the mark. The source plates sit at the repo root and
+ * `scripts/emblem-assets.py` builds the files below from them, so they are build
+ * artefacts and not mysteries that arrived from an image editor.
  *
- * ── TWO MARKS, NOT ONE IMAGE AT TWO SIZES ───────────────────────────────────
- *   emblem-orb.webp  the disc, for every small use — launcher, menu row, panel
- *                    header, message avatars, all 16–34px. NOT a crop of the
- *                    painting: the painted disc is not a true circle and the
- *                    dragons cross it, so cutting a circle out of it lopped off a
- *                    horn and a mane and left a tidy ring full of clipped debris.
- *                    It is drawn instead — exact taijitu geometry, lit as a
- *                    sphere, surfaced with ink sampled from the plate so it still
- *                    belongs to the same picture. The whole plate at 20px is grey
- *                    mud; this keeps the S-curve and its two dots down to 16.
- *   emblem.webp      the square plate: both heads, the disc, the pearl. Feathered
- *                    to transparent at the edges, so the smoke sits on the
- *                    near-black theme and the bone-white one alike instead of
- *                    being a photo pasted into a panel. Used once, large, as the
- *                    hero of the empty state, where there is room to look at it.
- *
- * ── THE TWO EYES ────────────────────────────────────────────────────────────
+ * ── THE ICON IS A CROP AGAIN ────────────────────────────────────────────────
+ * `emblem-orb.webp` is used everywhere small — launcher, menu row, panel header,
+ * message avatars, all 16–34px. It went through three versions:
+ *   1. a circle cut from `hinhamduong.jpg`. Failed: that painted disc is not a
+ *      true circle and the dragons cross it, so the cut lopped off a horn and a
+ *      mane and left a tidy ring full of clipped debris.
+ *   2. drawn — exact taijitu geometry, lit as a sphere, ink sampled from the
+ *      painting. Recognisable, and flat next to the real thing.
+ *   3. what it is now: a circle cut from `hinhnenamduong2.jpg`, a sculpted disc
+ *      photographed on flat grey with nothing crossing its rim. It has the
+ *      relief, the cloud detail and the two moons that no gradient produced.
  * Each half carries a dot in the other's colour — the dark seed high in the pale
  * lobe, the pale one low in the dark. That is the whole point of the symbol, and
- * the reason the disc had to be the small mark rather than a monogram: at 16px it
- * is still three shapes that mean something.
+ * the reason the disc is the small mark rather than a monogram: at 16px it is
+ * still three shapes that mean something.
+ *
+ * ── THE PLATE IS NO LONGER MOUNTED ──────────────────────────────────────────
+ * `emblem.webp` (the square painting: both heads, the disc, the pearl) is still
+ * built and committed, but nothing renders it. It was the chat panel's empty
+ * state, and that panel's top is a photograph now (`.chat-shell::before`), so the
+ * plate ended up as a second taijitu inside the picture's ring. Putting it back
+ * anywhere with room is one `<img>`; the numbers that cut it are in the script.
  *
  * ── WHY <img> AND NOT A CSS BACKGROUND ──────────────────────────────────────
- * Both keep the `.yy` / `.lux-emblem` class the inline SVG used, so every size
- * rule in styles.css carries over untouched. `width`/`height` are stated on the
- * element so the intrinsic ratio is known before the bytes arrive and the empty
- * state does not reflow when the hero lands; CSS still decides the drawn size.
- * `decoding="async"` keeps a 640px plate off the main thread — the panel opens on
- * a click, and a synchronous decode there is a visible hitch.
+ * It keeps the `.yy` class the inline SVG used, so every size rule in styles.css
+ * carries over untouched. `width`/`height` are stated on the element so the
+ * intrinsic ratio is known before the bytes arrive, and nothing reflows when the
+ * image lands. `decoding="async"` keeps the decode off the main thread — the
+ * panel opens on a click, and a synchronous decode there is a visible hitch.
  */
 
 /**
- * The disc, for everything small.
+ * The disc, for everything.
  *
- * `?v=` because these two filenames are stable while their bytes are not: Pages
- * serves them `cache-control: max-age=86400`, so re-cutting the art and pushing
- * leaves every browser that has already seen the old one showing it for another
- * day. Bump the number whenever `emblem-assets.py` produces different bytes.
+ * `?v=` because the filename is stable while its bytes are not: Pages serves it
+ * `cache-control: max-age=86400`, so re-cutting the art and pushing leaves every
+ * browser that has already seen the old one showing it for another day. Bump the
+ * number whenever `emblem-assets.py` produces different bytes — v3 is the crop of
+ * the sculpted disc, v2 was the drawn sphere.
  */
 export const ORB_MARK =
-  '<img class="yy" src="/images/emblem-orb.webp?v=2" width="192" height="192"' +
-  ' alt="" aria-hidden="true" draggable="false" decoding="async">';
-
-/** The full plate, for the one place with room for it. Versioned as above. */
-export const GUARDIAN_MARK =
-  '<img class="lux-emblem" src="/images/emblem.webp?v=1" width="640" height="667"' +
+  '<img class="yy" src="/images/emblem-orb.webp?v=3" width="192" height="192"' +
   ' alt="" aria-hidden="true" draggable="false" decoding="async">';

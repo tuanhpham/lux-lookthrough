@@ -206,6 +206,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'pf.addacct.hint': { en: 'Add another account (＋) to compare strategies side by side.', vi: 'Thêm tài khoản (＋) để so sánh chiến lược.' },
   'pf.updating': { en: 'Updating', vi: 'Đang cập nhật' },
   'pf.updated.all': { en: 'accounts updated', vi: 'tài khoản đã cập nhật' },
+  // The automatic refresh. It says which close it went to get, because the whole
+  // point is that the reader can trust the numbers without pressing anything.
+  'pf.auto.running': { en: 'Getting the close of', vi: 'Đang lấy giá đóng cửa ngày' },
+  'pf.auto.done': { en: 'Prices as of', vi: 'Giá đến ngày' },
   'pf.sec.openpos': { en: 'Open Positions', vi: 'Vị thế đang mở' },
   'pf.sec.openpos.hint': { en: 'click a ticker to open its chart', vi: 'nhấp mã để xem biểu đồ' },
   'pf.sec.txhistory': { en: 'Transaction History', vi: 'Lịch sử giao dịch' },

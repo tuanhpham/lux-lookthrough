@@ -2680,6 +2680,104 @@ html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c);
   .swp-play-h { flex-wrap: wrap; }
 }
 
+/* ── The Learn tab as a book (`ui/book.ts`) ──────────────────────────────────
+   A title page, then four parts each opened by a divider. Only furniture lives
+   here; the chapters keep their own styles (`.swp-*`, `.analysis-card`, cards).
+
+   Everything is drawn from tokens, so the "paper" of light mode and the ink of
+   dark mode both come for free — a book that only worked in one theme would be
+   the one page in the app that did. */
+.lb-cover {
+  padding: 30px 0 34px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.lb-eyebrow {
+  font-family: var(--font-ui); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 14px;
+}
+/* Serif, and bigger than any other page title in the app. This is a title page:
+   it is allowed to be the loudest thing on screen for one screenful. */
+.lb-title {
+  font-family: var(--font-serif); font-weight: 600;
+  font-size: clamp(34px, 6vw, 54px); line-height: 1.04;
+  margin: 0 0 14px; letter-spacing: -.01em;
+}
+.lb-lede {
+  margin: 0; max-width: 62ch;
+  font-size: 14.5px; line-height: 1.75; color: var(--subtext);
+}
+.lb-contents-h {
+  margin: 30px 0 6px;
+  font-family: var(--font-ui); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--faint);
+}
+.lb-contents { list-style: none; margin: 0; padding: 0; max-width: 72ch; }
+.lb-contents-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: baseline; gap: 12px;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 13px 8px 13px 0; border: 0; border-top: 1px solid var(--border-soft);
+  background: transparent; color: inherit; font: inherit;
+}
+.lb-contents li:first-child .lb-contents-row { border-top: 0; }
+.lb-contents-num {
+  font-family: var(--font-serif); font-size: 17px; color: var(--faint);
+  transition: color .15s ease;
+}
+.lb-contents-title {
+  display: block; font-family: var(--font-serif); font-size: 16px;
+  color: var(--text); line-height: 1.35;
+}
+.lb-contents-blurb {
+  display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.6;
+  color: var(--faint);
+}
+/* Monospace so the four estimates line up in a column, like a page number. */
+.lb-contents-min {
+  font-family: var(--font-mono); font-size: 11px; color: var(--faint);
+  white-space: nowrap;
+}
+.lb-contents-row:hover .lb-contents-num,
+.lb-contents-row:hover .lb-contents-title { color: var(--accent); }
+
+/* A part divider. The generous space above is the point — it is the blank verso
+   of a printed book, the signal that one thing ended and another began. */
+.lb-part {
+  margin: 58px 0 22px; padding-top: 26px;
+  border-top: 1px solid var(--border);
+}
+.lb-wrap:first-of-type .lb-part { margin-top: 34px; }
+.lb-part-kicker {
+  display: block; font-family: var(--font-serif);
+  font-size: 30px; line-height: 1; color: var(--accent);
+  opacity: .55; margin-bottom: 8px;
+}
+.lb-part-title {
+  font-family: var(--font-serif); font-weight: 600;
+  font-size: clamp(22px, 3.4vw, 30px); line-height: 1.2; margin: 0;
+}
+.lb-part-blurb {
+  margin: 8px 0 0; max-width: 64ch;
+  font-size: 13.5px; line-height: 1.7; color: var(--subtext);
+}
+/* Glossary groups, as an index at the back: the same accent kickers the page used
+   before, moved out of inline styles so the book owns its own typography. */
+.lb-gloss-group { margin-bottom: 18px; }
+.lb-gloss-h {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--accent); margin: 0 0 8px;
+}
+@media (max-width: 640px) {
+  .lb-cover { padding: 18px 0 24px; }
+  .lb-contents-row { grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+  /* Third column dropped on a phone; the estimate goes under the title rather
+     than squeezing it to four words a line. */
+  .lb-contents-min { grid-column: 2; margin-top: 4px; }
+  .lb-part { margin-top: 40px; }
+}
+
 /* ── Sticky table of contents (Learn tab) ────────────────────────────────────
    A bar pinned under the 56px top nav: the current section on the left, a panel
    with every section behind "Contents". Everything is drawn from tokens, so light
@@ -2726,7 +2824,40 @@ html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c);
   background: transparent; color: var(--subtext); cursor: pointer;
   font-family: var(--font-ui); font-size: 12.5px; line-height: 1.45;
 }
-.lt-toc-item.sub { padding-left: 26px; font-size: 12px; color: var(--faint); }
+/* Three levels, matching the book: part, chapter, section. A part is the only
+   one set in the text colour — it is a heading inside the list, not a peer. */
+.lt-toc-item.lv0 {
+  color: var(--text); font-weight: 600; font-size: 12.5px;
+  letter-spacing: .04em; text-transform: uppercase;
+  margin-top: 6px;
+}
+.lt-toc-list > .lt-toc-item.lv0:first-child { margin-top: 0; }
+.lt-toc-item.lv1 { padding-left: 16px; }
+.lt-toc-item.lv2 { padding-left: 30px; font-size: 12px; color: var(--faint); }
+/* The bookmark offer: "pick up where you left off". Sits between the current
+   section and the up-arrow, and removes itself once used. */
+.lt-toc-mark {
+  flex: none; max-width: 46%; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px dashed var(--accent-line); background: var(--accent-wash);
+  color: var(--accent); font-family: var(--font-ui); font-size: 11.5px;
+}
+.lt-toc-mark:hover { border-style: solid; }
+/* How far through the book. A hairline at the very bottom of the bar: a reader
+   should be able to feel the progress without ever looking straight at it. */
+/* Inset from the pill's edges rather than clipped to them: the panel is a child
+   of the bar, so `overflow: hidden` here would cut the Contents list off. */
+.lt-toc-progress {
+  position: absolute; left: 14px; right: 14px; bottom: 3px; height: 2px;
+  border-radius: 2px; overflow: hidden;
+  background: var(--border-soft);
+}
+.lt-toc-progress > i {
+  display: block; height: 100%; width: 100%;
+  transform: scaleX(0); transform-origin: left center;
+  background: var(--accent); opacity: .85;
+}
 .lt-toc-item:hover { background: var(--cardhover); color: var(--text); }
 .lt-toc-item.active {
   color: var(--accent); background: var(--accent-wash);
@@ -2739,6 +2870,7 @@ html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c);
   .lt-toc { top: calc(56px + env(safe-area-inset-top)); gap: 8px; padding: 6px 8px; }
   .lt-toc-open span { display: none; }   /* icon only — the label is the room */
   .lt-toc-now { font-size: 11.5px; }
+  .lt-toc-mark { max-width: 40%; font-size: 11px; padding: 3px 8px; }
 }
 
 /* ── Date input: tint the calendar icon to match the accent colour. ──────── */
@@ -3390,15 +3522,52 @@ html[lang="vi"] #app-menu .sl-menu-item { letter-spacing: .04em; }
   transition: transform .22s cubic-bezier(.32, .72, 0, 1);
   pointer-events: auto;
 }
-/* One soft wash of accent behind the top of the column. It is `::before` on the
-   shell rather than a real element so it cannot be scrolled, selected or tabbed. */
+/* The top of the column is a PICTURE, not a wash.
+   `chat-top.webp` (the neon taijitu tree, duotoned to this app's ink and mint and
+   faded to nothing at the bottom and sides — see scripts/emblem-assets.py) runs
+   under the header and behind the first turns, with the old accent wash kept on
+   top of it so the panel's own colour still leads.
+
+   It is `::before` on the shell rather than a real element so it cannot be
+   scrolled, selected or tabbed, and `background-attachment` is irrelevant because
+   the pseudo-element does not scroll with the transcript.
+
+   The height is the fade's height, not the picture's: the image is 880×528 and
+   `cover` crops it, so the band can be as tall as it needs to be without the ring
+   turning into an egg. 360px is what it takes for the whole ring to fit inside the
+   440px column — any shorter and `cover` zooms in until the ring is cropped.
+
+   This is now the ONLY taijitu in the panel. The empty state used to hang the
+   painted plate in the middle of the band, which put one ring inside another; see
+   `ui/chatPanel.ts`. */
 .chat-shell::before {
-  content: ''; position: absolute; inset: 0 0 auto; height: 220px;
-  background: radial-gradient(
-    120% 100% at 78% 0%,
-    color-mix(in srgb, var(--accent) 13%, transparent),
-    transparent 70%);
+  content: ''; position: absolute; inset: 0 0 auto; height: 360px;
+  background:
+    radial-gradient(
+      120% 100% at 78% 0%,
+      color-mix(in srgb, var(--accent) 13%, transparent),
+      transparent 70%),
+    url('/images/chat-top.webp?v=1') 50% 0% / cover no-repeat;
+  /* The long fade is here and not only in the file's alpha channel, so the band's
+     height and the point where it dies are independent: the picture needs to be
+     tall enough for the ring to read, and gone by the time the greeting starts. */
+  -webkit-mask-image: linear-gradient(180deg, #000 0 52%, transparent 100%);
+          mask-image: linear-gradient(180deg, #000 0 52%, transparent 100%);
+  /* Dimmed, because it is a background: the eye should find the greeting first
+     and the tree second. Not further — below about .5 the blossoms and the pink
+     half of the canopy disappear into the sky and what is left is grey weather. */
+  opacity: .64;
   pointer-events: none;
+}
+/* On paper, the same picture printed rather than lit: `multiply` lets the cream
+   show through its shadows, which is what keeps it from reading as a grey smudge
+   pasted over the top of the panel. Much fainter and brightened first, because on
+   white it is only the ring and the tree that need to survive — the duotone's
+   midtone sky, printed at the dark theme's strength, is a stain. */
+html.light .chat-shell::before {
+  opacity: .2;
+  filter: brightness(1.3);
+  mix-blend-mode: multiply;
 }
 #chat-panel.chat--open .chat-shell { transform: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -3565,29 +3734,13 @@ html[lang="vi"] #app-menu .sl-menu-item { letter-spacing: .04em; }
 }
 
 /* ── empty state ──
-   The only part of the panel with room to spare, so it is the only part that gets
-   the full emblem. Centred, because there is nothing else on screen to align to. */
+   Centred, because there is nothing else on screen to align to — and low enough
+   that it starts below the picture band rather than on top of it. No emblem of its
+   own: the band above IS the artwork now. */
 .chat-empty {
   margin: auto 0; display: flex; flex-direction: column; align-items: center;
   gap: 5px; text-align: center; padding: 8px 0 4px;
 }
-/* Big, because the dragons are the point and at 118px they were two smudges.
-   `aspect-ratio` rather than a matched height: the plate is 640×667, and forcing
-   it square squashed it by 4% — enough to thicken the disc into an oval. */
-.chat-hero { width: 184px; aspect-ratio: 640 / 667; margin-bottom: 10px; }
-.chat-hero .lux-emblem {
-  width: 100%; height: auto; display: block;
-  /* Cast, not glow: the accent at low alpha, offset down, which is what makes the
-     plate sit ON the panel instead of being pasted onto it. It also gives the
-     monochrome ink one thread of the app's own colour. */
-  filter: drop-shadow(0 12px 26px color-mix(in srgb, var(--accent) 30%, transparent));
-  animation: chatHero 9s ease-in-out infinite;
-}
-/* A slow drift. Fast enough to notice on arrival, slow enough to ignore after. */
-@keyframes chatHero {
-  50% { transform: translateY(-5px) rotate(2.5deg); }
-}
-@media (prefers-reduced-motion: reduce) { .chat-hero .lux-emblem { animation: none; } }
 .chat-empty-title { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.015em; }
 .chat-empty-hint {
   margin: 0 0 10px; font-size: 12.5px; color: var(--subtext); line-height: 1.55;
@@ -3734,10 +3887,11 @@ html[lang="vi"] #app-menu .sl-menu-item { letter-spacing: .04em; }
   .chat-shell { width: 100vw; border-left: none; }
   #chat-panel.chat--open .chat-backdrop { opacity: 1; pointer-events: auto; }
   .chat-msg--user { max-width: 92%; }
-  /* The hero is the first thing to give up its room: on a short phone screen the
-     emblem plus four suggestions plus the composer do not all fit, and the
-     suggestions are the part that is there to be tapped. */
-  .chat-hero { width: 140px; margin-bottom: 6px; }
+  /* The picture band gives up height first: on a short phone screen 360px of it
+     plus the greeting plus four suggestions plus the composer do not all fit, and
+     the suggestions are the part that is there to be tapped. The ring still fits
+     whole — a phone panel is narrower, so `cover` zooms less. */
+  .chat-shell::before { height: 280px; }
   #chat-fab { right: 14px; bottom: 14px; width: 44px; height: 44px; }
   #chat-fab .yy { width: 27px; height: 27px; }
 }

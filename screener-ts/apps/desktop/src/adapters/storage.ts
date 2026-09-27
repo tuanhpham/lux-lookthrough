@@ -133,8 +133,14 @@ const SNAPSHOT_KEY = '__pre_merge_backup__';
  * calendar APIs only return today-and-forward, so a past day's window is
  * unrecoverable once deleted (see `catalystCache.ts`). For keys that sync but are
  * expendable on a device with no room, see `EXPENDABLE_PREFIXES`.
+ *
+ * `pf_autoupdate` is here because it is a statement ABOUT a device: "this machine
+ * has already fetched that session's closes". Since the bars it refers to never
+ * leave the device, syncing the note would tell a second device the work was done
+ * when its own cache is still empty — the exact stale-price bug the automatic
+ * refresh exists to fix.
  */
-const LOCAL_ONLY_PREFIXES = ['pf_bars:', 'pf_eurusd_bars', 'sectorlabels'];
+const LOCAL_ONLY_PREFIXES = ['pf_bars:', 'pf_eurusd_bars', 'pf_autoupdate', 'sectorlabels'];
 
 /**
  * Keys that sync normally, but are the FIRST thing a merge gives up on when the

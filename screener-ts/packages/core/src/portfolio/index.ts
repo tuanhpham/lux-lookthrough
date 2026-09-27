@@ -23,5 +23,6 @@ export type { UpdateInput, UpdateResult } from './update.js';
 export { toPersistable, hasTransientFields } from './persist.js';
 export { capitalExposure } from './exposure.js';
 export type { CapitalExposure } from './exposure.js';
+export { lastSettledSession } from './session.js';
 export { compareAccounts } from './compare.js';
 export type { AccountComparisonRow } from './compare.js';

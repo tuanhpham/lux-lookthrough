@@ -13,6 +13,13 @@ import { sanitizeNoteHtml, richNoteDialog, isNoteEmpty } from '../ui/richNote.js
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
 import { swingPlaybookHtml, wireSwingPlaybook } from './swingPlaybook.js';
 import { mountStickyToc } from '../ui/stickyToc.js';
+import {
+  bookCoverHtml,
+  bookPartHtml,
+  stampReadingTimes,
+  wireBookContents,
+  type BookPart,
+} from '../ui/book.js';
 
 let activeId: string | null = null;
 
@@ -903,23 +910,89 @@ function asOfGuideHtml(lang: 'en' | 'vi'): string {
   </div>`;
 }
 
+/**
+ * Learn, bound as a book in four parts (see `ui/book.ts` for why).
+ *
+ * The order is the whole argument: the PLAYBOOK IS PART I. It used to be last, on
+ * the theory that a reader arrives to look a term up — but the playbook is the
+ * thing that gets reread and rewritten, and putting twenty-five reference cards in
+ * front of it meant scrolling past all of them every single time. The glossary is
+ * back matter now, which is where a glossary has always belonged.
+ */
 export function renderLearn(): void {
   const root = $('#tab-learn')!;
   const lang = getLang();
-  root.innerHTML = `<h1>${lang === 'vi' ? 'Tìm hiểu' : 'Learn'}</h1>
-    <p class="subtitle">${lang === 'vi' ? 'Hướng dẫn từng trang, cách tính điểm, cách lọc, và mọi chỉ số — giải thích dễ hiểu.' : 'Page-by-page guide, how the score is computed, how filtering works, and every metric — in plain English.'}</p>`;
-  root.appendChild(el(pageGuideHtml(lang)));
-  root.appendChild(el(scoreExplainerHtml(lang)));
-  root.appendChild(el(asOfGuideHtml(lang)));
-  root.appendChild(el(backtestGuideHtml(lang)));
+  const vi = lang === 'vi';
+
+  const parts: BookPart[] = [
+    {
+      id: 'lb-part-1',
+      numeral: 'I',
+      title: vi ? 'Cẩm nang swing trading' : 'The swing-trading playbook',
+      blurb: vi
+        ? 'Từ môi trường thị trường xuống đến điểm vào lệnh — phần sẽ đọc lại nhiều nhất.'
+        : 'From the market environment down to the entry — the part that gets reread.',
+    },
+    {
+      id: 'lb-part-2',
+      numeral: 'II',
+      title: vi ? 'Dùng nền tảng' : 'Working the platform',
+      blurb: vi
+        ? 'Từng trang dùng để làm gì, cách lọc theo một ngày trong quá khứ, và cách chạy backtest.'
+        : 'What each page is for, how to screen a past date, and how to run a backtest.',
+    },
+    {
+      id: 'lb-part-3',
+      numeral: 'III',
+      title: vi ? 'Điểm số được tính thế nào' : 'How the score is computed',
+      blurb: vi
+        ? 'Mở nắp máy: từng thành phần làm nên điểm QM và momentum.'
+        : 'The lid off: every component that makes up the QM and momentum score.',
+    },
+    {
+      id: 'lb-part-4',
+      numeral: 'IV',
+      title: vi ? 'Thuật ngữ' : 'Glossary',
+      blurb: vi
+        ? 'Mọi chỉ số và thuật ngữ, xếp theo nhóm — phần tra cứu ở cuối sách.'
+        : 'Every metric and term, grouped — the back of the book.',
+    },
+  ];
+
+  root.innerHTML = bookCoverHtml(
+    lang,
+    vi ? 'Tìm hiểu' : 'Learn',
+    vi
+      ? 'Một cuốn sổ tay: cẩm nang giao dịch trước, rồi hướng dẫn từng trang, cách tính điểm, và cuối cùng là thuật ngữ.'
+      : 'One handbook: the trading playbook first, then the platform page by page, how the score is built, and the glossary at the back.',
+    parts,
+  );
+
+  // Part I — the playbook.
+  const p1 = el(bookPartHtml(parts[0]!));
+  const playbook = el(swingPlaybookHtml(lang));
+  p1.appendChild(playbook);
+  root.appendChild(p1);
+  wireSwingPlaybook(playbook, lang);
+
+  // Part II — the platform, page by page.
+  const p2 = el(bookPartHtml(parts[1]!));
+  p2.appendChild(el(pageGuideHtml(lang)));
+  p2.appendChild(el(asOfGuideHtml(lang)));
+  p2.appendChild(el(backtestGuideHtml(lang)));
+  root.appendChild(p2);
+
+  // Part III — the score.
+  const p3 = el(bookPartHtml(parts[2]!));
+  p3.appendChild(el(scoreExplainerHtml(lang)));
+  root.appendChild(p3);
+
+  // Part IV — the glossary, as an index at the back.
+  const p4 = el(bookPartHtml(parts[3]!));
   for (const group of GLOSSARY_GROUPS) {
-    const section = el(`<div style="margin-bottom:18px"></div>`);
+    const section = el(`<div class="lb-gloss-group"></div>`);
     section.appendChild(
-      el(
-        `<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:0 0 8px">${
-          group.title[lang] ?? group.title.en
-        }</h2>`,
-      ),
+      el(`<h2 class="lb-gloss-h">${group.title[lang] ?? group.title.en}</h2>`),
     );
     const grid = el(`<div class="grid grid-cards"></div>`);
     for (const key of group.keys) {
@@ -930,14 +1003,13 @@ export function renderLearn(): void {
       );
     }
     section.appendChild(grid);
-    root.appendChild(section);
+    p4.appendChild(section);
   }
-  // The playbook goes last: it is long-form reading, and the glossary above is
-  // what someone lands on this tab to look up.
-  const playbook = el(swingPlaybookHtml(lang));
-  root.appendChild(playbook);
-  wireSwingPlaybook(playbook, lang);
-  // Last: the TOC discovers its entries from the finished DOM, so it must run
-  // after every section is in place.
+  root.appendChild(p4);
+
+  // Both of these read the finished DOM: the reading times are counted from the
+  // words actually on the page, and the contents bar discovers its own entries.
+  stampReadingTimes(root, lang);
+  wireBookContents(root);
   mountStickyToc(root, lang);
 }

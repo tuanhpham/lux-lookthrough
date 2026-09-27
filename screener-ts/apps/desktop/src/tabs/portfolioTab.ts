@@ -23,6 +23,7 @@ import {
   computeTwr,
   netCashFlow,
   fetchMany,
+  lastSettledSession,
   SECTOR_STOCKS,
   type AccountState,
   type PriceMap,
@@ -49,6 +50,9 @@ import {
 // Prices moved out for the same reason the accounts did: the assistant must report
 // the numbers this table is showing, and a second price map would drift from it.
 import { accountPrices as prices, setAccountPrices, seedPrice } from '../portfolio/prices.js';
+// The automatic refresh writes through `save()`, so it must never run before the
+// first pull has landed — see `refreshStalePrices`.
+import { isHydrated } from '../adapters/storage.js';
 import { $, num, money, pct } from '../ui/dom.js';
 import { drawLine, drawCandles } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
@@ -467,6 +471,11 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
   }
 
   draw(ctx);
+
+  // Draw from cache first, then go and get the close — the table is on screen
+  // immediately and corrects itself a second later, rather than the page waiting on
+  // Yahoo. Not awaited for the same reason.
+  void refreshStalePrices(ctx);
 }
 
 function toolbarHtml(): string {
@@ -1910,6 +1919,120 @@ async function update(ctx: AppContext): Promise<void> {
   draw(ctx);
   const s = $('#update-status');
   if (s) s.innerHTML = statusMsg;
+}
+
+// ---------------------------------------------------------------------------
+// The automatic refresh — "Update", without the click
+// ---------------------------------------------------------------------------
+
+/**
+ * The session this DEVICE has already been out to fetch.
+ *
+ * Device-local, and it has to be (see `LOCAL_ONLY_PREFIXES`): `pf_bars:` never
+ * syncs, so "the prices are current" is a fact about a machine, not about the
+ * account. The laptop fetching tonight's close does nothing for the phone — which
+ * is precisely why Update had to be pressed again on the second machine. Each
+ * device now does its own single fetch per session instead.
+ */
+const AUTO_SESSION_KEY = 'pf_autoupdate';
+
+/** One refresh at a time, however many callers ask. */
+let autoRefresh: Promise<void> | null = null;
+
+/** Is this account missing a bar for `session` on anything it holds? */
+async function pricesBehind(
+  ctx: AppContext,
+  st: AccountState,
+  session: string,
+): Promise<boolean> {
+  const tickers = [
+    ...new Set([
+      ...st.lots.map((l) => l.ticker),
+      ...st.orders.filter((o) => o.status === 'pending').map((o) => o.ticker),
+    ]),
+  ];
+  if (!tickers.length) return false;
+  const cache = await loadBarCache(ctx, st.account.id);
+  return tickers.some((sym) => {
+    const bars = cache[sym];
+    return !bars?.length || bars[bars.length - 1]!.date < session;
+  });
+}
+
+/**
+ * Bring every account up to the last settled close by itself.
+ *
+ * WHY: prices were only ever as fresh as the last time someone pressed Update, on
+ * the machine they pressed it on. Open the app on another computer and the table
+ * showed whatever that computer last fetched — possibly weeks old — with nothing
+ * on screen saying so.
+ *
+ * The three guards are what make it safe to run on every Portfolio open:
+ *
+ *  • HYDRATED ONLY. Before the first pull lands, `accounts` may still be the
+ *    starter account; `update()` ends in `save()`, so refreshing too early would
+ *    stamp an empty portfolio with a fresh "now" and win last-write-wins against
+ *    the real one.
+ *  • ONCE PER SESSION PER DEVICE. The marker is the session date, so a day with no
+ *    new bar (a holiday, a dead upstream) costs one attempt, not one per render.
+ *  • ONLY WHAT IS BEHIND. An account whose bars already reach the last close is
+ *    skipped entirely rather than re-saved — `update()` rewrites the account blob,
+ *    and that blob does sync.
+ *
+ * The marker is written only after the loop returns, so a refresh that fails
+ * offline is retried on the next open instead of being counted as done.
+ *
+ * Never rejects: a background courtesy must not take the tab down with it. The
+ * cached prices stay on screen and the manual button is still there.
+ */
+export function refreshStalePrices(ctx: AppContext): Promise<void> {
+  autoRefresh ??= runAutoRefresh(ctx)
+    .catch((e) => console.warn('automatic price refresh failed', e))
+    .finally(() => {
+      autoRefresh = null;
+    });
+  return autoRefresh;
+}
+
+async function runAutoRefresh(ctx: AppContext): Promise<void> {
+  if (!isHydrated()) return;
+  const session = lastSettledSession();
+  if ((await ctx.storage.get<string>(AUTO_SESSION_KEY)) === session) return;
+
+  const behind: string[] = [];
+  for (const acct of accounts) {
+    if (await pricesBehind(ctx, acct, session)) behind.push(acct.account.id);
+  }
+  if (!behind.length) {
+    await ctx.storage.set(AUTO_SESSION_KEY, session);
+    return;
+  }
+
+  // Re-queried after every `update()`, never held: `update()` ends in `draw()`,
+  // which replaces the whole tab and with it any element captured earlier.
+  const status = (): HTMLElement | null =>
+    $('#overview-update-status') ?? $('#update-status');
+  const s0 = status();
+  if (s0) {
+    s0.innerHTML = `<span class="status-chip status-chip--loading"><span class="spinner"></span>${t('pf.auto.running')} ${session}…</span>`;
+  }
+
+  const saved = activeId();
+  try {
+    for (const id of behind) {
+      setActiveId(id);
+      await update(ctx);
+    }
+  } finally {
+    setActiveId(saved);
+  }
+  await ctx.storage.set(AUTO_SESSION_KEY, session);
+
+  draw(ctx);
+  const s1 = status();
+  if (s1) {
+    s1.innerHTML = `<span class="status-chip status-chip--ok"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('pf.auto.done')} ${session}</span>`;
+  }
 }
 
 /** Earliest date we need bars from: the oldest buy date across all lots. */

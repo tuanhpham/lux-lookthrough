@@ -39,7 +39,7 @@ import { renderLocalAnswer } from '../ai/localAnswer.js';
 import { getApiKey, loadLlmConfig, isConfigured } from '../ai/llmClient.js';
 import { openLlmSettings, onLlmConfigChange } from './llmSettings.js';
 import { askChatGpt } from './askChatGpt.js';
-import { GUARDIAN_MARK, ORB_MARK } from './emblem.js';
+import { ORB_MARK } from './emblem.js';
 import { t, onLangChange } from './i18n.js';
 import { accounts } from '../portfolio/store.js';
 
@@ -276,17 +276,18 @@ function costLine(usage?: TokenUsage, costUsd?: number | null): string {
 const SUGGESTIONS = ['chat.s1', 'chat.s2', 'chat.s3', 'chat.s4'];
 
 /**
- * The one place the full emblem is used.
+ * Greeting, hint, four things to tap. No artwork of its own.
  *
- * An empty transcript is the only moment in the panel's life with space to spare,
- * and a blank column with four grey pills in it was the single most dated thing
- * here. At this size the dragon and the phoenix are actually legible; anywhere
- * else in the panel they would be grit.
+ * It used to hang the full painted plate at 184px right here, because an empty
+ * transcript is the only moment in the panel's life with room to spare. The panel's
+ * top is a picture now (`.chat-shell::before`, a taijitu ring around a tree), and
+ * the plate landed in the middle of that ring — one taijitu inside another, at 440px
+ * wide. The background won: it is bigger, it holds the whole header as well, and it
+ * does not push the greeting down the column.
  */
 function emptyState(): string {
   return `
     <div class="chat-empty">
-      <div class="chat-hero">${GUARDIAN_MARK}</div>
       <p class="chat-empty-title">${t('chat.empty.title')}</p>
       <p class="chat-empty-hint">${t(ready ? 'chat.empty.hint' : 'chat.empty.nokey')}</p>
       <div class="chat-suggests">

@@ -1432,3 +1432,108 @@ khi may da co ma). Ly do ton tai: Learn la cho hay quay lai doc, ma duong cu la
 
 615 tests passed (`syncMerge` co mot test timeout 5s khi chay song song, chay rieng
 thi pass — khong lien quan) · `npm run build` sach · da xem anh render ca hai theme.
+
+## CHAT-17 — Gia tu cap nhat moi ngay, trang Learn thanh mot cuon sach, va cai nen cua panel chat
+
+Ba viec roi nhau trong mot lan lam. Phan 1 la phan co ban thiet ke, doc ky neu sau
+nay sua lai.
+
+### 1. Portfolio: tai sao lan nao cung phai bam update, va cach chua
+
+Cai lam ban phai bam: KHONG co gi tu goi `update()`. Ban mo tab Portfolio, no ve
+lai tu bar cache co trong may — cache do dung den ngay nao ban bam lan cuoi. Sang
+may khac thi cache RONG, vi `pf_bars:` nam trong `LOCAL_ONLY_PREFIXES` (khong sync,
+va DUNG nhu vay: nang, ghi lai moi lan mo, lay lai duoc bat cu luc nao, va hoi sync
+no lam dien thoai nem `QuotaExceededError` — xem muc quota o tren).
+
+Cach chua: mot lan tu dong lay gia moi ngay, chay tren DUONG CU (`update()`), goi tu
+`renderPortfolio()`. Ba cai chot:
+
+  a. `lastSettledSession()` — `packages/core/src/portfolio/session.ts`, ham thuan,
+     co test rieng. Tra ve phien gan nhat da DONG VA CHOT, dang `YYYY-MM-DD`.
+     Tinh theo gio New York, khong theo gio may ban: moi ma trong so theo doi deu
+     la listing My, Yahoo dinh gia USD theo phien My. Co dem 1 gio sau 16:00 (hang
+     so `SETTLE_HOURS`) vi Yahoo tra ve bar CUA NGAY DANG CHAY khi phien con mo —
+     lay som la cache mot gia giua phien duoi nhan ngay hom nay, roi khong bao gio
+     sua lai nua (dieu kien bo qua la `lastCached >= endDate`). Ngay le CO Y khong
+     xu ly: doan thua mot phien chi ton dung mot request, doan thieu thi de gia cu.
+
+  b. `pricesBehind()` trong `portfolioTab.ts` — doc bar cache, so bar cuoi cua tung
+     ma voi phien do. Khong co ma nao tre thi KHONG goi `update()`, vi `update()`
+     ket thuc bang `save(ctx)` va blob accounts thi CO sync: tu luu lai mot cach vo
+     ich la tu tao ra mot ban ghi moi de last-write-wins.
+
+  c. `pf_autoupdate` (dau phien da lam) cung nam trong `LOCAL_ONLY_PREFIXES`. Day la
+     cho de sai nhat cua ca thiet ke: cai note nay noi ve MOT CAI MAY, khong phai ve
+     tai khoan. Neu no sync, may thu hai se doc thay "hom nay lam roi" trong khi
+     cache cua NO van rong — dung lai cai bug ma tinh nang nay sinh ra de chua.
+
+Con hai cai chan nua: chi chay khi `isHydrated()` (chua tai xong tu server thi mot
+portfolio khoi tao gan nhu rong co the bi dong dau "moi nhat" va thang last-write-
+wins truoc du lieu thuc), va ghi `pf_autoupdate` CHI SAU khi vong lap xong (mat mang
+giua duong thi lan mo sau lam lai). Ham khong bao gio reject.
+
+Gioi han phai biet: moc vao `renderPortfolio()`, khong phai vao luc app khoi dong.
+Ly do: khoi dong thi tab dang an, `draw()` se ve vao cay DOM khong hien, va nguoi
+khong bao gio mo Portfolio cung phai tra mot request Yahoo. He qua: neu ban de app
+mo suot va phien dong trong luc do, gia moi duoc lay vao LAN RENDER SAU cua tab
+Portfolio (doi tab di roi ve, hoac F5). Khong co cron: Pages Functions khong chay
+cron duoc (Workers moi duoc), con VM scanner la repo khac.
+
+### 2. Learn thanh mot cuon sach
+
+Thu tu la lap luan chinh: PLAYBOOK LEN DAU (phan doc lai nhieu nhat), glossary xuong
+cuoi lam phan tra cuu. Truoc day nguoc lai, theo gia dinh "nguoi ta vao de tra mot
+tu".
+
+Them, trong `apps/desktop/src/ui/book.ts` (chi lam phan "bia va khung", con chu thi
+van o `miscTabs.ts` / `swingPlaybook.ts` / `glossary.ts`):
+
+  - Trang bia: ten, mot cau dan, va muc luc 4 phan, MOI PHAN CO SO PHUT DOC that.
+    So phut do `stampReadingTimes()` DEM tu DOM da render (200 tu/phut), khong viet
+    tay: trang nay sua thuong xuyen, so viet tay se sai trong mot thang va khong ai
+    nhan ra.
+  - Vach phan: mot duong ke het chieu ngang, mot so LA MA (co y — khong the lan voi
+    so 1..16 cua cac muc trong playbook) va mot cau noi phan do de lam gi.
+  - Thanh muc luc dinh (`stickyToc.ts`) gio co ba cap (phan / chuong / muc), mot
+    vach tien do mong o day thanh, va mot BOOKMARK: cho doc do dang duoc nho lai
+    trong `localStorage` (theo may, khong sync — cho dung o laptop khong phai cho
+    dung o dien thoai) va moi lai bang DUNG MOT NUT. Khong tu dong nhay: mo trang
+    ra ma no o mot cho ban khong yeu cau thi te hon.
+    Cho de sai o day: `paint()` chi ghi bookmark khi `readerMoved` — lan paint dau
+    tien luon o dinh trang, ghi luon thi bookmark cua moi nguoi se bi ghi de thanh
+    "dau sach" chi vi ho mo tab.
+  - `overflow: hidden` tren `.lt-toc` la cam: panel muc luc la con absolute cua
+    thanh, bat overflow len la cat mat panel. Vach tien do duoc inset vao trong
+    thay vi cat.
+
+### 3. Panel chat: cai nen, va tai sao cai dia rong bi bo ra
+
+Icon: gio la ANH CAT TRON tu `hinhnenamduong2.jpg` (dia am duong duoc cham khac,
+chup tren nen xam phang) — do duoc tam (399, 830) ban kinh 394 bang cach mask nen
+xam. Ban ve tay (CHAT-10) bo di; git con giu. `ORB_MARK` len `?v=3` — bat buoc, vi
+Pages serve anh voi `max-age=86400`, khong doi so thi may da xem ban cu con thay no
+them mot ngay nua.
+
+Nen: `hinhnenamduong3.jpg` → `chat-top.webp` 880x528, ve bang `.chat-shell::before`
+cao 360px. Anh goc rat dep va rat la voi app (magenta/cyan chong lai mot UI gan den
++ mot mau mint), nen no bi day qua duotone (ink → trang pha mint, giu 30% chroma
+goc), lam toi, va fade het o day va hai ben. Hai so de y:
+
+  - 360px la de VONG TRON vua tron trong cot 440px: thap hon thi `cover` zoom vao
+    va vong tron bi cat. Va crop 800x480 → 880x528 giu dung ti le 5:3; lan dau lam
+    800x470 → 880x560 keo doc 8%, vong tron thanh qua trung.
+  - Fade doc nam o CSS (`mask-image`) chu khong chi o alpha cua file, de chieu cao
+    dai anh va cho no tat nhau doc lap.
+
+Bo cai dia rong 184px (`GUARDIAN_MARK`, tu `hinhamduong.jpg`) khoi empty state: xem
+anh render moi thay, no roi vao DUNG GIUA vong tron cua cai nen — mot am duong long
+trong mot am duong, trong mot cot 440px. Nen thang, vi no to hon, no phu ca header,
+va no khong day cau chao xuong duoi. `emblem.webp` VAN duoc build va commit, chi la
+khong cho nao render nua; muon dua lai vao mot cho co cho thi chi mot the `<img>`.
+
+Light theme: `multiply` nhung mo hon nhieu (opacity .2) va `brightness(1.3)` truoc —
+tren nen kem chi can vong tron va cai cay con lai; troi giua-toi cua duotone ma in
+o do dam cua theme toi thi thanh mot vet ban. Da xem anh render ca hai theme.
+
+621 tests passed · `npm run build` sach.
