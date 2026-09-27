@@ -1027,8 +1027,8 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'Gõ gì, theo thứ tự nào, và kiểm lại gì khi nó báo xong.',
   },
   'scan.g.now.none': {
-    en: 'No run has ever been reported, so there is nothing to re-run yet — the chain is either not in cron or push.py cannot reach its table. Step 08 below is the cron it belongs in.',
-    vi: 'Chưa có lần chạy nào được báo về, nên chưa có gì để chạy lại — hoặc chuỗi chưa vào cron, hoặc push.py không đọc được bảng của nó. Bước 08 dưới đây là dòng cron của nó.',
+    en: 'No run has ever been reported, so there is nothing to re-run yet — the chain is either not in cron or push.py cannot reach its table. Step 09 below is the cron it belongs in.',
+    vi: 'Chưa có lần chạy nào được báo về, nên chưa có gì để chạy lại — hoặc chuỗi chưa vào cron, hoặc push.py không đọc được bảng của nó. Bước 09 dưới đây là dòng cron của nó.',
   },
   'scan.g.now.ok': {
     en: 'The last run finished clean. Re-run it only if you want fresher numbers than the ones above.',
@@ -1053,17 +1053,29 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   },
   'scan.g.open': { en: 'The full runbook, step by step', vi: 'Sổ tay đầy đủ, từng bước' },
   'scan.g.note': {
-    en: 'The same ten steps as error.txt (VM-4, VM-7, LOCK-3), kept here because this is the page you are on when you find out a stage failed. Nothing here runs by itself; you are typing it over SSH as the user ubuntu.',
-    vi: 'Đúng mười bước như trong error.txt (VM-4, VM-7, LOCK-3), để ở đây vì đây chính là trang bạn đang mở khi phát hiện một bước bị lỗi. Không có gì ở đây tự chạy; bạn gõ qua SSH bằng user ubuntu.',
+    en: 'The same steps as error.txt (VM-4, VM-7, LOCK-3), kept here because this is the page you are on when you find out a stage failed. Nothing here runs by itself; you are typing it over SSH as the user ubuntu, in a venv you activated in step 01.',
+    vi: 'Đúng các bước như trong error.txt (VM-4, VM-7, LOCK-3), để ở đây vì đây chính là trang bạn đang mở khi phát hiện một bước bị lỗi. Không có gì ở đây tự chạy; bạn gõ qua SSH bằng user ubuntu, trong venv đã bật ở bước 01.',
   },
   'scan.g.crontab': {
     en: 'This is crontab CONTENT, not shell. Paste it inside the editor that `crontab -e` opens. Pasted into a terminal, bash reads the leading 0 as a command name and answers `0: command not found` — that is a paste in the wrong place, not a broken file.',
     vi: 'Đây là NỘI DUNG crontab, không phải lệnh shell. Dán vào trong trình soạn thảo mà `crontab -e` mở ra. Dán thẳng vào terminal thì bash đọc số 0 ở đầu là tên lệnh và trả về `0: command not found` — đó là dán sai chỗ, không phải file hỏng.',
   },
 
+  'scan.g.venv.h': {
+    en: 'First: activate the venv',
+    vi: 'Trước tiên: bật venv',
+  },
+  'scan.g.venv.a': {
+    en: 'Every `python` in this runbook means the one inside `~/scanner/.venv`. The system python has no yfinance and no pandas, so `python nightly.py` without activating first dies on `ModuleNotFoundError` — which reads like a broken install and is only a missing activation.',
+    vi: 'Mọi chữ `python` trong sổ tay này là python nằm trong `~/scanner/.venv`. Python của hệ thống không có yfinance, không có pandas, nên `python nightly.py` mà chưa bật venv sẽ chết vì `ModuleNotFoundError` — đọc thì tưởng cài đặt hỏng, thật ra chỉ là quên bật.',
+  },
+  'scan.g.venv.b': {
+    en: 'Check it took: the prompt gains a `(.venv)` prefix, and `which python` answers `/home/ubuntu/scanner/.venv/bin/python`. It lasts for this SSH session only — a new window starts without it. Cron cannot activate anything, which is why the crontab further down spells out `.venv/bin/python` instead.',
+    vi: 'Kiểm lại là đã bật: dấu nhắc có thêm `(.venv)` ở đầu, và `which python` trả về `/home/ubuntu/scanner/.venv/bin/python`. Nó chỉ sống trong phiên SSH này — mở cửa sổ mới là mất. Cron không bật venv được, nên dòng crontab ở dưới viết thẳng `.venv/bin/python`.',
+  },
   'scan.g.s1.h': {
-    en: 'First: make sure nobody is holding the database',
-    vi: 'Trước tiên: chắc chắn không ai đang giữ database',
+    en: 'Then: make sure nobody is holding the database',
+    vi: 'Sau đó: chắc chắn không ai đang giữ database',
   },
   'scan.g.s1.a': {
     en: 'Two things have to be true in the output: `journal_mode = wal`, and section 4 saying it got the lock in a fraction of a second. If it still says `delete`, a process is holding the file — section 3 of the script prints its pid and command line.',
@@ -1133,8 +1145,8 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   },
   'scan.g.s7.h': { en: 'If it dies with `database is locked`', vi: 'Nếu nó chết vì `database is locked`' },
   'scan.g.s7.a': {
-    en: 'Do not go and change yfinance or the journal mode. The journal mode is the victim, not the cause: a write transaction left open elsewhere is. Step 01’s script prints the pid holding it.',
-    vi: 'Đừng đi sửa yfinance hay chế độ journal. Chế độ journal là nạn nhân, không phải nguyên nhân: thủ phạm là một transaction ghi bị bỏ mở ở chỗ khác. Script ở bước 01 in ra pid đang giữ.',
+    en: 'Do not go and change yfinance or the journal mode. The journal mode is the victim, not the cause: a write transaction left open elsewhere is. Step 02’s script prints the pid holding it.',
+    vi: 'Đừng đi sửa yfinance hay chế độ journal. Chế độ journal là nạn nhân, không phải nguyên nhân: thủ phạm là một transaction ghi bị bỏ mở ở chỗ khác. Script ở bước 02 in ra pid đang giữ.',
   },
   'scan.g.s7.b': {
     en: 'Do not raise the busy timeout past 30 seconds either. It only makes the run die later, and hides the thing you need to see.',

@@ -1631,12 +1631,27 @@ tuc la trang dang hien thi truong dem truoc voi ngay hom nay) / mot buoc tuy cho
 (`push`, `telegram` — dem van chay, chi la no khong bao ve duoc). No goi ten buoc do va
 in luon `err`.
 
-Mot lenh o ngoai: `cd ~/scanner && git pull && python nightly.py`. Muoi buoc con lai
-trong `<details>`, cung ly do nhu thresholds: ban vao day khi co gi lam ban ngac nhien,
-muoi buoc shell giua mot trang thi truong se bi doc mot lan roi khong bao gio nua.
+Mot lenh o ngoai: `cd ~/scanner && source .venv/bin/activate && git pull && python
+nightly.py`. Muoi mot buoc con lai trong `<details>`, cung ly do nhu thresholds: ban vao
+day khi co gi lam ban ngac nhien, mot chuoi buoc shell giua mot trang thi truong se bi
+doc mot lan roi khong bao gio nua.
+
+So thu tu cua buoc la CHI SO trong mang, nen chen mot buoc vao la doi so cua tat ca cac
+buoc sau no. Ten key `sN` giu nguyen, khong doi theo (nen `s1` gio hien la 02) — co y,
+vi doi ten key de danh so lai la cach chac chan nhat de mat mot ban dich. Cai PHAI di
+sua khi chen la nhung cau van co goi ten so buoc: `scan.g.now.none` va `scan.g.s7.a`.
 
 ### B.2 Nhung cho de sai, da lam thanh chu trong so tay
 
+  - BUOC 01 LA BAT VENV: `cd ~/scanner && source .venv/bin/activate`. Python cua he
+    thong khong co yfinance, khong co pandas, nen `python nightly.py` khi chua bat venv
+    chet vi `ModuleNotFoundError` — doc thi tuong cai dat hong, that ra chi la quen bat.
+    Kiem lai bang dau nhac co `(.venv)` va `which python` ra
+    `/home/ubuntu/scanner/.venv/bin/python`. Venv chi song trong phien SSH do.
+    Hai lenh TU CHUA phan bat venv trong minh — lenh chay lai o ngoai va buoc
+    `bars.py --sync --full` — vi do la hai lenh nguoi ta chep vao mot cua so SSH vua mo
+    ma khong doc buoc 01. Cron thi khong bat venv duoc, do la ly do dong crontab viet
+    thang `.venv/bin/python`.
   - Nut Chep doc `textContent` cua the `<pre>` ben canh, KHONG doc attribute. `&&`, dau
     nhay va dau dong ma di qua attribute HTML thi ve bien dang.
   - Khoi crontab co canh bao rieng: day la NOI DUNG crontab, khong phai lenh shell. Dan
@@ -1647,9 +1662,9 @@ muoi buoc shell giua mot trang thi truong se bi doc mot lan roi khong bao gio nu
     ET, con nightly ghi no luc 08:00 ET. Va: cron HOAC systemd timer, khong bao gio ca
     hai.
   - `nightly.py` tren mot kho nen rong thi khong tu bootstrap duoc (`DAILY_PERIOD =
-    "1mo"`); buoc 06 la `python bars.py --sync --full`, chay lai bao nhieu lan cung an
+    "1mo"`); buoc 07 la `python bars.py --sync --full`, chay lai bao nhieu lan cung an
     toan.
-  - `database is locked` la LOCK-1, khong phai chuyen journal mode. Buoc 01 la
+  - `database is locked` la LOCK-1, khong phai chuyen journal mode. Buoc 02 la
     `python scripts/db_lock.py`, va phai thay `journal_mode = wal` cung voi section 4
     lay duoc lock trong mot phan giay.
   - Backtick trong van ban so tay duoc doi thanh `<code>` (`codeSpans`), va noi dung

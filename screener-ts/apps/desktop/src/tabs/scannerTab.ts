@@ -883,8 +883,15 @@ function renderNight(night: NightBlock | null | undefined): string {
 
 // ── the runbook ──────────────────────────────────────────────────────────────
 
-/** The one command that re-runs a night. Kept apart: it is 90% of the visits here. */
-const RERUN_CMD = 'cd ~/scanner && git pull && python nightly.py';
+/**
+ * The one command that re-runs a night. Kept apart: it is 90% of the visits here.
+ *
+ * SELF-CONTAINED ON PURPOSE — it activates the venv itself rather than assuming the
+ * reader did step 01. This is the line that gets copied into a freshly opened SSH
+ * window, and the system python has neither yfinance nor pandas: without the
+ * activation it fails on `ModuleNotFoundError`, which reads like a broken install.
+ */
+const RERUN_CMD = 'cd ~/scanner && source .venv/bin/activate && git pull && python nightly.py';
 
 /**
  * One step of the runbook.
@@ -918,8 +925,19 @@ interface GuideStep {
  * It stays in sync with `error.txt` VM-4, VM-7 and LOCK-3 by being the same facts,
  * not by being generated from them — there is no build step that could check that,
  * so changing one means changing the other.
+ *
+ * The displayed number is the INDEX, so inserting a step renumbers everything after
+ * it. The `sN` key names are stable ids and no longer match that number (`s1` shows
+ * as 02) — deliberately, because renaming a key to renumber it is how you end up with
+ * a missing translation. What DOES have to be chased on insert is prose that names a
+ * step: `scan.g.now.none` and `scan.g.s7.a` both point at one.
  */
 const GUIDE: readonly GuideStep[] = [
+  {
+    h: 'scan.g.venv.h',
+    p: ['scan.g.venv.a', 'scan.g.venv.b'],
+    cmd: 'cd ~/scanner && source .venv/bin/activate',
+  },
   {
     h: 'scan.g.s1.h',
     p: ['scan.g.s1.a', 'scan.g.s1.b'],
@@ -933,7 +951,13 @@ const GUIDE: readonly GuideStep[] = [
     cmd: 'python nightly.py --dry-run\npython nightly.py --status',
   },
   { h: 'scan.g.s5.h', p: ['scan.g.s5.a', 'scan.g.s5.b', 'scan.g.s5.c', 'scan.g.s5.d'] },
-  { h: 'scan.g.s6.h', p: ['scan.g.s6.a', 'scan.g.s6.b'], cmd: 'python bars.py --sync --full' },
+  {
+    h: 'scan.g.s6.h',
+    p: ['scan.g.s6.a', 'scan.g.s6.b'],
+    // Self-contained like RERUN_CMD: this is the other step people jump straight to,
+    // days later, in a new window that has no venv.
+    cmd: 'cd ~/scanner && source .venv/bin/activate && python bars.py --sync --full',
+  },
   { h: 'scan.g.s7.h', p: ['scan.g.s7.a', 'scan.g.s7.b'] },
   {
     h: 'scan.g.s8.h',
