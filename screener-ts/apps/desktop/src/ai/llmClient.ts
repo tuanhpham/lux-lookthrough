@@ -35,9 +35,11 @@ import {
   parseModelList,
   buildProbeRequest,
   probeVerdict,
+  unreachableCause,
   pickDefaultModel,
   type LlmConfig,
   type ProbeVerdict,
+  type UnreachableCause,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { isTauri } from '../adapters/http.js';
@@ -142,6 +144,13 @@ export interface ProbeResult {
   status: number;
   /** The upstream's own error text, when there was one. Never contains the key. */
   detail?: string;
+  /**
+   * Only with `unreachable`, and only when the fetch threw: whether the browser
+   * refused the call rather than the network failing. Decided here because this is
+   * the one place that knows both the provider and whether we are in a browser —
+   * the dialog only picks which sentence to show.
+   */
+  cause?: UnreachableCause;
 }
 
 /**
@@ -164,7 +173,12 @@ export async function testConnection(cfg: LlmConfig, apiKey: string): Promise<Pr
     const text = await res.text().catch(() => '');
     return { verdict, status: res.status, detail: text.slice(0, 300) };
   } catch (e) {
-    return { verdict: 'unreachable', status: 0, detail: String(e).slice(0, 300) };
+    return {
+      verdict: 'unreachable',
+      status: 0,
+      cause: unreachableCause(cfg.providerId, !isTauri()),
+      detail: String(e).slice(0, 300),
+    };
   }
 }
 

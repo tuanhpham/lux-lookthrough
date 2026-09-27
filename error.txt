@@ -1323,3 +1323,63 @@ core 606 passed · desktop 8 passed · `vite build` sạch.
 
 Nếu vẫn muốn dùng đường "Custom endpoint": chỉ chạy trong app Tauri, và phải điền
 `https://api.xpiki.com/v1` (có `/v1`).
+
+────────────────────────────────────────────────────────────────────────────────
+## CHAT-15 — "Could not reach the provider. Check the connection" là câu SAI chỗ
+
+Bạn thử lại: Custom + `https://api.xpiki.com/v1` vẫn `TypeError: Failed to fetch`,
+còn chọn XPIKI thì chạy. Đúng như CHAT-14 đoán — nhưng nó phơi ra một lỗi khác,
+lỗi của app chứ không phải của XPIKI: câu thông báo bảo bạn đi kiểm tra mạng,
+trong khi mạng không hề sai. Đi tìm một cái không hỏng là mất thời gian vô ích,
+nên câu đó phải sửa.
+
+### Vì sao không thể đọc được nguyên nhân thật
+
+Trình duyệt CỐ Ý không nói cho trang biết vì sao một fetch chéo origin thất bại.
+Host chết, DNS sai, hay phản hồi tốt nhưng thiếu `Access-Control-Allow-Origin` —
+cả ba đều ra đúng một câu `TypeError: Failed to fetch`. Nếu nói rõ thì một trang
+web bất kỳ có thể dùng fetch để dò các site mà nó không có quyền. Lý do thật chỉ
+in ra console devtools, code không đọc được.
+
+Nên phải SUY RA từ chỗ khác: ai gọi.
+
+  - provider đi relay  → gọi cùng origin, CORS không áp dụng → hỏng là do mạng.
+  - provider `directOnly` (custom/local) trong trình duyệt → trang tự gọi chéo
+    origin → thiếu header CORS là khả năng lớn hơn nhiều (đa số gateway không trả).
+  - trong app Tauri → không có origin, không có preflight → cũng không phải CORS.
+
+### Sửa gì
+
+  - `packages/core/src/agent/providers.ts`: thêm `unreachableCause(providerId,
+    inBrowser)` → `'network' | 'browser-blocked'`. Thuần, có test.
+  - `apps/desktop/src/ai/llmClient.ts`: `ProbeResult` thêm `cause`, đặt trong
+    nhánh `catch` của `testConnection`. Đây là chỗ DUY NHẤT biết cả provider lẫn
+    `isTauri()`, nên nó quyết định; dialog chỉ chọn câu chữ.
+  - `src/ui/i18n.ts`: thêm `ai.test.blocked` — nói rõ trình duyệt chặn chứ không
+    phải mạng, rằng khoá và URL vẫn đúng, rằng app máy tính vẫn chạy, và muốn dùng
+    trên web thì endpoint phải được thêm vào danh sách relay (tức sửa code).
+    `ai.test.unreachable` giữ nguyên cho provider đi relay — ở đó "kiểm tra mạng"
+    đúng thật.
+  - `src/ui/llmSettings.ts`: chọn câu theo `r.cause`. Dòng `detail` thô vẫn in ở
+    cả hai, vì với ca bị chặn thì đó là thứ duy nhất trình duyệt chịu đưa ra.
+
+615 tests passed · `npm run build` (có `tsc --noEmit`) sạch.
+
+### Trả lời câu hỏi: lần sau gặp provider không trả header CORS?
+
+Đúng, phải sửa code — nhưng chỉ khi dùng trên WEB/điện thoại, và chỉ 3 dòng:
+
+  1. `providers.ts`: một entry mới (host nằm TRONG code — đó là điều kiện để relay
+     không thành open proxy).
+  2. `functions/api/llm/[[path]].ts`: dòng tương ứng trong `PROVIDERS`.
+  3. `providers.test.ts`: cập nhật map `relayUpstreams()` đã ghim.
+
+Còn không phải sửa gì trong hai trường hợp: (a) app Tauri trên máy tính — Custom
+endpoint gọi thẳng, không có CORS; (b) endpoint CÓ trả `Access-Control-Allow-Origin`
+— Custom chạy ngay trên web. Muốn biết trước thuộc loại nào, không cần đoán:
+
+    curl -si -X OPTIONS https://host/v1/chat/completions \
+      -H 'Origin: https://the-professional.pages.dev' \
+      -H 'Access-Control-Request-Method: POST' | grep -i access-control
+
+Có `access-control-allow-origin` → dùng Custom được. Không có → cần thêm provider.

@@ -631,6 +631,16 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     en: 'Could not reach the provider. Check the connection and try again.',
     vi: 'Không kết nối được tới nhà cung cấp. Kiểm tra mạng và thử lại.',
   },
+  // For the same thrown fetch as above, when the provider is one the page calls
+  // directly. Its own sentence because "check the connection" is then wrong advice:
+  // the network is fine and the browser is refusing a cross-origin call. See
+  // `unreachableCause` in core for why that can only be inferred, never read.
+  'ai.test.blocked': {
+    en:
+      'The browser blocked this, and it is not a network problem. A custom or local endpoint is called straight from the page, so it has to answer with a CORS header allowing this site — most gateways answer with none, and the browser then reports only "Failed to fetch". The same key and URL work in the desktop app. To use this endpoint on the web it has to be added to the app\'s relay list, which is a code change.',
+    vi:
+      'Trình duyệt đã chặn, và đây không phải lỗi mạng. Endpoint tự nhập hoặc chạy nội bộ được gọi trực tiếp từ trang, nên nó phải trả về header CORS cho phép trang này — phần lớn cổng trung gian không trả, và trình duyệt chỉ báo đúng một câu "Failed to fetch". Cùng khoá và URL đó vẫn chạy trong app máy tính. Muốn dùng endpoint này trên web thì phải thêm nó vào danh sách relay của app, tức là phải sửa code.',
+  },
   'ai.model.missing': {
     en: 'No model set. Add a key first, or type a model id.',
     vi: 'Chưa chọn mô hình. Hãy thêm khoá trước, hoặc tự nhập mã mô hình.',

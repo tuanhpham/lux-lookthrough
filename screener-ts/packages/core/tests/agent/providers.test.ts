@@ -12,6 +12,7 @@ import {
   tokenLimitField,
   usesStreaming,
   probeVerdict,
+  unreachableCause,
   estimateCostUsd,
   seededPrices,
 } from '../../src/agent/providers.js';
@@ -262,6 +263,19 @@ describe('the connection probe', () => {
     expect(probeVerdict(400)).toBe('ok');
     expect(probeVerdict(200)).toBe('ok');
     expect(probeVerdict(429)).toBe('ok');
+  });
+
+  it('blames the browser, not the network, when a direct endpoint fails inside a page', () => {
+    // The message this drives. A gateway that sends no `Access-Control-Allow-Origin`
+    // fails with an opaque `TypeError: Failed to fetch`, and the old wording — "check
+    // the connection" — sent the user to look at a network that was working. Relayed
+    // calls are same-origin, so CORS cannot be the cause there, and Tauri has no
+    // browser origin at all; both must keep the generic message.
+    expect(unreachableCause('custom', true)).toBe('browser-blocked');
+    expect(unreachableCause('local', true)).toBe('browser-blocked');
+    expect(unreachableCause('xpiki', true)).toBe('network');
+    expect(unreachableCause('custom', false)).toBe('network');
+    expect(unreachableCause('nope', true)).toBe('network');
   });
 
   it('reports the statuses that really do mean a wrong configuration', () => {

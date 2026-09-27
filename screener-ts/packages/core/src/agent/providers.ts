@@ -548,6 +548,32 @@ export function probeVerdict(status: number): ProbeVerdict {
   return 'ok';
 }
 
+/** Which of the two things an `unreachable` thrown fetch actually means. */
+export type UnreachableCause = 'network' | 'browser-blocked';
+
+/**
+ * Why a fetch threw, as far as it can honestly be known.
+ *
+ * A browser will not tell a page why a cross-origin fetch failed. A dead host, a
+ * DNS failure, and a perfectly good response that arrived without
+ * `Access-Control-Allow-Origin` all surface as the same opaque
+ * `TypeError: Failed to fetch` — deliberately, so a page cannot use fetch to probe
+ * sites it has no access to. The real reason is printed in the devtools console
+ * and nowhere the code can read it.
+ *
+ * So the cause is inferred from who made the call. A relayed provider is fetched
+ * same-origin, where CORS never applies, and a failure there really is the
+ * network. A `directOnly` provider is fetched by the page itself, cross-origin,
+ * and a missing CORS header is much the likelier reason — most gateways send
+ * none. That distinction is the whole point: telling the second user to "check
+ * the connection" sends them hunting a network that was working all along. Under
+ * Tauri there is no browser origin and no preflight, so a direct call there is
+ * not blocked either, hence `inBrowser`.
+ */
+export function unreachableCause(providerId: string, inBrowser: boolean): UnreachableCause {
+  return inBrowser && findProvider(providerId)?.directOnly ? 'browser-blocked' : 'network';
+}
+
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;

@@ -281,7 +281,16 @@ async function reportProbe(cfg: LlmConfig, apiKey: string): Promise<void> {
       alert(`${t('ai.test.noaccess')}\n\n${r.detail ?? ''}`.trim());
       return;
     case 'unreachable':
-      alert(`${t('ai.test.unreachable')}\n\n${r.detail ?? ''}`.trim());
+      // One verdict, two opposite pieces of advice: "check the connection" for a
+      // provider reached through the relay, and "the browser refused it, the network
+      // is fine" for one the page calls itself. `llmClient` decides which; this only
+      // picks the sentence. The raw detail stays on both — for the blocked case it is
+      // the only thing the browser hands over.
+      alert(
+        `${t(r.cause === 'browser-blocked' ? 'ai.test.blocked' : 'ai.test.unreachable')}\n\n${
+          r.detail ?? ''
+        }`.trim(),
+      );
       return;
   }
 }
