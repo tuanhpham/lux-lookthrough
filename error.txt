@@ -1383,3 +1383,52 @@ endpoint gọi thẳng, không có CORS; (b) endpoint CÓ trả `Access-Control-
       -H 'Access-Control-Request-Method: POST' | grep -i access-control
 
 Có `access-control-allow-origin` → dùng Custom được. Không có → cần thêm provider.
+
+────────────────────────────────────────────────────────────────────────────────
+## CHAT-16 — Tra lai cai nut tron o cuoi story, va them Learn vao landing page
+
+### Cai nut den tu dau
+
+Hoi story con la trang chu (vao sau dong ho splash 100%), cuoi chuong cuoi co mot
+overlay: vignette mo dan ra vien + mot nut tron vien lien ben trong, vien gach nut
+ben ngoai, chu DISCOVER. No bien mat trong commit `df4b41a9` ("story vao trong
+About, landing page moi kieu broker") — khong phai co y bo, ma vi ca trang cu bi
+viet lai, con story thi chuyen vao tab About ma khong mang theo doan overlay.
+
+Lay lai nguyen van CSS tu `df4b41a9^:styles.css` (dong 1547-1631), chi doi hai thu:
+
+  - `#sl-exit-overlay` → `.sl-exit` (class, khong con la id trang chu)
+  - `position: fixed` → `absolute`. Ly do giong het cai veil: overlay thuoc ve khung
+    story, fixed thi no lam mo luon thanh bar 56px cua app. `.about-story` da la
+    `.sl-wrap` (`position: relative`) nen `inset: 0` phu dung vung story.
+
+### Diem de sai: nut hien khi nao
+
+KHONG phai luc vua toi chuong cuoi. Chuong cuoi cao dung mot viewport
+(`.about-story .sl-chapter { min-height: calc(100dvh - 56px) }`), nen "da o day
+cuoi chuong" la DUNG ngay giay dau tien — bat theo dieu kien do thi nut se de len
+cau ket truoc khi kip doc. Dung dieu kien la CU CHI tiep theo: cuon xuong mot lan
+nua o cuoi chuong cuoi (chinh la cu chi dang le sang chuong moi, ma khong con
+chuong nao). Cuon len la nut bien di. Dung logic cu, khong phat minh lai.
+
+Cung vi vay KHONG dat showExit() vao listener `scroll` — nghe co ly cho dien thoai
+nhung se bat ngay luc vua den chuong cuoi. Tren dien thoai, `touchend` voi
+|dy| >= 40 lo cu chi do roi.
+
+### Nut bam vao thi di dau
+
+Ngay xua: vao platform (luc do dang o ngoai trang chu). Bay gio doc story la da o
+trong app, nen tuong duong la Calendar — dung cho ma "Enter the platform" cua
+landing page dan toi. `renderAbout(onDiscover?)`: khong truyen callback thi khong
+render nut, hon la render mot nut chet.
+
+### Learn tren landing page
+
+Them mot muc nav thu ba (Platform · Learn · Story), co o ca menu day man hinh va
+footer ("Guides & glossary" / "Hướng dẫn & thuật ngữ"). `openLearn` trong main.ts
+giong het `openStory`, chi khac `enterApp('learn')` — van qua gate (gate la no-op
+khi may da co ma). Ly do ton tai: Learn la cho hay quay lai doc, ma duong cu la
+"vao platform roi tu tim tab Learn" — hai click va mot cuoc di tim.
+
+615 tests passed (`syncMerge` co mot test timeout 5s khi chay song song, chay rieng
+thi pass — khong lien quan) · `npm run build` sach · da xem anh render ca hai theme.

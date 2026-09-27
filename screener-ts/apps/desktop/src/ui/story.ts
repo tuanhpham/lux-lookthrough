@@ -137,6 +137,18 @@ export interface CinematicOpts {
   snap: HTMLElement;
   /** Blur flash shown while a chapter transition is in flight. */
   veil: HTMLElement;
+  /**
+   * The closing overlay — the vignette and the round button that end the story.
+   *
+   * It is shown on the gesture AFTER the last chapter is finished, not on arriving
+   * there: the last chapter is exactly one viewport tall, so "at the bottom" is true
+   * the instant you land on it, and reacting to that would put the button over the
+   * final quote before it had been read. One more scroll down is the reader saying
+   * they are done; scrolling back up takes it away again.
+   *
+   * Optional — without it the last chapter is simply the end.
+   */
+  exit?: HTMLElement;
 }
 
 /**
@@ -147,7 +159,7 @@ export interface CinematicOpts {
  * against the scroll, and that needs the position to be ours.
  */
 export function wireCinematic(opts: CinematicOpts): void {
-  const { snap, veil } = opts;
+  const { snap, veil, exit } = opts;
 
   requestAnimationFrame(() => {
     const chapters = Array.from(snap.querySelectorAll<HTMLElement>('.sl-chapter'));
@@ -243,6 +255,19 @@ export function wireCinematic(opts: CinematicOpts): void {
       }
     };
 
+    const lastIdx = chapters.length - 1;
+    let exitVisible = false;
+    const showExit = () => {
+      if (exitVisible || !exit) return;
+      exitVisible = true;
+      exit.classList.add('sl-exit--in');
+    };
+    const hideExit = () => {
+      if (!exitVisible || !exit) return;
+      exitVisible = false;
+      exit.classList.remove('sl-exit--in');
+    };
+
     // Intercept wheel only at chapter boundaries; allow free scroll within tall chapters
     let wheelCooldown = false;
     // On mobile, native touch scroll can bypass animateTo entirely — watch
@@ -264,9 +289,23 @@ export function wireCinematic(opts: CinematicOpts): void {
       const atBottom = scrolled >= chBottom - 2;
       const atTop = scrolled <= chTop + 2;
 
+      // Past the end of the last chapter there is nowhere to scroll to, so the
+      // gesture that would have turned the page closes the story instead.
+      if (goingDown && atBottom && targetIdx === lastIdx && exit) {
+        e.preventDefault();
+        showExit();
+        return;
+      }
+      if (!goingDown && atTop && exitVisible) {
+        e.preventDefault();
+        hideExit();
+        return;
+      }
+
       if (!((goingDown && atBottom) || (!goingDown && atTop))) return;
 
       e.preventDefault();
+      hideExit();
       if (wheelCooldown) return;
       wheelCooldown = true;
       setTimeout(() => { wheelCooldown = false; }, SCROLL_MS + 100);
@@ -283,7 +322,16 @@ export function wireCinematic(opts: CinematicOpts): void {
       const chTop = chapterTop(targetIdx);
       const chBot = chTop + (chapters[targetIdx]?.offsetHeight ?? vh) - vh;
       const goingDown = dy > 0;
+      if (goingDown && snap.scrollTop >= chBot - 2 && targetIdx === lastIdx && exit) {
+        showExit();
+        return;
+      }
+      if (!goingDown && exitVisible) {
+        hideExit();
+        return;
+      }
       if ((goingDown && snap.scrollTop >= chBot - 2) || (!goingDown && snap.scrollTop <= chTop + 2)) {
+        hideExit();
         animateTo(targetIdx + (goingDown ? 1 : -1));
       }
     }, { passive: true });

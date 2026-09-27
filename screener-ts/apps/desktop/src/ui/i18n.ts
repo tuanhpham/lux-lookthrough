@@ -24,6 +24,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.more': { en: 'More', vi: 'Thêm' },
   'foot.disclaimer': { en: 'Educational use only. Not financial advice.', vi: 'Chỉ dùng cho mục đích học tập. Không phải lời khuyên đầu tư.' },
 
+  // The round button that closes the story, at the end of the last chapter. One
+  // word on purpose: it sits inside a 130px circle, uppercase and letter-spaced.
+  'story.discover': { en: 'Discover', vi: 'Khám phá' },
+
   // Landing
   'landing.badge': { en: 'The Platform', vi: 'Nền tảng' },
   'landing.h1a': { en: 'Trade the strongest stocks,', vi: 'Giao dịch những cổ phiếu mạnh nhất,' },

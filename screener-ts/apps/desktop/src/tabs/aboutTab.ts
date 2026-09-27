@@ -1,5 +1,5 @@
 import { $ } from '../ui/dom.js';
-import { getLang } from '../ui/i18n.js';
+import { getLang, t } from '../ui/i18n.js';
 import { buildStoryChapters, storyCopy, wireCinematic } from '../ui/story.js';
 
 /**
@@ -13,8 +13,13 @@ import { buildStoryChapters, storyCopy, wireCinematic } from '../ui/story.js';
  *
  * One full screen per chapter, contained: the tab is exactly one viewport tall, so
  * there is no page scroll behind the chapters to fight with.
+ *
+ * `onDiscover` is what the round button at the end does. Back when the story WAS
+ * the front page, that button was the way into the platform; the story is a tab
+ * now, so the caller says where it leads. Omit it and there is no button — better
+ * than a dead one.
  */
-export function renderAbout(): void {
+export function renderAbout(onDiscover?: (trigger?: Element) => void): void {
   const root = $('#tab-about')!;
 
   root.innerHTML = `
@@ -24,11 +29,23 @@ export function renderAbout(): void {
           <div class="sl-story">${buildStoryChapters(storyCopy(getLang()))}</div>
         </div>
         <div class="sl-veil about-veil"></div>
+        ${onDiscover ? `
+        <div class="sl-exit about-exit">
+          <button class="sl-exit-btn" id="about-exit-btn"><span>${t('story.discover')}</span></button>
+        </div>` : ''}
       </section>
     </div>`;
+
+  // Absolute inside `.about-story`, not fixed over the window — same reason as the
+  // veil: the app's top bar is not part of the story and must not be dimmed with it.
+  const exit = root.querySelector<HTMLElement>('.about-exit') ?? undefined;
+  root.querySelector('#about-exit-btn')?.addEventListener('click', (e) => {
+    onDiscover?.(e.currentTarget as Element);
+  });
 
   wireCinematic({
     snap: root.querySelector<HTMLElement>('.about-snap')!,
     veil: root.querySelector<HTMLElement>('.about-veil')!,
+    exit,
   });
 }

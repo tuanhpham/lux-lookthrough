@@ -1384,6 +1384,92 @@ html.light .sl-veil { background: color-mix(in srgb, var(--bg) 55%, transparent)
   transition: opacity 0.7s cubic-bezier(.4,0,.2,1);
 }
 
+/* ── The story's ending: radial blur vignette + circular art button ──────────
+   Shown by the engine one gesture after the last chapter (see `CinematicOpts.exit`).
+   Absolute, not fixed: it belongs to the story box, and fixed would black out the
+   app's top bar along with it. The centre of the vignette stays clear on purpose —
+   the final quote is still meant to be readable underneath. */
+.sl-exit {
+  position: absolute; inset: 0; z-index: 60;
+  pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 1.2s cubic-bezier(.4,0,.2,1);
+}
+/* Two layers: ::before darkens the edges, ::after blurs them. Both masked to a
+   clear centre, which is what makes it read as depth rather than a scrim. */
+.sl-exit::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center,
+    rgba(14,14,14,0)   0%,
+    rgba(14,14,14,0)  25%,
+    rgba(14,14,14,.45) 60%,
+    rgba(14,14,14,.88) 100%);
+  transition: background 1.2s;
+}
+html.light .sl-exit::before {
+  background: radial-gradient(ellipse at center,
+    rgba(200,196,191,0)   0%,
+    rgba(200,196,191,0)  25%,
+    rgba(200,196,191,.45) 60%,
+    rgba(200,196,191,.88) 100%);
+}
+.sl-exit::after {
+  content: '';
+  position: absolute; inset: 0;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  -webkit-mask-image: radial-gradient(ellipse at center,
+    transparent 0%, transparent 28%, black 62%);
+  mask-image: radial-gradient(ellipse at center,
+    transparent 0%, transparent 28%, black 62%);
+}
+.sl-exit.sl-exit--in { opacity: 1; }
+/* Only the button takes clicks, so the overlay never swallows a scroll gesture —
+   scrolling back up is how you dismiss it. */
+.sl-exit.sl-exit--in .sl-exit-btn { pointer-events: auto; }
+
+/* Solid inner border, dashed outer ring (an outline, offset outwards). */
+.sl-exit-btn {
+  position: relative; z-index: 1;
+  width: 130px; height: 130px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.65);
+  outline: 1.5px dashed rgba(255,255,255,.45);
+  outline-offset: 8px;
+  background: rgba(255,255,255,.04);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  color: rgba(255,255,255,.88);
+  font-family: var(--font-ui);
+  font-size: 11px; font-weight: 400;
+  letter-spacing: .22em; text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .3s, border-color .3s, outline-color .3s, transform .3s;
+}
+.sl-exit-btn:hover {
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.9);
+  outline-color: rgba(255,255,255,.7);
+  transform: scale(1.05);
+}
+html.light .sl-exit-btn {
+  border-color: rgba(20,20,20,.7);
+  outline-color: rgba(20,20,20,.45);
+  color: rgba(20,20,20,.88);
+  background: rgba(232,228,223,.25);
+}
+html.light .sl-exit-btn:hover {
+  border-color: rgba(20,20,20,.9);
+  outline-color: rgba(20,20,20,.65);
+  background: rgba(232,228,223,.45);
+}
+@media (max-width: 640px) {
+  .sl-exit-btn { width: 110px; height: 110px; font-size: 10px; }
+}
+
 /* ── Chapter reveal: fade up per element, staggered via JS ── */
 .reveal {
   opacity: 0;

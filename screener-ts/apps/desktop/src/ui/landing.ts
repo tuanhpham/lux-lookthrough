@@ -19,6 +19,7 @@ import { pageTransition } from './transition.js';
 
 const EN = {
   navPlatform: 'Platform',
+  navLearn: 'Learn',
   navStory: 'Story',
   eyebrow: 'Private research terminal',
   h1a: 'Every setup on the list,',
@@ -56,6 +57,7 @@ const EN = {
   closeSub: 'Everything is already unlocked on this device.',
   footAbout: 'The story behind it',
   footPlatform: 'The platform',
+  footLearn: 'Guides & glossary',
   riskLabel: 'Risk warning',
 
   // The funnel: the one idea that explains the whole product in five rows.
@@ -106,6 +108,7 @@ const EN = {
 
 const VI: typeof EN = {
   navPlatform: 'Nền tảng',
+  navLearn: 'Tìm hiểu',
   navStory: 'Câu chuyện',
   eyebrow: 'Bàn nghiên cứu riêng',
   h1a: 'Mỗi mã trong danh sách,',
@@ -143,6 +146,7 @@ const VI: typeof EN = {
   closeSub: 'Máy này đã mở khoá sẵn.',
   footAbout: 'Câu chuyện phía sau',
   footPlatform: 'Nền tảng',
+  footLearn: 'Hướng dẫn & thuật ngữ',
   riskLabel: 'Cảnh báo rủi ro',
 
   hcRegime: 'Bối cảnh',
@@ -200,6 +204,7 @@ export function renderLanding(
   host: HTMLElement,
   onEnterPrivate: (trigger?: Element) => void,
   onOpenStory?: (trigger?: Element) => void,
+  onOpenLearn?: (trigger?: Element) => void,
 ): void {
   detachScroll?.();
   detachScroll = null;
@@ -207,7 +212,11 @@ export function renderLanding(
   const isLight = document.documentElement.classList.contains('light');
   const lang = getLang();
   const c = lang === 'vi' ? VI : EN;
+  // Both fall back to the main entry point rather than being conditionally rendered:
+  // a link that is sometimes there is harder to follow than one that always goes
+  // somewhere sensible.
   const story = onOpenStory ?? onEnterPrivate;
+  const learn = onOpenLearn ?? onEnterPrivate;
 
   const chips = lang === 'vi'
     ? ['Bộ lọc', 'Nền–bứt phá', 'Đà tăng', 'Bùng nổ khối lượng', 'Trạng thái thị trường',
@@ -263,6 +272,7 @@ export function renderLanding(
     </button>
     <nav class="cl-nav-links">
       <button class="cl-nav-link" id="cl-nav-platform">${c.navPlatform}</button>
+      <button class="cl-nav-link" id="cl-nav-learn">${c.navLearn}</button>
       <button class="cl-nav-link" id="cl-nav-story">${c.navStory}</button>
     </nav>
     <div class="cl-nav-right">
@@ -365,6 +375,7 @@ export function renderLanding(
       </div>
       <div class="cl-footer-links">
         <button class="cl-foot-link" id="cl-foot-platform">${c.footPlatform}</button>
+        <button class="cl-foot-link" id="cl-foot-learn">${c.footLearn}</button>
         <button class="cl-foot-link" id="cl-foot-story">${c.footAbout}</button>
       </div>
     </div>
@@ -381,6 +392,7 @@ export function renderLanding(
   </header>
   <div class="sl-menu-items">
     <button class="sl-menu-item" id="sl-menu-discover">${c.navPlatform}</button>
+    <button class="sl-menu-item" id="sl-menu-learn">${c.navLearn}</button>
     <button class="sl-menu-item" id="sl-menu-story">${c.navStory}</button>
     <div class="sl-menu-controls">
       <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-ml="en">EN</button>
@@ -412,7 +424,10 @@ export function renderLanding(
   wire('#cl-story', story);
   wire('#cl-nav-story', story);
   wire('#cl-foot-story', story);
+  wire('#cl-nav-learn', learn);
+  wire('#cl-foot-learn', learn);
   wire('#sl-menu-discover', onEnterPrivate, true);
+  wire('#sl-menu-learn', learn, true);
   wire('#sl-menu-story', story, true);
 
   // "The Professional" always means the landing page. From inside the app that is a
@@ -447,7 +462,7 @@ export function renderLanding(
     pageTransition(btn, () => {
       closeMenu();
       applyTheme(light ? 'dark' : 'light');
-      renderLanding(host, onEnterPrivate, onOpenStory);
+      renderLanding(host, onEnterPrivate, onOpenStory, onOpenLearn);
     });
   });
 

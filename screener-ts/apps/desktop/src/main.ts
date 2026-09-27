@@ -111,7 +111,7 @@ function renderTab(tab: Tab): void {
       renderLearn();
       break;
     case 'about':
-      renderAbout();
+      renderAbout(discoverFromStory);
       break;
   }
 }
@@ -225,7 +225,7 @@ function goToLanding(trigger?: Element): void {
   pageTransition(trigger ?? null, () => {
     $('#app')!.classList.add('hidden');
     $('#landing')!.classList.remove('hidden');
-    renderLanding($('#landing')!, requestPrivateAccess, openStory);
+    renderLanding($('#landing')!, requestPrivateAccess, openStory, openLearn);
   });
 }
 
@@ -241,6 +241,34 @@ function openStory(trigger?: Element): void {
       enterApp('about');
     }),
   );
+}
+
+/**
+ * The landing page's "Learn" link — straight to the reading tab.
+ *
+ * Same shape as `openStory`, and it exists for the same reason: the guides are
+ * something you come back to, and "Enter the platform, then go and find Learn" is
+ * two clicks and a hunt for a destination the reader already named.
+ */
+function openLearn(trigger?: Element): void {
+  pageTransition(trigger ?? null, () =>
+    showGate(() => {
+      $('#landing')!.classList.add('hidden');
+      enterApp('learn');
+    }),
+  );
+}
+
+/**
+ * The round button that ends the story, at the bottom of the last chapter.
+ *
+ * When the story was the front page this button was the way in. The story is a tab
+ * now, so the equivalent is the desk itself — the same place the landing page's
+ * "Enter the platform" lands. No gate and no `enterApp`: reading the story means
+ * already being inside.
+ */
+function discoverFromStory(trigger?: Element): void {
+  pageTransition(trigger ?? null, () => show('calendar'));
 }
 
 /**
@@ -456,7 +484,7 @@ function reRenderCurrentPage(): void {
   if (!$('#app')!.classList.contains('hidden')) {
     renderTab(currentTab);
   } else if (!$('#landing')!.classList.contains('hidden')) {
-    renderLanding($('#landing')!, requestPrivateAccess, openStory);
+    renderLanding($('#landing')!, requestPrivateAccess, openStory, openLearn);
   }
 }
 
@@ -521,7 +549,7 @@ if (isSyncEnabled()) {
 // firing it off; the gate must not appear under a splash that is still animating.
 try {
   const landing = $('#landing')!;
-  renderLanding(landing, requestPrivateAccess, openStory);
+  renderLanding(landing, requestPrivateAccess, openStory, openLearn);
   applyStaticI18n();
   (window as unknown as { __APP_READY__?: boolean }).__APP_READY__ = true;
 
