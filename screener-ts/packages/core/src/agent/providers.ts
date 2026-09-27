@@ -40,6 +40,7 @@ export type LlmProviderId =
   | 'deepseek'
   | 'groq'
   | 'openrouter'
+  | 'xpiki'
   | 'custom'
   | 'local';
 
@@ -266,6 +267,35 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     // `:free` variants exist and are rate-limited; prefer them when present so a
     // user who picked OpenRouter to spend nothing does not get billed by default.
     prefer: [/:free$/, /^anthropic\//, /^openai\//],
+  },
+  {
+    id: 'xpiki',
+    label: 'XPIKI (gateway, one key)',
+    wire: 'openai',
+    // Note the `/v1`. The bare host serves the XPIKI Console web app, so a base URL
+    // without it makes `/models` return an HTML page — which parses as zero models
+    // and looks like "the assistant is broken" rather than "wrong URL".
+    upstream: 'https://api.xpiki.com/v1',
+    // Verified against the live endpoint: an unauthenticated call answers
+    // `{"error":{"code":"missing_api_key",...}}` asking for `Authorization: Bearer`.
+    auth: 'bearer',
+    chatPath: '/chat/completions',
+    modelsPath: '/models',
+    keysUrl: 'https://api.xpiki.com/',
+    cost: 'metered',
+    keyRequired: true,
+    // A gateway resells many families, so order newest-first and let `/./` catch
+    // whatever else the account has rather than leaving the default empty.
+    prefer: [/^gpt-5/, /^claude/, /^gemini/, /^deepseek/, /^gpt-4/, /./],
+    // RELAYED, not direct, and this is the whole reason it is a named provider
+    // instead of a `custom` endpoint: XPIKI answers a CORS preflight with
+    // Allow-Methods and Allow-Headers but NO `Access-Control-Allow-Origin`, so a
+    // browser blocks the direct call. Through the same-origin relay there is no
+    // preflight at all. Keep `functions/api/llm` in step — see `relayUpstreams`.
+    note: {
+      en: 'OpenAI-compatible gateway; one key for many models. Relayed same-origin, so it works in the browser and on the phone. Prices are unknown here; fill them in for the cost meter.',
+      vi: 'Cổng trung gian tương thích OpenAI; một khoá dùng nhiều mô hình. Đi qua relay cùng origin nên chạy được cả trên trình duyệt và điện thoại. Không biết giá; nhập vào để có đồng hồ chi phí.',
+    },
   },
   {
     id: 'custom',

@@ -1257,3 +1257,69 @@ Chạy lại đúng cả ba job ở máy này trước khi push (không đợi C
 `pytest -q` → 761 passed; `python -m compileall -q .` → sạch; và vòng
 `for f in tests/test_*.py; do python "$f"; done` (step "Test chay duoc ma khong
 co thu vien") → sạch. Commit `0cfa82e`.
+
+## CHAT-14. Khoá XPIKI: hai thứ chặn, và cả hai đều không phải tại khoá
+
+Bạn điền khoá mới + base URL `https://api.xpiki.com/` vào ô "Custom endpoint" và
+chat bot không chạy. Đo thật bằng `curl`, không đoán:
+
+    GET https://api.xpiki.com/v1/models  → 401 {"error":{"code":"missing_api_key",
+        "message":"缺少 API Key,请在 Authorization 头中传入 Bearer <key>"}}
+    GET https://api.xpiki.com/models     → 200 text/html  (<title>XPIKI Console</title>)
+
+**Chặn thứ nhất: thiếu `/v1`.** Host trần phục vụ trang console của XPIKI, nên
+`/models` trả về HTML. `parseModelList()` gặp HTML → danh sách mô hình RỖNG, và
+`/chat/completions` cũng đi vào trang web chứ không vào API. Triệu chứng là "trợ lý
+hỏng", nguyên nhân là sai URL — đúng kiểu lỗi tốn cả buổi nếu không đo.
+
+**Chặn thứ hai, nặng hơn: CORS.** Provider `custom` là `directOnly`, tức trình
+duyệt gọi thẳng. Mà preflight của XPIKI thiếu đúng cái header quyết định:
+
+    OPTIONS /v1/chat/completions → 204
+      Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+      Access-Control-Allow-Headers: Authorization, Content-Type, X-Request-Id
+      Access-Control-Allow-Credentials: true
+      (KHÔNG có Access-Control-Allow-Origin)
+
+Không có `Allow-Origin` thì trình duyệt chặn, dù URL có đúng. Nên chỉ sửa `/v1`
+là KHÔNG đủ cho bản web và điện thoại — chỉ app Tauri (không phải trình duyệt,
+không có CORS) mới gọi thẳng được.
+
+### Cách sửa: XPIKI thành provider có tên, đi qua relay
+
+Không nới luật "relay chỉ tới host cố định" (nới là thành open proxy). Thay vào đó
+thêm host vào BẢNG, đúng cơ chế mà file relay đã thiết kế sẵn:
+
+  - `packages/core/src/agent/providers.ts`: thêm `xpiki`, upstream
+    `https://api.xpiki.com/v1`, auth `bearer` (theo đúng câu 401 của nó), wire
+    `openai`, KHÔNG `directOnly` → đi relay, nên không còn preflight nào cả.
+  - `apps/desktop/functions/api/llm/[[path]].ts`: thêm dòng tương ứng vào
+    `PROVIDERS` (bản sao cố ý, vì Pages Functions không resolve được workspace).
+  - `packages/core/tests/agent/providers.test.ts`: `relayUpstreams()` được ghim
+    nguyên map nên sửa một bên là test đỏ ngay — cập nhật cho khớp.
+
+Thêm một test mới: mọi upstream trong `relayUpstreams()` phải có pathname khác
+`/`. Đó chính là bẫy `/v1` ở trên, khoá lại để không ai thêm host trần lần nữa.
+
+Kiểm tra thật, không chỉ chạy test: `npx wrangler pages dev dist` ở máy này (dev
+không cần đăng nhập Cloudflare) rồi gọi qua relay —
+
+    /api/llm/xpiki/models  không key  → 401 {"error":"missing x-llm-key header"}   (relay chặn)
+    /api/llm/xpiki/models  key giả    → 401 invalid_api_key "API Key 不存在或已被停用"  (XPIKI trả lời)
+    /api/llm/nope/models              → 404 unknown provider
+
+Cái 401 thứ hai là bằng chứng quan trọng nhất: request đã tới ĐÚNG XPIKI, đúng
+`/v1`, đúng Bearer. Với khoá thật là ra danh sách mô hình.
+
+core 606 passed · desktop 8 passed · `vite build` sạch.
+
+### Việc bạn cần làm
+
+1. Deploy (Pages đang đỏ — xem CHAT-11), rồi mở lại ô ☁️ / cài đặt trợ lý.
+2. Chọn provider **XPIKI (gateway, one key)** — KHÔNG phải "Custom endpoint" nữa.
+   Chọn nó rồi thì không còn ô endpoint để điền, vì host đã nằm trong code.
+3. Dán lại khoá (khoá lưu theo từng provider: `sync:llm_key:xpiki`), chọn mô hình
+   từ dropdown — giờ dropdown lấy được danh sách thật.
+
+Nếu vẫn muốn dùng đường "Custom endpoint": chỉ chạy trong app Tauri, và phải điền
+`https://api.xpiki.com/v1` (có `/v1`).

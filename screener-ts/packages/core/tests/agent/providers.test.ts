@@ -90,7 +90,18 @@ describe('relay allow-list', () => {
       deepseek: 'https://api.deepseek.com/v1',
       groq: 'https://api.groq.com/openai/v1',
       openrouter: 'https://openrouter.ai/api/v1',
+      xpiki: 'https://api.xpiki.com/v1',
     });
+  });
+
+  it('gives every relayable upstream an explicit API root, never a bare host', () => {
+    // The bug this catches, seen for real with XPIKI: `https://api.xpiki.com` (no
+    // `/v1`) serves the provider's own web console, so `/models` returns HTML, the
+    // model list parses as empty, and the failure looks like a broken assistant
+    // instead of a wrong URL. Every upstream here must already point AT the API.
+    for (const [id, upstream] of Object.entries(relayUpstreams())) {
+      expect(new URL(upstream).pathname, id).not.toBe('/');
+    }
   });
 });
 

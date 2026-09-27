@@ -62,6 +62,10 @@ const PROVIDERS: Record<string, Relayed> = {
   deepseek: { upstream: 'https://api.deepseek.com/v1', auth: 'bearer', keyRequired: true },
   groq: { upstream: 'https://api.groq.com/openai/v1', auth: 'bearer', keyRequired: true },
   openrouter: { upstream: 'https://openrouter.ai/api/v1', auth: 'bearer', keyRequired: true },
+  // Relayed for a reason worth stating: XPIKI's CORS preflight returns
+  // Allow-Methods/Allow-Headers but no `Access-Control-Allow-Origin`, so a direct
+  // browser call is blocked. Same-origin through here, there is no preflight.
+  xpiki: { upstream: 'https://api.xpiki.com/v1', auth: 'bearer', keyRequired: true },
 };
 
 /** A request body larger than this is refused, so the relay is not a data pump. */
