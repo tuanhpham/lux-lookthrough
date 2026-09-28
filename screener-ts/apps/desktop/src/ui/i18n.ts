@@ -185,6 +185,19 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     en: 'From the chosen account — edit it there',
     vi: 'Lấy từ tài khoản đã chọn — sửa ở tài khoản đó',
   },
+  // The Buy form's plan half. The grade is an OVERRIDE now that the checklist scores the
+  // trade, and the label has to say so — a box labelled "Rating" invites the user to pick
+  // the letter the app just spent 26 criteria computing.
+  'pf.buy.gradeover': { en: 'Grade (override)', vi: 'Hạng (ghi đè)' },
+  'pf.buy.gradeauto': { en: '— Auto (from score)', vi: '— Tự động (theo điểm)' },
+  'pf.buy.plannote': { en: 'Plan note — saved with the trade', vi: 'Ghi chú kế hoạch — lưu cùng giao dịch' },
+  // Not `pf.buy.*` or `wl.plan.*`: the Buy form and the Trade Planner print the same report
+  // from the same module, so one label rather than two that can drift apart.
+  'plan.print': { en: 'Print plan', vi: 'In kế hoạch' },
+  'plan.printtitle': {
+    en: 'Download this trade plan as a standalone HTML file — open it and print to save as PDF',
+    vi: 'Tải kế hoạch giao dịch này thành một tệp HTML độc lập — mở ra rồi in để lưu PDF',
+  },
   'wl.plan.cfg': { en: 'Playbook', vi: 'Cẩm nang' },
   'wl.plan.cfgtitle': {
     en: 'Change the playbook’s numbers: stops, targets, size per setup, and where A/B/C fall',
@@ -1337,7 +1350,11 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
 let lang: Lang = ((): Lang => {
   const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('lang') : null;
   const resolved: Lang = saved === 'vi' ? 'vi' : 'en';
-  document.documentElement.lang = resolved;
+  // Guarded like `localStorage` above, and for a bigger reason than symmetry: this runs at
+  // MODULE LOAD, so an unguarded `document` makes importing `i18n` throw outside a browser —
+  // and since half the app imports it for `t()`, that put every module downstream of it
+  // beyond the reach of the test suite, which runs under `environment: 'node'`.
+  if (typeof document !== 'undefined') document.documentElement.lang = resolved;
   return resolved;
 })();
 

@@ -206,7 +206,10 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   let windowMonths = study.windowMonths;
   const drawChart = () => {
     const win = windowBars(bars, study.keyDate, windowMonths);
-    $('#cs-chart')!.innerHTML = caseSvgChart(win, { ...study, windowMonths });
+    // `study` itself, not a spread with the live `windowMonths` folded in: the renderer takes
+    // levels and dates only (see `ChartSubject`), and `windowBars` above has already applied
+    // the window. The spread was copying a field the chart never read.
+    $('#cs-chart')!.innerHTML = caseSvgChart(win, study);
   };
   drawChart();
   root.querySelectorAll<HTMLElement>('[data-win]').forEach((b) =>

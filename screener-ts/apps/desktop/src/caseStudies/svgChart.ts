@@ -7,7 +7,34 @@
  */
 import type { Bar } from '@screener/core';
 import { emaOfCloses } from '@screener/core';
-import type { CaseStudy } from './store.js';
+import type { CaseOutcome, Catalyst } from './store.js';
+
+/**
+ * Everything this renderer actually reads off a case study.
+ *
+ * ── WHY IT IS NOT `CaseStudy` ANY MORE ──────────────────────────────────────
+ * The Trade Planner's printable plan wants the same chart: candles, EMAs, and the
+ * entry/stop/target lines drawn at the levels the plan is placing. A second renderer for
+ * that would be two charts that disagree about where the stop is — and the whole point of
+ * the exported plan is that it shows the trade as the app sees it.
+ *
+ * So the parameter is the SHAPE the function uses rather than the whole record. `CaseStudy`
+ * still satisfies it structurally, so nothing at the case-study call sites changes; a plan
+ * satisfies it by naming its levels the same way. Narrowing it here also documents the
+ * dependency: any field added below is a field the plan report now has to supply.
+ */
+export interface ChartSubject {
+  entry: number | null;
+  stop: number | null;
+  target: number | null;
+  exitPrice: number | null;
+  /** The date the window is centred on and the entry marker is drawn at. */
+  keyDate: string;
+  exitDate: string | null;
+  /** Only picks the exit marker's colour — a plan with no exit is always 'open'. */
+  outcome: CaseOutcome;
+  catalysts: readonly Catalyst[];
+}
 
 export interface CaseChartColors {
   up: string;
@@ -63,11 +90,11 @@ const fmt = (v: number): string => (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFix
 /**
  * Render the case-study chart as an SVG string.
  * @param bars   already windowed (use windowBars) and sorted ascending
- * @param study  the case study (levels, key date, exit, catalysts)
+ * @param study  the levels, key date, exit and catalysts — a `CaseStudy` or a trade plan
  */
 export function caseSvgChart(
   bars: readonly Bar[],
-  study: CaseStudy,
+  study: ChartSubject,
   opts: { width?: number; height?: number; colors?: CaseChartColors } = {},
 ): string {
   const W = opts.width ?? 860;

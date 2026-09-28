@@ -932,6 +932,34 @@ a.tkr:hover { text-decoration: underline; }
   .tp-playfields { grid-template-columns: 1fr; }
 }
 
+/* ── The Buy form's acknowledgement ──────────────────────────────────────────
+   The gate in front of the Buy button. Deliberately given a box of its own rather than
+   being one more control in the row: it is the last thing between reading the plan and
+   placing the trade, and a bare checkbox tucked beside the Stop field is a thing people
+   tick without reading. The border warms up once it is ticked so the state is legible
+   from across the form, where the Buy button is. */
+.b-ack {
+  display: flex; align-items: flex-start; gap: 9px; cursor: pointer;
+  margin-top: 10px; padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  font-size: 12.5px; line-height: 1.45; color: var(--subtext);
+}
+.b-ack:hover { border-color: color-mix(in srgb, var(--warn) 60%, transparent); }
+.b-ack input { margin: 2px 0 0; accent-color: var(--up); cursor: pointer; flex: none; }
+.b-ack.ok {
+  border-color: color-mix(in srgb, var(--up) 45%, transparent);
+  background: color-mix(in srgb, var(--up) 8%, transparent);
+  color: var(--text);
+}
+/* A disabled primary button has to look disabled, or the user keeps clicking it and
+   concludes the form is broken rather than that the gate is shut. */
+.btn:disabled, .btn-outline:disabled {
+  opacity: .45; cursor: not-allowed; filter: grayscale(.6);
+}
+.btn:disabled:hover, .btn-outline:disabled:hover { border-color: var(--border); }
+
 /* ── Case-study rich inputs ──────────────────────────────────────────────── */
 .cs-cat-input { line-height: 1.5; overflow-y: auto; max-height: 120px; }
 .cs-cat-input:empty::before { content: attr(data-placeholder); color: var(--faint); }

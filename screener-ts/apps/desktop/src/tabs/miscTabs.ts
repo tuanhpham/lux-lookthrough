@@ -1,10 +1,10 @@
 import {
   scanQm, qmToRow, fetchMany, buildTradePlan, explainPlan, computeCash, computeEquity,
   isSetupKey, isRating, SETUP_KEYS, RATING_KEYS,
-  gradeTrade, gradeByGroup, qmGradeEvidence, GRADE_CRITERIA,
+  gradeTrade, qmGradeEvidence,
   type QmRow, type QmScanResult, type QmSetupType, type AccountState, type Bar,
   type ConvictionRating, type PriceMap, type SetupKey,
-  type GradeAnswers, type GradeResult, type CriterionOutcome,
+  type GradeAnswers, type GradeResult,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num } from '../ui/dom.js';
@@ -14,7 +14,15 @@ import {
   buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan,
 } from '../portfolio/playbook.js';
 import { planLines, setupName } from '../portfolio/planWords.js';
-import { criterionLabel, groupLabel } from '../portfolio/gradeWords.js';
+// The grade panel is shared with the Buy form: one checklist, rendered once, so the panel
+// the user reads in the planner is the same one that sizes the trade they place.
+import { gradePanelHtml } from '../portfolio/gradeView.js';
+// And the plan itself is shared and persisted, so a checklist worked through here is the one
+// the Buy form gates on later — see `planStore.ts`.
+import {
+  emptyPlan, loadStoredPlans, savePlan, type PlanAnswers, type SymbolPlan,
+} from '../portfolio/planStore.js';
+import { printPlanReport } from '../portfolio/planReport.js';
 import { accountPrices, hasPrices } from '../portfolio/prices.js';
 import { drawCandles, type CandleChart, type TradeOverlay } from '../ui/charts.js';
 import { openStock } from '../ui/stockModal.js';
@@ -457,11 +465,19 @@ async function computePlans(ctx: AppContext): Promise<void> {
   const liveSyms = new Set(plans.map((p) => p.plan.symbol));
   for (const key of [...planEdits.keys()]) if (!liveSyms.has(key)) planEdits.delete(key);
 
+  // The saved plans, which outlive this panel. Only the symbols that HAVE one come back, so a
+  // card the user has never worked on keeps the setup the screener detected while a card whose
+  // saved setup is blank stays blank — that blank is the user having cleared it.
+  planCtx = ctx;
+  const stored = await loadStoredPlans(ctx, [...liveSyms]);
+  for (const [sym, p] of stored) planStored.set(sym, p);
+
   const vi = getLang() === 'vi';
   const lang = getLang();
   const rows = plans.map(({ scan, plan }) => {
     // Seed the editable state once per symbol; keep any prior user edits.
     const prev = planEdits.get(plan.symbol);
+    const saved = stored.get(plan.symbol);
     const edit: PlanEdit = prev ?? {
       entry: plan.entry ?? null,
       stop: plan.stop ?? null,
@@ -471,20 +487,24 @@ async function computePlans(ctx: AppContext): Promise<void> {
       // click away, but they are now the override rather than the rule.
       sizeMode: 'plan',
       sizePct: DEFAULT_SIZE_PCT,
-      // What the scan already thinks this is. The user can disagree with the dropdown —
-      // that is the point of it — but starting blank would make them re-type a
-      // classification the screener had just made.
-      setup: QM_TO_SETUP[scan.setupType],
+      // What the scan already thinks this is, unless the user has said otherwise before —
+      // their answer outranks the screener's guess, and a saved blank means they looked and
+      // decided this is not one of the book's setups.
+      setup: saved ? saved.setup : QM_TO_SETUP[scan.setupType],
       // Empty on purpose, and empty is not "no": the manual criteria start UNASKED, so a
-      // fresh card is graded on the measurements alone and ticking boxes refines it.
-      answers: {},
-      // No override. The grade is computed; the dropdown is there for disagreeing with it.
-      gradeOverride: null,
+      // fresh card is graded on the measurements alone and ticking boxes refines it. Answers
+      // already given come back — working through the checklist is the expensive part.
+      answers: { ...(saved?.answers ?? {}) },
+      // No override. The grade is computed; the dropdown is there for disagreeing with it —
+      // and a disagreement the user has already expressed is worth keeping.
+      gradeOverride: saved?.gradeOverride ?? null,
       // Collapsed: the letter and the score are the headline, and fifteen rows of
       // criteria above the price fields would bury the form the user came for.
       criteriaOpen: false,
-      note: '',
-      noteEdited: false,
+      // A note the user wrote themselves comes back; one this code generated does not need to,
+      // because `recalcPlan` regenerates it from the levels a few lines below.
+      note: saved?.noteEdited ? saved.note : '',
+      noteEdited: saved?.noteEdited ?? false,
       ownStop: false,
       ownTarget: false,
       explain: explainHtml(scan, lang),
@@ -550,6 +570,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
         <div class="tp-note-head">
           <span class="tp-note-label">${t('wl.plan.note')}</span>
           <button type="button" class="note-btn has-note" data-tp-noteedit="${S}" title="${t('pf.note.edit')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" class="btn-outline" data-tp-print="${S}"
+            style="padding:2px 8px;font-size:11px" title="${t('plan.printtitle')}">⎙ ${t('plan.print')}</button>
         </div>
         <div class="tp-note note-html" data-tp-note="${S}">${edit.note ?? ''}</div>
       </div>`;
@@ -615,6 +637,62 @@ interface PlanEdit {
 }
 const planEdits = new Map<string, PlanEdit>();
 const planBars = new Map<string, Bar[]>();
+
+/**
+ * The saved plan behind each card, and the context to write it back with.
+ *
+ * ── WHY THE STORED PLAN IS KEPT ALONGSIDE `PlanEdit` RATHER THAN REPLACING IT ──
+ * `PlanEdit` holds things the plan has no business storing (which size chip is lit, whether
+ * the chart has been drawn, the rendered explain narrative) and the plan holds things this
+ * screen does not own — above all `reviewedAt`, `reviewedGrade` and the `levels` the Buy form's
+ * acknowledgement was made against. Writing a whole `SymbolPlan` from `PlanEdit` alone would
+ * blank those, and blanking them silently re-opens a gate the user had passed.
+ *
+ * So the last thing read or written is kept here, and `persistPlan` copies the shared fields
+ * onto it. The planner deliberately does not save the entry/stop/target boxes: those are
+ * re-derived from the playbook and the current bars every time the panel opens, and a saved
+ * entry from last week would be a stale number presented as a decision.
+ */
+let planCtx: AppContext | null = null;
+const planStored = new Map<string, SymbolPlan>();
+
+/**
+ * A card's state as a `SymbolPlan`: the stored plan with this screen's half laid over it.
+ *
+ * The fields not listed are the ones the planner does not own — the Buy form's acknowledgement
+ * and the levels it was made against — and they pass through untouched.
+ */
+function cardSymbolPlan(symbol: string): SymbolPlan | null {
+  const e = planEdits.get(symbol);
+  if (!e) return null;
+  return {
+    ...(planStored.get(symbol) ?? emptyPlan(symbol)),
+    symbol,
+    setup: e.setup,
+    answers: { ...e.answers } as PlanAnswers,
+    gradeOverride: e.gradeOverride,
+    note: e.note,
+    noteEdited: e.noteEdited,
+  };
+}
+
+/**
+ * Write the shared half of a card back to the plan store.
+ *
+ * Fire-and-forget: the user's next keystroke must not wait on storage, and there is nothing
+ * useful to do with a failure except let the next write try again. The guard on the write-back
+ * is there because two saves can be in flight — the note dialog resolving while a criterion is
+ * being answered — and the later one's result must not be replaced by the earlier one's.
+ */
+function persistPlan(symbol: string): void {
+  const next = cardSymbolPlan(symbol);
+  const ctx = planCtx;
+  if (!next || !ctx) return;
+  planStored.set(symbol, next);
+  void savePlan(ctx, next).then((wrote) => {
+    if (planStored.get(symbol) === next) planStored.set(symbol, wrote);
+  });
+}
 /**
  * The scan behind each card, kept for the grader.
  *
@@ -919,18 +997,12 @@ function recalcPlan(symbol: string): void {
 }
 
 /**
- * The grade, as a panel that shows its work.
+ * The grade panel for one card.
  *
- * ── WHY THE AUTOMATIC ROWS ARE NOT CHECKBOXES ───────────────────────────────
- * Fourteen of these criteria are measured off the bars, and they render as a tick, a cross
- * or a dash with the number beside them — read-only. A checkbox the user can untick when
- * they dislike the answer brings back exactly the problem the checklist replaced; it just
- * spreads it over fourteen smaller decisions, each of which looks like data entry. The
- * disagreement gets one honest place to live instead: the override dropdown.
- *
- * The manual rows ARE editable, and they are tri-state rather than a checkbox, because an
- * unticked box cannot say whether the user looked. Yes / No / neither — and neither is the
- * default, so an unanswered question changes nothing instead of counting as a failure.
+ * The markup itself is `gradePanelHtml`, shared with the Buy form — see `gradeView.ts` for
+ * why the criteria are read-only where they are measured and tri-state where they are not.
+ * What stays here is the part that is about THIS screen: finding the card's box, and the
+ * card's own notion of which letter is in force.
  */
 function paintGradePanel(
   symbol: string,
@@ -941,96 +1013,17 @@ function paintGradePanel(
   const box = document.querySelector<HTMLElement>(`[data-tp-grade="${CSS.escape(symbol)}"]`);
   const e = planEdits.get(symbol);
   if (!box || !e) return;
-  if (!grade) { box.innerHTML = ''; return; }
-
-  const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-  const pctOfFull = effective ? ladderConfig().ratingPct[effective] : 100;
-  const answered = grade.outcomes.filter((o) => o.known).length;
-
-  // The letter, or a dash when too little of the list could be answered to name one. A
-  // dash is not a failure — an ungraded trade is planned at FULL size.
-  const letter = effective ?? '—';
-  const letterColor = effective === 'A' ? 'var(--up)'
-    : effective === 'B' ? 'var(--accent)'
-      : effective === 'C' ? 'var(--warn)'
-        : effective === 'D' ? 'var(--danger)' : 'var(--faint)';
-  const overridden = e.gradeOverride !== null && e.gradeOverride !== grade.grade;
-
-  const groups = gradeByGroup(grade)
-    .filter((g) => g.possible > 0)
-    .map((g) => {
-      const share = g.possible > 0 ? (g.earned / g.possible) * 100 : 0;
-      const col = share >= 80 ? 'var(--up)' : share >= 50 ? 'var(--warn)' : 'var(--danger)';
-      return `<span class="tp-gbar" title="${esc(groupLabel(g.group, vi))} ${g.earned}/${g.possible}">
-        <span class="tp-gbar-k">${esc(groupLabel(g.group, vi))}</span>
-        <span class="tp-gbar-track"><span class="tp-gbar-fill" style="width:${share.toFixed(0)}%;background:${col}"></span></span>
-      </span>`;
-    }).join('');
-
-  const rows = e.criteriaOpen ? criteriaRowsHtml(symbol, grade, vi, esc) : '';
-
-  box.innerHTML = `
-    <div class="tp-grade-head">
-      <span class="tp-grade-letter" style="color:${letterColor};border-color:${letterColor}">${letter}</span>
-      <span class="tp-grade-score">
-        <b>${num(grade.score, 0)}</b><span class="muted">/100</span>
-        <span class="muted"> · ${t('wl.plan.gradesize').replace('{pct}', String(pctOfFull))}</span>
-      </span>
-      ${overridden ? `<span class="badge" style="border-color:var(--warn);color:var(--warn)">${t('wl.plan.gradeoverridden').replace('{auto}', grade.grade ?? '—')}</span>` : ''}
-      <button type="button" class="tp-crit-toggle" data-tp-crit="${symbol}">
-        ${e.criteriaOpen ? '▾' : '▸'} ${t('wl.plan.criteria').replace('{n}', String(answered)).replace('{m}', String(grade.outcomes.length))}
-      </button>
-    </div>
-    <div class="tp-gbars">${groups}</div>
-    ${grade.grade === null ? `<div class="tp-grade-thin">${t('wl.plan.gradethin')}</div>` : ''}
-    ${rows}`;
-}
-
-/** The criteria themselves, grouped, with the measurement or the tri-state control. */
-function criteriaRowsHtml(
-  symbol: string,
-  grade: GradeResult,
-  vi: boolean,
-  esc: (s: string) => string,
-): string {
-  const byGroup = new Map<string, CriterionOutcome[]>();
-  for (const o of grade.outcomes) {
-    // Criteria for the other kind of setup are not "unanswered", they are not asked. A VCP
-    // card listing five greyed-out gap questions teaches the user that the checklist is
-    // mostly blanks.
-    if (!o.known && o.source === 'auto') continue;
-    const list = byGroup.get(o.group) ?? [];
-    list.push(o);
-    byGroup.set(o.group, list);
-  }
-
-  const sections = [...byGroup.values()].map((list) => {
-    const rows = list.map((o) => {
-      const mark = !o.known ? '<span class="tp-crit-mark muted">–</span>'
-        : o.met ? '<span class="tp-crit-mark" style="color:var(--up)">✓</span>'
-          : '<span class="tp-crit-mark" style="color:var(--danger)">✗</span>';
-      const right = o.source === 'auto'
-        ? `<span class="tp-crit-val muted">${esc(o.measured ?? '')}</span>`
-        : `<span class="tp-crit-ask">
-             <button type="button" class="tp-crit-btn${o.known && o.met ? ' yes' : ''}" data-tp-ans="${symbol}" data-key="${o.key}" data-val="yes">${t('wl.plan.yes')}</button>
-             <button type="button" class="tp-crit-btn${o.known && !o.met ? ' no' : ''}" data-tp-ans="${symbol}" data-key="${o.key}" data-val="no">${t('wl.plan.no')}</button>
-           </span>`;
-      return `<div class="tp-crit-row${o.source === 'auto' ? ' auto' : ''}">
-          ${mark}
-          <span class="tp-crit-label" title="${esc(criterionSource(o.key))}">${esc(criterionLabel(o.key, vi))}</span>
-          <span class="tp-crit-w muted">${o.weight}</span>
-          ${right}
-        </div>`;
-    }).join('');
-    return `<div class="tp-crit-group"><div class="tp-crit-gname">${esc(groupLabel(list[0]!.group, vi))}</div>${rows}</div>`;
-  }).join('');
-
-  return `<div class="tp-crit-list">${sections}<div class="tp-crit-foot muted">${t('wl.plan.critfoot')}</div></div>`;
-}
-
-/** Who says a criterion matters — shown on hover, so the checklist cites itself. */
-function criterionSource(key: string): string {
-  return GRADE_CRITERIA.find((c) => c.key === key)?.authority ?? '';
+  box.innerHTML = gradePanelHtml(grade, {
+    ns: 'tp',
+    id: symbol,
+    vi,
+    open: e.criteriaOpen,
+    override: e.gradeOverride,
+    effective,
+    // A dash is not a failure — an ungraded trade is planned at FULL size, so the headline
+    // has to say 100%, not 0%.
+    pctOfFull: effective ? ladderConfig().ratingPct[effective] : 100,
+  });
 }
 
 /** Write a planner field without stealing the caret from someone typing in it. */
@@ -1132,6 +1125,9 @@ function wireGradeDelegates(root: HTMLElement): void {
     const want = btn.dataset.val === 'yes';
     if (e.answers[key] === want) delete e.answers[key];
     else e.answers[key] = want;
+    // Saved, because this is the answer that took thought. It is also what makes the Buy form's
+    // acknowledgement expire: the tick was against the grade these answers used to produce.
+    persistPlan(sym);
     recalcPlan(sym);
   });
 }
@@ -1172,6 +1168,7 @@ function wirePlanEdits(root: HTMLElement): void {
       const e = planEdits.get(sym);
       if (!e) return;
       e.setup = isSetupKey(sel.value) ? sel.value : '';
+      persistPlan(sym);
       recalcPlan(sym);
     });
   });
@@ -1184,6 +1181,7 @@ function wirePlanEdits(root: HTMLElement): void {
       const e = planEdits.get(sym);
       if (!e) return;
       e.gradeOverride = isRating(sel.value) ? sel.value : null;
+      persistPlan(sym);
       recalcPlan(sym);
     });
   });
@@ -1202,8 +1200,46 @@ function wirePlanEdits(root: HTMLElement): void {
       // From here the planner stops rewriting it. Regenerating over someone's own
       // words on the next keystroke would lose work with no way to get it back.
       e.noteEdited = true;
+      // And this is the note the Buy form shows for this symbol — the user asked for one note,
+      // not two. The generated version is deliberately NOT saved: both screens rebuild it from
+      // the same `planLines`, so storing it would only let a stale copy of it come back.
+      persistPlan(sym);
       const box = root.querySelector<HTMLElement>(`[data-tp-note="${CSS.escape(sym)}"]`);
       if (box) box.innerHTML = isNoteEmpty(res) ? `<span class="muted">${t('wl.plan.noteph')}</span>` : sanitizeNoteHtml(res);
+    });
+  });
+
+  /**
+   * Print the card as a standalone trade plan — the user's "a button to print as html or pdf
+   * (similar to case study for the trade plan)".
+   *
+   * Built from the card as it stands rather than from what was last saved: the generated note
+   * and the levels are never written to storage (see `cardSymbolPlan`), so printing the stored
+   * plan would hand the user a document missing the numbers they are looking at.
+   */
+  root.querySelectorAll<HTMLElement>('[data-tp-print]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const sym = b.dataset.tpPrint!;
+      const e = planEdits.get(sym);
+      const plan = cardSymbolPlan(sym);
+      if (!e || !plan) return;
+      const grade = cardGrade(sym);
+      const rating = e.gradeOverride ?? grade?.grade ?? null;
+      printPlanReport({
+        plan,
+        grade,
+        effective: rating,
+        levels: { entry: e.entry, stop: e.stop, target: e.target },
+        shares: e.shares,
+        // USD, not `planCcy`: the entry box holds a raw close off the bars, the same as
+        // `cardPlan` feeds the playbook. The account currency belongs to the money figures,
+        // and the report derives those from these prices.
+        currency: 'USD',
+        date: new Date().toISOString().slice(0, 10),
+        bars: planBars.get(sym) ?? [],
+        pctOfFull: rating ? ladderConfig().ratingPct[rating] : 100,
+        vi: getLang() === 'vi',
+      });
     });
   });
 

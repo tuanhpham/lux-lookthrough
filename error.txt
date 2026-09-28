@@ -2418,10 +2418,10 @@ chia doi moi vi the cua moi the chua chon thiet lap. `null` la dung quy uoc cu c
 
 ### L. Tieu chi tu dong KHONG phai o tick — nhung van co o ghi de
 
-Muoi chin tieu chi do tu du lieu gia hien ra la dau tich, dau cheo hoac gach ngang KEM
+Hai muoi mot tieu chi do tu du lieu gia hien ra la dau tich, dau cheo hoac gach ngang KEM
 THEO SO, va khong sua duoc. Mot o tick ma nguoi dung bo tich duoc khi khong thich cau tra
 loi thi dung lai chinh cai van de ma bang kiem duoc mang vao de thay the; no chi rai van
-de do ra thanh muoi chin quyet dinh nho hon, moi cai trong nhu nhap lieu.
+de do ra thanh hai muoi mot quyet dinh nho hon, moi cai trong nhu nhap lieu.
 
 Nhung KHONG de cho cho su khong dong y thi te hon: nguoi dung khong dong y voi diem ma
 khong noi duoc se di tich mot tieu chi ho khong tin, va luc do bang kiem VUA sai VUA
@@ -2510,3 +2510,203 @@ mot listener cho mot hop, suot doi hop do.
 - Van khong co test cho phan DOM: `environment: 'node'` co y (CHAT-21 muc K). Nen phan
   cham diem nam tron trong core, va phan chu nam trong `gradeWords.ts` — ca hai test duoc.
   `paintGradePanel` thi phai xem bang mat.
+
+## CHAT-24 — Mua phai di qua ke hoach: mot ke hoach cho mot ma, tu cham diem, xac nhan da xem, va in ra duoc
+
+Nam viec nguoi dung yeu cau: (1) Trade Planner cung phai co nut mo Cam nang; (2) chon tai
+khoan thi o Account Equity phai xam di; (3) co nut in ke hoach ra HTML/PDF nhu phan Case
+Study; (4) moi tieu chi phai duoc giai thich trong Cam nang theo tung thiet lap, de con hoc
+va con sua khi kinh nghiem len; (5) "khi chon mot co phieu de buy thi no phai thong qua
+trade plan de danh gia truoc roi xac nhan xem co ok khong thi moi buy", ke hoach cua ma do
+phai TU DONG duoc cham diem khi nhap ma vao form Buy, va "Note cua buy form chinh la cai
+note cua trade plan luon".
+
+(1) (2) (4) da xong o lan truoc (75202da). Lan nay lam (3) va (5).
+
+### A. Hai quyet dinh do nguoi dung chon, va tai sao
+
+Hoi truoc khi lam, vi ca hai deu khong the sua lai ma khong lam mat du lieu cua nguoi dung:
+
+- CHAN MEM, phai xac nhan. Nut Buy tat cho den khi ke hoach da duoc danh gia VA nguoi dung
+  tich "Toi da xem ke hoach nay". Tich do TU RESET khi ma, gia hoac thiet lap doi. Mot hang
+  D co chu y thi VAN mua duoc — cai chan nay xac nhan la DA DOC, khong phai la DA TOT.
+- LUU KE HOACH THEO TUNG MA. Khoa plan:NVDA giu setup, answers, gradeOverride, note,
+  reviewedAt. Trade Planner va form Buy doc va ghi CUNG mot ke hoach do, va no song qua lan
+  tai trang.
+
+### B. Mot bang tieu chi, hai man hinh — va tai sao khong copy
+
+paintGradePanel + criteriaRowsHtml khoang 90 dong, han chet vao planEdits va data-tp-*.
+Copy sang form Buy thi se dung lai dung cai van de ma muc 11 vua xoa di: HAI bang kiem co
+the noi khac nhau ve cung mot lenh. Va lan nay hai ban do se la ban nguoi dung DOC va ban
+QUYET DINH CO VI THE cua ho.
+
+Nen tach ra gradeView.ts thanh ham thuan: gradePanelHtml(grade, opts). Ten class van la
+tp- (doc la "trade plan", khong phai "trade planner tab") nen styles.css khong phai doi.
+
+ns trong opts la thu GANH NANG, khong phai cho dep: hai bang co the cung nam tren trang mot
+luc — bang cua Planner con song khi nguoi dung cuon xuong form Buy. Neu dung chung mot tien
+to data-*, trinh xu ly click uy quyen cua Planner se tra loi tieu chi tren bang cua form
+Buy, tuc la ghi cai tich cua nguoi dung vao mot ke hoach ma ho KHONG dang nhin, va khong co
+gi nem loi.
+
+### C. Tai sao mot khoa moi ma, khong phai mot cuc
+
+plan:NVDA chu khong phai mot ban ghi plans. Ke hoach duoc ghi mot cai mot luc, tu hai man
+hinh, va cho luu nay DONG BO. Mot cuc thi moi lan go mot chu vao ghi chu la mot lan
+doc-sua-ghi toan bo cac ke hoach khac, va hai may sua hai ma khac nhau se ghi de len nhau
+toan bo. Mot khoa moi ma lam cho dung do hep nhat co the: chi mat ke hoach khi sua CHINH ke
+hoach do o hai noi.
+
+Gia cua lua chon: khong co "liet ke moi ke hoach" gia re, nen co plan_symbols. Do la mot
+GOI Y, khong phai mot ban ghi: listPlans bo cac ma ma ke hoach da bien mat, vi hien mot ke
+hoach trong duoi mot cai ten con nho la noi rang cong viec cua nguoi dung van con.
+
+### D. O tich la mot KET QUA VE, khong phai mot trang thai
+
+reviewCurrent(plan, setup, levels, grade) duoc tinh lai o MOI lan ve lai panel. O tich
+khong co trang thai rieng — no la anh cua ham do. Nen mot diem vao bi doi, mot thiet lap bi
+doi, hay mot tieu chi vua duoc tra loi se lam no bo tich, ma KHONG can mot trinh nghe su
+kien nao phai nho lam viec do. Va no dung ca sau khi tai lai trang.
+
+Neu lam bang cach "cho nao sua thi cho do xoa reviewedAt" thi se co ba cho phai nho, va cho
+thu tu la cho quen.
+
+### E. Diem vao so co sai so, cat lo va muc tieu so chinh xac
+
+Sai so la max(0.01, |entry| x 0.005) — "mot xu hoac 0.5%, cai nao lon hon". Ly do co ca hai
+nua: sai so tinh theo phan tram thi vo nghia tren mot co phieu 2 do, con sai so tinh theo xu
+thi vo nghia tren mot co phieu 900 do. O gia duoc DIEN LAI tu gia dong cua moi lan ve lai,
+nen neu so sanh chinh xac thi cai chan nay KHONG THE mo duoc trong gio giao dich.
+
+Cat lo va muc tieu thi so sanh chinh xac, vi hai so do chi doi khi co cai gi quyet dinh cho
+no doi. Mot cat lo bi noi rong ra la mot khoan lo lon hon khoan da duoc xac nhan.
+
+### F. Hang cung la mot phan cua cai da duoc xac nhan
+
+So sanh thiet lap va ba muc gia bat duoc mot diem vao bi go lai, nhung KHONG bat duoc duong
+con lai: tra loi them mot tieu chi. Tich "toi da xem ke hoach nay — hang B" roi bo tich hai
+tieu chi thi o van con tich ben canh mot hang D, va D la MOT PHAN TU co vi the — hau qua don
+le lon nhat trong app.
+
+Nen SymbolPlan.reviewedGrade luu chu cai dang tren man hinh luc tich. Luu CHU CAI chu khong
+luu cac cau tra loi, vi mot phep so sanh the la phu het moi duong dan den mot hang khac:
+tieu chi, thiet lap, va o ghi de bang tay.
+
+Mot ke hoach ghi boi ban truoc khong co reviewedGrade thi HET HAN chu khong duoc tin —
+huong an toan, gia bang mot lan tich nua.
+
+### G. Chan mem phai VAN mo duoc khi khong co ke hoach
+
+Form Buy la cho lenh duoc GHI LAI — ke ca mot lenh da lam thang truoc, va ke ca mot thiet
+lap ma Cam nang khong co dong nao cho no. Mot cai chan khong the mo ma khong co hang se day
+nguoi dung den cho thoi khong ghi lenh nua, va luc do so sach moi la cai sai.
+
+Nen buyGate khong he biet den chu cai nao ca, va ackLabel DOI CHU: khi chua co diem thi o
+tich doc la "Mua ma khong co ke hoach duoc cham diem" — de mot lan tich khong bao gio khang
+dinh la da doc mot ke hoach chua tung ton tai.
+
+### H. Nut chon hang gio la o GHI DE, nen khong con doc duoc luc mua
+
+O nay mac dinh de TRONG (= dung diem tu tinh). Doc no luc bam Buy se ghi MOI lenh da duoc
+cham diem thanh lenh chua xep hang — tuc la mat dung cai thong tin vua tinh ra. Nen trinh xu
+ly doc dataset.grade cua nut Buy, do paintGate viet ra.
+
+### I. Cam nang chay HAI LAN, va do khong phai vong tron
+
+Hai tieu chi di ra tu Cam nang (R:R, va cat lo cach diem vao bao xa), ma Cam nang thi lai
+can hang de nhan co vi the. Khong phai vong tron: CAC MUC GIA khong phu thuoc vao hang, chi
+CO VI THE moi phu thuoc. Nen luot mot (chua co hang) tim cat lo va muc tieu, cham diem cai
+do, luot hai nhan co. Ca hai luot la phep tinh tren bars da nam trong bo nho.
+
+### J. ChartSubject: mot bieu do, khong phai hai
+
+Tham so thu hai cua caseSvgChart hep lai tu CaseStudy xuong dung cai hinh dang no THAT SU
+doc (entry/stop/target/exitPrice/keyDate/exitDate/outcome/catalysts), de ke hoach giao dich
+dung lai chinh bo ve do. Mot bieu do, nen ke hoach in ra va bao cao hau ky in ra khong the
+noi khac nhau ve cho dat cat lo. CaseStudy van thoa man giao dien do ve mat cau truc.
+
+Thu hep tham so lam lo ra mot loi co san o caseStudiesTab.ts:209: mot phep spread dang nhoi
+windowMonths vao doi so, ma bo ve chua bao gio doc truong do — va windowBars ben tren thi da
+ap cua so roi.
+
+### K. Ghi chu la MOT ghi chu, va no khong bao gio bi ghi de
+
+showNote chi ghi len o ghi chu khi o do dang TRONG hoac con dung bang noteSeed (dung cai ma
+chinh doan code nay vua dat vao). Mot ghi chu viet nua ve lenh dang dat la thu dat nhat tren
+form de mat, va no khong co Undo.
+
+Ban ghi chu TU SINH thi co y KHONG luu: ca hai man hinh dung sinh no tu cung mot planLines,
+nen luu lai chi de mot ban cu cua no quay ve. Chi ban nguoi dung TU VIET moi duoc luu
+(noteEdited).
+
+### L. i18n.ts khong con nem loi ngoai trinh duyet
+
+document.documentElement.lang = resolved chay ngay luc nap module, nen MOI module import t()
+deu nam ngoai tam voi cua bo test environment: 'node'. Da bao typeof document !==
+'undefined', giong cai bao cho localStorage ngay dong tren. Do la mot vat can THAT cho viec
+test, khong phai mot ro ri phai tranh: sua no mo duong cho test node hoa cho moi module dung
+t().
+
+### M. planReportHtml tu noi la ham thuan — va no chua phai
+
+Header cua chinh file do viet "pure function of its input so it can be tested without a
+DOM", nhung no goi sanitizeNoteHtml, ma ham do can DOMParser THAT. Test do xong 15/16 ngay
+dong dau.
+
+Khong sua bang cach tu viet mot bo lam sach bang regex — do se la mot bo lam sach TE HON
+that su. Nen safeNote: co DOM thi lam sach, khong co DOM thi ESCAPE toan bo va in ghi chu ra
+dang chu thuan. Mat dinh dang, va chi xay ra ngoai trinh duyet (tuc la trong bo test nay),
+nhung khong bao gio phat ra mot doan markup chua duoc soi.
+
+Ghi chu da duoc lam sach o MOI duong ghi roi, nen lan nay la lop thu hai — nhung la lop dang
+co, vi mot ke hoach co the den tu dong bo, do mot may khac voi ban code cu ghi ra, va thu
+dang dung o day la mot TEP nguoi dung se mo truc tiep bang trinh duyet.
+
+### N. Files
+
+- apps/desktop/src/portfolio/planStore.ts — MOI. SymbolPlan, planKey, emptyPlan, loadPlan
+  (chuan hoa tung truong, khong cast), savePlan, listPlans, deletePlan, loadStoredPlans,
+  reviewCurrent. loadPlan KHONG bao gio tra null; loadStoredPlans thi chi tra ve cac ma THAT
+  SU co ke hoach — Planner la nguoi duy nhat can phan biet "chua co ke hoach" voi "co ke
+  hoach ma trong", vi mot the chua tung duoc lam phai giu thiet lap may quet doan, con mot
+  the co thiet lap trong la nguoi dung da xoa no.
+- apps/desktop/src/portfolio/gradeView.ts — MOI. gradePanelHtml, criteriaRowsHtml,
+  criterionSource, esc, gradeColor. Chuyen tu miscTabs.ts ra, them ns.
+- apps/desktop/src/portfolio/buyGate.ts — MOI. buyGate, ackLabel, gateWords.
+- apps/desktop/src/portfolio/planReport.ts — MOI. planReportHtml (tep HTML doc lap: style
+  trong, SVG trong, mot nut window.print(), quy tac @media print), safeNote, printPlanReport.
+- apps/desktop/src/caseStudies/svgChart.ts — them ChartSubject; caseSvgChart nhan no.
+- apps/desktop/src/tabs/caseStudiesTab.ts — bo phep spread nhoi windowMonths (muc J).
+- apps/desktop/src/tabs/miscTabs.ts — paintGradePanel con 10 dong, goi gradePanelHtml;
+  planCtx + planStored + cardSymbolPlan + persistPlan; the seed tu ke hoach da luu;
+  persistPlan o bon cho (thiet lap, ghi de hang, tra loi tieu chi, luu ghi chu); nut
+  data-tp-print tren tung the.
+- apps/desktop/src/tabs/portfolioTab.ts — form Buy: b-plan-panel, b-ack, b-gatehint,
+  b-plan-print; wireBuyPlan nap/cham/chan/in ke hoach; o chon hang thanh o ghi de; luc mua
+  doc dataset.grade cua nut Buy.
+- apps/desktop/src/ui/i18n.ts — bao document; them pf.buy.gradeover, pf.buy.gradeauto,
+  pf.buy.plannote, va plan.print / plan.printtitle. Hai khoa cuoi KHONG mang tien to
+  pf.buy. hay wl.plan.: hai man hinh in cung mot bao cao tu cung mot module, nen mot dong
+  chu chu khong phai hai dong co the troi xa nhau.
+- apps/desktop/src/styles.css — .b-ack (+ .b-ack.ok), va .btn:disabled /
+  .btn-outline:disabled.
+
+### O. Kiem
+
+- tests/planStore.test.ts MOI, tests/buyGate.test.ts MOI, tests/gradeView.test.ts MOI,
+  tests/planReport.test.ts MOI.
+- App 162/162 (12 tep). Core 771/771 (49 tep). tsc --noEmit sach, npm run build sach ca hai
+  goi. package-lock.json khong doi.
+- Hai loi bien dich do chinh minh gay ra, ghi lai vi ca hai deu im lang:
+  1. portfolioTab.ts(1274,15) TS1005 — dat dau backtick quanh mot ten ham TRONG mot chu
+     thich HTML, ma chu thich do lai nam trong mot template literal. Dau backtick dong luon
+     chuoi. Trong template literal thi khong duoc co backtick, ke ca trong chu thich.
+  2. caseStudiesTab.ts(209,63) TS2353 — thu hep tham so lam mot phep spread von vo hai
+     thanh loi thua truong. Do la loi THAT (muc J), khong phai gia de sua cho qua.
+- Bang tieu chi: 26 tieu chi, 21 do tu dong, 5 tra loi bang tay. Loi nhan f0b6b0e9 viet "22
+  tieu chi" la SAI va da khong sua duoc (sua thi phai force-push). Muc L cua CHAT-23 viet
+  "Muoi chin tieu chi do tu du lieu gia" cung SAI — da sua trong tep nay thanh hai muoi mot.
+- Van con phai XEM BANG MAT (khong test duoc voi environment: 'node'): bang diem moi tren
+  form Buy, o .b-ack va cach no tu bo tich, nut Buy luc bi tat, ghi chu dung chung, va tep
+  bao cao ke hoach tai ve.

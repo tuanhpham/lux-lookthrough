@@ -28,9 +28,16 @@ import {
   isRating,
   RATING_KEYS,
   SECTOR_STOCKS,
+  // The Buy form grades the trade it is about to place, off the same bars it already
+  // fetches for the stop. See `wireBuyPlan` for why that costs no extra request.
+  scanQm,
+  qmGradeEvidence,
+  gradeTrade,
   type AccountState,
   type ConvictionRating,
+  type GradeResult,
   type PriceMap,
+  type SetupKey,
   type Bar,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
@@ -71,10 +78,19 @@ import { formDialog } from '../ui/forms.js';
 import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { attachCombobox } from '../ui/combobox.js';
 import {
-  barsFor, buildBuyPlan, currentRegime, ensureRegime,
+  barsFor, buildBuyPlan, currentRegime, ensureRegime, ladderConfig,
   loadPlaybookConfig, regimeStale, takePlaybookSettingsRequest, type BuyPlan,
 } from '../portfolio/playbook.js';
 import { planLines } from '../portfolio/planWords.js';
+// The trade plan the Buy form has to go through, and the panel that shows it. Both are
+// shared with the Trade Planner: one plan per symbol, one checklist, one set of words.
+import {
+  emptyPlan, loadPlan, reviewCurrent, savePlan,
+  type PlanLevels, type SymbolPlan,
+} from '../portfolio/planStore.js';
+import { gradePanelHtml } from '../portfolio/gradeView.js';
+import { ackLabel, buyGate, gateWords } from '../portfolio/buyGate.js';
+import { printPlanReport } from '../portfolio/planReport.js';
 import { openPlaybookSettings } from '../ui/playbookSettings.js';
 import { openStock } from '../ui/stockModal.js';
 import { infoIcon, attachTooltips } from '../ui/tooltip.js';
@@ -215,9 +231,64 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   const hintEl = $('#b-planhint');
   if (!setupEl || !tickerEl || !priceEl || !stopEl || !targetEl || !sharesEl || !hintEl) return;
 
+  // The plan half of the form: the graded panel, the acknowledgement, and the gate's line.
+  // All optional so an older cached index.html cannot dead-end the sizing feature.
+  const panelEl = $('#b-plan-panel');
+  const ackEl = $('#b-ack') as HTMLInputElement | null;
+  const ackRowEl = $('#b-ack-row');
+  const ackLblEl = $('#b-ack-lbl');
+  const gateEl = $('#b-gatehint');
+  const goEl = $('#b-go') as HTMLButtonElement | null;
+  const printEl = $('#b-plan-print') as HTMLButtonElement | null;
+  // The note editor's contenteditable, reached directly: `wireRichEditor` runs later in
+  // `wire()` and only hands back a getter, and this needs to WRITE the plan's note in.
+  const noteEl = document.querySelector<HTMLElement>('[data-rn-editor="buy-note"]');
+
   /** What this wiring last put in each box, so a hand edit is recognisable. */
   let filled = { stop: '', target: '', shares: '' };
   let token = 0;
+
+  /**
+   * The plan for the symbol in the ticker box — loaded from storage, not invented here.
+   *
+   * Starts as a plan for the empty symbol so nothing has to null-check it; the first `run`
+   * replaces it as soon as there is a ticker. See `planStore.ts` for why it is persisted and
+   * shared with the Trade Planner rather than living in this closure.
+   */
+  let plan: SymbolPlan = emptyPlan('');
+  let grade: GradeResult | null = null;
+  /** An evaluation is in flight. The gate holds the Buy button shut while it is. */
+  let planning = false;
+  /** Criteria list expanded. View state, not the plan's — it is not worth syncing. */
+  let critOpen = false;
+  /** What we last wrote into the note editor, so a user's own words are recognisable. */
+  let noteSeed = '';
+  /** The bars behind the panel, kept so the printable report has a chart to draw. */
+  let lastBars: readonly Bar[] = [];
+
+  const symNow = (): string => tickerEl.value.trim().toUpperCase();
+  const setupNow = (): SetupKey | '' => (isSetupKey(setupEl.value) ? setupEl.value : '');
+  const posNum = (el: HTMLInputElement | null): number | null => {
+    const v = Number((el?.value ?? '').replace(',', '.'));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  };
+  const levelsNow = (): PlanLevels => ({
+    entry: posNum(priceEl), stop: posNum(stopEl), target: posNum(targetEl),
+  });
+  /** The letter in force: the user's override, else the score's, else none. */
+  const effective = (): ConvictionRating | null => plan.gradeOverride ?? grade?.grade ?? null;
+
+  /**
+   * Persist the plan, fire-and-forget.
+   *
+   * The write-back is guarded by symbol: the user can type a new ticker while this promise
+   * is open, and assigning the old symbol's saved copy over the freshly loaded one would
+   * show them AMD's checklist under NVDA's name.
+   */
+  const store = (): void => {
+    const sym = plan.symbol;
+    void savePlan(ctx, plan).then((saved) => { if (plan.symbol === sym) plan = saved; });
+  };
 
   const mine = (el: HTMLInputElement, was: string): boolean => {
     const v = el.value.trim();
@@ -279,6 +350,70 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     onFilled(); // the risk/R:R line reads the fields we just wrote
   };
 
+  /** The graded checklist, rendered by the same code the Trade Planner's cards use. */
+  const paintPanel = (): void => {
+    if (!panelEl) return;
+    panelEl.innerHTML = gradePanelHtml(grade, {
+      // `bp`, not `tp`: the planner panel can be mounted at the same time as this one, and a
+      // shared attribute name would let its delegated handler answer criteria here.
+      ns: 'bp',
+      id: plan.symbol || '—',
+      vi,
+      open: critOpen,
+      override: plan.gradeOverride,
+      effective: effective(),
+      pctOfFull: effective() ? ladderConfig().ratingPct[effective()!] : 100,
+    });
+  };
+
+  /**
+   * The gate: what still stands between the user and the Buy button.
+   *
+   * Runs on every repaint, which is how the acknowledgement RESETS — the checkbox is not
+   * state of its own, it is a rendering of `reviewCurrent`. So a moved entry, a changed setup
+   * or one more criterion answered un-ticks it with no listener having to remember to.
+   */
+  const paintGate = (): void => {
+    const acked = reviewCurrent(plan, setupNow(), levelsNow(), effective());
+    if (ackEl) ackEl.checked = acked;
+    if (ackLblEl) ackLblEl.textContent = ackLabel(grade !== null, effective(), vi);
+    if (ackRowEl) ackRowEl.classList.toggle('ok', acked);
+    const block = buyGate({
+      hasFields: !!symNow() && posNum(priceEl) !== null && posNum(sharesEl) !== null,
+      planning,
+      graded: grade !== null,
+      acknowledged: acked,
+    });
+    const words = gateWords(block, grade !== null, vi);
+    if (goEl) {
+      goEl.disabled = block !== null;
+      // The tooltip is the plain-text twin of the line below the button: the button itself is
+      // what the user is pointing at when they wonder why nothing happens.
+      goEl.title = words.replace(/<[^>]*>/g, '');
+      // The click handler lives outside this closure and still has to record the letter the
+      // panel is showing. One attribute is cheaper than threading the grade back out.
+      goEl.dataset.grade = effective() ?? '';
+    }
+    if (gateEl) gateEl.innerHTML = words ? `<span class="muted">${words}</span>` : '';
+    if (printEl) printEl.disabled = !symNow();
+  };
+
+  /**
+   * Put the plan's note in the editor — the user's "note cua buy form chinh la cai note cua
+   * trade plan luon".
+   *
+   * It only ever overwrites what this code put there. A half-written note about the trade
+   * being placed is the most expensive thing on the form to lose, and it has no undo.
+   */
+  const showNote = (): void => {
+    if (!noteEl) return;
+    const cur = sanitizeNoteHtml(noteEl.innerHTML);
+    if (!isNoteEmpty(cur) && cur !== noteSeed) return;
+    noteSeed = plan.note;
+    noteEl.innerHTML = plan.note;
+    buyNoteDraft = plan.note;
+  };
+
   /**
    * What the plan is still waiting for, in words — or null when it can run.
    *
@@ -301,19 +436,63 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     return `${vi ? 'Đang chờ' : 'Waiting for'} ${missing.join(vi ? ' và ' : ' and ')}…`;
   };
 
+  /**
+   * Evaluate the trade in the form: load its plan, grade it, size it, drive the gate.
+   *
+   * ── WHY THE GRADE IS COMPUTED HERE AND NOT CHOSEN ───────────────────────────
+   * The user asked that picking a stock to buy go through the trade plan and be graded
+   * before it can be confirmed. The bars needed for that are the same bars the stop already
+   * needs, and `scanQm` is a pure function over them — so the whole conviction checklist
+   * costs no extra request. The A–D dropdown beside the Setup stops being the grade and
+   * becomes an OVERRIDE of it, which is the only honest thing it can be once a score exists.
+   *
+   * ── WHY THE PLAYBOOK RUNS TWICE ─────────────────────────────────────────────
+   * Two criteria are about this trade rather than the stock — the reward-to-risk and how far
+   * the stop sits from the entry — and those come out of the playbook, which also needs the
+   * grade to scale the share count. That is not circular: the LEVELS do not depend on the
+   * grade, only the size does. One ungraded pass finds the stop and target, that gets graded,
+   * and the second pass sizes. Both are arithmetic over bars already in memory.
+   */
   const run = async (): Promise<void> => {
+    const me = ++token;
+    const sym = symNow();
+
+    // A different ticker is a different plan. Load it before anything reads `plan`, or the
+    // panel would grade this symbol's chart against the previous symbol's ticked criteria.
+    if (plan.symbol !== sym) {
+      const loaded = await loadPlan(ctx, sym);
+      if (me !== token) return;
+      plan = loaded;
+      lastBars = [];
+      grade = null;
+      critOpen = false;
+      // What the user chose for this symbol last time wins over whatever the previous
+      // ticker left in the dropdowns — that is the point of persisting the plan.
+      if (plan.setup) setupEl.value = plan.setup;
+      if (ratingEl) ratingEl.value = plan.gradeOverride ?? '';
+      showNote();
+      paintPanel();
+    }
+    // The dropdowns are the plan's, so a change there is a change to the plan.
+    plan.setup = setupNow();
+
     const wait = waitingFor();
-    if (wait) { hintEl.innerHTML = `<span class="muted">${wait}</span>`; return; }
+    if (wait) {
+      hintEl.innerHTML = `<span class="muted">${wait}</span>`;
+      // No setup, no symbol or no price means there is nothing to grade. Say so by CLEARING
+      // the panel: a stale letter from the previous ticker beside a new one is worse than no
+      // letter at all, because it reads as an answer.
+      grade = null;
+      paintPanel();
+      paintGate();
+      return;
+    }
     const setup = setupEl.value;
-    const sym = tickerEl.value.trim().toUpperCase();
     const price = Number(priceEl.value.replace(',', '.'));
-    // The grade the user is already recording on the lot now also sizes it. Blank
-    // stays blank: an ungraded trade is planned at full size, not refused.
-    const grade = ratingEl?.value ?? '';
-    const rating = isRating(grade) ? grade : null;
     if (!isSetupKey(setup)) return; // narrowed already; here for the type
 
-    const me = ++token;
+    planning = true;
+    paintGate();
     hintEl.innerHTML = `<span class="spinner"></span> ${vi ? 'đang tính kế hoạch…' : 'planning…'}`;
     // Anything that throws in here used to become an unhandled rejection, which on
     // screen is indistinguishable from the feature not existing. Say it instead.
@@ -329,10 +508,12 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
         hintEl.innerHTML = `<span class="muted">${vi
           ? 'Không tải được dữ liệu giá — hãy tự đặt cắt lỗ và mục tiêu.'
           : 'Could not load price data — set the stop and target yourself.'}</span>`;
+        grade = null;
+        paintPanel();
         return;
       }
 
-      const plan = buildBuyPlan({
+      const common = {
         state: active(),
         prices: prices(active().account.id),
         bars,
@@ -340,20 +521,79 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
         entryCurrency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
         setup,
         date: dateEl?.value || today(),
-        rating,
-      });
-      if (!plan) {
+      };
+
+      // Pass one: where the stop and target are, with no grade in the way.
+      const levels = buildBuyPlan({ ...common, rating: null });
+      if (!levels) {
         hintEl.innerHTML = `<span class="muted">${vi
           ? 'Không tìm được mốc cắt lỗ nào dưới giá vào cho thiết lập này.'
           : 'No stop level below the entry for this setup.'}</span>`;
+        grade = null;
+        paintPanel();
         return;
       }
-      apply(plan);
+
+      lastBars = bars;
+      // Score the checklist. `scanQm` wants enough history to measure a base; below that it
+      // would be reporting noise, so the trade stays ungraded and the gate says so.
+      const scan = bars.length >= 60 ? scanQm(sym, bars) : null;
+      // The user's own stop and target win when they have typed them: the R:R criterion has
+      // to describe the trade they are about to place, not the one they rejected.
+      const entryStop = posNum(stopEl) ?? levels.stop;
+      const entryTarget = posNum(targetEl) ?? levels.target;
+      const riskPerShare = price > 0 && entryStop > 0 && entryStop < price ? price - entryStop : 0;
+      grade = scan
+        ? gradeTrade(
+          qmGradeEvidence(scan, {
+            setup,
+            regime: currentRegime()?.regime ?? null,
+            // null, not 0, when there is nothing to divide: the grader reads a missing
+            // number as unmeasured and a zero as a failing measurement.
+            rMultiple: riskPerShare > 0 && entryTarget != null && entryTarget > price
+              ? (entryTarget - price) / riskPerShare : null,
+            stopPct: riskPerShare > 0 ? (riskPerShare / price) * 100 : null,
+          }),
+          plan.answers,
+        )
+        : null;
+
+      // Pass two: size the trade with the letter that came out — or the one the user insisted
+      // on. Blank stays blank: an ungraded trade is planned at full size, not refused.
+      const sized = buildBuyPlan({ ...common, rating: effective() }) ?? levels;
+      apply(sized);
+      paintPanel();
+      seedPlanNote(sized);
     } catch (e) {
       if (me !== token) return;
       hintEl.innerHTML = `<span class="danger">${vi ? 'Không tính được kế hoạch' : 'Could not build the plan'}: ${(e as Error).message}</span>`;
       console.error('buy plan error', e);
+    } finally {
+      // Only the live run may unlock the gate. A stale one clearing the flag would open the
+      // Buy button while the current evaluation was still running.
+      if (me === token) { planning = false; paintGate(); }
     }
+  };
+
+  /**
+   * Write the plan into the note, until the user writes in it themselves.
+   *
+   * The note is the one the trade is recorded with, so starting it as the plan in words means
+   * every lot carries what the book said at the time — and the user adds their own reasoning
+   * to the same note rather than a second one.
+   */
+  const seedPlanNote = (built: BuyPlan): void => {
+    if (!noteEl || plan.noteEdited) return;
+    const cur = sanitizeNoteHtml(noteEl.innerHTML);
+    if (!isNoteEmpty(cur) && cur !== noteSeed) { plan.noteEdited = true; store(); return; }
+    const sym = (ccyEl?.value ?? 'USD') === 'EUR' ? '€' : '$';
+    plan.note = sanitizeNoteHtml(
+      `<p>${planLines(built, { vi, levelSym: sym, moneySym: sym }).join('<br>')}</p>`,
+    );
+    noteSeed = plan.note;
+    noteEl.innerHTML = plan.note;
+    buyNoteDraft = plan.note;
+    store();
   };
 
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -365,12 +605,99 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   setupEl.addEventListener('change', () => void run());
   // The grade changes the share count, so it has to re-plan like the Setup does —
   // a dropdown that moved the size only on the next keystroke elsewhere would look
-  // like it did nothing.
-  ratingEl?.addEventListener('change', () => void run());
+  // like it did nothing. It is an OVERRIDE now, so it belongs to the plan and is saved.
+  ratingEl?.addEventListener('change', () => {
+    plan.gradeOverride = isRating(ratingEl.value) ? ratingEl.value : null;
+    store();
+    void run();
+  });
   ccyEl?.addEventListener('change', () => void run());
   dateEl?.addEventListener('change', () => void run());
   tickerEl.addEventListener('change', () => void run());
   tickerEl.addEventListener('blur', () => void run());
+  // A hand-typed stop or target is a different trade from the one that was acknowledged, so
+  // these repaint the gate — which is what un-ticks the box. They do not re-plan: the stop
+  // is an input to the plan, not an output of it, and re-running would overwrite it.
+  stopEl.addEventListener('input', paintGate);
+  targetEl.addEventListener('input', paintGate);
+  sharesEl.addEventListener('input', paintGate);
+
+  /**
+   * The acknowledgement — the user's "xac nhan xem co ok khong thi moi buy".
+   *
+   * Ticking records WHEN, against WHICH levels, WHICH setup and WHICH letter — everything
+   * `reviewCurrent` needs to decide later whether this is still the same plan. Untickable on
+   * purpose: the user who realises they have not actually read it should be able to say so.
+   */
+  ackEl?.addEventListener('change', () => {
+    if (ackEl.checked) {
+      plan.reviewedAt = new Date().toISOString();
+      plan.levels = levelsNow();
+      plan.reviewedGrade = effective();
+    } else {
+      plan.reviewedAt = null;
+      plan.levels = null;
+      plan.reviewedGrade = null;
+    }
+    store();
+    paintGate();
+  });
+
+  /**
+   * The criteria panel: expand it, and answer the questions the app cannot measure.
+   *
+   * Delegated to the container because `paintPanel` replaces its children on every keystroke
+   * in the price box — a listener bound to a button would be gone before it was clicked.
+   * Clicking the answer already chosen clears it back to UNASKED, the state a checkbox cannot
+   * express and the one the user needs the moment they realise they were guessing.
+   */
+  panelEl?.addEventListener('click', (ev) => {
+    const hit = ev.target as HTMLElement | null;
+    if (!hit) return;
+    if (hit.closest('[data-bp-crit]')) { critOpen = !critOpen; paintPanel(); return; }
+    const btn = hit.closest<HTMLElement>('[data-bp-ans]');
+    if (!btn) return;
+    const key = btn.dataset.key!;
+    const want = btn.dataset.val === 'yes';
+    if (plan.answers[key] === want) delete plan.answers[key];
+    else plan.answers[key] = want;
+    store();
+    // Re-grade rather than repaint: the answer moves the score, which moves the letter,
+    // which moves the share count. Cheap — `run` re-reads bars that are already cached.
+    void run();
+  });
+
+  // Print the plan as it stands, not as it was stored: the user may have just moved the stop.
+  printEl?.addEventListener('click', () => {
+    if (!symNow()) return;
+    printPlanReport({
+      plan,
+      grade,
+      effective: effective(),
+      levels: levelsNow(),
+      shares: Number(sharesEl.value.replace(',', '.')) || 0,
+      currency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
+      date: dateEl?.value || today(),
+      bars: lastBars,
+      pctOfFull: effective() ? ladderConfig().ratingPct[effective()!] : 100,
+      vi,
+    });
+  });
+
+  // Typing in the note makes it the user's, for good — and saves it to the plan, because the
+  // Buy note and the plan note are one note.
+  let noteTimer: ReturnType<typeof setTimeout> | null = null;
+  noteEl?.addEventListener('input', () => {
+    plan.noteEdited = true;
+    if (noteTimer) clearTimeout(noteTimer);
+    // Debounced: this fires per keystroke, and each save is a storage write that syncs.
+    noteTimer = setTimeout(() => {
+      plan.note = sanitizeNoteHtml(noteEl.innerHTML);
+      noteSeed = plan.note;
+      buyNoteDraft = plan.note;
+      store();
+    }, 400);
+  });
   // BOTH events on the price, and this is the whole feature working or not.
   // `change` alone fires only when the user types and then leaves the box — but the
   // usual way the price gets filled is the "use latest close" link, which assigns
@@ -925,18 +1252,40 @@ function draw(ctx: AppContext): void {
         <div class="row" style="margin-top:8px">
           <div style="flex:1"><label class="field-label" style="margin-bottom:4px">${getLang() === 'vi' ? 'Loại thiết lập' : 'Setup'}</label>
             <select id="b-setup" class="field" style="width:100%">${SETUP_TYPES.map((s) => `<option value="${s.value}">${getLang() === 'vi' ? s.vi : s.en}</option>`).join('')}</select></div>
-          <div style="width:120px"><label class="field-label" style="margin-bottom:4px">${getLang() === 'vi' ? 'Xếp hạng' : 'Rating'}</label>
-            <select id="b-rating" class="field" style="width:100%">${RATINGS.map((r) => `<option value="${r}">${r === '' ? (getLang() === 'vi' ? '— Chưa' : '— None') : r}</option>`).join('')}</select></div>
+          <div style="width:150px"><label class="field-label" style="margin-bottom:4px">${t('pf.buy.gradeover')}</label>
+            <select id="b-rating" class="field" style="width:100%">${RATINGS.map((r) => `<option value="${r}">${r === '' ? t('pf.buy.gradeauto') : r}</option>`).join('')}</select></div>
         </div>
+
+        <!-- The trade plan for whatever is in the ticker box, graded against the playbook.
+             This is the "thong qua trade plan de danh gia truoc" step: the panel is the same
+             one the Trade Planner shows, because it is the same code and the same plan. -->
+        <div id="b-plan-panel" class="tp-grade"></div>
+
         <div style="margin-top:8px">
-          <label class="field-label" style="margin-bottom:4px">${t('pf.col.note')}</label>
+          <div class="tp-note-head">
+            <label class="field-label" style="margin-bottom:0">${t('pf.buy.plannote')}</label>
+            <button id="b-plan-print" class="btn-outline" style="padding:2px 8px;font-size:11px"
+              title="${t('plan.printtitle')}">⎙ ${t('plan.print')}</button>
+          </div>
           ${richEditorHtml('buy-note', buyNoteDraft, { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 })}
         </div>
         <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Stop (optional)" style="width:130px" />
-          <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" />
+          <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" /></div>
+
+        <!-- The gate. Ticking this is the "xac nhan xem co ok khong thi moi buy" step, and it
+             un-ticks itself whenever the ticker, the entry or the setup moves — see
+             reviewCurrent in planStore.ts for why a stale tick is the thing worth preventing.
+             (No backticks in here: this comment is inside a template literal.) -->
+        <label class="b-ack" id="b-ack-row">
+          <input type="checkbox" id="b-ack" />
+          <span id="b-ack-lbl"></span>
+        </label>
+
+        <div class="row" style="margin-top:8px">
           <button id="b-go" class="btn">Buy</button>
           <button id="s-go" class="btn-outline">Sell</button>
           <button id="cash-go" class="btn-outline" title="${t('pf.cash.adjusttitle')}">${t('pf.cash.adjust')}</button></div>
+        <div id="b-gatehint" class="price-hint" style="margin-top:4px"></div>
         <div id="b-riskhint" class="price-hint" style="margin-top:4px"></div>
         <div id="b-planhint" class="price-hint" style="margin-top:4px;line-height:1.6"></div>
       </div>
@@ -1316,7 +1665,12 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const noteHtml = buyNoteGet();
       const note = isNoteEmpty(noteHtml) ? undefined : noteHtml;
       const setupType = (($('#b-setup') as HTMLSelectElement | null)?.value) || undefined;
-      const rating = ((($('#b-rating') as HTMLSelectElement | null)?.value) || undefined) as Rating | undefined;
+      // The letter the plan panel is SHOWING, not the one in the dropdown: the dropdown is
+      // now an override and is normally blank, so reading it would record every scored trade
+      // as ungraded — and the lot's grade is what the review tables and the risk ladder
+      // read back later. `wireBuyPlan` writes it here because it owns the computation.
+      const shown = ($('#b-go') as HTMLButtonElement | null)?.dataset.grade || '';
+      const rating = (isRating(shown) ? shown : undefined) as Rating | undefined;
       if (!t || shares <= 0 || price <= 0) return;
       const fxAtBuy = eurUsdForDate(date);
       const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note, setupType, rating }, uuid);
