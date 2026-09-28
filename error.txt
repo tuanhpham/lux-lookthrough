@@ -2899,3 +2899,249 @@ ghi. Lo da nam trong state roi, thieu snapshot chi la hang do khong co nut ke ho
 - Ban build Pages cua lux-lookthrough van do (nghi la tran 500 build/thang): phai chay
   wrangler pages deploy dist --project-name the-professional tu apps/desktop tren may co
   dang nhap Cloudflare.
+
+## CHAT-26 — Ke hoach cho mot ma (o watchlist va o trang co phieu), chon ngay giao dich, va mua thang tu ke hoach
+
+Yeu cau cua nguoi dung, bon phan: (1) moi dong co phieu trong watchlist co them mot nut trade
+plan rieng — nut cu cho ca danh sach van giu; (2) mot nut trade plan tuong tu tren trang
+individual stock, va ke hoach hien LUON tren trang do; (3) trong ke hoach co dropdown chon
+account va mot nut Buy, giao dich duoc ghi vao account do; (4) them o chon ngay — khong chon
+thi lay ngay hom nay, chon thi lay ngay da chon.
+
+### A. Vi sao phai tach mot tep moi truoc khi lam gi
+
+Ke hoach giao dich truoc day nam trong tabs/miscTabs.ts (dong 296-1274). Muc (2) doi no phai
+mount duoc ben trong ui/stockModal.ts. Nhung miscTabs.ts DA import openStock tu stockModal.ts,
+nen de stockModal.ts import lai miscTabs.ts la tao vong import — ESM se giao mot trong hai ben
+mot binding chua khoi tao, va loi se hien ra o mot cho khong lien quan.
+
+Nen toan bo panel chuyen sang portfolio/tradePlanner.ts (1412 dong), va no KHONG import
+stockModal: cho nao can mo trang co phieu thi nhan ham onOpenSymbol tu ben goi.
+
+Truoc khi chuyen, da grep tung import rieng cua panel (buildTradePlan, explainPlan, computeCash,
+computeEquity, isSetupKey, isRating, SETUP_KEYS, RATING_KEYS, gradeTrade, qmGradeEvidence, num,
+playbook, planWords, gradeView, planStore, planReport, prices, charts, playbookSettings,
+richNote) de chac moi cai chi xuat hien dung mot lan ngoai khoi panel — tuc la chi o chinh dong
+import cua no. Neu khong grep thi se de lai import chet trong miscTabs.ts, hoac te hon, chuyen
+thieu mot ham.
+
+### B. Bat bien: chi MOT panel duoc mount cung luc
+
+Trang thai cua panel la bien o pham vi module, danh chi muc theo ma, va cach no tim DOM la tim
+toan cuc: document.getElementById('tp-acct'), [data-tp-derived="NVDA"]. Hai panel mount cung luc
+se tranh nhau cung mot id, va neu hai ben co chung mot ma thi ben nay se ve len the cua ben kia.
+
+Nen openTradePlanner pha panel dang mo o host khac TRUOC khi mount:
+
+  export async function openTradePlanner(ctx, mount) {
+    if (mounted && mounted.host !== mount.host) closeTradePlanner();
+    mounted = mount;
+    await renderPlannerPanel(ctx);
+  }
+
+closeTradePlanner(onlyInside?) co tham so tuy chon vi mot so ben chi muon pha panel NAM TRONG
+cho minh sap don: neu panel dang o noi khac thi de nguyen.
+
+tradePlannerIsIn(host) de mot nut biet minh dang bat hay tat, tuc la bam lan hai thi dong chu
+khong mount lai.
+
+Giao dien mount:
+
+  interface PlannerMount {
+    host: HTMLElement;
+    symbols: () => string[] | Promise<string[]>;   // doc lai moi lan tinh
+    title: string;                                  // ten danh sach, hoac chinh ma
+    onOpenSymbol?: (symbol: string) => void;        // bo trong khi khong co cho nao de di
+    onClose?: () => void;                           // de host nha nut cua no ra
+  }
+
+symbols la HAM chu khong phai mang: mot ma bi xoa khoi watchlist khi panel dang mo thi nut
+"Lap ke hoach" khong duoc tinh lai ma do nua.
+
+onOpenSymbol bo trong khi panel nam ngay tren trang cua chinh ma do — mot link mo lai trang
+dang xem thi doc ra nhu link chet. Khi khong co, ticker la <strong> chu khong phai <a>.
+
+### C. Vong doi do thi: moi duong don host phai di qua closeTradePlanner
+
+drawCandles tao mot canvas, mot ResizeObserver va toi chin chuoi du lieu. Tha node di ma khong
+goi destroy() thi ResizeObserver con song, quan sat node khong ai thay duoc nua. Panel gio mount
+o bon cho, nen da noi lai TAT CA duong lam trong host:
+
+- renderWatchlist: closeTradePlanner(root) truoc root.innerHTML = ...
+- doi tab watchlist: closeTradePlanner($('#wl-plan-panel'))
+- openStock: closeTradePlanner(body) truoc body.innerHTML = ...
+- closeModal: closeTradePlanner($('#modal-body')) ngay sau khi an modal
+- computePlans: destroyPlanCharts() truoc khi ve lai cac the
+- nut x cua chinh panel
+
+### D. Muc (1) — nut 📋 tren tung hang watchlist
+
+qmTable chi nhan MOT cot action, nen cot xoa cu thanh hai nut trong cung mot <span
+data-row-action>:
+
+  <button class="icon-btn" data-plan="...">📋</button>
+  <button class="icon-btn" data-del="...">✕</button>
+
+qmTable bo qua cu bam bat nguon tu trong [data-row-action], nen bam 📋 khong mo trang co phieu.
+Handler van goi e.stopPropagation() vi day la hai lop bao ve khac nhau, khong phai mot.
+
+planOneSymbol dung CUNG host #wl-plan-panel voi panel ca danh sach, chu khong mo rong trong long
+hang bang. The cua panel rat cao (mot do thi, 26 dong tieu chi, phan tinh co vi the); mo trong
+hang bang se day toan bo phan con lai cua danh sach ra khoi man hinh. Nen panel hien o cho quen
+thuoc phia tren bang, roi host.scrollIntoView({behavior:'smooth', block:'start'}).
+
+### E. Muc (2) — nut 📋 tren trang co phieu rieng
+
+Trong renderDetail: nut #sm-plan o hang dau, va host rong <div id="sm-plan-panel"></div> ngay
+duoi #wl-picker — tuc la sat ngay duoi nut, khong can scroll.
+
+wirePlanButton bat/tat bang tradePlannerIsIn(host). Khi mo thi bam class active vao nut, va
+truyen onClose de nut tu nha ra khi nguoi dung dong panel bang x.
+
+Da phai them CSS button.btn-outline.active — truoc do khong co luat nao cho trang thai nay, nen
+nut se bam xuong ma khong he thay doi gi.
+
+### F. Muc (4) — o chon ngay giao dich
+
+let planDate = today(); o pham vi panel, KHONG phai tung the: nguoi dung lap ke hoach cho mot
+buoi, chu khong cho mot ma; bat ho dat lai ngay tren tam the la tam co hoi de quen mot the.
+
+O trong hang dieu khien, canh dropdown tai khoan. Doi ngay thi computePlans (tinh lai) chu
+khong chi ve lai, boi vi ngay khong phai thu trang tri:
+
+- no la ngay lay ti gia EUR/USD, nen tren tai khoan EUR no doi gia von, doi von de tinh phan
+  tram, va do do doi ca so co phieu;
+- no la ngay lo mua duoc ghi vao;
+- no la ngay in tren ke hoach va la tam do thi.
+
+O rong co nghia la "hom nay" chu khong phai "khong co": planDate = dateEl.value || today(), roi
+viet lai vao o. Mot ke hoach khong co ngay thi khong tinh duoc co vi the.
+
+### G. Muc (3) — nut Buy, va nhung gi no tu choi
+
+buyBlocker(symbol) tra ve mot khoa i18n hoac null. Chan khi: chua tinh ke hoach, chua chon tai
+khoan, chua co gia vao, so co phieu bang 0, va cat lo >= gia vao.
+
+Cat lo bang hoac cao hon gia vao khong phai loi nho: do la mot lenh da bi cat lo ngay tu dau, va
+moi con so rui ro suy ra tu no se am hoac vo nghia.
+
+CO Y KHONG chan khi thieu tien mat. core buy() chi kiem shares > 0 va buyPrice >= 0 — no khong
+kiem tien mat. Va nguoi dung co the dang ghi lai mot lenh ho DA dat that (co the sau mot lan nap
+tien ma app chua biet); khoa ho ra khoi so sach cua chinh ho la sai. Nen thieu tien la mot canh
+bao thay duoc (tp-cash-warn, va dong "tien mat con lai" mau do trong hop thoai xac nhan), khong
+phai mot ro chan.
+
+Cung CO Y khong dat o tich "toi da xem ke hoach nay" o day. O tich do co ly o form Buy, vi o do
+ke hoach la mot thu o cho khac. O day ke hoach CHINH LA man hinh dang xem, va hop thoai xac nhan
+la lan nhin cuoi.
+
+### H. Mot duong mua duy nhat: applyWrite, va lotId duoc dan ra
+
+Nut Buy khong tu goi core. No dung applyWrite(ctx, {kind:'record_buy', ...}) — cung duong ma tro
+ly trong chat dung — vi duong do da lam du: buy(), priceCurrency, fxRateAtBuy, seedPrice,
+snapshotNow, appendAudit, va announce() (portfolioTab nghe qua onAgentWrite roi ve lai). Mot lo
+do panel nay mua phai khong the phan biet duoc voi mot lo danh tay.
+
+applyWrite gio tra ve WriteResult { lotId?: string }. Can cai nay vi ke hoach dong bang duoc
+luu theo khoa plansnap:<lotId>, va id cua lo la thu duy nhat nam duoc no: hai lan mua cung mot
+ma, cung ngay, cung gia la HAI lo hop le.
+
+### I. Mot phep doi tien duy nhat: plannedPrice
+
+Phep tinh doi gia USD sang tien tai khoan da duoc nhac tu toolExec.planPrice ra thanh
+plannedPrice(accountCurrency, given, ccy, date) trong portfolio/writes.ts, va planPrice gio chi
+con boc chu cho mo hinh doc.
+
+Ly do nhac ra: neu panel tu viet phep tinh nay thi hai ben se lech nhau, va cai lech do khong
+hien ra o dau ca.
+
+plannedPrice TU CHOI chu khong doi o ti gia 1. eurUsdForDate buoc phai tra ve mot so cho moi
+duong hien thi, nen khi khong biet gi no tra 1 — va "1.00" bien mot cai fill $232.50 thanh gia
+von EUR 232.50, sai mot phan muoi vi the, sai vinh vien, khong man hinh nao phia sau phat hien
+duoc. Tra ve ma loi ('no-rate' | 'not-eur-usd') thi con cuu duoc: bam Cap nhat, hoac nhap gia
+bang tien cua tai khoan.
+
+Ma loi chu khong phai cau chu, vi hai ben phai noi khac nhau: tro ly can van xuoi cho mo hinh
+doc, panel can mot dong da dich duoi nut Buy.
+
+Luat tien te trong panel khong doi: o Entry/Stop/Target giu gia dong cua USD tho (cat lo la con
+so minh dua cho broker), con tien ra tu buildBuyPlan thi DA la tien cua tai khoan — nen planConv
+doi tu tien tai khoan, khong phai tu USD.
+
+### J. Mua CHINH LA xac nhan da xem
+
+planReport.ts dong 180 in "NOT acknowledged" khi thieu plan.reviewedAt hoac plan.levels. Neu
+buyFromPlan khong ghi hai thu do thi moi lo mua tu panel nay se co mot bao cao dong bang in cau
+canh bao SAI.
+
+Nen truoc khi cat snapshot, buyFromPlan dat reviewedAt = bay gio, levels = {entry, stop, target}
+dang dung, va reviewedGrade = hang co hieu luc, roi savePlan.
+
+### K. Tai khoan nao — hai mang, hai muc dich
+
+Dropdown doc thang blob 'accounts' tu storage (planAccounts), vi loadAccounts co the dung ra mot
+tai khoan khoi dau chi de hien thi, va tai khoan do khong bao gio duoc phep dem ra mua.
+
+Duong GHI thi khac: goi ensureAccountsLoaded(ctx), roi tim lai id da chon trong mang accounts
+song. Khong thay thi tu choi voi wl.plan.buyno.gone.
+
+withAccounts tu choi truoc khi hydrate xong ("portfolio is still syncing — not safe to write
+yet"). Nut Buy bat loi do va hien nguyen van len duoi nut.
+
+### L. Sau khi mua thi VE LAI, khong render lai
+
+renderPlannerPanel se fetch lai bars cua moi ma. Nen sau mot lenh mua chi lam dung nhung gi doi:
+copy accounts song sang planAccounts, dung acctOptionsHtml() ve lai rieng cac <option> cua
+#tp-acct (tien mat trong nhan la dung cai vua doi), paintPlanStatus(), roi recalcPlan cho tung
+the (vi von doi thi co vi the doi theo).
+
+Mot cho de sai: handler cua nut da tung viet .finally(() => paintBuyButton(sym)), va nhu the se
+XOA mat dong ket qua ("Da ghi vao X" hoac cau bao loi) ngay khi no vua hien. Sua thanh
+.finally(() => { b.disabled = buyBlocker(sym) !== null; }) — chi nut tro lai, dong chu thi khong.
+
+### M. Tep da sua
+
+- apps/desktop/src/portfolio/tradePlanner.ts MOI (1412 dong) — toan bo panel chuyen tu
+  miscTabs.ts, cong PlannerMount/openTradePlanner/closeTradePlanner/tradePlannerIsIn, planDate +
+  o #tp-date, acctOptionsHtml tach rieng, esc, buyBlocker, paintBuyButton, confRow,
+  confirmBuyDialog, buyHint, buyFromPlan.
+- apps/desktop/src/portfolio/writes.ts — them PriceRefusal va plannedPrice (nhac tu
+  toolExec.planPrice); applyWrite gio tra WriteResult { lotId? }.
+- apps/desktop/src/ai/toolExec.ts — planPrice chi con boc van xuoi quanh plannedPrice.
+- apps/desktop/src/tabs/miscTabs.ts — bo panel (con 741 dong); planWholeList va planOneSymbol;
+  nut 📋 trong cot action cua qmTable; closeTradePlanner o renderWatchlist va khi doi tab.
+- apps/desktop/src/ui/stockModal.ts — nut #sm-plan, host #sm-plan-panel, wirePlanButton, va
+  closeTradePlanner o dau openStock va trong closeModal.
+- apps/desktop/src/ui/i18n.ts — wl.plan.one, wl.plan.here, wl.plan.date, wl.plan.datetitle,
+  wl.plan.buy, wl.plan.buyready, wl.plan.buyno.{card,acct,entry,shares,stop,norate,gone},
+  wl.plan.buyttl, wl.plan.buyacct, wl.plan.buycost, wl.plan.buycash, wl.plan.buyrate,
+  wl.plan.buygrade, wl.plan.buyok, wl.plan.buycancel, wl.plan.buydone.
+- apps/desktop/src/styles.css — .tp-date-input, .tp-buy-row, .tp-buy, .tp-buy-hint(.ok), va
+  button.btn-outline.active.
+
+### N. Kiem
+
+- tests/planBuy.test.ts MOI (8 bai): plannedPrice — chia theo ti gia CUA NGAY GIAO DICH (1.25
+  cua ngay 18, khong phai 1.1 moi nhat), nhan nguoc chieu cho EUR vao tai khoan USD, di thang
+  khi cung tien te (co va khong co ti gia, va khong co thi khong duoc in ti gia), tu choi
+  'no-rate', tu choi 'not-eur-usd'; applyWrite — tra ve lotId tro dung mot lo co that va lo do
+  dung chuan cua form Buy, va khong tra lotId cho lenh khong tao lo nao.
+- Hai loi bien dich, cung mot nguyen nhan: closeTradePlanner($('#modal-body') ?? undefined) va
+  ban o miscTabs. $ co dang <T extends Element = HTMLElement>(...): T | null; khi co kieu ngu
+  canh la HTMLElement | undefined thi TS suy T tu ngu canh, doi T | null khong khop duoc, nen no
+  roi ve rang buoc Element. Sua bang cach ghi ro $<HTMLElement>(...).
+- App 184/184 (14 tep). Core 771/771 (49 tep). tsc --noEmit sach, npm run build sach ca hai goi.
+  package-lock.json khong doi.
+- Van con phai XEM BANG MAT (khong test duoc voi environment: 'node'): nut 📋 tren tung hang va
+  viec no scroll den panel, nut bat/tat tren trang co phieu, o chon ngay co that su doi co vi
+  the va doi ngay in tren bao cao, cac trang thai tat cua nut Buy va hop thoai xac nhan cua no;
+  va tu CHAT-25 chua xem: nut Bo chon o form Buy, nut Ke hoach tren hang giao dich, do thi trong
+  bao cao mo tu snapshot.
+
+### O. Con no
+
+- Loi nhan f0b6b0e9 van viet "22 tieu chi" (dung la 26) — sua thi phai force-push, nen de
+  nguyen, ghi o CHAT-24 muc O.
+- Ban build Pages cua lux-lookthrough van do (nghi la tran 500 build/thang): phai chay
+  wrangler pages deploy dist --project-name the-professional tu apps/desktop tren may co dang
+  nhap Cloudflare.

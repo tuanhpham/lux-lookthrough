@@ -279,6 +279,52 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'chưa chọn tài khoản, nên cỡ vị thế tính như chưa đóng lệnh nào (bậc đang học)',
   },
 
+  // Opening the planner for one name. Two buttons, two places, same panel: the ✕ on a
+  // watchlist row's 📋 and the 📋 on the stock page.
+  'wl.plan.one': { en: 'Trade plan for this stock only', vi: 'Kế hoạch riêng cho mã này' },
+  'wl.plan.here': { en: 'Plan this stock here on this page', vi: 'Lập kế hoạch cho mã này ngay tại trang này' },
+
+  // The trade date. Everything downstream hangs off it: the FX rate used to convert the
+  // fill, the date the lot is booked under, and the date printed on the frozen report.
+  'wl.plan.date': { en: 'Trade date', vi: 'Ngày giao dịch' },
+  'wl.plan.datetitle': {
+    en: 'Leave as today, or pick the day the trade was made — the EUR/USD rate of that day is the one used.',
+    vi: 'Để nguyên ngày hôm nay, hoặc chọn ngày đã giao dịch — tỷ giá EUR/USD của ngày đó sẽ được dùng.',
+  },
+
+  // Buying straight from the plan.
+  'wl.plan.buy': { en: '✓ Buy this plan', vi: '✓ Mua theo kế hoạch' },
+  'wl.plan.buyready': {
+    en: 'Buy {shares} {sym} into {acct} on {date}',
+    vi: 'Mua {shares} {sym} vào {acct} ngày {date}',
+  },
+  'wl.plan.buyno.card': { en: 'plan not computed yet', vi: 'kế hoạch chưa được tính' },
+  'wl.plan.buyno.acct': { en: 'choose an account first', vi: 'hãy chọn tài khoản trước' },
+  'wl.plan.buyno.entry': { en: 'set an entry price', vi: 'hãy đặt giá vào' },
+  'wl.plan.buyno.shares': { en: 'the share count is zero', vi: 'số cổ phiếu đang bằng 0' },
+  'wl.plan.buyno.stop': {
+    en: 'the stop is at or above the entry',
+    vi: 'cắt lỗ đang bằng hoặc cao hơn giá vào',
+  },
+  // A refusal, not a silent conversion at 1 — see `plannedPrice` in portfolio/writes.ts.
+  'wl.plan.buyno.norate': {
+    en: 'no EUR/USD rate for this date — run ↻ Update on Portfolio, then try again',
+    vi: 'chưa có tỷ giá EUR/USD cho ngày này — bấm ↻ Cập nhật ở tab Danh Mục rồi thử lại',
+  },
+  'wl.plan.buyno.gone': {
+    en: 'that account no longer exists — pick another',
+    vi: 'tài khoản đó không còn nữa — hãy chọn tài khoản khác',
+  },
+  'wl.plan.buyttl': { en: 'Record this buy?', vi: 'Ghi nhận lệnh mua này?' },
+  'wl.plan.buyacct': { en: 'Account', vi: 'Tài khoản' },
+  'wl.plan.buycost': { en: 'Cost', vi: 'Chi phí' },
+  'wl.plan.buycash': { en: 'Cash after', vi: 'Tiền mặt còn lại' },
+  'wl.plan.buyrate': { en: 'Rate used', vi: 'Tỷ giá dùng' },
+  'wl.plan.buygrade': { en: 'Setup · grade', vi: 'Thiết lập · hạng' },
+  'wl.plan.buyok': { en: '✓ Record the buy', vi: '✓ Ghi nhận lệnh mua' },
+  'wl.plan.buycancel': { en: 'Cancel', vi: 'Hủy' },
+  'wl.plan.buydone': { en: '✓ Recorded into {acct}', vi: '✓ Đã ghi vào {acct}' },
+
   // Portfolio
   'pf.title': { en: 'Portfolio', vi: 'Danh Mục' },
   'pf.sub': { en: 'Independent multi-account strategy testing. Cash, PnL and risk are per account.', vi: 'Thử nghiệm chiến lược đa tài khoản độc lập. Tiền mặt, lãi/lỗ và rủi ro tính riêng cho từng tài khoản.' },

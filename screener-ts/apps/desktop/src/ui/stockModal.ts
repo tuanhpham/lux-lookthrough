@@ -21,6 +21,7 @@ import { sliceBars, fundamentalsAsOf } from './asOf.js';
 import { listSnapshotDays, loadWindow } from '../tabs/catalystCache.js';
 import { fetchEarningsReports, type EarningsReport } from '../adapters/earningsDates.js';
 import { loadCalendarScan } from '../tabs/calendarScan.js';
+import { closeTradePlanner, openTradePlanner, tradePlannerIsIn } from '../portfolio/tradePlanner.js';
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -65,6 +66,9 @@ export function initModal(): void {
 function closeModal(): void {
   if ($('#modal')!.classList.contains('hidden')) return;
   $('#modal')!.classList.add('hidden');
+  // A planner mounted in this modal goes with it: its cards carry live charts, and hiding the
+  // modal would leave a ResizeObserver per card observing nodes nobody can see.
+  closeTradePlanner($<HTMLElement>('#modal-body') ?? undefined);
   if (chart) {
     chart.destroy();
     chart = null;
@@ -86,6 +90,9 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
   modal.classList.remove('hidden');
   $('#modal-title')!.textContent = symbol;
   const body = $('#modal-body')!;
+  // Navigating to another stock (or reopening this one) replaces the body wholesale, so a
+  // planner mounted in it has to be torn down first rather than left pointing at dead nodes.
+  closeTradePlanner(body);
   body.innerHTML = `<div class="muted" style="text-align:center;padding:40px"><span class="spinner"></span> Loading ${symbol}…</div>`;
 
   // In as-of mode, fetch a longer window so EMA200 etc. have history before the
@@ -216,6 +223,7 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
     window.addEventListener('orientationchange', resizeHandler);
 
     void wireWatchlistPicker(ctx, symbol);
+    wirePlanButton(ctx, symbol);
 
     // Research prompts. Rendered async because two of its inputs (the next dated
     // catalyst, the market regime) live in caches that must be read, and neither is
@@ -232,6 +240,40 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
   } catch (e) {
     body.innerHTML = `<div class="danger" style="text-align:center;padding:40px">${(e as Error).message}</div>`;
   }
+}
+
+/**
+ * The "📋 Trade Plan" button — the user's "rat tien khi ma co the click on trade plan va xem
+ * luon tren trang individual do".
+ *
+ * The panel is the same one the Watchlist tab mounts, for one symbol, rendered inside this
+ * modal rather than in a second window: the point of having it here is reading the plan next
+ * to the chart and the fundamentals it was made from.
+ *
+ * A toggle, not a one-way open: the planner's card is tall, and someone who opened it to check
+ * a grade needs the rest of this page back without closing the stock.
+ *
+ * No `onOpenSymbol` — the only symbol on screen is the one this modal is already showing, and
+ * a link that reopens the page you are on reads as a dead link.
+ */
+function wirePlanButton(ctx: AppContext, symbol: string): void {
+  const btn = $('#sm-plan');
+  const host = $('#sm-plan-panel');
+  if (!btn || !host) return;
+  btn.addEventListener('click', () => {
+    if (tradePlannerIsIn(host)) {
+      closeTradePlanner(host);
+      btn.classList.remove('active');
+      return;
+    }
+    btn.classList.add('active');
+    void openTradePlanner(ctx, {
+      host,
+      symbols: () => [symbol],
+      title: symbol,
+      onClose: () => btn.classList.remove('active'),
+    });
+  });
 }
 
 function stat(k: string, v: string, tipKey?: string): string {
@@ -291,10 +333,14 @@ function renderDetail(
         <div id="detail-subtitle" class="muted" style="font-size:12px">${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}</div>
       </div>
       <div class="row" style="margin-left:auto;gap:8px">
+        <button id="sm-plan" class="btn-outline" style="padding:7px 12px" title="${t('wl.plan.here')}">📋 ${t('wl.plan')}</button>
         <button id="wl-toggle" class="btn-outline" style="padding:7px 12px">☆ Watchlist</button>
       </div>
     </div>
     <div id="wl-picker" class="card hidden" style="margin-bottom:12px;background:var(--surface)"></div>
+    <!-- The Trade Planner mounts here, in place, so the plan is read on the same page as the
+         chart and the fundamentals it was made from. Empty until the button is pressed. -->
+    <div id="sm-plan-panel"></div>
     ${patternBlock}
     <div class="card" style="margin-top:14px;padding:8px">
       <div class="toolbar" style="margin:4px 6px">

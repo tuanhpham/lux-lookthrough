@@ -51,7 +51,7 @@ import {
   today,
 } from '../portfolio/store.js';
 import { accountPrices, hasPrices } from '../portfolio/prices.js';
-import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
+import { ensureEurUsd } from '../portfolio/fx.js';
 import { isHydrated } from '../adapters/storage.js';
 import {
   accountNameTaken,
@@ -59,6 +59,7 @@ import {
   describeWrite,
   heldShares,
   openLots,
+  plannedPrice,
   type AccountRef,
   type PlannedPrice,
   type Rating,
@@ -349,13 +350,13 @@ const numArg = (args: ToolArgs, key: string): number | undefined => {
 };
 
 /**
- * Work out what a stated price becomes in the account's own currency.
+ * What a stated price becomes in the account's own currency, with the refusal in prose.
  *
- * REFUSES rather than falling back to a rate of 1. `eurUsdForDate` has to return
- * something for every display path, so it answers 1 when it knows nothing — and
- * "1.00" silently turns a $232.50 fill into a €232.50 cost basis, an error of a
- * tenth of the position that no later screen would flag. A refusal the model can
- * read out ("press Update first, or give me the euro price") is recoverable.
+ * The arithmetic — and the refusal to convert at a fallback rate of 1, which would silently
+ * turn a $232.50 fill into a €232.50 cost basis — lives in `plannedPrice`, shared with the
+ * Trade Planner's Buy button so there is one conversion in the app rather than one per screen.
+ * What stays here is the wording: the model needs a sentence it can act on, and "press Update
+ * on the Portfolio tab first, or give the price in EUR" is the recoverable half of a refusal.
  */
 function planPrice(
   acc: AccountRef,
@@ -363,23 +364,12 @@ function planPrice(
   ccy: 'EUR' | 'USD',
   date: string,
 ): PlannedPrice | { error: string } {
-  const known = hasEurUsd() ? eurUsdForDate(date) : undefined;
-  if (ccy === acc.currency) {
-    return known ? { given, currency: ccy, stored: given, fx: known } : { given, currency: ccy, stored: given };
-  }
-  if (!known || !(known > 0)) {
-    return {
-      error: `No EUR/USD rate is loaded, so a ${ccy} price cannot be recorded in this ${acc.currency} account. Ask the user to press Update on the Portfolio tab first, or to give the price in ${acc.currency}.`,
-    };
-  }
-  if (acc.currency === 'EUR' && ccy === 'USD') {
-    return { given, currency: ccy, stored: given / known, fx: known };
-  }
-  if (acc.currency === 'USD' && ccy === 'EUR') {
-    return { given, currency: ccy, stored: given * known, fx: known };
-  }
+  const p = plannedPrice(acc.currency, given, ccy, date);
+  if (!('error' in p)) return p;
   return {
-    error: `This account is kept in ${acc.currency}, and the app can only convert between EUR and USD. Ask the user for the price in ${acc.currency}.`,
+    error: p.error === 'no-rate'
+      ? `No EUR/USD rate is loaded, so a ${ccy} price cannot be recorded in this ${acc.currency} account. Ask the user to press Update on the Portfolio tab first, or to give the price in ${acc.currency}.`
+      : `This account is kept in ${acc.currency}, and the app can only convert between EUR and USD. Ask the user for the price in ${acc.currency}.`,
   };
 }
 

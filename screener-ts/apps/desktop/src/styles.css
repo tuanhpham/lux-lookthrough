@@ -448,6 +448,11 @@ button.btn-outline {
 }
 button.btn-outline:hover { background: var(--cardhover); border-color: var(--accent-line); }
 button.btn:active, button.btn-outline:active { transform: translateY(1px); }
+/* A toggle that is currently on — the stock page's 📋 Trade Plan, which opens a panel
+   further down the page that the button itself may have scrolled out of view. */
+button.btn-outline.active {
+  background: var(--accent-wash); border-color: var(--accent); color: var(--accent);
+}
 
 /* Segmented "range" pills — the strategy/universe/market switchers. */
 .range-btn {
@@ -924,6 +929,15 @@ a.tkr:hover { text-decoration: underline; }
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
 }
+/* The trade date, sitting in the control row next to the account picker. */
+.tp-date-input { height: 38px; min-width: 150px; padding-top: 0; padding-bottom: 0; line-height: 1.4; }
+/* Buying the plan. The button is the only green thing on the card, because pressing it
+   writes a real lot — the rest of the card is arithmetic you can change your mind about. */
+.tp-buy-row { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 12px 0 10px; }
+.tp-buy { padding: 8px 16px; font-weight: 700; }
+.tp-buy:disabled { opacity: .45; cursor: not-allowed; }
+.tp-buy-hint { font-size: 11.5px; line-height: 1.4; color: var(--faint); }
+.tp-buy-hint.ok { color: var(--up); font-weight: 600; }
 .tp-note h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
 .tp-note ul, .tp-note ol { margin: 4px 0; padding-left: 20px; }
 .tp-note li { margin: 2px 0; }

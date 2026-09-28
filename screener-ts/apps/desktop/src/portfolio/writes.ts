@@ -42,6 +42,7 @@ import {
 import type { AppContext } from '../context.js';
 import { accounts, addAccount, today, uuid, withAccounts } from './store.js';
 import { accountPrices, seedPrice } from './prices.js';
+import { eurUsdForDate, hasEurUsd } from './fx.js';
 
 export type Rating = 'A' | 'B' | 'C' | 'D';
 
@@ -91,6 +92,43 @@ export interface PlannedPrice {
   currency: 'EUR' | 'USD';
   stored: number;
   fx?: number;
+}
+
+/**
+ * Why a stated price cannot be turned into account money.
+ *
+ * A code rather than a sentence, because the two callers have to say it differently: the
+ * assistant needs prose the model can read out and act on, the Trade Planner needs a
+ * translated line under its Buy button. One arithmetic, two phrasings.
+ */
+export type PriceRefusal = { error: 'no-rate' } | { error: 'not-eur-usd' };
+
+/**
+ * Work out what a stated price becomes in the account's own currency.
+ *
+ * REFUSES rather than falling back to a rate of 1. `eurUsdForDate` has to return something
+ * for every display path, so it answers 1 when it knows nothing — and "1.00" silently turns a
+ * $232.50 fill into a €232.50 cost basis, an error of a tenth of the position that no later
+ * screen would flag. A refusal is recoverable: press Update, or give the price in the
+ * account's currency.
+ *
+ * The rate is the one for the TRADE DATE, not today's, which is why a backdated buy needs the
+ * date picker to reach this far.
+ */
+export function plannedPrice(
+  accountCurrency: string,
+  given: number,
+  ccy: 'EUR' | 'USD',
+  date: string,
+): PlannedPrice | PriceRefusal {
+  const known = hasEurUsd() ? eurUsdForDate(date) : undefined;
+  if (ccy === accountCurrency) {
+    return known ? { given, currency: ccy, stored: given, fx: known } : { given, currency: ccy, stored: given };
+  }
+  if (!known || !(known > 0)) return { error: 'no-rate' };
+  if (accountCurrency === 'EUR' && ccy === 'USD') return { given, currency: ccy, stored: given / known, fx: known };
+  if (accountCurrency === 'USD' && ccy === 'EUR') return { given, currency: ccy, stored: given * known, fx: known };
+  return { error: 'not-eur-usd' };
 }
 
 export type WritePlan =
@@ -171,6 +209,19 @@ function byId(list: readonly AccountState[], id: string): AccountState {
   return st;
 }
 
+/** What a completed write can tell its caller. Empty for the kinds that create nothing. */
+export interface WriteResult {
+  /**
+   * The lot a `record_buy` created.
+   *
+   * Threaded out because it is the key a plan snapshot is stored under — the Trade Planner's
+   * Buy freezes the plan against the lot it just bought, and the lot's id is the only handle
+   * on it. There is no other way to identify it afterwards: two buys of the same ticker on
+   * the same day at the same price are two legitimate lots.
+   */
+  lotId?: string;
+}
+
 /**
  * Apply an approved plan and persist it.
  *
@@ -178,8 +229,8 @@ function byId(list: readonly AccountState[], id: string): AccountState {
  * turns that into a tool error the model can read out. Nothing is written unless the
  * whole mutation succeeds, because `withAccounts` only saves after `mutate` returns.
  */
-export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<void> {
-  await withAccounts(ctx, (list) => {
+export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<WriteResult> {
+  const result = await withAccounts(ctx, (list): WriteResult => {
     switch (plan.kind) {
       case 'create_account': {
         addAccount(
@@ -220,7 +271,7 @@ export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<void
         );
         seedPrice(st.account.id, lot.ticker, plan.price.stored);
         snapshotNow(st);
-        break;
+        return { lotId: lot.id };
       }
       case 'record_sell': {
         const st = byId(list, plan.account.id);
@@ -278,9 +329,11 @@ export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<void
         break;
       }
     }
+    return {};
   });
   await appendAudit(ctx, plan);
   announce();
+  return result;
 }
 
 // ── telling the rest of the app ──────────────────────────────────────────────
