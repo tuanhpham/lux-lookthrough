@@ -384,46 +384,39 @@ describe('riskBudget', () => {
     expect(b.cuts).not.toContain('volExpanded');
   });
 
-  it('takes a share of the size for a grade below A', () => {
-    const ctx = { regime: 'UPTREND' as const, atrRatio: 1 };
-    expect(riskBudget(stable, { ...ctx, rating: 'A' }).pct).toBe(1);
-    expect(riskBudget(stable, { ...ctx, rating: 'B' }).pct).toBe(0.75);
-    expect(riskBudget(stable, { ...ctx, rating: 'C' }).pct).toBe(0.5);
-    expect(riskBudget(stable, { ...ctx, rating: 'D' }).pct).toBe(0.25);
-    expect(riskBudget(stable, { ...ctx, rating: 'C' }).cuts).toContain('rating');
-    expect(riskBudget(stable, { ...ctx, rating: 'A' }).cuts).not.toContain('rating');
-  });
-
-  it('treats an absent grade as full size, not as no trade', () => {
-    const b = riskBudget(stable, { regime: 'UPTREND', atrRatio: 1, rating: null });
+  it('knows nothing about the conviction grade', () => {
+    // The budget is the FULL-SIZE risk percent. The grade scales the finished share count
+    // in `suggestSize`, because risk percent is only one of four limits on a position and
+    // scaling it did nothing whenever another limit was the binding one.
+    const b = riskBudget(stable, { regime: 'UPTREND', atrRatio: 1 });
     expect(b.pct).toBe(1);
-    expect(b.cuts).toEqual([]);
+    expect(b.cuts).not.toContain('rating');
   });
 
-  it('applies the grade INSIDE the stack the floor catches', () => {
-    // THE REASON THE GRADE LIVES HERE AND NOT IN THE CALLER. On the learning rung a D
-    // is 0.25% × 25% = 0.0625%, under the 0.1% floor. Scale the finished percent from
-    // outside and the grade lands below the floor, so `flooredAtMin` would be in `cuts`
-    // while `pct` sat under `minRiskPct` — two true-sounding statements that contradict
-    // each other on the same line of the screen.
-    const learning = riskStageOf(Array.from({ length: 10 }, () => 100));
-    const b = riskBudget(learning, { regime: 'UPTREND', atrRatio: 1, rating: 'D' });
-    expect(b.pct).toBe(DEFAULT_RISK_LADDER.minRiskPct);
-    expect(b.cuts).toEqual(['rating', 'flooredAtMin']);
-  });
-
-  it('cuts for the grade after the market and the record, in the order it prints', () => {
+  it('stacks the cuts in the order it prints them', () => {
     const bruised = riskStageOf([...Array.from({ length: 120 }, () => 100), -1, -1, -1]);
-    const b = riskBudget(bruised, { regime: 'RANGE', atrRatio: 1.6, rating: 'C' });
-    // 1% → half for the range → half for the streak → half for the grade. The expanded
-    // ATR charges nothing here: that cut is the uptrend's, because in a range the
-    // halving for the range itself has already said the same thing.
-    expect(b.pct).toBe(0.125);
-    expect(b.cuts).toEqual(['regimeRange', 'losingStreak', 'rating']);
+    const b = riskBudget(bruised, { regime: 'RANGE', atrRatio: 1.6 });
+    // 1% → half for the range → half for the streak. The expanded ATR charges nothing
+    // here: that cut is the uptrend's, because in a range the halving for the range
+    // itself has already said the same thing.
+    expect(b.pct).toBe(0.25);
+    expect(b.cuts).toEqual(['regimeRange', 'losingStreak']);
   });
 
-  it('does not let an A talk the app into a downtrend', () => {
-    const b = riskBudget(stable, { regime: 'DOWNTREND', atrRatio: 1, rating: 'A' });
+  it('floors the LADDER’s own cuts, which is all the floor is for', () => {
+    // `minRiskPct` stops the regime and the record from whittling a position to nothing
+    // on the user's behalf. It deliberately does not apply to the conviction grade —
+    // see the note on `riskBudget` and the `suggestSize` cases below.
+    // The learning rung is 0.25%; a range halves it and three losses running halve it
+    // again → 0.0625%, under the 0.1% floor.
+    const bruisedLearner = riskStageOf([100, -1, -1, -1]);
+    const b = riskBudget(bruisedLearner, { regime: 'RANGE', atrRatio: 1 });
+    expect(b.pct).toBe(DEFAULT_RISK_LADDER.minRiskPct);
+    expect(b.cuts).toEqual(['regimeRange', 'losingStreak', 'flooredAtMin']);
+  });
+
+  it('does not open a long in a downtrend', () => {
+    const b = riskBudget(stable, { regime: 'DOWNTREND', atrRatio: 1 });
     expect(b.pct).toBe(0);
   });
 });
@@ -556,6 +549,78 @@ describe('suggestSize', () => {
     expect(suggestSize({ ...base, cash: 1_000 }).limitedBy).toBe('cash');
     expect(suggestSize({ ...base, riskPerShare: 0.5 }).limitedBy).toBe('concentration');
     expect(suggestSize({ ...base, openRisk: 3_800 }).limitedBy).toBe('heat');
+  });
+
+  // ── The conviction grade ──────────────────────────────────────────────────
+  it('gives each grade its share of the full size', () => {
+    expect(suggestSize({ ...base, rating: 'A' }).shares).toBe(250);
+    expect(suggestSize({ ...base, rating: 'B' }).shares).toBe(187); // 250 × 0.75
+    expect(suggestSize({ ...base, rating: 'C' }).shares).toBe(125);
+    expect(suggestSize({ ...base, rating: 'D' }).shares).toBe(62);  // 62.5 → down
+  });
+
+  it('SCALES A SIZE SOME OTHER LIMIT DECIDED — the whole reason it lives here', () => {
+    // THE REGRESSION. The grade used to scale `budget.pct`, which only moves the risk
+    // limit. A 50-cent stop on a $100 stock is capped by CONCENTRATION at 250 shares, so
+    // every grade produced 250 and the dropdown looked broken to the user.
+    const capped = { ...base, riskPerShare: 0.5 };
+    expect(suggestSize(capped).limitedBy).toBe('concentration');
+    expect(suggestSize({ ...capped, rating: 'A' }).shares).toBe(250);
+    expect(suggestSize({ ...capped, rating: 'C' }).shares).toBe(125);
+    // Same for cash, and for heat.
+    expect(suggestSize({ ...base, cash: 1_000, rating: 'C' }).shares).toBe(5); // 10 → 5
+    expect(suggestSize({ ...base, openRisk: 3_800, rating: 'C' }).shares).toBe(25); // 50 → 25
+  });
+
+  it('reports the full size next to the graded one', () => {
+    // So the card can print the subtraction — "full size 250 ($25,000) → 75% → 187" —
+    // rather than a lone number the user cannot check.
+    const b = suggestSize({ ...base, rating: 'B' });
+    expect(b.fullShares).toBe(250);
+    expect(b.fullPositionValue).toBeCloseTo(25_000, 2);
+    expect(b.gradeScale).toBe(0.75);
+    expect(b.positionValue).toBeCloseTo(18_700, 2);
+    // And the risk reported is the risk actually taken, not the budget it came from.
+    expect(b.riskAmount).toBeCloseTo(748, 2);        // 187 × $4
+    expect(b.riskPctOfEquity).toBeCloseTo(0.748, 3);
+  });
+
+  it('treats an absent grade as full size, not as a quarter', () => {
+    const blank = suggestSize({ ...base, rating: null });
+    expect(blank.shares).toBe(250);
+    expect(blank.shares).toBe(blank.fullShares);
+    expect(blank.gradeScale).toBe(1);
+  });
+
+  it('rounds the grade DOWN, never up', () => {
+    // 250 × 0.25 = 62.5. Handing back 63 would make a D bigger than the quarter the user
+    // asked for, which is the one direction the rounding must not go.
+    expect(suggestSize({ ...base, rating: 'D' }).shares).toBe(62);
+  });
+
+  it('never grades a tradeable position down to zero shares', () => {
+    // Full size 2 shares, grade D → 0.5 → would floor to 0. "Smaller" must not become
+    // "no", because that is a refusal and the grade does not get to make one.
+    const thin = { ...base, equity: 1_000, cash: 1_000, riskPerShare: 4, entry: 100 };
+    const full = suggestSize(thin);
+    expect(full.shares).toBe(2); // $10 of budget ÷ $4
+    const d = suggestSize({ ...thin, rating: 'D' });
+    expect(d.shares).toBe(1);
+  });
+
+  it('still reports no trade when the FULL size is zero', () => {
+    // The clamp above is not a licence to invent a position the account cannot take. A
+    // downtrend, or cash for less than one share, is still nought shares with an A on it.
+    const dt = riskBudget(stable, { regime: 'DOWNTREND', atrRatio: 1 });
+    expect(suggestSize({ ...base, budget: dt, rating: 'A' }).shares).toBe(0);
+    expect(suggestSize({ ...base, cash: 10, rating: 'A' }).shares).toBe(0);
+  });
+
+  it('is configurable, and reads nonsense as ungraded', () => {
+    const cfg = { ...DEFAULT_RISK_LADDER, ratingPct: { A: 100, B: 50, C: 25, D: 10 } };
+    expect(suggestSize({ ...base, rating: 'B', cfg }).shares).toBe(125);
+    const nonsense = { ...DEFAULT_RISK_LADDER, ratingPct: { A: 100, B: -5, C: 50, D: 25 } };
+    expect(suggestSize({ ...base, rating: 'B', cfg: nonsense }).shares).toBe(250);
   });
 });
 

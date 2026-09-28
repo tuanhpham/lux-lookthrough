@@ -1,19 +1,22 @@
 import {
   scanQm, qmToRow, fetchMany, buildTradePlan, explainPlan, computeCash, computeEquity,
-  ema, isSetupKey, isRating, SETUP_KEYS, RATING_KEYS,
+  isSetupKey, isRating, SETUP_KEYS, RATING_KEYS,
+  gradeTrade, gradeByGroup, qmGradeEvidence, GRADE_CRITERIA,
   type QmRow, type QmScanResult, type QmSetupType, type AccountState, type Bar,
   type ConvictionRating, type PriceMap, type SetupKey,
+  type GradeAnswers, type GradeResult, type CriterionOutcome,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num } from '../ui/dom.js';
 // One rule table, one set of words: the Buy form and this planner size and explain the
 // same trade, so they call the same two modules rather than each carrying a copy.
 import {
-  buildBuyPlan, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan,
+  buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan,
 } from '../portfolio/playbook.js';
 import { planLines, setupName } from '../portfolio/planWords.js';
+import { criterionLabel, groupLabel } from '../portfolio/gradeWords.js';
 import { accountPrices, hasPrices } from '../portfolio/prices.js';
-import { candleChart, type Level } from '../ui/miniChart.js';
+import { drawCandles, type CandleChart, type TradeOverlay } from '../ui/charts.js';
 import { openStock } from '../ui/stockModal.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { t, getLang } from '../ui/i18n.js';
@@ -392,15 +395,25 @@ async function computePlans(ctx: AppContext): Promise<void> {
   const out = document.getElementById('tp-results')!;
   if (!activeId || !out) return;
 
+  // Every card is about to be replaced, so the charts on them have to be torn down
+  // first: dropping the nodes leaves nine live series and a ResizeObserver per symbol
+  // pointing at a detached container.
+  destroyPlanCharts();
   out.innerHTML = `<div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div>`;
   const syms = await loadItems(ctx, activeId);
   if (!syms.length) { out.innerHTML = `<p class="muted">${t('wl.empty')}</p>`; return; }
 
   const data = await fetchMany(ctx.data, syms, '1y', 6);
   const scans: QmScanResult[] = [];
+  planScans.clear();
   for (const sym of syms) {
     const d = data.get(sym);
-    if (d && d.bars.length >= 60) scans.push(scanQm(sym, d.bars));
+    if (d && d.bars.length >= 60) {
+      const scan = scanQm(sym, d.bars);
+      scans.push(scan);
+      // Kept, not consumed: the conviction checklist reads fourteen of its measurements.
+      planScans.set(sym, scan);
+    }
     // Keep the bars: editing the Entry price re-derives the stop from structure, and
     // that needs the same history the scan used. Re-fetching per keystroke is not an
     // option, and a planner whose stop did not follow the entry would be a form that
@@ -439,9 +452,14 @@ async function computePlans(ctx: AppContext): Promise<void> {
       // that is the point of it — but starting blank would make them re-type a
       // classification the screener had just made.
       setup: QM_TO_SETUP[scan.setupType],
-      // Blank on purpose: the grade is a judgement the app has no business guessing,
-      // and an ungraded trade is planned at full size rather than refused.
-      rating: null,
+      // Empty on purpose, and empty is not "no": the manual criteria start UNASKED, so a
+      // fresh card is graded on the measurements alone and ticking boxes refines it.
+      answers: {},
+      // No override. The grade is computed; the dropdown is there for disagreeing with it.
+      gradeOverride: null,
+      // Collapsed: the letter and the score are the headline, and fifteen rows of
+      // criteria above the price fields would bury the form the user came for.
+      criteriaOpen: false,
       note: '',
       noteEdited: false,
       ownStop: false,
@@ -473,12 +491,14 @@ async function computePlans(ctx: AppContext): Promise<void> {
               <option value="">${t('wl.plan.nosetupopt')}</option>
               ${SETUP_KEYS.map((k) => `<option value="${k}"${k === edit.setup ? ' selected' : ''}>${setupName(k, vi)}</option>`).join('')}
             </select></label>
-          <label class="tp-field"><span>${t('wl.plan.grade')}</span>
+          <label class="tp-field"><span>${t('wl.plan.gradeover')}</span>
             <select class="field" data-tp-rating="${S}">
-              <option value="">${t('wl.plan.nograde')}</option>
-              ${RATING_KEYS.map((r) => `<option value="${r}"${r === edit.rating ? ' selected' : ''}>${r} — ${ladderConfig().ratingPct[r]}%</option>`).join('')}
+              <option value="">${t('wl.plan.gradeauto')}</option>
+              ${RATING_KEYS.map((r) => `<option value="${r}"${r === edit.gradeOverride ? ' selected' : ''}>${r} — ${ladderConfig().ratingPct[r]}%</option>`).join('')}
             </select></label>
         </div>
+
+        <div class="tp-grade" data-tp-grade="${S}"></div>
 
         <div class="tp-fields">
           <label class="tp-field"><span>${t('wl.plan.entry')}</span>
@@ -543,8 +563,24 @@ interface PlanEdit {
   sizePct: number | null;
   /** Which playbook row to use. '' = none chosen, so there is nothing to suggest. */
   setup: SetupKey | '';
-  /** A–D, or null for ungraded — which means full size, not no trade. */
-  rating: ConvictionRating | null;
+  /**
+   * The user's answers to the criteria the app cannot measure. A key that is absent means
+   * UNASKED, not "no" — which is why this is a sparse object and not `Record<string, boolean>`.
+   */
+  answers: GradeAnswers;
+  /**
+   * A letter the user has insisted on, overriding the score. null = use the computed one.
+   *
+   * ── WHY THERE IS AN OVERRIDE AT ALL ───────────────────────────────────────
+   * The checklist exists because a self-chosen grade was not objective. Leaving an escape
+   * hatch might look like handing that back — but the alternative is worse. A user who
+   * disagrees with the score and has no way to say so will instead tick a criterion they
+   * do not believe, and then the checklist is wrong AND looks objective. One visible
+   * override, which the card labels as an override, keeps the lie out of the criteria.
+   */
+  gradeOverride: ConvictionRating | null;
+  /** Whether the criteria list is expanded. Per card, because the user opens one at a time. */
+  criteriaOpen: boolean;
   note: string;
   /** Once the user has edited the note, the planner stops rewriting it. */
   noteEdited: boolean;
@@ -556,6 +592,14 @@ interface PlanEdit {
 }
 const planEdits = new Map<string, PlanEdit>();
 const planBars = new Map<string, Bar[]>();
+/**
+ * The scan behind each card, kept for the grader.
+ *
+ * The scans used to be consumed and dropped — `buildTradePlan` took what it needed and the
+ * rich result went out of scope. The conviction checklist reads fourteen measurements off
+ * it, so it has to survive as long as the card does.
+ */
+const planScans = new Map<string, QmScanResult>();
 const SIZE_PRESETS = [3.5, 5, 7.5, 10, 12.5, 15, 17.25, 20];
 const DEFAULT_SIZE_PCT = 3.5;
 
@@ -690,7 +734,7 @@ function paintPlanStatus(): void {
  * bars, or no stop below the entry. Every caller has to say which of those it is,
  * because a card that just shows nothing reads as a broken feature.
  */
-function cardPlan(symbol: string): BuyPlan | null {
+function cardPlan(symbol: string, rating: ConvictionRating | null): BuyPlan | null {
   const e = planEdits.get(symbol);
   const bars = planBars.get(symbol);
   if (!e || !e.setup || !bars?.length) return null;
@@ -704,8 +748,48 @@ function cardPlan(symbol: string): BuyPlan | null {
     entryCurrency: 'USD',
     setup: e.setup,
     date: new Date().toISOString().slice(0, 10),
-    rating: e.rating,
+    rating,
   });
+}
+
+/**
+ * The conviction grade for one card, scored rather than chosen.
+ *
+ * ── WHY THE PLAYBOOK RUNS TWICE ─────────────────────────────────────────────
+ * Two of the criteria are about this trade rather than the stock: the reward-to-risk and
+ * how far the stop sits from the entry. Those come out of the playbook — and the playbook
+ * also needs the grade, to scale the share count. That looks circular and is not: the
+ * LEVELS do not depend on the grade, only the size does. So this runs one ungraded pass
+ * to find out where the stop and target are, grades that, and the caller runs the pass
+ * that counts. Both passes are arithmetic over bars already in memory.
+ *
+ * ── WHY IT PREFERS THE USER'S OWN STOP ──────────────────────────────────────
+ * If they have typed their own, the R:R criterion has to describe the trade they are
+ * about to place, not the one the book suggested and they rejected.
+ */
+function cardGrade(symbol: string): GradeResult | null {
+  const e = planEdits.get(symbol);
+  const scan = planScans.get(symbol);
+  if (!e || !scan) return null;
+
+  const levels = cardPlan(symbol, null);
+  const entry = e.entry ?? 0;
+  const stop = (e.ownStop ? e.stop : levels?.stop) ?? 0;
+  const target = (e.ownTarget ? e.target : levels?.target) ?? null;
+  const riskPerShare = entry > 0 && stop > 0 && stop < entry ? entry - stop : 0;
+
+  return gradeTrade(
+    qmGradeEvidence(scan, {
+      setup: e.setup,
+      regime: currentRegime()?.regime ?? null,
+      // null, not 0, when there is nothing to divide: the grader reads a missing number as
+      // unmeasured and a zero as a failing measurement.
+      rMultiple: riskPerShare > 0 && target != null && target > entry
+        ? (target - entry) / riskPerShare : null,
+      stopPct: riskPerShare > 0 ? (riskPerShare / entry) * 100 : null,
+    }),
+    e.answers,
+  );
 }
 
 /**
@@ -722,7 +806,12 @@ function recalcPlan(symbol: string): void {
   const box = document.querySelector<HTMLElement>(`[data-tp-derived="${CSS.escape(symbol)}"]`);
   if (!e || !box) return;
   const vi = getLang() === 'vi';
-  const plan = cardPlan(symbol);
+  // Score the criteria, then size the trade with the letter that came out. An override
+  // wins, and the panel says it did.
+  const grade = cardGrade(symbol);
+  const rating = e.gradeOverride ?? grade?.grade ?? null;
+  const plan = cardPlan(symbol, rating);
+  paintGradePanel(symbol, grade, rating, vi);
 
   // Stop and target follow the entry — that is the whole point of the Setup dropdown —
   // but only while they are still the planner's numbers. A hand-typed stop survives,
@@ -773,13 +862,25 @@ function recalcPlan(symbol: string): void {
         .replace('{over}', `${sym}${num(planConv(overBy), 0)}`)}</div>`
     : '';
 
+  // The grade's arithmetic, in the user's own framing: full size → percent → this size.
+  // Only when the playbook is the one sizing — with a % chip or a typed share count the
+  // numbers below would describe a size that was overridden, which reads as the card
+  // disagreeing with itself.
+  const scaled = plan && e.sizeMode === 'plan' && plan.size.gradeScale !== 1 && plan.size.fullShares > 0;
+  const gradeMath = scaled
+    ? `<div class="tp-grade-math">${t('wl.plan.gradedfrom')
+        .replace('{full}', `<b>${plan.size.fullShares}</b> sh · ${sym}${num(planConv(plan.size.fullPositionValue), 0)}`)
+        .replace('{pct}', `${Math.round(plan.size.gradeScale * 100)}%`)
+        .replace('{now}', `<b>${plan.shares}</b> sh · ${sym}${num(planConv(plan.size.positionValue), 0)}`)}</div>`
+    : '';
+
   box.innerHTML = `
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
       <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v"${overBy > 0 ? ' style="color:var(--danger)"' : ''}>${sym}${num(planConv(positionValue), 0)} <span class="muted" style="font-size:11px">(${num(positionPct, 1)}%)</span></div></div>
       <div class="stat"><div class="k">${t('wl.plan.riskpos')}</div><div class="v" style="color:var(--warn)">${sym}${num(planConv(riskAmount), 0)} <span class="muted" style="font-size:11px">(${num(riskPctOfPos, 1)}%)</span></div></div>
       <div class="stat"><div class="k">${t('wl.plan.riskeq')}</div><div class="v" style="color:var(--warn)">${num(riskPctOfEq, 2)}%</div></div>
       <div class="stat"><div class="k">R:R</div><div class="v">${rr != null ? num(rr, 2) + ':1' : '—'}</div></div>
-    </div>${warn}`;
+    </div>${gradeMath}${warn}`;
 
   paintPlanChart(symbol);
 
@@ -794,6 +895,121 @@ function recalcPlan(symbol: string): void {
   }
 }
 
+/**
+ * The grade, as a panel that shows its work.
+ *
+ * ── WHY THE AUTOMATIC ROWS ARE NOT CHECKBOXES ───────────────────────────────
+ * Fourteen of these criteria are measured off the bars, and they render as a tick, a cross
+ * or a dash with the number beside them — read-only. A checkbox the user can untick when
+ * they dislike the answer brings back exactly the problem the checklist replaced; it just
+ * spreads it over fourteen smaller decisions, each of which looks like data entry. The
+ * disagreement gets one honest place to live instead: the override dropdown.
+ *
+ * The manual rows ARE editable, and they are tri-state rather than a checkbox, because an
+ * unticked box cannot say whether the user looked. Yes / No / neither — and neither is the
+ * default, so an unanswered question changes nothing instead of counting as a failure.
+ */
+function paintGradePanel(
+  symbol: string,
+  grade: GradeResult | null,
+  effective: ConvictionRating | null,
+  vi: boolean,
+): void {
+  const box = document.querySelector<HTMLElement>(`[data-tp-grade="${CSS.escape(symbol)}"]`);
+  const e = planEdits.get(symbol);
+  if (!box || !e) return;
+  if (!grade) { box.innerHTML = ''; return; }
+
+  const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+  const pctOfFull = effective ? ladderConfig().ratingPct[effective] : 100;
+  const answered = grade.outcomes.filter((o) => o.known).length;
+
+  // The letter, or a dash when too little of the list could be answered to name one. A
+  // dash is not a failure — an ungraded trade is planned at FULL size.
+  const letter = effective ?? '—';
+  const letterColor = effective === 'A' ? 'var(--up)'
+    : effective === 'B' ? 'var(--accent)'
+      : effective === 'C' ? 'var(--warn)'
+        : effective === 'D' ? 'var(--danger)' : 'var(--faint)';
+  const overridden = e.gradeOverride !== null && e.gradeOverride !== grade.grade;
+
+  const groups = gradeByGroup(grade)
+    .filter((g) => g.possible > 0)
+    .map((g) => {
+      const share = g.possible > 0 ? (g.earned / g.possible) * 100 : 0;
+      const col = share >= 80 ? 'var(--up)' : share >= 50 ? 'var(--warn)' : 'var(--danger)';
+      return `<span class="tp-gbar" title="${esc(groupLabel(g.group, vi))} ${g.earned}/${g.possible}">
+        <span class="tp-gbar-k">${esc(groupLabel(g.group, vi))}</span>
+        <span class="tp-gbar-track"><span class="tp-gbar-fill" style="width:${share.toFixed(0)}%;background:${col}"></span></span>
+      </span>`;
+    }).join('');
+
+  const rows = e.criteriaOpen ? criteriaRowsHtml(symbol, grade, vi, esc) : '';
+
+  box.innerHTML = `
+    <div class="tp-grade-head">
+      <span class="tp-grade-letter" style="color:${letterColor};border-color:${letterColor}">${letter}</span>
+      <span class="tp-grade-score">
+        <b>${num(grade.score, 0)}</b><span class="muted">/100</span>
+        <span class="muted"> · ${t('wl.plan.gradesize').replace('{pct}', String(pctOfFull))}</span>
+      </span>
+      ${overridden ? `<span class="badge" style="border-color:var(--warn);color:var(--warn)">${t('wl.plan.gradeoverridden').replace('{auto}', grade.grade ?? '—')}</span>` : ''}
+      <button type="button" class="tp-crit-toggle" data-tp-crit="${symbol}">
+        ${e.criteriaOpen ? '▾' : '▸'} ${t('wl.plan.criteria').replace('{n}', String(answered)).replace('{m}', String(grade.outcomes.length))}
+      </button>
+    </div>
+    <div class="tp-gbars">${groups}</div>
+    ${grade.grade === null ? `<div class="tp-grade-thin">${t('wl.plan.gradethin')}</div>` : ''}
+    ${rows}`;
+}
+
+/** The criteria themselves, grouped, with the measurement or the tri-state control. */
+function criteriaRowsHtml(
+  symbol: string,
+  grade: GradeResult,
+  vi: boolean,
+  esc: (s: string) => string,
+): string {
+  const byGroup = new Map<string, CriterionOutcome[]>();
+  for (const o of grade.outcomes) {
+    // Criteria for the other kind of setup are not "unanswered", they are not asked. A VCP
+    // card listing five greyed-out gap questions teaches the user that the checklist is
+    // mostly blanks.
+    if (!o.known && o.source === 'auto') continue;
+    const list = byGroup.get(o.group) ?? [];
+    list.push(o);
+    byGroup.set(o.group, list);
+  }
+
+  const sections = [...byGroup.values()].map((list) => {
+    const rows = list.map((o) => {
+      const mark = !o.known ? '<span class="tp-crit-mark muted">–</span>'
+        : o.met ? '<span class="tp-crit-mark" style="color:var(--up)">✓</span>'
+          : '<span class="tp-crit-mark" style="color:var(--danger)">✗</span>';
+      const right = o.source === 'auto'
+        ? `<span class="tp-crit-val muted">${esc(o.measured ?? '')}</span>`
+        : `<span class="tp-crit-ask">
+             <button type="button" class="tp-crit-btn${o.known && o.met ? ' yes' : ''}" data-tp-ans="${symbol}" data-key="${o.key}" data-val="yes">${t('wl.plan.yes')}</button>
+             <button type="button" class="tp-crit-btn${o.known && !o.met ? ' no' : ''}" data-tp-ans="${symbol}" data-key="${o.key}" data-val="no">${t('wl.plan.no')}</button>
+           </span>`;
+      return `<div class="tp-crit-row${o.source === 'auto' ? ' auto' : ''}">
+          ${mark}
+          <span class="tp-crit-label" title="${esc(criterionSource(o.key))}">${esc(criterionLabel(o.key, vi))}</span>
+          <span class="tp-crit-w muted">${o.weight}</span>
+          ${right}
+        </div>`;
+    }).join('');
+    return `<div class="tp-crit-group"><div class="tp-crit-gname">${esc(groupLabel(list[0]!.group, vi))}</div>${rows}</div>`;
+  }).join('');
+
+  return `<div class="tp-crit-list">${sections}<div class="tp-crit-foot muted">${t('wl.plan.critfoot')}</div></div>`;
+}
+
+/** Who says a criterion matters — shown on hover, so the checklist cites itself. */
+function criterionSource(key: string): string {
+  return GRADE_CRITERIA.find((c) => c.key === key)?.authority ?? '';
+}
+
 /** Write a planner field without stealing the caret from someone typing in it. */
 function setFieldValue(symbol: string, field: 'stop' | 'target' | 'shares', value: string): void {
   const el2 = document.querySelector<HTMLInputElement>(
@@ -803,13 +1019,33 @@ function setFieldValue(symbol: string, field: 'stop' | 'target' | 'shares', valu
 }
 
 /**
- * The plan, drawn: the last stretch of bars with entry, stop and target across them.
+ * Live charts, one per card. Held so the levels can move without a rebuild.
  *
- * The three levels are the point. Reading "stop 47.20, target 61.40" tells you the
- * arithmetic; seeing where they sit against the base tells you whether the stop is
- * under something or hanging in the middle of a range — which is the judgement the
- * numbers cannot make for you. `candleChart` includes the levels in its price scale,
- * so a target far above the bars shrinks the candles rather than falling off the top.
+ * `drawCandles` creates a canvas, a ResizeObserver and up to nine series. `recalcPlan`
+ * runs on every keystroke in the Entry box, so building one per call would leak a chart
+ * per character typed — and `destroy()` has to be called, not just have the node
+ * dropped, or the observer outlives the chart it resizes.
+ */
+const planCharts = new Map<string, CandleChart>();
+
+function destroyPlanCharts(): void {
+  for (const c of planCharts.values()) c.destroy();
+  planCharts.clear();
+}
+
+/**
+ * The plan, drawn on the same chart the rest of the app draws stocks on.
+ *
+ * ── WHY `drawCandles` AND NOT THE SVG MINI-CHART ─────────────────────────────
+ * It was `candleChart`, the hand-rolled SVG used for the playbook's textbook figures.
+ * That is the right tool for a diagram with six invented bars on it and the wrong one
+ * here: a real setup is judged by zooming into the base, reading volume against its
+ * average, and checking where price sits on the moving averages the rest of the app
+ * shows. A figure the user cannot interrogate invites them to go and open the chart
+ * somewhere else, which is where the plan stops matching what they are looking at.
+ *
+ * So this is the stock-detail chart, with the same candles, volume, volume MA and EMA
+ * colours — plus the three price lines that are this panel's whole point.
  */
 function paintPlanChart(symbol: string): void {
   const box = document.querySelector<HTMLElement>(`[data-tp-chart="${CSS.escape(symbol)}"]`);
@@ -818,27 +1054,62 @@ function paintPlanChart(symbol: string): void {
   if (!box || !e) return;
   if (!bars?.length) { box.innerHTML = ''; return; }
 
-  const vi = getLang() === 'vi';
-  const slice = bars.slice(-80);
-  const closes = slice.map((b) => b.close);
-  const levels: Level[] = [];
-  if (e.entry !== null && e.entry > 0) {
-    levels.push({ y: e.entry, color: 'var(--fg)', label: `${vi ? 'Vào' : 'Entry'} ${num(e.entry)}`, dash: '4 3' });
-  }
-  if (e.stop !== null && e.stop > 0) {
-    levels.push({ y: e.stop, color: 'var(--danger)', label: `${vi ? 'Cắt' : 'Stop'} ${num(e.stop)}` });
-  }
-  if (e.target !== null && e.target > 0) {
-    levels.push({ y: e.target, color: 'var(--accent)', label: `${vi ? 'Đích' : 'Target'} ${num(e.target)}` });
-  }
+  const overlay: TradeOverlay = { entry: e.entry, stop: e.stop, target: e.target };
 
-  box.innerHTML = candleChart({
-    height: 150,
-    showVolume: false,
-    data: slice.map((b) => ({ o: b.open, h: b.high, l: b.low, c: b.close })),
-    overlays: [{ values: ema(closes, 21), color: 'var(--faint)', width: 1, label: 'EMA21' }],
-    levels,
-    title: vi ? `${symbol}: giá vào, cắt lỗ và mục tiêu` : `${symbol}: entry, stop and target`,
+  // Already drawn: move the lines and leave the candles, the zoom and the scroll
+  // position exactly where the user put them.
+  const existing = planCharts.get(symbol);
+  if (existing && box.firstChild) { existing.setOverlay(overlay); return; }
+
+  existing?.destroy();
+  // The six EMAs of the detail chart are too many for a card this size. These four are
+  // the ones a swing entry is actually judged against: 10 and 21 for the trigger, 50 for
+  // the trend the setup lives in, 200 for whether it should be a long at all.
+  const emaState = { 5: false, 10: true, 21: true, 50: true, 150: false, 200: true };
+  planCharts.set(symbol, drawCandles(box, bars.slice(-160), overlay, emaState, { height: 260 }));
+}
+
+/**
+ * Clicks inside the grade panel, delegated from the container.
+ *
+ * ── WHY DELEGATED, AND WHY ONLY ONCE ────────────────────────────────────────
+ * `paintGradePanel` replaces these buttons on every keystroke in the Entry box, so a
+ * listener bound to a button itself would be gone by the time the user reached for it.
+ * And the container SURVIVES a recompute — `computePlans` only rewrites its children — so
+ * binding again on each pass would stack listeners, and the second one would toggle the
+ * criteria list straight back shut. Hence the flag: one listener per container, for life.
+ */
+function wireGradeDelegates(root: HTMLElement): void {
+  if (root.dataset.tpGradeWired === '1') return;
+  root.dataset.tpGradeWired = '1';
+
+  root.addEventListener('click', (ev) => {
+    const hit = ev.target as HTMLElement | null;
+    if (!hit) return;
+
+    const toggle = hit.closest<HTMLElement>('[data-tp-crit]');
+    if (toggle) {
+      const sym = toggle.dataset.tpCrit!;
+      if (!planEdits.has(sym)) return;
+      const e = planEdits.get(sym)!;
+      e.criteriaOpen = !e.criteriaOpen;
+      recalcPlan(sym);
+      return;
+    }
+
+    // Answering one of the questions the app cannot measure. Clicking the answer that is
+    // already chosen clears it back to UNASKED — the state a checkbox cannot express, and
+    // the one the user needs the moment they realise they were guessing.
+    const btn = hit.closest<HTMLElement>('[data-tp-ans]');
+    if (!btn) return;
+    const sym = btn.dataset.tpAns!;
+    const e = planEdits.get(sym);
+    if (!e) return;
+    const key = btn.dataset.key!;
+    const want = btn.dataset.val === 'yes';
+    if (e.answers[key] === want) delete e.answers[key];
+    else e.answers[key] = want;
+    recalcPlan(sym);
   });
 }
 
@@ -882,16 +1153,19 @@ function wirePlanEdits(root: HTMLElement): void {
     });
   });
 
-  // Grade dropdown — same trade, smaller bet.
+  // Grade dropdown — now an OVERRIDE of the computed letter, not the grade itself.
+  // Blank means "use the score", which is the default and where it should normally stay.
   root.querySelectorAll<HTMLSelectElement>('[data-tp-rating]').forEach((sel) => {
     sel.addEventListener('change', () => {
       const sym = sel.dataset.tpRating!;
       const e = planEdits.get(sym);
       if (!e) return;
-      e.rating = isRating(sel.value) ? sel.value : null;
+      e.gradeOverride = isRating(sel.value) ? sel.value : null;
       recalcPlan(sym);
     });
   });
+
+  wireGradeDelegates(root);
 
   // Rich-text note — open the formatting editor; save back the HTML.
   root.querySelectorAll<HTMLElement>('[data-tp-noteedit]').forEach((b) => {

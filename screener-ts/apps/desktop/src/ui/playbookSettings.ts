@@ -126,12 +126,11 @@ function statusHtml(state: AccountState | null, vi: boolean): string {
     regimeStress: ['xu hướng tăng đang căng → giảm nửa', 'uptrend under stress → halved'],
     regimeRange: ['thị trường đi ngang → giảm nửa', 'range → halved'],
     losingStreak: [`${ladder.losingStreakTrigger} lệnh lỗ liên tiếp → giảm nửa`, `${ladder.losingStreakTrigger} losses in a row → halved`],
-    // The status block computes an UNGRADED budget (no `rating` in the ctx), so this
-    // line cannot appear here today. It is written anyway: the map is keyed by
-    // `RiskCut`, and a cut with no wording prints as nothing at all — a size that
-    // silently dropped with no reason given is the one failure this block exists to
-    // prevent.
-    rating: ['xếp hạng dưới A → chỉ lấy một phần', 'graded below A → a share of the budget'],
+    // No `rating` entry, and the omission is the point: the conviction grade is no longer
+    // one of these cuts. It scales the FINISHED share count in `suggestSize`, because risk
+    // percent is only one of the four limits on a position and scaling it did nothing
+    // whenever another limit was the binding one. Every cut listed here is something the
+    // app decided on the user's behalf; the grade is the user choosing smaller.
     flooredAtMin: ['đã chạm sàn rủi ro', 'hit the risk floor'],
   };
   const cuts = budget.cuts.map((c) => (vi ? cutText[c]![0] : cutText[c]![1]));
@@ -225,8 +224,8 @@ export async function openPlaybookSettings(
         <div class="section-title">${vi ? 'Cỡ theo xếp hạng' : 'Size by grade'}</div>
         <p class="muted" style="font-size:12px;line-height:1.6;margin:0 0 10px">
           ${vi
-            ? 'Phần rủi ro mà mỗi hạng được lấy, tính theo % của cỡ đầy đủ. A là 100 vì A nghĩa là “đúng cái lệnh mà thang rủi ro được viết cho”. Ba hạng còn lại là số của app, không phải của cẩm nang — nên mới cho sửa. Để trống ô Xếp hạng khi mua thì lệnh vẫn được cỡ đầy đủ: chấm điểm là kỷ luật được mời, không phải cửa chặn.'
-            : 'The share of the risk each grade gets, as a percent of full size. A is 100 because A <i>means</i> “the trade the ladder was written for”. The other three are the app’s numbers, not the book’s — which is exactly why they are editable. Leaving the grade blank on a buy still plans full size: grading is a discipline you are invited into, not a gate.'}
+            ? 'Phần cỡ vị thế mà mỗi hạng được lấy, tính theo % của cỡ đầy đủ. A là 100 vì A nghĩa là “đúng cái lệnh mà thang rủi ro được viết cho”. Ba hạng còn lại là số của app, không phải của cẩm nang — nên mới cho sửa. Trong Trade Planner, hạng do bảng tiêu chí tự tính ra, không phải tự chọn; chưa đủ dữ liệu để xếp hạng thì lệnh vẫn được cỡ đầy đủ.'
+            : 'The share of the FINISHED position each grade gets, as a percent of full size. A is 100 because A <i>means</i> “the trade the ladder was written for”. The other three are the app’s numbers, not the book’s — which is exactly why they are editable. In the Trade Planner the grade is scored from a criteria checklist rather than chosen; when too little can be measured to name a letter, the trade is planned at full size.'}
         </p>
         <div class="row" style="gap:10px;flex-wrap:wrap">
           ${RATING_KEYS.map((k) => `
@@ -239,8 +238,8 @@ export async function openPlaybookSettings(
         </div>
         <div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">
           ${vi
-            ? 'Phần giảm này nằm trong cùng chồng với các lần giảm nửa vì thị trường, nên sàn rủi ro ở trên vẫn đỡ được nó — hạng D không rơi xuống 0 cổ.'
-            : 'This cut sits in the same stack as the market halvings, so the risk floor above still catches it — a D does not fall through to 0 shares.'}
+            ? 'Phần này nhân vào số cổ đã tính xong, chứ không nằm trong chồng giảm nửa vì thị trường: % rủi ro chỉ là một trong bốn giới hạn, nên nếu giới hạn tập trung 25% đang quyết định cỡ thì giảm % rủi ro sẽ không đổi được gì. Sàn rủi ro vì thế không chặn phần này — nó để chặn app tự bóp lệnh, không phải để chặn bạn. Nhưng hạng thấp nhất vẫn luôn còn ít nhất 1 cổ.'
+            : 'This multiplies the finished share count rather than sitting in the stack of market halvings: risk percent is only one of four limits, so cutting it changed nothing whenever the 25% concentration cap was the binding one. The risk floor therefore does not catch this cut — the floor exists to stop the APP whittling a position away, not to stop you. The lowest grade still never falls below 1 share.'}
         </div>
 
         <div class="section-title">${vi ? 'Luật theo từng thiết lập' : 'Rules per setup'}</div>

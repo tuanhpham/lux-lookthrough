@@ -1,6 +1,7 @@
 import {
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type SeriesMarker,
   type Time,
@@ -65,6 +66,15 @@ export interface CandleChart {
   /** Replace the earnings markers (pass `[]` to clear). Safe to call late — the
    * chart is drawn synchronously and the dates arrive from the network after. */
   setEarnings(marks: EarningsMark[]): void;
+  /**
+   * Replace the entry/stop/target lines, keeping the candles as they are.
+   *
+   * For callers whose levels move while the chart stays put — the Trade Planner
+   * re-derives all three on every keystroke in the Entry box. Rebuilding the chart
+   * there would mean a new canvas per character typed, and the price scale would
+   * jump around under the user mid-edit.
+   */
+  setOverlay(overlay: TradeOverlay | null): void;
   destroy(): void;
 }
 
@@ -127,18 +137,27 @@ export function drawCandles(
   };
   for (const e of EMA_CONFIG) if (emaState[e.period]) addEma(e.period, e.color);
 
-  if (overlay) {
+  // Held so `setOverlay` can take them off again — lightweight-charts has no "remove
+  // all price lines", only `removePriceLine(handle)`.
+  let overlayLines: IPriceLine[] = [];
+  const applyOverlay = (o: TradeOverlay | null): void => {
+    for (const l of overlayLines) candle.removePriceLine(l);
+    overlayLines = [];
+    if (!o) return;
     const lines: [number | null | undefined, string, string][] = [
-      [overlay.pivot, '#ffb648', 'Pivot'],
-      [overlay.entry, '#5b8cff', 'Entry'],
-      [overlay.stop, DOWN, 'Stop'],
-      [overlay.target, UP, 'Target'],
+      [o.pivot, '#ffb648', 'Pivot'],
+      [o.entry, '#5b8cff', 'Entry'],
+      [o.stop, DOWN, 'Stop'],
+      [o.target, UP, 'Target'],
     ];
     for (const [price, color, title] of lines) {
-      if (price != null)
-        candle.createPriceLine({ price, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title });
+      // `> 0` and not just `!= null`: a half-typed entry box hands over 0, and a price
+      // line at zero collapses the whole scale so the candles become a flat strip.
+      if (price != null && price > 0)
+        overlayLines.push(candle.createPriceLine({ price, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title }));
     }
-  }
+  };
+  applyOverlay(overlay);
   chart.timeScale().fitContent();
   // Keep width in sync, but stop once disposed — a ResizeObserver that outlives
   // the chart calls applyOptions on a dead object → "Object is disposed".
@@ -183,6 +202,9 @@ export function drawCandles(
       // setMarkers requires ascending time; `bars` is ascending, the input may not be.
       out.sort((a, b) => (String(a.time) < String(b.time) ? -1 : 1));
       candle.setMarkers(out);
+    },
+    setOverlay(o) {
+      applyOverlay(o);
     },
     setEma(period, on) {
       const cfg = EMA_CONFIG.find((e) => e.period === period);

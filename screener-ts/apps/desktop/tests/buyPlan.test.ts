@@ -241,9 +241,66 @@ describe('the conviction grade', () => {
 
   it('takes a share of the size per grade, and full size for A', async () => {
     expect((await graded('A')).shares).toBe(62);   // €500 ÷ €8
-    expect((await graded('B')).shares).toBe(46);   // 0.75% → €375
-    expect((await graded('C')).shares).toBe(31);   // 0.50% → €250
-    expect((await graded('D')).shares).toBe(15);   // 0.25% → €125
+    expect((await graded('B')).shares).toBe(46);   // 75% of 62
+    expect((await graded('C')).shares).toBe(31);   // 50% of 62
+    expect((await graded('D')).shares).toBe(15);   // 25% of 62
+  });
+
+  it('SCALES A SIZE THAT A NON-RISK LIMIT DECIDED — the bug that reached the user', async () => {
+    // THE REGRESSION. The grade used to scale `budget.pct`, which only moves `byRisk`.
+    // With a tight stop the 25% concentration cap is what decides the size, so every
+    // grade came back with the SAME share count: the dropdown moved and the position did
+    // not. Reported as "toi chua thay shares, hay position thay doi".
+    //
+    // €50,000 at a pinned 1% is €500 of risk. A $0.50 stop distance is €0.40 per share →
+    // 1,250 shares by risk, which is €50,000 of stock on a €50,000 account. The 25% cap
+    // cuts that to €12,500 → 156 shares. The grade has to bite on the 156.
+    const { ctx, pb } = await load();
+    await pb.savePlaybookConfig(ctx, {
+      setups: { Pullback: { padPct: 0 } }, ladder: {}, pinnedRiskPct: 1,
+    });
+    await pb.ensureRegime(ctx, { refresh: true });
+    const tight: Bar[] = Array.from({ length: 60 }, (_, i) => bar(isoDate(i), 100, 99.5, 101));
+    const at = (rating: 'A' | 'B' | 'C' | 'D') => pb.buildBuyPlan({
+      state: eurAccount(), prices: {}, bars: tight,
+      entry: 100, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25', rating,
+    })!;
+
+    const a = at('A');
+    expect(a.size.limitedBy).toBe('concentration'); // the cap, not the risk budget
+    expect(a.shares).toBe(156);                     // €12,500 ÷ €80
+
+    // Each grade is now a real fraction of that capped full size.
+    expect(at('B').shares).toBe(117);               // 75% of 156
+    expect(at('C').shares).toBe(78);                // 50%
+    expect(at('D').shares).toBe(39);                // 25%
+    // And the full size is reported alongside, so the card can show the subtraction.
+    expect(at('B').size.fullShares).toBe(156);
+    expect(at('B').size.gradeScale).toBe(0.75);
+  });
+
+  it('reports the full position value the grade took a share of', async () => {
+    // The user's own framing: "full position size could be max 2000 euro, grade B should
+    // be only max 1500 euro". Both numbers have to be on the plan for the card to say it.
+    const b = await graded('B');
+    expect(b.size.fullPositionValue).toBeCloseTo(62 * 80, 0);
+    expect(b.size.positionValue).toBeCloseTo(46 * 80, 0);
+    // 46/62 = 0.742, not 0.75 — whole shares cannot hit the fraction exactly, and the
+    // rounding goes DOWN on purpose: a C that came back bigger than 50% would defeat
+    // the point of choosing it.
+    const share = b.size.positionValue / b.size.fullPositionValue;
+    expect(share).toBeLessThanOrEqual(0.75);
+    expect(share).toBeGreaterThan(0.73);
+  });
+
+  it('leaves the risk budget itself alone, so the ladder still reads true', async () => {
+    // The budget is the FULL-size percent now. A card that showed 1% while risking 0.25%
+    // would overstate the trade by exactly what the user had just taken off it, so the
+    // wording reads `riskPctOfEquity` — but the budget must still say what it was.
+    const d = await graded('D');
+    expect(d.budget.pct).toBe(1);
+    // 15 shares × €8 = €120 on €50,000 → 0.24%, a whole share short of a clean 0.25.
+    expect(d.size.riskPctOfEquity).toBeCloseTo(0.25, 1);
   });
 
   it('plans an ungraded trade at full size rather than refusing it', async () => {
@@ -251,46 +308,76 @@ describe('the conviction grade', () => {
     // lesson: grading is a discipline the user is invited into, not a gate.
     const blank = await graded(null);
     expect(blank.shares).toBe(62);
+    expect(blank.shares).toBe(blank.size.fullShares);
     expect(blank.rating).toBeNull();
-    expect(blank.budget.cuts).not.toContain('rating');
+    expect(blank.size.gradeScale).toBe(1);
   });
 
   it('echoes the grade back so the explanation can name it', async () => {
     const c = await graded('C');
     expect(c.rating).toBe('C');
-    expect(c.budget.cuts).toContain('rating');
+    expect(c.size.gradeScale).toBe(0.5);
   });
 
   it('still scales a PINNED percent, so the dropdown is not decorative', async () => {
     // What the user pinned is the size of the trade they actually wanted — which is
     // what an A means. A pin that ignored the grade would make A–D do nothing at all
     // for everyone who had pinned a number.
-    expect((await graded('C')).budget.pct).toBe(0.5);
-    expect((await graded('A')).budget.pct).toBe(1);
+    expect((await graded('C')).shares).toBe(31);
+    expect((await graded('A')).shares).toBe(62);
   });
 
   it('is configurable', async () => {
     const half = await graded('B', { ratingPct: { A: 100, B: 50, C: 25, D: 10 } });
-    expect(half.budget.pct).toBe(0.5);
+    expect(half.size.gradeScale).toBe(0.5);
     expect(half.shares).toBe(31);
   });
 
-  it('is caught by the risk floor rather than falling through it', async () => {
-    // THE REASON THE GRADE MULTIPLIES INSIDE `riskBudget`. On the learning rung (0.25%)
-    // a D would be 0.0625% — under the 0.1% floor. Applied outside the function the
-    // grade would land BELOW the floor, and the screen would claim the budget had been
-    // floored while showing a number under it.
+  it('is NOT floored, because the floor guards against the app — not against the user', async () => {
+    // The grade used to sit inside `riskBudget`, under `minRiskPct`. On the learning rung
+    // (0.25%) that floored a D at 0.1% — 40% of an A's size wearing a label saying 25%.
+    // `minRiskPct` exists to stop the REGIME and the RECORD whittling a position to
+    // nothing on the user's behalf; a grade is the user choosing smaller on purpose, and
+    // overruling that is the app arguing with a deliberate decision.
     const { ctx, pb } = await load();
     await pb.savePlaybookConfig(ctx, { setups: { Pullback: { padPct: 0 } }, ladder: {}, pinnedRiskPct: null });
     await pb.ensureRegime(ctx, { refresh: true });
-    const d = pb.buildBuyPlan({
+    const at = (rating: 'A' | 'D') => pb.buildBuyPlan({
       state: eurAccount(), prices: {}, bars: TICKER_BARS,
+      entry: 100, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25', rating,
+    })!;
+    const a = at('A');
+    const d = at('D');
+    // The budget is the ungraded one either way — the ladder did not change its mind.
+    expect(a.budget.pct).toBe(0.25);
+    expect(d.budget.pct).toBe(0.25);
+    expect(d.budget.cuts).not.toContain('flooredAtMin');
+    // And a D really is a quarter of an A, not 40% of it.
+    expect(d.shares / a.shares).toBeCloseTo(0.25, 1);
+    expect(d.shares).toBeGreaterThan(0); // a plan of nought shares must be a decision
+  });
+
+  it('never grades a position down to nothing', async () => {
+    // A small account where full size is 2 shares: a D at 25% floors to 0. "Bet smaller"
+    // must not silently become "do not bet" — that is a refusal, and the grade has no
+    // business making one.
+    //
+    // €8,000 on the learning rung risks 0.25% = €20, and €8 per share is 2 shares full.
+    // (Going smaller still would make FULL size zero, which is a different answer —
+    // "you cannot take this trade at all" — and not the one under test.)
+    const { ctx, pb } = await load();
+    await pb.savePlaybookConfig(ctx, { setups: { Pullback: { padPct: 0 } }, ladder: {}, pinnedRiskPct: null });
+    await pb.ensureRegime(ctx, { refresh: true });
+    const tiny = createAccount(
+      { name: 'small', initialCapital: 8_000, currency: 'EUR', createdAt: '2026-01-02' },
+      id,
+    );
+    const d = pb.buildBuyPlan({
+      state: tiny, prices: {}, bars: TICKER_BARS,
       entry: 100, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25', rating: 'D',
     })!;
-    expect(d.budget.pct).toBe(0.1);
-    expect(d.budget.cuts).toContain('rating');
-    expect(d.budget.cuts).toContain('flooredAtMin');
-    expect(d.shares).toBeGreaterThan(0); // a plan of nought shares must be a decision
+    expect(d.size.fullShares).toBeGreaterThan(0);
+    expect(d.shares).toBeGreaterThanOrEqual(1);
   });
 
   it('does not override the downtrend veto', async () => {

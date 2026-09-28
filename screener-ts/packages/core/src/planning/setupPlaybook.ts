@@ -341,8 +341,6 @@ export type RiskCut =
   | 'regimeStress'
   | 'regimeRange'
   | 'losingStreak'
-  /** The conviction grade is below A, so this trade gets a share of the budget. */
-  | 'rating'
   /** The stacked cuts hit `minRiskPct`. */
   | 'flooredAtMin';
 
@@ -355,19 +353,28 @@ export interface RiskBudget {
 }
 
 /**
- * Apply the regime, the recent record and the conviction grade to the stage's base risk.
+ * Apply the regime and the recent record to the stage's base risk — the FULL-SIZE budget.
  *
  * The cuts MULTIPLY. Expanded volatility in a tape that has also just taken three
  * trades off you is not the same situation as either one alone, and the book's answer
  * to both is independently "half". `minRiskPct` stops the stack from reaching zero,
  * because a plan of nought shares reads like a bug rather than a decision.
  *
- * ── WHY THE GRADE IS IN THE SAME STACK AND NOT APPLIED AFTERWARDS ────────────
- * Scaling the finished percent by the grade outside this function would put the grade
- * BELOW the floor, so a C could come back under `minRiskPct` while the budget still
- * claimed it had been floored — two true-sounding statements that contradict each
- * other on screen. The grade is one more multiplier, so it belongs in the stack the
- * floor catches, and the order the `cuts` list prints is the order they applied.
+ * ── WHY THE CONVICTION GRADE IS *NOT* IN THIS STACK ──────────────────────────
+ * It was, for one release, and that was wrong in a way the arithmetic hid. Risk percent
+ * is only ONE of the four limits on a position (`suggestSize`); cash, concentration and
+ * heat are the others. Whenever one of those bound the size — and the 25% concentration
+ * cap binds routinely on a tight stop — scaling the risk percent changed the share count
+ * by NOTHING AT ALL, so the grade dropdown moved and the position did not. The grade now
+ * scales the finished size in `suggestSize`, where it applies to whichever limit won.
+ *
+ * The floor is the other half of the argument, and it cuts the same way. What
+ * `minRiskPct` protects against is THE APP whittling the position down on the user's
+ * behalf — regime, streak, volatility. The grade is the user saying "smaller" on
+ * purpose, and flooring that would be the app overruling a deliberate choice: on the
+ * learning rung a floored D came out at 0.1% against an A's 0.25%, which is 40% of full
+ * size wearing a label that says 25%. So: the ladder's own cuts are floored, the user's
+ * grade is not, and the two are reported separately.
  *
  * `regime === null` (not enough index history) is treated as no cut rather than as a
  * cut: the app has to say the regime is unknown, and inventing a penalty for missing
@@ -378,8 +385,6 @@ export function riskBudget(
   ctx: {
     regime: PlaybookRegime | null;
     atrRatio: number | null;
-    /** The trade's A–D grade, or null/absent for an ungraded trade (full size). */
-    rating?: ConvictionRating | null;
   },
   cfg: RiskLadderConfig = DEFAULT_RISK_LADDER,
 ): RiskBudget {
@@ -411,14 +416,6 @@ export function riskBudget(
     maxPositions = Math.min(maxPositions, 2);
     cuts.push('losingStreak');
   }
-  // The grade scales the risk, never the position count: a C-grade idea is a smaller
-  // bet on the same list of things you are allowed to be in at once.
-  const scale = ratingScale(ctx.rating, cfg);
-  if (scale !== 1) {
-    pct *= scale;
-    cuts.push('rating');
-  }
-
   if (pct < cfg.minRiskPct) {
     pct = cfg.minRiskPct;
     cuts.push('flooredAtMin');
@@ -585,19 +582,44 @@ export interface SizeInput {
   openRisk: number;
   /** Open positions right now, for the stage's count limit. */
   openPositions: number;
+  /**
+   * The trade's A–D grade, or null for ungraded (full size).
+   *
+   * It scales the FINISHED size — see the note on `riskBudget` for why it is applied
+   * here and not to the risk percent.
+   */
+  rating?: ConvictionRating | null;
   cfg?: RiskLadderConfig;
 }
 
 export interface SizeSuggestion {
+  /** What to buy: `fullShares` after the grade took its share. */
   shares: number;
-  /** Cash actually at risk to the stop. */
+  /**
+   * The share count at full size — what an A (or an ungraded trade) would buy.
+   *
+   * Kept so the app can show the subtraction rather than just its answer: "full size
+   * 2,000 → grade B → 1,500" is a sentence the user can check. A lone number is not.
+   */
+  fullShares: number;
+  /** `fullShares × entry` — the "max position" the grade takes a percentage of. */
+  fullPositionValue: number;
+  /** 1 for A and for ungraded, 0.75 for B, … — what the grade multiplied by. */
+  gradeScale: number;
+  /** Cash actually at risk to the stop, at the GRADED size. */
   riskAmount: number;
   positionValue: number;
-  /** `riskAmount` as a % of equity — should land on `budget.pct`. */
+  /** `riskAmount` as a % of equity. Lands on `budget.pct` only at full size. */
   riskPctOfEquity: number;
   /** Open risk INCLUDING this position, as a % of equity. */
   heatPctAfter: number;
-  /** Which limit bound the count. null when nothing bound it (shares === 0). */
+  /**
+   * Which limit bound the FULL size. null when nothing bound it (shares === 0).
+   *
+   * The grade is deliberately not one of the options: it is not a limit the user ran
+   * into, it is a fraction they asked for. Reporting it here would make a chosen size
+   * look like a refused one.
+   */
   limitedBy: SizeLimit | null;
   warnings: SizeWarning[];
 }
@@ -616,10 +638,13 @@ export function suggestSize(input: SizeInput): SizeSuggestion {
   const { equity, cash, entry, riskPerShare, budget, openRisk, openPositions } = input;
   const warnings: SizeWarning[] = [];
 
+  const gradeScale = ratingScale(input.rating, cfg);
+
   const none = (w?: SizeWarning): SizeSuggestion => {
     if (w) warnings.push(w);
     return {
-      shares: 0, riskAmount: 0, positionValue: 0, riskPctOfEquity: 0,
+      shares: 0, fullShares: 0, fullPositionValue: 0, gradeScale,
+      riskAmount: 0, positionValue: 0, riskPctOfEquity: 0,
       heatPctAfter: equity > 0 ? pyRound((openRisk / equity) * 100, 2) : 0,
       limitedBy: null, warnings,
     };
@@ -643,21 +668,38 @@ export function suggestSize(input: SizeInput): SizeSuggestion {
     ['risk', byRisk], ['cash', byCash], ['concentration', byCap], ['heat', byHeat],
   ];
   let limitedBy: SizeLimit = 'risk';
-  let shares = byRisk;
+  let fullShares = byRisk;
   for (const [name, n] of limits) {
-    if (n < shares) { shares = n; limitedBy = name; }
+    if (n < fullShares) { fullShares = n; limitedBy = name; }
   }
-  shares = Math.max(0, shares);
+  fullShares = Math.max(0, fullShares);
 
-  if (shares === 0) {
+  if (fullShares === 0) {
     if (byCash === 0) return none('notEnoughCash');
     return none();
   }
+
+  // ── THE GRADE, APPLIED TO WHICHEVER LIMIT WON ─────────────────────────────
+  // This is the line the user actually asked for: full size is decided by the regime,
+  // the setup and the account (above); the grade then says how much of it to take. Doing
+  // it here rather than to the risk percent is what makes B genuinely 75% of A — scaling
+  // the percent alone left the two identical every time the concentration cap or cash
+  // was the binding limit.
+  //
+  // `floor`, not `round`: rounding a grade UP would hand back more shares than the
+  // fraction allows, and the whole point of a C is to be under full size.
+  let shares = Math.floor(fullShares * gradeScale);
+  // …but a graded trade is still a trade. Flooring a tiny full size to zero would turn
+  // "bet smaller" into "do not bet", which is a decision the grade is not allowed to make.
+  if (shares < 1) shares = 1;
 
   const riskAmount = pyRound(shares * riskPerShare, 2);
   const positionValue = pyRound(shares * entry, 2);
   return {
     shares,
+    fullShares,
+    fullPositionValue: pyRound(fullShares * entry, 2),
+    gradeScale,
     riskAmount,
     positionValue,
     riskPctOfEquity: pyRound((riskAmount / equity) * 100, 3),

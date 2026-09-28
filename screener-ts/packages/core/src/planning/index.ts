@@ -22,3 +22,13 @@ export type {
   RiskLadderConfig, RiskStage, StageRead, RiskBudget, RiskCut,
   LevelSuggestion, LevelWarning, SizeInput, SizeSuggestion, SizeLimit, SizeWarning,
 } from './setupPlaybook.js';
+
+// The conviction grade, scored from named criteria instead of picked from a dropdown.
+export {
+  gradeTrade, gradeByGroup, isAutoCriterion,
+  GRADE_CRITERIA, GRADE_GROUPS, GRADE_BARS, DEFAULT_GRADE_THRESHOLDS,
+} from './tradeGrader.js';
+export type {
+  GradeGroup, GradeCriterion, GradeEvidence, GradeAnswers,
+  CriterionOutcome, GradeResult, GradeThresholds,
+} from './tradeGrader.js';

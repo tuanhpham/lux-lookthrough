@@ -2238,3 +2238,275 @@ neu khong % vi the se nhay ngay luc chon Setup.
 - Van khong co test cho phan day day su kien: `environment: 'node'` co y, va them jsdom
   se doi `package-lock.json` (CHAT-21 muc K). Nen cai gi tinh duoc thi tach ra thanh ham
   thuan — `planLines` chinh la vi the.
+
+## CHAT-23 — Hang tu cham diem theo tieu chi, va loi "hang doi ma so co khong doi"
+
+Ba viec nguoi dung yeu cau: (1) hang phai lam doi CO VI THE cuoi cung, khong phai chi doi
+% rui ro; (2) bieu do trong Planner phai la bieu do nen thuc nhu o phan co phieu rieng le;
+(3) thay vi tu chon hang A-D, tich vao cac tieu chi va de hang tu tinh ra — cho khach quan.
+
+### A. Loi that: hang doi ma so co khong doi
+
+Nguoi dung bao: "hien tai thi toi chua thay shares, hay position thay doi". Day la LOI,
+khong phai thieu tinh nang.
+
+CHAT-22 muc B da dat phep nhan cua hang vao trong `riskBudget`, tuc la nhan vao % rui ro.
+Nhung % rui ro chi la MOT trong BON gioi han cua mot vi the, trong `suggestSize`:
+
+    shares = min(byRisk, byCash, byCap, byHeat)
+
+`byCap` la gioi han tap trung 25% von. Voi mot cat lo hep — dung la truong hop cua mot
+thiet lap tot — thi `byRisk` rat lon va `byCap` moi la cai quyet dinh. Khi do nhan hang
+vao `byRisk` khong doi ket qua MOT CHUT NAO: `min` van chon `byCap`. O chon hang di
+chuyen, so co dung im.
+
+Nen lan nay DAO LAI quyet dinh cua CHAT-22 muc B: hang ra khoi `riskBudget`, `'rating'`
+bi xoa khoi union `RiskCut`, va phep nhan chuyen xuong cuoi `suggestSize` — noi nao ap
+dung cho BAT KY gioi han nao thang. Ly do nay duoc viet ngay tai cho quyet dinh, trong
+phan dau `riskBudget`.
+
+Da co test hoi quy truoc khi sua: `'SCALES A SIZE THAT A NON-RISK LIMIT DECIDED — the bug
+that reached the user'`, voi `limitedBy === 'concentration'` va A=156 / B=117 / C=78 /
+D=39.
+
+### B. Tai sao san rui ro KHONG chan phan giam theo hang
+
+`minRiskPct` ton tai de chan APP tu bop vi the ve gan 0 thay nguoi dung: che do thi
+truong, chuoi lenh lo, bien do gian. Con hang la NGUOI DUNG tu chon nho lai.
+
+Neu de san chan ca hang thi mot bac "dang hoc" 0.25% voi hang D se ra 0.1% (san) thay vi
+0.0625% — tuc la 40% co day nhung tren nhan ghi 25%. Sai nghiem trong hon la khong giam.
+
+Nen tach hai loai co lai: phep cat cua thang rui ro bi san chan, phep giam theo hang thi
+khong, va hai cai duoc bao cao RIENG. `budget.pct` van la % cua co day du; `planLines` in
+rui ro THAT (`size.riskPctOfEquity`) va chi nhac `budget.pct` khi hai so lech >= 0.01.
+
+### C. `floor`, khong phai `round`, va khong bao gio ve 0
+
+    let shares = Math.floor(fullShares * gradeScale);
+    if (shares < 1) shares = 1;
+
+`round` se lam mot hang C to hon mot nua; `floor` ve 0 se bien "dat cuoc nho hon" thanh
+"khong dat cuoc", mot loi tu choi ma hang KHONG duoc phep dua ra. Nhung `fullShares === 0`
+van tra ve 0 co: thi truong giam, hoac tien khong du mot co, la cau tra loi khac.
+
+### D. `limitedBy` khong co 'rating', va do la chu y
+
+`limitedBy` mo ta CO DAY DU bi cai gi chan. Hang khong phai mot gioi han nguoi dung dam
+phai — no la mot phan so nguoi dung tu xin. Ghi no vao day se lam mot co da chon trong
+giong nhu mot co bi tu choi.
+
+`SizeSuggestion` vi the mang them `fullShares`, `fullPositionValue`, `gradeScale`, de the
+in ra duoc phep tru: "co day 250 ($25,000) -> 75% -> 187 sh". Do chinh la cach nguoi dung
+dien dat, va la cach duy nhat de biet o chon hang co tac dung gi.
+
+### E. Bieu do nen thuc, thay cho hinh SVG
+
+Truoc la `candleChart`, hinh SVG tu ve dung cho cac hinh minh hoa trong cam nang. Dung
+cho mot hinh sau nen bia dat, sai cho day: mot thiet lap thuc duoc danh gia bang cach
+zoom vao nen, doc khoi luong so voi trung binh cua no, xem gia nam dau tren cac duong
+trung binh ma phan con lai cua app hien. Mot hinh khong tuong tac duoc se day nguoi dung
+di mo bieu do o cho khac — va do la luc ke hoach thoi khop voi cai ho dang nhin.
+
+Hai viec phai lam de `drawCandles` song duoc trong Planner:
+
+1. `recalcPlan` chay MOI LAN GO PHIM. Ve lai bieu do moi ky tu la mot canvas moi, va
+   thang gia se nhay duoi tay nguoi dung. Nen them `setOverlay(o)` vao `CandleChart`:
+   xoa ba duong gia cu bang `removePriceLine` (lightweight-charts khong co "xoa het") roi
+   ve lai, giu nguyen nen, zoom va vi tri cuon.
+2. `planCharts: Map<string, CandleChart>` va `destroyPlanCharts()` goi o dau
+   `computePlans`. Bo node di la khong du — `ResizeObserver` se song lau hon bieu do no
+   dang chinh, roi goi `applyOptions` tren mot doi tuong da bi huy.
+
+Va trong `applyOverlay`: dieu kien la `price != null && price > 0`. O Entry go nua duong
+tra ve 0, va mot duong gia o 0 lam sup ca thang gia — nen thanh mot vach phang.
+
+### F. Bang tieu chi: tai sao cham diem thay vi tu chon
+
+Hang A-D truoc day la mot o chon, tuc la dat cai dau vao QUAN TRONG NHAT cua co vi the —
+no la phep nhan cuoi cung tren so co — vao trong tam trang nguoi dung. Khong ai cham
+hang D cho y tuong cua chinh minh dung luc muon mua no.
+
+Cach gioi giao dich xu ly viec nay khong phai hoi mot ket luan ma hoi mot BANG KIEM, cham
+diem truoc khi tien vao thi truong. Ca bon tac gia ma app nay dung deu da cong bo bang
+cua ho. Nen hang bay gio la mot diem tren cac tieu chi co ten. Tich mot o van la mot phan
+xet, nhung la phan xet ve MOT dieu nguoi dung tra duoc tren bieu do — va phan lon cac o
+thi app tich ho tu du lieu gia da co.
+
+`packages/core/src/planning/tradeGrader.ts` — MOI.
+
+### G. Trong so, va nguon cua tung tieu chi
+
+Moi tieu chi co truong `authority` va khong phai phat minh cua module nay:
+
+- Mark Minervini, *Trade Like a Stock Market Wizard* — Trend Template (gia tren MA50;
+  MA50 > MA150 > MA200; MA200 di len; cach dinh 52 tuan khong qua 25%), va dau chan VCP:
+  cac lan nen thu hep dan, khoi luong can dan vao diem mua.
+- William O'Neil, *How to Make Money in Stocks* — CAN SLIM. Cac chu app do duoc la S
+  (khoi luong), L (suc manh tuong doi >= 80), M (huong thi truong). Con C, A, I can du
+  lieu co ban nen thanh CAU HOI THU CONG, khong phai bi bo qua im lang.
+- Stan Weinstein, *Secrets for Profiting in Bull and Bear Markets* — phan tich giai doan:
+  chi mua giai doan 2. Do la dieu ma thu tu cac duong trung binh dang kiem tra.
+- Kristjan Kullamagi (Qullamaggie) — dieu kien tien de ma cac tac gia mau hinh gia dinh
+  ma it noi ra: mot da tang truoc do lon (>= 30%), va mot nguong thanh khoan cung
+  (>= 20 trieu $/ngay), vi mot cai nen hoan hao tren co phieu khong ra duoc khong phai
+  mot thiet lap giao dich duoc. Cong voi luat EP: nhay khoang >= 10%, khoi luong >= 3 lan,
+  dong cua o nua tren bien do, co nguyen nhan ro rang.
+- Cam nang cua chinh app (`setupPlaybook.ts`) — 2R toi thieu, va cat lo cach diem vao
+  khong qua 10% de no la mot MOC chu khong phai mot hy vong.
+
+Trong so co y khong bang nhau: thi truong an 14 diem, vi O'Neil de chu M cuoi cung trong
+acronym roi danh ca cuon sach noi rang no quyet dinh ket qua. Va thi truong duoc cham
+BANG HAI tieu chi (`regimeUptrend` 8 + `regimeNotHostile` 6) de mot thi truong di ngang
+duoc diem mot phan, con mot thi truong giam thi khong — van la o tick, nhung co bac.
+
+Cac nguong nam trong `GRADE_BARS` nhu hang so co ten, KHONG dua vao hop thoai cau hinh:
+tung cai la mot cau trich dan, va nguoi keo `RS_STRONG` ve 50 khong phai dang tinh chinh
+bang kiem, ho dang xoa tieu chi cua O'Neil va giu lai ten ong. Cai CHO PHEP sua la vi tri
+cac vach A/B/C (`GradeThresholds`) — do la cau hoi ve do kho tinh cua chinh nguoi dung.
+
+### H. Chua tra loi thi ra KHOI CA HAI phia cua phan so
+
+Mot cau chua tra loi khong phai mot cau tra loi sai. Neu tinh nam tieu chi thu cong bang
+0 cho den khi duoc tich thi moi the mo ra da la hang D, va bang kiem tro thanh mot vat
+can. Te hon: "toi chua xem" va "toi xem roi, va xau" se cho ra cung mot hang.
+
+Nen mau so la nhung gi TRA LOI DUOC, va `unknownWeight` noi ro con bo lai bao nhieu. Gia
+cua lua chon nay la thuc va duoc ghi ra: mot the chi biet cac tieu chi tu dong co the doc
+ra A tren khong den mot nua tong trong so cua bang. Do la mot chu A *tren nhung bang chung
+app co*, va vi the `unknownWeight` nam trong ket qua chu khong phai bien noi bo — the
+duoc yeu cau hien no canh chu.
+
+### I. Hai ho tieu chi: nen va nhay khoang
+
+Mot VCP khong co ngay nhay khoang, va mot EP khong co nen nen dan. Cham diem ca hai ho se
+tru diem moi lenh vi no khong phai lenh loai kia.
+
+Nen `qmGradeEvidence` biet thiet lap nguoi dung chon, va chi dua qua ho tuong ung:
+'VCP' / 'Breakout' / 'Pullback' -> ho nen; 'EP' / 'Surge' -> ho nhay khoang;
+'Mean Reversion' / 'Other' -> KHONG ho nao, va do la cau tra loi trung thuc — bang kiem
+nay lam tu van chuong theo xu huong, cac tac gia do se khong cham diem mot lenh hoi quy
+tan goc. No van duoc cham tren xu huong, suc manh, thi truong, thanh khoan va co che rui
+ro cua chinh no.
+
+### J. So 0 cua may quet la "khong do duoc", khong phai "do duoc bang 0"
+
+`detectVcp` tra ve mot ket qua toan 0 khi khong tim thay gi: `baseDepthPct: 0`,
+`atrContractionPct: 0`, `volumeContractionPct: 0`. Doc nhu do luong thi mot co phieu
+khong co nen bi cham la co CAI NEN TE — mot cau khac, va nang hon.
+
+Nen cac truong phan tram di qua `nonZero` va im lang khi bang dung 0. So AM van duoc
+cham: mot ATR GIAN ra trong nen la mot do luong, va la mot do luong that bai. Chi so 0
+chan la nhap nhang.
+
+Ngoai le co y: `pctBelow52wHigh` KHONG nam trong nhom nay — 0 o day nghia la "dang o dinh
+52 tuan", la so doc tot nhat co the.
+
+Dau hieu con lai de nguoi dung thay app va ho khong dong y ve mau hinh la `contractions`,
+mot PHEP DEM, noi 0 la mot so doc that va dang bi phe.
+
+### K. `MIN_GRADE_WEIGHT`: khong dat ten chu khi biet qua it
+
+Chu cai nhan vao co vi the. Mot hang D tinh tu ba tieu chi se cat lenh con mot phan tu
+tren gan nhu khong co thong tin gi. Nen khi `possible < 50` thi `grade` la `null` — va
+`null` nghia la CHUA XEP HANG, tuc la co day du, khong phai co nho nhat. Diem van duoc
+bao cao, the hien mot dong noi ro chua du du lieu de dat chu.
+
+Con mot ly do nua de `grade` la `null` chu khong phai 'C' nhu ban dau: 'C' se am tham
+chia doi moi vi the cua moi the chua chon thiet lap. `null` la dung quy uoc cu cua app
+(`rating: null` = chua xep hang = co day du), nen khong them mot nghia thu hai.
+
+### L. Tieu chi tu dong KHONG phai o tick — nhung van co o ghi de
+
+Muoi chin tieu chi do tu du lieu gia hien ra la dau tich, dau cheo hoac gach ngang KEM
+THEO SO, va khong sua duoc. Mot o tick ma nguoi dung bo tich duoc khi khong thich cau tra
+loi thi dung lai chinh cai van de ma bang kiem duoc mang vao de thay the; no chi rai van
+de do ra thanh muoi chin quyet dinh nho hon, moi cai trong nhu nhap lieu.
+
+Nhung KHONG de cho cho su khong dong y thi te hon: nguoi dung khong dong y voi diem ma
+khong noi duoc se di tich mot tieu chi ho khong tin, va luc do bang kiem VUA sai VUA
+trong nhu khach quan. Nen co mot o ghi de duy nhat, hien ro, va the ghi nhan "da ghi de
+(diem ra B)" — de loi noi doi khong nam trong cac tieu chi.
+
+Cac cau hoi thu cong thi BA TRANG THAI, khong phai o tick: Co / Khong / chua tra loi, vi
+mot o tick bo trong khong noi duoc nguoi dung da xem hay chua. Bam lai dung cau tra loi
+dang chon se xoa no ve chua tra loi.
+
+### M. Cam nang chay hai lan trong `cardGrade`
+
+Hai tieu chi noi ve LENH nay chu khong ve co phieu: R:R, va cat lo cach diem vao bao
+nhieu. Hai so do ra tu cam nang — ma cam nang cung can hang, de nhan vao so co. Trong
+nhu vong tron va khong phai: CAC MOC khong phu thuoc hang, chi CO VI THE moi phu thuoc.
+Nen `cardGrade` chay mot luot KHONG hang de biet cat lo va muc tieu o dau, cham diem cai
+do, roi `recalcPlan` chay luot co hang. Ca hai luot la phep tinh tren bars da nam trong
+bo nho.
+
+Va `cardGrade` uu tien cat lo cua CHINH NGUOI DUNG neu ho da go: tieu chi R:R phai mo ta
+lenh ho sap dat, khong phai lenh cam nang goi y va ho da bo.
+
+### N. Listener uy quyen chi duoc gan MOT lan
+
+`paintGradePanel` thay the cac nut nay moi lan go phim, nen mot listener gan tren chinh
+nut se mat truoc khi nguoi dung voi tay den. Nhung cai HOP thi song qua moi lan tinh lai
+— `computePlans` chi ghi lai cac con cua no. Gan lai moi luot se chong listener len nhau,
+va cai thu hai se dong ngay bang tieu chi vua mo. Nen co co `root.dataset.tpGradeWired`:
+mot listener cho mot hop, suot doi hop do.
+
+### O. Files
+
+- `packages/core/src/planning/tradeGrader.ts` — MOI. Bang kiem, cham diem, nhom.
+- `packages/core/src/qm/gradeEvidence.ts` — MOI. Cay cau duy nhat tu `QmScanResult` sang
+  `GradeEvidence`. Huong phu thuoc di tu `qm` -> `planning`, KHONG nguoc lai: `tradeGrader`
+  nhan mot tui so nguyen thuy va khong import gi tu `qm`, vi no phai cham duoc mot ma
+  chung khoan may quet chua bao gio chay, va mot bo cham diem gan chat vao mot dang ket
+  qua thi khong test duoc ma khong dung ca cai dang do len.
+- `packages/core/src/planning/setupPlaybook.ts` — `'rating'` ra khoi `RiskCut`; hang ra
+  khoi `riskBudget`; `SizeInput.rating`; `SizeSuggestion` them `fullShares`,
+  `fullPositionValue`, `gradeScale`; phep nhan o cuoi `suggestSize`.
+- `packages/core/src/planning/index.ts`, `src/qm/index.ts` — xuat ra.
+- `apps/desktop/src/portfolio/gradeWords.ts` — MOI. Nhan hai ngon ngu cho tung tieu chi,
+  co so nguong IN TRONG nhan ("Suc manh tuong doi tu 80 tro len"), vi khong co so thi mot
+  dau cheo do la mot ket luan nguoi dung khong kiem tra duoc.
+- `apps/desktop/src/portfolio/playbook.ts` — `riskBudget` khong nhan `rating`; `rating`
+  chuyen xuong `suggestSize`; `pinnedBudget` gon lai.
+- `apps/desktop/src/portfolio/planWords.ts` — bo `rating` khoi `CUT_SHORT`; dong so co in
+  rui ro THAT; dong hang in phep tru.
+- `apps/desktop/src/ui/charts.ts` — `setOverlay` tren `CandleChart`; `applyOverlay` giu
+  `IPriceLine[]`.
+- `apps/desktop/src/tabs/miscTabs.ts` — `planScans` giu lai cac ket qua quet; `PlanEdit`
+  doi `rating` thanh `answers` + `gradeOverride` + `criteriaOpen`; `cardPlan(sym, rating)`;
+  `cardGrade`; `paintGradePanel` + `criteriaRowsHtml`; `paintPlanChart` dung
+  `drawCandles`; `wireGradeDelegates`.
+- `apps/desktop/src/ui/playbookSettings.ts` — bo dong chu cho cat `rating`; viet lai chu
+  thich "Co theo xep hang" vi hai cau cu da thanh SAI: no noi san rui ro con do duoc phan
+  cat nay.
+- `apps/desktop/src/ui/i18n.ts` — xoa `wl.plan.grade` / `wl.plan.nograde` (dong chu cu
+  "— none (full size)" gio sai han: de trong o ghi de khong phai chua xep hang, ma la
+  "dung diem tu tinh"); them 11 khoa moi.
+- `apps/desktop/src/styles.css` — `.tp-grade*`, `.tp-gbar*`, `.tp-crit*`, `.tp-grade-math`.
+
+### P. Kiem
+
+- `tests/planning/tradeGrader.test.ts` MOI 31/31. `tests/qm/gradeEvidence.test.ts` MOI
+  14/14. `tests/gradeWords.test.ts` MOI 7/7.
+- `tests/planning/setupPlaybook.test.ts` 70/70. `tests/buyPlan.test.ts` 24/24.
+  `tests/planWords.test.ts` 7/7.
+- Core 751/751. App 69/69. `tsc --noEmit` sach ca hai goi, `npm run build` sach ca hai.
+  `package-lock.json` khong doi.
+- Bon test SAI ky vong cua chinh minh, ghi lai vi ba trong so do day lai code:
+  1. `positionValue / fullPositionValue` ra 0.7419 chu khong phai 0.75, vi `floor(62 x
+     0.75) = 46`. Noi long ky vong, khong sua code — lam tron xuong la co y.
+  2. `riskPctOfEquity` cua hang D ra 0.24 chu khong 0.25 (15 x 8 EUR tren 50k). Dung
+     `toBeCloseTo`.
+  3. Fixture "khong bao gio ve 0 co" dung tai khoan 900 EUR, ma CO DAY DU cua no da la 0
+     roi (0.25% = 2.25 EUR < 8 EUR/co). Doi sang 8.000 EUR.
+  4. Test `gradeByGroup` khang dinh nhom khong do duoc bi AN di. Sai: nhom do van phai
+     hien, mang trong so cua no trong `unknown` — an di se am tham lam bang kiem nho lai
+     tren man hinh, nguoi dung thay tam dong gon gang va khong biet la cac cau ve co ban
+     chua tung duoc hoi. Sua test, khong sua code.
+- Mot loi THAT do test thu tu tim ra: `atrContractionPct` va `volumeContractionPct` chua
+  co cho chan so 0, trong khi `baseDepthPct` thi co. Da gop ca bon vao `nonZero` — xem
+  muc J.
+- Van khong co test cho phan DOM: `environment: 'node'` co y (CHAT-21 muc K). Nen phan
+  cham diem nam tron trong core, va phan chu nam trong `gradeWords.ts` — ca hai test duoc.
+  `paintGradePanel` thi phai xem bang mat.

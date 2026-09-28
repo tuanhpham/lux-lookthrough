@@ -95,20 +95,25 @@ describe('planLines', () => {
     expect(lines[1]).toContain(`<b>${plan.shares}</b>`);
   });
 
-  it('names the grade and what it did, and says nothing when there is none', async () => {
+  it('shows the grade’s subtraction, not just its answer', async () => {
+    // The complaint that produced this line: the grade dropdown moved and the share
+    // count did not, and there was no way to tell from the card whether it had worked.
+    // So the wording prints BOTH counts and the percentage between them.
     const { pb, words } = await load();
-    const of = (rating: 'C' | null) => words.planLines(pb.buildBuyPlan({
+    const plan = (rating: 'C' | null) => pb.buildBuyPlan({
       state: account(), prices: {}, bars: BARS,
       entry: 95, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25', rating,
-    })!, OPTS).join('\n');
+    })!;
+    const of = (rating: 'C' | null) => words.planLines(plan(rating), OPTS).join('\n');
 
+    const c = plan('C');
     const graded = of('C');
     expect(graded).toContain('Grade');
     expect(graded).toContain(words.RATING_MEANS.C![1]);
-    // And the cut is worded, not printed as the raw code.
-    expect(graded).toContain('Size cut by');
-    expect(graded).toContain('the grade');
-    expect(graded).not.toMatch(/Size cut by[^<]*\brating\b/);
+    expect(graded).toContain('full size');
+    expect(graded).toContain(String(c.size.fullShares));
+    expect(graded).toContain('50%');
+    expect(c.shares).toBeLessThan(c.size.fullShares);
 
     // An ungraded trade says nothing about a grade, because there is nothing to say.
     expect(of(null)).not.toContain('Grade');
@@ -136,10 +141,14 @@ describe('planLines', () => {
     const { words } = await load();
     for (const cut of [
       'regimeDowntrend', 'volExpanded', 'regimeStress', 'regimeRange',
-      'losingStreak', 'rating', 'flooredAtMin',
+      'losingStreak', 'flooredAtMin',
     ]) {
       expect(words.CUT_SHORT[cut], cut).toBeDefined();
     }
+    // And `rating` is deliberately NOT one of them any more: the grade scales the
+    // finished position rather than the risk budget, so listing it among the ladder's
+    // penalties would read as the app refusing size the user chose to give up.
+    expect(words.CUT_SHORT.rating).toBeUndefined();
   });
 
   it('labels the money and the levels separately', async () => {

@@ -113,8 +113,10 @@ export const CUT_SHORT: Record<string, [string, string]> = {
   regimeStress: ['xu hướng tăng đang căng', 'uptrend under stress'],
   regimeRange: ['thị trường đi ngang', 'range'],
   losingStreak: ['lỗ liên tiếp', 'losing streak'],
-  rating: ['xếp hạng', 'the grade'],
   flooredAtMin: ['chạm sàn rủi ro', 'hit the risk floor'],
+  // No `rating` entry, and that is the point: the grade is not one of the ladder's cuts
+  // any more. It scales the finished position, so it gets its own line with the
+  // subtraction spelled out rather than a word in a list of penalties.
 };
 
 /**
@@ -163,28 +165,43 @@ export function planLines(plan: BuyPlan, opts: PlanWordOpts): string[] {
   );
 
   const limit = plan.size.limitedBy ? SIZE_LIMIT[plan.size.limitedBy] : null;
+  // The risk that is ACTUALLY on the table, not the budget it was drawn from. Those are
+  // the same number only at full size and only when risk was the binding limit; printing
+  // the budget for a graded or capped position overstates the trade by the same amount
+  // the user just deliberately took off it.
+  const realRisk = plan.size.riskPctOfEquity;
+  const budgeted = plan.budget.pct;
+  const differs = Math.abs(realRisk - budgeted) >= 0.01 && plan.shares > 0;
   lines.push(
     `<b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}` +
-    (limit ? ` <span class="muted">· ${vi ? 'bị chặn bởi' : 'bound by'} ${vi ? limit[0] : limit[1]}</span>` : '') +
-    ` · ${vi ? 'rủi ro' : 'risk'} <b>${plan.budget.pct}%</b>` +
+    (limit ? ` <span class="muted">· ${vi ? 'cỡ đầy bị chặn bởi' : 'full size bound by'} ${vi ? limit[0] : limit[1]}</span>` : '') +
+    ` · ${vi ? 'rủi ro' : 'risk'} <b>${differs ? realRisk : budgeted}%</b>` +
     (opts.money && plan.size.riskAmount > 0
       ? ` <span class="muted">(${moneySym}${num(plan.size.riskAmount, 0)})</span>`
       : '') +
+    (differs ? ` <span class="muted">${vi ? 'trên hạn mức' : 'of a'} ${budgeted}% ${vi ? '' : 'budget'}</span>` : '') +
     ` <span class="muted">(${vi ? 'bậc' : 'rung'} ${plan.budget.stage.stage}, ` +
     `${plan.budget.stage.closedTrades} ${vi ? 'lệnh đã đóng' : 'closed trades'})</span>` +
     ` · ${vi ? 'tổng rủi ro mở sau lệnh' : 'open risk after'} <b>${plan.size.heatPctAfter}%</b>`,
   );
 
-  // The grade gets its own line rather than a parenthesis, because it is the one input
-  // the app cannot check: if the size looks wrong, this is the line to argue with.
+  // ── THE GRADE, WITH THE SUBTRACTION SHOWN ─────────────────────────────────
+  // Its own line, not a parenthesis, because it is the one input the app cannot check:
+  // if the size looks wrong, this is the line to argue with. And it shows BOTH counts —
+  // full size and what the grade left — because "18 shares" alone gives the user no way
+  // to tell whether the dropdown did anything. That was the actual complaint that led
+  // here: the grade moved and the number did not.
   if (plan.rating) {
     const means = RATING_MEANS[plan.rating];
-    const scaled = plan.budget.cuts.includes('rating');
+    const { fullShares, gradeScale, fullPositionValue, positionValue } = plan.size;
+    const money = (v: number): string => (opts.money ? ` <span class="muted">(${moneySym}${num(v, 0)})</span>` : '');
+    const scaled = gradeScale !== 1 && fullShares > 0;
     lines.push(
       `<span class="muted">${vi ? 'Xếp hạng' : 'Grade'} <b>${plan.rating}</b>` +
       (means ? ` — ${vi ? means[0] : means[1]}` : '') +
       (scaled
-        ? ''
+        ? ` · ${vi ? 'cỡ đầy' : 'full size'} ${fullShares} ${vi ? 'cổ' : 'sh'}${money(fullPositionValue)}` +
+          ` → ${Math.round(gradeScale * 100)}% → <b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}${money(positionValue)}`
         : ` <span class="muted">(${vi ? 'không giảm cỡ' : 'no size cut'})</span>`) +
       '</span>',
     );

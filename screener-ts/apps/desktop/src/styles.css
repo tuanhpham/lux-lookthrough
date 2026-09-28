@@ -810,7 +810,9 @@ a.tkr:hover { text-decoration: underline; }
 /* Setup + grade: the two choices the other four fields are derived FROM, so they get
    their own wider row rather than a quarter each of .tp-fields. */
 .tp-playfields { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 10px; }
-.tp-chart { margin-bottom: 10px; }
+/* Holds a real lightweight-charts canvas, not an SVG figure: it needs a measurable
+   width at draw time, and a min-height so the card does not jump as it mounts. */
+.tp-chart { margin-bottom: 10px; min-height: 260px; }
 .tp-field { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--subtext); font-weight: 600; }
 .tp-field .field { width: 100%; }
 .tp-size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
@@ -824,6 +826,69 @@ a.tkr:hover { text-decoration: underline; }
 .tp-size-custom { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--subtext); white-space: nowrap; }
 .tp-size-customlabel { font-weight: 600; }
 .tp-derived { margin-bottom: 10px; }
+
+/* The grade's arithmetic under the stat grid: full size → percent → this size. */
+.tp-grade-math {
+  margin-top: 7px; padding: 5px 9px; font-size: 11.5px; line-height: 1.5;
+  color: var(--subtext); background: var(--surface);
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+}
+
+/* ── The conviction grade, scored from criteria ───────────────────────────── */
+.tp-grade { margin-bottom: 10px; }
+.tp-grade-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+/* The letter is the headline of the whole panel, so it is sized like one — and boxed,
+   because a bare coloured letter next to a score reads as part of the number. */
+.tp-grade-letter {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border: 1.5px solid; border-radius: var(--radius-sm);
+  font-size: 17px; font-weight: 800; line-height: 1;
+}
+.tp-grade-score { font-size: 13px; }
+.tp-grade-thin { font-size: 11.5px; color: var(--faint); margin-top: 5px; line-height: 1.5; }
+.tp-crit-toggle {
+  margin-left: auto; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--subtext); white-space: nowrap;
+}
+.tp-crit-toggle:hover { border-color: var(--accent); color: var(--text); }
+
+/* Group subtotals as bars, not numbers: the question they answer is "which half of the
+   case is missing", and that is a shape rather than a figure. */
+.tp-gbars { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 7px; }
+.tp-gbar { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--faint); }
+.tp-gbar-k { text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.tp-gbar-track { width: 44px; height: 4px; border-radius: 2px; background: var(--border-soft); overflow: hidden; }
+.tp-gbar-fill { display: block; height: 100%; border-radius: 2px; }
+
+.tp-crit-list {
+  margin-top: 9px; padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+}
+.tp-crit-group + .tp-crit-group { margin-top: 9px; }
+.tp-crit-gname {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--faint); margin-bottom: 3px;
+}
+.tp-crit-row {
+  display: grid; grid-template-columns: 16px 1fr auto auto; align-items: center;
+  gap: 8px; padding: 2.5px 0; font-size: 12px;
+}
+/* The measured rows are deliberately quieter than the ones the user can answer: nothing
+   on them is actionable, and styling them identically invites clicking. */
+.tp-crit-row.auto .tp-crit-label { color: var(--subtext); }
+.tp-crit-mark { text-align: center; font-weight: 700; }
+.tp-crit-label { cursor: help; }
+.tp-crit-w { font-size: 10px; opacity: .65; }
+.tp-crit-val { font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tp-crit-ask { display: inline-flex; gap: 3px; }
+.tp-crit-btn {
+  padding: 1px 7px; border-radius: 999px; font-size: 11px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg); color: var(--faint);
+}
+.tp-crit-btn:hover { border-color: var(--accent); color: var(--text); }
+.tp-crit-btn.yes { border-color: var(--up); color: var(--up); font-weight: 700; }
+.tp-crit-btn.no { border-color: var(--danger); color: var(--danger); font-weight: 700; }
+.tp-crit-foot { font-size: 10.5px; line-height: 1.5; margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--border-soft); }
 .tp-note-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .tp-note-label { font-size: 11px; font-weight: 600; color: var(--subtext); text-transform: uppercase; letter-spacing: .06em; }
 .tp-note {

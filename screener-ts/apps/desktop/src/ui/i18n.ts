@@ -192,8 +192,34 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // The playbook half of the planner: which rule row, and how much conviction.
   'wl.plan.setup': { en: 'Setup', vi: 'Loại thiết lập' },
   'wl.plan.nosetupopt': { en: '— none', vi: '— chưa chọn' },
-  'wl.plan.grade': { en: 'Grade', vi: 'Xếp hạng' },
-  'wl.plan.nograde': { en: '— none (full size)', vi: '— chưa (cỡ đầy đủ)' },
+  // 'wl.plan.grade' and 'wl.plan.nograde' were removed with the manual A–D dropdown. The
+  // old blank option read "— none (full size)", which is now actively wrong: leaving the
+  // override blank does not mean ungraded, it means "use the score".
+  // The grade is now SCORED from criteria, so the dropdown is an override rather than the
+  // input. The wording has to say so, or the user will read the blank option as "ungraded"
+  // and wonder why the card shows a B.
+  'wl.plan.gradeover': { en: 'Grade override', vi: 'Ghi đè xếp hạng' },
+  'wl.plan.gradeauto': { en: '— use the score', vi: '— dùng điểm tự tính' },
+  'wl.plan.gradesize': { en: '{pct}% of full size', vi: '{pct}% cỡ đầy đủ' },
+  'wl.plan.gradeoverridden': { en: 'overridden (scored {auto})', vi: 'đã ghi đè (điểm ra {auto})' },
+  'wl.plan.criteria': { en: 'Criteria {n}/{m}', vi: 'Tiêu chí {n}/{m}' },
+  'wl.plan.gradethin': {
+    en: 'Not enough measured yet to set a letter — planned at full size. Pick a setup and an entry.',
+    vi: 'Chưa đủ dữ liệu để xếp hạng — tính theo cỡ đầy đủ. Hãy chọn thiết lập và giá vào.',
+  },
+  'wl.plan.critfoot': {
+    en: 'Ticks are measured from the bars and are not editable. The questions below them are yours — click an answer again to unset it; unanswered questions do not count against the score.',
+    vi: 'Dấu tích do app tự đo từ dữ liệu giá, không sửa được. Các câu hỏi là của bạn — bấm lại để bỏ chọn; câu chưa trả lời không bị tính là sai.',
+  },
+  'wl.plan.yes': { en: 'Yes', vi: 'Có' },
+  'wl.plan.no': { en: 'No', vi: 'Không' },
+  // The subtraction, in the user's own framing. Shown on the card and not only in the
+  // Note, because a grade that changes the size without showing its arithmetic is
+  // indistinguishable from a grade that does nothing.
+  'wl.plan.gradedfrom': {
+    en: 'Full size {full} → {pct} for this grade → {now}',
+    vi: 'Cỡ đầy đủ {full} → {pct} theo hạng này → {now}',
+  },
   'wl.plan.frombook': { en: 'Playbook', vi: 'Cẩm nang' },
   'wl.plan.usdlevels': { en: 'Entry, stop and target are in USD', vi: 'Giá vào, cắt lỗ và mục tiêu tính bằng USD' },
   'wl.plan.picksetup': {
