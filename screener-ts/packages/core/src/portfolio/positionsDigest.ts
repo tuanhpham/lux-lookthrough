@@ -30,6 +30,11 @@
  *     the same condition as that conversion, which is why it has to stay in step
  *     with it.
  *
+ *     The row stays in the currency it is stored in — no rate is ever applied to a
+ *     level here. What this DOES publish, when some row needs it, is the rate itself
+ *     (`fx`), so the reader can convert and say which rate it used. See `fx` below
+ *     for why the rate travels with the snapshot instead of being looked up there.
+ *
  * WHAT IS DELIBERATELY ABSENT: cash, equity, total or realized P&L, account ids,
  * lot ids, dates. Whoever holds the scanner VM's token can read this key (the
  * bridge gates writes, not reads), so it carries what an alert needs to name a
@@ -55,6 +60,27 @@ export interface PositionsRow {
   accts: string[];
 }
 
+/**
+ * The EURUSD rate a reader needs to compare a EUR-denominated level against a USD
+ * quote — 1 EUR = `eurUsd` USD, as of the trading day `asOf`.
+ *
+ * WHY IT TRAVELS WITH THE SNAPSHOT. The scanner has no FX source; if it grew one, the
+ * level it fires an alert on would come from a different rate than the one the
+ * Portfolio tab shows, and the message and the screen would disagree about the same
+ * stop. `asOf` is not decoration: the snapshot is written on save, so a portfolio
+ * untouched for months carries a months-old rate, and converting with it would rebuild
+ * exactly the confident-but-wrong level this file exists to prevent. The reader is
+ * expected to refuse a rate it considers too old rather than use it.
+ *
+ * Absent when no row needs it (everything already USD) or when the app has no rate
+ * loaded — never a filler 1, which would mean "EUR and USD are the same number".
+ */
+export interface PositionsFx {
+  eurUsd: number;
+  /** ISO date (YYYY-MM-DD) of the rate's bar. */
+  asOf: string;
+}
+
 export interface PositionsDigest {
   /** ISO UTC, browser clock. The VM treats anything older than its own
    *  threshold as UNKNOWN rather than as "no positions". */
@@ -64,6 +90,8 @@ export interface PositionsDigest {
   rows: PositionsRow[];
   /** Data-quality notes, already phrased for a human. */
   warn: string[];
+  /** Rate for the non-USD rows, when there are any and one is known. */
+  fx?: PositionsFx;
 }
 
 /** `priceCurrency` is optional and documented as defaulting to USD. */
@@ -93,9 +121,15 @@ function round(v: number, places = 4): number {
 
 /**
  * Pure: accounts in, digest out. No network, no storage, no clock unless given
- * one — so a test can assert the shape without mocking anything.
+ * one — so a test can assert the shape without mocking anything. The rate is a
+ * PARAMETER for the same reason: this file is in core and must not know where the
+ * app keeps its FX table.
  */
-export function buildPositionsDigest(list: AccountState[], now = new Date()): PositionsDigest {
+export function buildPositionsDigest(
+  list: AccountState[],
+  now = new Date(),
+  fx?: { rate: number; date: string } | null,
+): PositionsDigest {
   const acc = new Map<string, {
     shares: number;
     cost: number;
@@ -186,19 +220,38 @@ export function buildPositionsDigest(list: AccountState[], now = new Date()): Po
     });
   }
 
+  // The rate goes out only when a row actually needs it. Sending it for an all-USD
+  // portfolio would make the published body change every time the rate moves, and the
+  // publisher's "same body, no write" check is what keeps this off the D1 quota.
+  // MIXED is deliberately not a reason to send it: that row's own numbers are in
+  // two units, so there is no single currency to convert FROM.
+  const needsFx = eur > 0;
+  const outFx: PositionsFx | undefined =
+    needsFx && fx && Number.isFinite(fx.rate) && fx.rate > 0 && fx.date
+      ? { eurUsd: round(fx.rate, 6), asOf: fx.date }
+      : undefined;
+
   const warn: string[] = [];
   if (noStopSyms > 0) {
     warn.push(`${noStopSyms} mã đang mở không có mức cắt lỗ nào — không thể cảnh báo`);
   }
   if (eur > 0) {
-    warn.push(`${eur} mã có giá và mức cắt lỗ đang lưu bằng EUR; báo giá của Mỹ là USD — cần tỷ giá để so`);
+    // Two different situations for the reader, so two different sentences: with a
+    // rate it can convert and name the rate, without one it must stand aside.
+    warn.push(outFx
+      ? `${eur} mã có giá và mức cắt lỗ đang lưu bằng EUR; báo giá của Mỹ là USD — gửi kèm tỷ giá EURUSD ${outFx.eurUsd} chốt ngày ${outFx.asOf} để quy đổi`
+      : `${eur} mã có giá và mức cắt lỗ đang lưu bằng EUR; báo giá của Mỹ là USD — chưa có tỷ giá để gửi kèm`);
   }
   if (mixed > 0) {
-    warn.push(`${mixed} mã có lô lưu bằng cả EUR và USD`);
+    // A rate does not rescue MIXED: the row's own numbers are in two units, so
+    // there is no single starting currency to convert FROM.
+    warn.push(`${mixed} mã có lô lưu bằng cả EUR và USD — tỷ giá không giúp được, phải tách tài khoản`);
   }
   if (droppedOrders > 0) {
     warn.push(`${droppedOrders} mã có lệnh chờ cắt lỗ tính theo báo giá USD, không gửi kèm vì các số còn lại của mã đó không phải USD`);
   }
 
-  return { ts: now.toISOString(), n: rows.length, rows, warn };
+  const out: PositionsDigest = { ts: now.toISOString(), n: rows.length, rows, warn };
+  if (outFx) out.fx = outFx;
+  return out;
 }

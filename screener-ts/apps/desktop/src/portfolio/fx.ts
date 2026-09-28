@@ -29,12 +29,17 @@ import type { AppContext } from '../context.js';
 const EURUSD_CACHE_KEY = 'pf_eurusd_bars';
 
 let latest: number | null = null;
+let latestDate: string | null = null;
 const byDate = new Map<string, number>();
 
 /** Merge EURUSD=X daily bars into the in-memory rate table. */
 export function applyEurUsdBars(bars: readonly Bar[]): void {
   for (const b of bars) byDate.set(b.date, b.close);
-  if (bars.length) latest = bars[bars.length - 1]!.close;
+  if (bars.length) {
+    const last = bars[bars.length - 1]!;
+    latest = last.close;
+    latestDate = last.date;
+  }
 }
 
 /**
@@ -56,6 +61,21 @@ export function latestEurUsd(): number | null {
 /** Whether any rate is known — i.e. whether a conversion would be real. */
 export function hasEurUsd(): boolean {
   return latest !== null;
+}
+
+/**
+ * The latest rate WITH the date it came from, for a reader outside this app.
+ *
+ * The scanner VM has to compare a stop level stored in euros against a USD quote,
+ * and it has no FX source of its own. It could grow one — but then the level it
+ * alerts on would be computed from a different rate than the one the Portfolio tab
+ * shows, so the message and the screen would disagree about the same stop. Publishing
+ * the rate the portfolio itself uses keeps one number in play, and the `date` is the
+ * part that lets the reader decide the rate is too old to trust instead of quietly
+ * converting with a stale one.
+ */
+export function latestEurUsdAsOf(): { rate: number; date: string } | null {
+  return latest !== null && latestDate ? { rate: latest, date: latestDate } : null;
 }
 
 /**

@@ -483,6 +483,12 @@ chỉ là luật stop không có gì để canh.
 Deploy cùng lượt với VIỆC B ở trên (build + `wrangler pages deploy dist` từ
 `apps/desktop`, KHÔNG từ gốc monorepo).
 
+Từ CHAT-20 lượt này còn MỘT bước nữa ở phía VM: `git pull` trong repo scanner rồi
+`sudo systemctl restart watchd` — đó là bản biết quy đổi EUR→USD. Hai bên không
+phụ thuộc thứ tự nhau (bản mới đọc ảnh chụp cũ thì không quy đổi; ảnh chụp mới gửi
+tới bản cũ thì trường `fx` bị bỏ qua), nhưng **thiếu một trong hai thì vị thế EUR
+vẫn không được canh**. Thứ tự đầy đủ ở CHAT-20 mục E.
+
 
 ## VM-7. Sổ tay lỗi
 
@@ -1747,3 +1753,87 @@ do la toan bo y nghia cua `stop_only`. Chinh cho do lam lo ra mot loi thuc su.
   DANH DAU la khong trong duoc, thay vi duoc trong o muc sai. Muon co canh bao cat lo
   trong phien cho ma My: hoac de lenh khop o mot tai khoan USD, hoac dat mot lenh cho
   STOP_LOSS (nguong cua lenh la khong gian bao gia).
+
+## CHAT-20 — App day ty gia len cung anh chup vi the, de VM quy doi duoc muc cat lo EUR
+
+Luot nay bat dau bang mot cau hoi dung: "nhung ban than trong tai khoan cua minh co
+phan chuyen doi currency roi ma nhi". Co — nhung co BA thu tien te khac nhau trong app,
+va CHAT-19 noi ve mot thu khac voi thu nguoi dung dang nghi:
+
+- `st.account.currency` — don vi LUU. Viet cung `'EUR'` o `portfolioTab.ts:751`, khong
+  co giao dien nao doi duoc no.
+- `displayCurrency` (`:207`, ham `toDisplay()` o `:218`, nut o `:500`) — CHI de hien.
+  Doi no khong lam thay doi mot byte nao trong store. Day la cai nguoi dung dang nghi
+  toi khi noi "tai khoan se chuyen qua USD".
+- `lot.priceCurrency` / `#b-price-ccy` — don vi cua CON SO VUA GO. Cho quy doi that su
+  la luc GHI (`portfolioTab.ts:1075-1080`), va `priceCurrency = priceCcy` duoc gan o
+  `:1072` TRUOC phep chia roi khong bao gio duoc sua lai. Do dung la loi CHAT-19.
+
+Nen sau CHAT-19, ket qua dung nhung khong du: vi the o tai khoan EUR duoc DANH DAU la
+khong trong duoc — thay vi bi trong sai o muc lech 17%. Ma tai khoan luu bang EUR la
+mac dinh, nen "khong trong duoc" ap cho gan nhu MOI vi the. `stop_only` mat gan het y
+nghia. Luot nay lam not phan con lai: cho VM quy doi duoc.
+
+### A. Quyet dinh: APP gui ty gia, VM quy doi — khong phai VM tu lay
+
+- yfinance co `EURUSD=X`, de VM tu lay thi de hon nhieu va khong phai sua app.
+- Nhung luc do muc cat lo trong tin nhan Telegram duoc tinh bang MOT TY GIA KHAC voi
+  ty gia ma bang Portfolio dang hien. Nguoi doc co HAI con so cho cung mot muc stop, va
+  khong co cach nao biet so nao dung. Mot nguon thi sai cung sai o mot cho.
+- Nen anh chup mang them: `"fx": { "eurUsd": 1.1725, "asOf": "2026-09-28" }`.
+
+### B. `asOf` la bat buoc, va ty gia cu thi TU CHOI chu khong "co con hon khong"
+
+- Key `scanner:positions` duoc ghi theo SU KIEN (luc luu portfolio). Mot so khong ai
+  cham ba thang van mang theo ty gia ba thang tuoi. Quy doi bang no la dung lai DUNG cai
+  loi ma ca co che nay sinh ra de tranh: mot muc tu tin nhung sai.
+- Nen ben scanner co knob moi `config.INTRADAY["pos_fx_stale_d"] = 7`. Day la HAN SU
+  DUNG THAT, khac `pos_stale_h` (30 gio) — cai do chi lam tin nhan NOI la cu va khong
+  bao gio bo du lieu di.
+- Phia app: `fx` VANG MAT khoi anh chup khi khong co ty gia, va khong bao gio la mot so
+  1 lam day — `1` co nghia "EUR va USD la cung mot so", do la mot loi im lang.
+
+### C. Sua gi trong repo nay
+
+- `fx.ts`: them `latestEurUsdAsOf()` tra `{rate, date}`. Truoc day module chi giu
+  `latest` (mot so) va mot map theo ngay; nay giu ca `latestDate`. Cai NGAY moi la phan
+  cho phep nguoi doc ngoai app ket luan "ty gia nay qua cu, khong dung".
+- `positionsDigest.ts`: kieu moi `PositionsFx {eurUsd, asOf}`, tham so thu ba
+  `fx?: {rate, date} | null`, va `fx` chi duoc gan khi CO dong can no (`eur > 0`).
+  - MIXED CO Y khong phai ly do de gui ty gia: dong do co so nam o hai don vi, khong co
+    MOT don vi de quy doi TU do. Canh bao cua no la "phai tach tai khoan".
+  - Canh bao cua EUR doi theo: co ty gia thi noi ra ty gia va ngay; khong co thi noi
+    "chua co ty gia de gui kem".
+- `positionsFeed.ts`: truyen `latestEurUsdAsOf()` vao, va `bodyOf()` dua `fx` vao phan
+  so sanh — mot ty gia moi LA thong tin moi voi nguoi doc. Vi `fx` chi xuat hien khi co
+  dong EUR, viec nay khong the lam mot so toan USD bi ghi lai moi lan ty gia nhay.
+- `index.ts`: xuat `PositionsFx`.
+
+### D. Kiem
+
+- `positionsDigest.test.ts` len 28 xanh, 4 test moi: gui ty gia kem ngay khi co dong can
+  no (`stops` GOC khong doi); khong co ty gia thi noi ra va khong bao gio gui so 1 lam
+  day (lap qua `null`, `undefined`, `rate:0`, `NaN`, `date:''`); so toan USD khong bi
+  ty gia lam body doi; MIXED khong duoc gui ty gia.
+- `apps/desktop/tests/positionsFeed.test.ts` — FILE MOI, 3 test: ty gia den duoc
+  payload cung ngay; vang mat khi chua nap ty gia; va `'ok' -> 'skip' -> 'queued'` khi
+  CHI ty gia doi (chung minh `bodyOf` that su nhin `fx`).
+- 654/655 workspace. Test do van la `syncMerge.test.ts > writes the timestamp map once
+  per batch` (timeout 5000ms trong ca suite, 8/8 khi chay rieng) — xem CHAT-18/19.
+- `tsc --noEmit` sach, `npm run build` sach.
+- Cai bay da sap mot lan: test app moi bao warn CU va `d.fx` undefined, vi app resolve
+  `@screener/core` ve `packages/core/dist`. Phai `npm run build` trong `packages/core`
+  moi thay thay doi cua core.
+
+### E. Trien khai — CO thu tu, va can ca hai ben
+
+1. Deploy app (Pages) — buoc nay dang bi chan, xem ghi chu ve `wrangler pages deploy`.
+2. LUU PORTFOLIO mot lan sau khi deploy. Chua luu thi key `scanner:positions` cu van
+   chua co truong `fx`, va VM se xu su y nhu truoc (danh dau khong trong duoc). Vi
+   `lastBody` la bien module, nap lai trang la quen, nen lan luu dau tien sau deploy
+   chac chan se day.
+3. Ben VM: `git pull` trong repo scanner roi restart `watchd`. Hai ben KHONG phu thuoc
+   thu tu nhau: VM ban moi doc anh chup cu thi khong quy doi (khong chet), app ban moi
+   gui `fx` cho VM ban cu thi truong do bi bo qua.
+4. Sau do ty gia phai duoc lam moi it nhat 7 ngay mot lan — tuc la mo app mot lan moi
+   tuan. Qua han thi tin nhan mo phien NOI RA va noi cach sua, chu khong im lang.

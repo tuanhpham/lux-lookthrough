@@ -33,6 +33,7 @@ import {
 } from '@screener/core';
 import { scannerPut } from '../adapters/scannerClient.js';
 import { isHydrated } from '../adapters/storage.js';
+import { latestEurUsdAsOf } from './fx.js';
 
 /**
  * Same content twice = no write. D1's free tier counts writes, this shares that
@@ -49,7 +50,10 @@ let pending: ReturnType<typeof setTimeout> | null = null;
 const MIN_GAP_MS = 10_000;
 
 function bodyOf(d: PositionsDigest): string {
-  return JSON.stringify({ n: d.n, rows: d.rows, warn: d.warn });
+  // `fx` is part of the comparison: a new rate IS new information for the reader,
+  // and it only ever appears when a row needs it (see `PositionsFx`), so this cannot
+  // turn an all-USD portfolio into a write on every rate tick.
+  return JSON.stringify({ n: d.n, rows: d.rows, warn: d.warn, fx: d.fx });
 }
 
 async function send(digest: PositionsDigest): Promise<boolean> {
@@ -76,7 +80,9 @@ export async function publishPositions(
 ): Promise<'off' | 'skip' | 'queued' | 'ok' | 'err'> {
   try {
     if (!isHydrated()) return 'off';
-    const digest = buildPositionsDigest(list);
+    // The rate the Portfolio tab itself uses — see `latestEurUsdAsOf`. `null` when
+    // none is loaded, and the digest then says so rather than sending a filler 1.
+    const digest = buildPositionsDigest(list, new Date(), latestEurUsdAsOf());
     if (bodyOf(digest) === lastBody) return 'skip';
 
     const wait = MIN_GAP_MS - (Date.now() - lastSentAt);

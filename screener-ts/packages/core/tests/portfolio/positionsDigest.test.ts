@@ -279,6 +279,61 @@ describe('currency — flagged, never silently converted', () => {
     expect(d.warn.join(' ')).not.toContain('lệnh chờ');
   });
 
+  it('sends the rate with the snapshot when a row needs it, and names the day', () => {
+    // The reader has no FX source. Without the rate it can only stand aside; with
+    // it, it can convert AND say which rate it used — which is the difference
+    // between a level the user can check and one they have to trust.
+    const st = acct('TA Trade Republic', 'EUR');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 186, shares: 15,
+              stop: 132, priceCurrency: 'USD', fxRateAtBuy: 1.25 }, counterIds('A'));
+
+    const d = buildPositionsDigest([st], AT, { rate: 1.1725, date: '2026-09-25' });
+    expect(d.fx).toEqual({ eurUsd: 1.1725, asOf: '2026-09-25' });
+    // The level itself is untouched: one side converts, and it is not this one.
+    expect(d.rows[0]!.stops).toEqual([132]);
+    expect(d.warn.join(' ')).toContain('1.1725');
+    expect(d.warn.join(' ')).toContain('2026-09-25');
+  });
+
+  it('says so instead when no rate is known, and never sends a filler 1', () => {
+    const st = acct('TA Trade Republic', 'EUR');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 186, shares: 15,
+              stop: 132, priceCurrency: 'USD', fxRateAtBuy: 1.25 }, counterIds('A'));
+
+    for (const bad of [null, undefined, { rate: 0, date: '2026-09-25' },
+                       { rate: Number.NaN, date: '2026-09-25' },
+                       { rate: 1.17, date: '' }]) {
+      const d = buildPositionsDigest([st], AT, bad);
+      expect(d.fx, JSON.stringify(bad)).toBeUndefined();
+      expect(d.warn.join(' ')).toContain('chưa có tỷ giá');
+    }
+  });
+
+  it('withholds the rate from an all-USD portfolio, so the body stays stable', () => {
+    // The publisher skips the write when the body is unchanged. A rate attached to a
+    // portfolio that cannot use it would change the body on every rate tick and burn
+    // a D1 write for nothing.
+    const st = acct('TA IBKR', 'USD');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 232.5, shares: 10, stop: 210 }, counterIds('A'));
+
+    expect(buildPositionsDigest([st], AT, { rate: 1.1725, date: '2026-09-25' }).fx)
+      .toBeUndefined();
+  });
+
+  it('withholds the rate from a MIXED row, because there is nothing to convert from', () => {
+    const e = acct('EUR acct', 'EUR');
+    const u = acct('USD acct', 'USD');
+    buy(e, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 186, shares: 5,
+             stop: 132, priceCurrency: 'USD', fxRateAtBuy: 1.25 }, counterIds('e'));
+    buy(u, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 232.5, shares: 5,
+             stop: 210, priceCurrency: 'USD' }, counterIds('u'));
+
+    const d = buildPositionsDigest([e, u], AT, { rate: 1.1725, date: '2026-09-25' });
+    expect(d.rows[0]!.cur).toBe('MIXED');
+    expect(d.fx).toBeUndefined();
+    expect(d.warn.join(' ')).toContain('phải tách tài khoản');
+  });
+
   it('warns about open positions with no stop at all', () => {
     const st = acct('A');
     buy(st, { ticker: 'AAPL', buyDate: '2026-09-01', buyPrice: 200, shares: 10 }, counterIds('A'));
