@@ -206,6 +206,18 @@ describe('planReportHtml', () => {
     expect(eur).not.toContain('$100.00');
   });
 
+  it('puts euro levels back into dollars for the chart, and drops it with no rate', () => {
+    // The bars are raw USD closes, so a €-denominated stop has to be converted before it can
+    // be drawn against them — and if the rate is unknown, a chart with the lines in the wrong
+    // place is worse than none.
+    const withRate = planReportHtml(input({ currency: 'EUR', fxRate: 1.2 }));
+    expect(withRate).toContain('<svg');
+    expect(withRate).toContain('€100.00');          // the money is still in euros
+    expect(planReportHtml(input({ currency: 'EUR' }))).not.toContain('<svg');
+    // A dollar plan is unaffected by a rate being present.
+    expect(planReportHtml(input({ fxRate: 1.2 }))).toContain('<svg');
+  });
+
   it('prints a dash rather than a wrong number when a level is missing', () => {
     // Half-finished plans get printed too. A blank target must not become a 0:1 R:R.
     const html = planReportHtml(input({

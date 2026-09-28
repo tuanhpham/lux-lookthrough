@@ -216,6 +216,14 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     en: 'Download this trade plan as a standalone HTML file — open it and print to save as PDF',
     vi: 'Tải kế hoạch giao dịch này thành một tệp HTML độc lập — mở ra rồi in để lưu PDF',
   },
+  // The user's "doi khi minh chi muon xem thoi chu khong muon print": the same document, read
+  // on screen. The viewer carries its own print button, so this is not a lesser version of it.
+  'plan.view': { en: 'View plan', vi: 'Xem kế hoạch' },
+  'plan.viewtitle': {
+    en: 'Read the full trade plan on screen — with a print button, if you want it after all',
+    vi: 'Đọc toàn bộ kế hoạch giao dịch trên màn hình — có nút in ở trong, nếu cuối cùng bạn vẫn muốn in',
+  },
+  'plan.viewttl': { en: 'Trade plan', vi: 'Kế hoạch giao dịch' },
   'wl.plan.cfg': { en: 'Playbook', vi: 'Cẩm nang' },
   'wl.plan.cfgtitle': {
     en: 'Change the playbook’s numbers: stops, targets, size per setup, and where A/B/C fall',
@@ -261,7 +269,21 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'Cỡ đầy đủ {full} → {pct} theo hạng này → {now}',
   },
   'wl.plan.frombook': { en: 'Playbook', vi: 'Cẩm nang' },
-  'wl.plan.usdlevels': { en: 'Entry, stop and target are in USD', vi: 'Giá vào, cắt lỗ và mục tiêu tính bằng USD' },
+  // Was `usdlevels`, a fixed sentence: the boxes now follow the €/$ toggle, because the user
+  // buys these names in euros most of the time and a stop has to be typeable in the currency
+  // the broker quotes.
+  'wl.plan.levelccy': {
+    en: 'Entry, stop and target are in {ccy}',
+    vi: 'Giá vào, cắt lỗ và mục tiêu tính bằng {ccy}',
+  },
+  'wl.plan.ccytitle': {
+    en: 'Switch this panel between € and $ — the prices in the boxes convert with it, at the trade date’s rate',
+    vi: 'Đổi bảng này giữa € và $ — giá trong các ô cũng được đổi theo, theo tỷ giá của ngày giao dịch',
+  },
+  'wl.plan.ccynorate': {
+    en: 'No EUR/USD rate loaded yet, so nothing can be converted — press ↻ Update on the Portfolio tab',
+    vi: 'Chưa nạp tỷ giá EUR/USD nên chưa thể quy đổi — bấm ↻ Cập nhật ở tab Danh Mục',
+  },
   'wl.plan.picksetup': {
     en: 'Pick a <b>Setup</b> to get the stop, the target and the share count from the playbook.',
     vi: 'Chọn <b>Loại thiết lập</b> để cẩm nang tính cắt lỗ, mục tiêu và số cổ.',

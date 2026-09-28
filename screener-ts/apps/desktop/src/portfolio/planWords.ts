@@ -61,6 +61,12 @@ export const LEVEL_WARN: Record<string, [string, string]> = {
     'Cấu trúc đặt cắt lỗ xa hơn thước đo ATR — đúng thì vẫn là đúng, nên số cổ nhỏ đi thay vì kéo cắt lỗ lại gần.',
     'Structure puts the stop wider than the ATR guide — that stands, so the share count shrinks instead of the stop moving in.',
   ],
+  // The only warning in this table that says a number was CHANGED, so it says which rule
+  // changed it and where to go and argue with that rule.
+  stopCappedByMax: [
+    'Đáy cấu trúc nằm sâu hơn mức cắt lỗ tối đa (EMA / ATR) nên cắt lỗ đã được kéo lên đúng mức đó — sửa ở ⚙ Cẩm nang nếu bạn muốn giữ nguyên đáy.',
+    'The structural low sat deeper than the maximum stop (EMA / ATR), so the stop was pulled up to it — change that in ⚙ Playbook if you would rather keep the low.',
+  ],
   belowMinRR: [
     'Dưới mức R:R tối thiểu. Cẩm nang: bỏ qua, bất kể mẫu hình đẹp đến đâu.',
     'Under the minimum R:R. The book: skip it, however pretty the pattern.',
@@ -154,10 +160,20 @@ export function planLines(plan: BuyPlan, opts: PlanWordOpts): string[] {
   const { vi, levelSym, moneySym } = opts;
   const lines: string[] = [];
 
+  // What the stop is hanging on — the anchor, UNLESS the cap overrode it. Naming the
+  // anchor for a capped stop would describe a level the plan does not contain: the whole
+  // point of the cap is that the stop is no longer at the low.
+  // No price is printed for the cap: `plan.stop` is in the form's currency and
+  // `plan.levels.maxStopPrice` is raw USD, and one of those with the other's symbol in
+  // front of it is exactly the silent error `fromUsd` exists to avoid.
+  const capped = plan.levels.warnings.includes('stopCappedByMax');
   const anchor = ANCHOR_MEANS[plan.levels.rule.means];
+  const stopWhy = capped
+    ? (vi ? 'đã kéo lên mức chặn tối đa (EMA / ATR)' : 'pulled up to the maximum stop (EMA / ATR)')
+    : (vi ? anchor![0] : anchor![1]);
   lines.push(
     `<b>${vi ? 'Cắt lỗ' : 'Stop'}</b> ${levelSym}${num(plan.stop)} ` +
-    `<span class="muted">(${plan.stopPct.toFixed(1)}% — ${vi ? anchor![0] : anchor![1]})</span>` +
+    `<span class="muted">(${plan.stopPct.toFixed(1)}% — ${stopWhy})</span>` +
     (plan.target !== null
       ? ` · <b>${vi ? 'Mục tiêu' : 'Target'}</b> ${levelSym}${num(plan.target)}` +
         (plan.rMultiple !== null ? ` <span class="muted">(${plan.rMultiple.toFixed(1)}R)</span>` : '')

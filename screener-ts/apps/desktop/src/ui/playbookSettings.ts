@@ -48,9 +48,15 @@ import {
 // setups the same way.
 import { setupName } from '../portfolio/planWords.js';
 
-/** Editable numeric fields of a setup rule, in column order. */
-const NUM_FIELDS = ['lookback', 'padPct', 'atrMult', 'firstTargetR', 'targetEma', 'trailEma', 'maxHoldSessions'] as const;
+/** Editable numeric fields of a setup rule. The first three are in column order. */
+const NUM_FIELDS = [
+  'lookback', 'padPct', 'atrMult',
+  'maxStopEma', 'firstTargetR', 'targetEma', 'trailEma', 'maxHoldSessions',
+] as const;
 type NumField = (typeof NUM_FIELDS)[number];
+
+/** Numeric fields where an empty box means "none" rather than "keep the default". */
+const NULLABLE_FIELDS: readonly NumField[] = ['maxStopEma', 'targetEma', 'trailEma', 'maxHoldSessions'];
 
 const LADDER_FIELDS: { key: keyof RiskLadderConfig; vi: string; en: string; hint: { vi: string; en: string } }[] = [
   { key: 'learningPct', vi: 'Rủi ro khi đang học (%)', en: 'Risk while learning (%)',
@@ -76,6 +82,11 @@ const ANCHORS: { value: SetupRule['anchor']; vi: string; en: string }[] = [
   { value: 'signalBarLow', vi: 'Đáy nến tín hiệu', en: 'Signal bar low' },
   { value: 'lowestLowN', vi: 'Đáy thấp nhất N phiên', en: 'Lowest low of N' },
   { value: 'atr', vi: 'Theo ATR', en: 'By ATR' },
+];
+const MAX_STOP_REFS: { value: SetupRule['maxStopRef']; vi: string; en: string }[] = [
+  { value: 'deeper', vi: 'Mốc sâu hơn', en: 'The deeper one' },
+  { value: 'shallower', vi: 'Mốc gần hơn', en: 'The nearer one' },
+  { value: 'off', vi: 'Không chặn', en: 'No cap' },
 ];
 const TARGETS: { value: SetupRule['targetKind']; vi: string; en: string }[] = [
   { value: 'rMultiple', vi: 'Bội số R', en: 'R multiple' },
@@ -277,6 +288,8 @@ export async function openPlaybookSettings(
               ${head('N phiên', 'N sessions', vi ? 'Số phiên cho đáy thấp nhất và chiều cao nền' : 'Sessions for the lowest low and the base height')}
               ${head('Đệm %', 'Pad %', vi ? 'Nới thêm dưới đáy: cắt lỗ đặt đúng ngay đáy sẽ bị chính cái bóng nến đó quét' : 'Room below the low: a stop sitting on it is swept by the wick that made it')}
               ${head('× ATR', '× ATR', vi ? 'Cắt lỗ khi neo theo ATR, và là thước đo “cắt lỗ này có xa bất thường không”' : 'The stop when anchored on ATR, and the yardstick for “is this stop unusually wide?”')}
+              ${head('EMA chặn', 'Cap EMA', vi ? 'Cắt lỗ không được sâu hơn EMA này (cùng với mốc ATR bên trái). Trống = chỉ chặn bằng ATR.' : 'The stop may not sit deeper than this EMA (together with the ATR mark to the left). Empty = cap on ATR alone.')}
+              ${head('Lấy mốc', 'Cap by', vi ? '“Mốc sâu hơn”: chỉ kéo cắt lỗ lên khi nó sâu hơn CẢ hai mốc — rộng rãi, và là mặc định. “Mốc gần hơn”: mốc nào gần giá vào hơn thì mốc đó quyết định — chặt hơn nhiều. “Không chặn”: để cấu trúc quyết định và giảm số cổ, đúng như cẩm nang.' : '“The deeper one”: pull the stop in only when it was below BOTH marks — generous, and the default. “The nearer one”: whichever mark is closer to the entry decides — much tighter. “No cap”: structure decides and the share count absorbs it, as the book has it.')}
               ${head('Mục tiêu', 'Target')}
               ${head('R đầu', 'First R', vi ? 'Chốt một nửa ở bội số R này' : 'Take half off at this R multiple')}
               ${head('EMA chốt', 'Exit EMA')}
@@ -304,6 +317,11 @@ export async function openPlaybookSettings(
                     ${ANCHORS.map((a) => `<option value="${a.value}"${a.value === r.anchor ? ' selected' : ''}>${vi ? a.vi : a.en}</option>`).join('')}
                   </select></td>
                   ${NUM_FIELDS.slice(0, 3).map((f) => `<td style="padding:3px 6px">${numInput(k, f, r[f])}</td>`).join('')}
+                  <td style="padding:3px 6px">${numInput(k, 'maxStopEma', r.maxStopEma)}</td>
+                  <td style="padding:3px 6px"><select class="field" data-setup="${k}" data-field="maxStopRef"
+                    style="width:100%;min-width:118px;padding:4px 6px;font-size:12px">
+                    ${MAX_STOP_REFS.map((a) => `<option value="${a.value}"${a.value === r.maxStopRef ? ' selected' : ''}>${vi ? a.vi : a.en}</option>`).join('')}
+                  </select></td>
                   <td style="padding:3px 6px"><select class="field" data-setup="${k}" data-field="targetKind"
                     style="width:100%;min-width:120px;padding:4px 6px;font-size:12px">
                     ${TARGETS.map((a) => `<option value="${a.value}"${a.value === r.targetKind ? ' selected' : ''}>${vi ? a.vi : a.en}</option>`).join('')}
@@ -418,14 +436,14 @@ export async function openPlaybookSettings(
       for (const el of host.querySelectorAll<HTMLElement>(`[data-setup="${k}"]`)) {
         const field = el.dataset.field as keyof SetupRule;
         const raw = (el as HTMLInputElement).value.trim().replace(',', '.');
-        if (field === 'anchor' || field === 'targetKind') {
+        if (field === 'anchor' || field === 'targetKind' || field === 'maxStopRef') {
           if (raw && raw !== d[field]) (diff as Record<string, string>)[field] = raw;
           continue;
         }
-        // Empty means null ("no trail", "never expires") for the fields that allow it,
-        // and "leave the default alone" for the ones that do not.
+        // Empty means null ("no trail", "never expires", "cap on ATR alone") for the fields
+        // that allow it, and "leave the default alone" for the ones that do not.
         if (!raw) {
-          if (d[field] !== null && (field === 'targetEma' || field === 'trailEma' || field === 'maxHoldSessions')) {
+          if (d[field] !== null && (NULLABLE_FIELDS as readonly string[]).includes(field)) {
             (diff as Record<string, null>)[field] = null;
           }
           continue;

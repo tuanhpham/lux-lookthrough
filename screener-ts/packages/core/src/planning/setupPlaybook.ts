@@ -22,10 +22,20 @@
  *
  * ── THE ONE RULE THAT MUST NOT BE SOFTENED ──────────────────────────────────
  * A stop is placed by structure, never by the money at risk: "the market does not
- * know what you can stomach". So when the structural stop comes out wider than the
- * ATR guide, this module does NOT pull it in — it widens the stop and shrinks the
- * share count, and warns. Clamping the stop to fit a share count is the single
- * mistake the playbook ranks first among its ways to lose money.
+ * know what you can stomach". So a stop is never pulled in to make a share count
+ * bigger. When the structural stop comes out wide, this module widens the stop and
+ * shrinks the position, and warns. Clamping the stop to fit a share count is the
+ * single mistake the playbook ranks first among its ways to lose money.
+ *
+ * ── AND THE ONE CAP THAT IS NOT THAT MISTAKE ─────────────────────────────────
+ * `maxStopEma` / `maxStopRef` do clamp the stop — but against two other *market*
+ * measurements (an EMA and the ATR guide), never against money. "Structure says the
+ * idea is wrong below the 21 EMA and below 2×ATR; a low from fourteen sessions ago is
+ * not this trade's structure" is a statement about the chart, and the arithmetic
+ * cannot tell the difference between a valid deep anchor and a stale one. The cap is
+ * also honest about its cost: a stop pulled in is a stop closer to the noise, so it
+ * warns (`stopCappedByMax`) whenever it bites, and `maxStopRef: 'deeper'` — the
+ * default — keeps it rare by taking the more generous of the two references.
  */
 import { atr } from '../indicators/atr.js';
 import { emaOfCloses } from '../indicators/ema.js';
@@ -81,6 +91,36 @@ export interface SetupRule {
   /** ATR(14) multiple: the stop when `anchor === 'atr'`, and the "is this stop unusually
    * wide?" yardstick for every other anchor. */
   atrMult: number;
+  /**
+   * EMA that helps decide how far the stop is ALLOWED to be — the deepest price it may
+   * sit at, together with the ATR guide. `null` = leave the EMA out and cap on ATR alone.
+   *
+   * 21 by default, for every setup: it is the line the book already trails and judges a
+   * trigger against, so a stop below it and below 2×ATR is a stop hung on something that
+   * is no longer this trade.
+   */
+  maxStopEma: number | null;
+  /**
+   * Which of the two caps wins when both can be measured — and whether to cap at all.
+   *
+   * `'deeper'` takes the LOWER of the EMA and `entry − atrMult × ATR`, so the stop is only
+   *   pulled in when it was below both. The more generous reading, and the default.
+   * `'shallower'` takes the HIGHER of the two, so whichever reference is nearer the entry
+   *   decides. Much tighter — it will cap a breakout to a 2% stop on a day the entry
+   *   happens to sit just above the 21 EMA, which is a stop the next wick takes out. Here
+   *   because it is the other honest reading of "the stop should be at most the EMA or the
+   *   ATR, whichever is smaller", and because it is the user's money.
+   * `'off'` no cap: structure decides and the share count absorbs it. This is what every
+   *   setup did before the cap existed, and it is the reading the book itself takes — so it
+   *   stays reachable per setup rather than being a version of the app you cannot get back.
+   *
+   * Note that with only one reference measurable — the EMA sitting at or above the entry,
+   * which is price below its own 21 EMA — `'deeper'` and `'shallower'` both fall back to the
+   * ATR guide alone, and the cap then bites on every wide structural stop. That is the rule
+   * as asked for, but it is the case where it is least generous, so `stopCappedByMax` and
+   * `maxStopPrice` exist to make it say so.
+   */
+  maxStopRef: 'deeper' | 'shallower' | 'off';
   targetKind: TargetKind;
   /** First partial exit in R. Half the position, per the playbook. */
   firstTargetR: number;
@@ -112,37 +152,37 @@ export interface SetupRule {
  */
 export const DEFAULT_SETUP_RULES: Readonly<Record<SetupKey, SetupRule>> = {
   VCP: {
-    anchor: 'lowestLowN', lookback: 10, padPct: 0.3, atrMult: 2,
+    anchor: 'lowestLowN', lookback: 10, padPct: 0.3, atrMult: 2, maxStopEma: 21, maxStopRef: 'deeper',
     targetKind: 'rMultiple', firstTargetR: 3, targetEma: null,
     trailEma: 10, maxHoldSessions: null, means: 'contractionLow', source: 'playbook',
   },
   Breakout: {
-    anchor: 'signalBarLow', lookback: 20, padPct: 0.3, atrMult: 2,
+    anchor: 'signalBarLow', lookback: 20, padPct: 0.3, atrMult: 2, maxStopEma: 21, maxStopRef: 'deeper',
     targetKind: 'measuredMove', firstTargetR: 2, targetEma: null,
     trailEma: 10, maxHoldSessions: null, means: 'breakoutBarLow', source: 'playbook',
   },
   Pullback: {
-    anchor: 'lowestLowN', lookback: 10, padPct: 0.3, atrMult: 2,
+    anchor: 'lowestLowN', lookback: 10, padPct: 0.3, atrMult: 2, maxStopEma: 21, maxStopRef: 'deeper',
     targetKind: 'rMultiple', firstTargetR: 2, targetEma: null,
     trailEma: 21, maxHoldSessions: null, means: 'pullbackLow', source: 'playbook',
   },
   'Mean Reversion': {
-    anchor: 'signalBarLow', lookback: 5, padPct: 0.3, atrMult: 2,
+    anchor: 'signalBarLow', lookback: 5, padPct: 0.3, atrMult: 2, maxStopEma: 21, maxStopRef: 'deeper',
     targetKind: 'ema', firstTargetR: 2, targetEma: 20,
     trailEma: null, maxHoldSessions: 7, means: 'signalBarLow', source: 'playbook',
   },
   EP: {
-    anchor: 'signalBarLow', lookback: 5, padPct: 0.3, atrMult: 2,
+    anchor: 'signalBarLow', lookback: 5, padPct: 0.3, atrMult: 2, maxStopEma: 21, maxStopRef: 'deeper',
     targetKind: 'rMultiple', firstTargetR: 2, targetEma: null,
     trailEma: 10, maxHoldSessions: null, means: 'gapBarLow', source: 'derived',
   },
   Surge: {
-    anchor: 'lowestLowN', lookback: 3, padPct: 0.3, atrMult: 2,
+    anchor: 'lowestLowN', lookback: 3, padPct: 0.3, atrMult: 2, maxStopEma: 21, maxStopRef: 'deeper',
     targetKind: 'rMultiple', firstTargetR: 2, targetEma: null,
     trailEma: 10, maxHoldSessions: null, means: 'recentLow', source: 'derived',
   },
   Other: {
-    anchor: 'atr', lookback: 10, padPct: 0, atrMult: 1.5,
+    anchor: 'atr', lookback: 10, padPct: 0, atrMult: 1.5, maxStopEma: 21, maxStopRef: 'deeper',
     targetKind: 'rMultiple', firstTargetR: 2, targetEma: null,
     trailEma: null, maxHoldSessions: null, means: 'atrOnly', source: 'derived',
   },
@@ -431,6 +471,12 @@ export function riskBudget(
 export type LevelWarning =
   /** Structure put the stop further away than `atrMult × ATR`. Allowed, but size shrinks. */
   | 'stopWiderThanAtr'
+  /**
+   * The structural stop was deeper than `maxStopPrice`, so it was pulled up to it. The one
+   * warning here that is about a number having been CHANGED rather than merely being
+   * unusual — the user is looking at a stop the anchor did not choose.
+   */
+  | 'stopCappedByMax'
   /** `rMultiple < minRR`. The book: skip it, however pretty the pattern. */
   | 'belowMinRR'
   /** Not enough bars for the anchor or the EMA — fell back to ATR. */
@@ -451,6 +497,20 @@ export interface LevelSuggestion {
   rMultiple: number | null;
   /** The structural price the stop was hung on (before padding), or null for pure ATR. */
   anchorPrice: number | null;
+  /**
+   * The deepest price the stop was allowed to sit at — "max stop" as a price rather than a
+   * distance, since that is what the chart and the broker both want. null when neither cap
+   * reference could be measured (too few bars for the EMA and for ATR).
+   *
+   * Reported whether or not it bit, because "your stop is 4.10 and it could have gone to
+   * 3.80" is the sentence that makes the rule visible.
+   */
+  maxStopPrice: number | null;
+  /**
+   * The cap's EMA at the last bar — null when `maxStopEma` is off, there are too few bars
+   * for it, or it is not below the entry and so was not a candidate at all.
+   */
+  maxStopEmaValue: number | null;
   /** ATR(14) at the last bar, for the app to show alongside. */
   atr: number | null;
   rule: SetupRule;
@@ -509,10 +569,38 @@ export function suggestLevels(
       warnings.push('fellBackToAtr');
     }
   }
+  // ── how far the stop is ALLOWED to be ──
+  // The user's rule, applied to every setup: "stop should be at most the EMA or the ATR".
+  // Both references are prices, and only the ones BELOW the entry are candidates — an EMA
+  // above the entry is not a stop, and in `'shallower'` mode it would produce one above the
+  // entry, which `suggestLevels` must never return.
+  const capping = rule.maxStopRef !== 'off';
+  const emaSeries = capping && rule.maxStopEma && bars.length >= rule.maxStopEma
+    ? emaOfCloses(bars, rule.maxStopEma) : null;
+  const emaNow = emaSeries?.[emaSeries.length - 1];
+  const emaCap = emaNow !== undefined && !Number.isNaN(emaNow) && emaNow > 0 && emaNow < entry
+    ? emaNow : null;
+  const atrCap = capping && atrVal !== null && entry - atrVal * rule.atrMult > 0
+    ? entry - atrVal * rule.atrMult : null;
+  const caps = [emaCap, atrCap].filter((v): v is number => v !== null);
+  const maxStopPrice = caps.length
+    ? pyRound(rule.maxStopRef === 'deeper' ? Math.min(...caps) : Math.max(...caps), 2)
+    : null;
+
   stop = pyRound(stop, 2);
+  // Only ever upward: the cap limits the DISTANCE, so it raises a too-deep stop and must
+  // never push a tight one down to meet it — a stop nearer than the rule asks for is the
+  // user's business, and widening it for them would be this module inventing risk.
+  if (maxStopPrice !== null && maxStopPrice < entry && stop < maxStopPrice) {
+    stop = maxStopPrice;
+    warnings.push('stopCappedByMax');
+  }
   if (!(stop > 0) || stop >= entry) return null;
 
   const riskPerShare = entry - stop;
+  // After the cap, not before: the warning is about the stop the user is being handed. With
+  // `'deeper'` the two can both fire — an EMA below the ATR guide caps the stop and leaves it
+  // wider than the guide — and both are then true.
   if (atrVal !== null && riskPerShare > atrVal * rule.atrMult) warnings.push('stopWiderThanAtr');
 
   // ── the target ──
@@ -547,6 +635,8 @@ export function suggestLevels(
     stopPct: pyRound((riskPerShare / entry) * 100, 2),
     rMultiple,
     anchorPrice: anchorPrice !== null ? pyRound(anchorPrice, 2) : null,
+    maxStopPrice,
+    maxStopEmaValue: emaCap !== null ? pyRound(emaCap, 2) : null,
     atr: atrVal !== null ? pyRound(atrVal, 4) : null,
     rule,
     warnings,

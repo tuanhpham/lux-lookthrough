@@ -40,6 +40,14 @@ export interface PlanReportInput {
   levels: PlanLevels;
   shares: number;
   currency: 'EUR' | 'USD';
+  /**
+   * 1 EUR = N USD on `date` — needed ONLY to draw euro levels on a chart of dollar closes.
+   *
+   * Passed in rather than read from `fx.ts` so this module stays a pure function of its input
+   * (see the header). Omitted, or with `currency: 'USD'`, nothing is converted; omitted WITH
+   * euro levels the chart is dropped rather than drawn with the lines off the axis.
+   */
+  fxRate?: number;
   /** The intended trade date, which is also what the chart is centred on. */
   date: string;
   /** Daily bars for the chart. An empty array simply omits it. */
@@ -133,10 +141,17 @@ export function planReportHtml(i: PlanReportInput): string {
 
   // The chart, drawn at the levels the plan is actually placing — the same renderer the case
   // studies use, so the exported plan and the exported post-mortem look like one document.
+  //
+  // The LEVELS go back to dollars first. The bars are raw closes and the boxes may have been
+  // filled in euros (which is the common case for this user), and a €198 line on a $232 chart
+  // is not a wrong label, it is a line off the bottom of the axis. The money elsewhere in the
+  // document stays in `i.currency`: that is the currency the trade is being placed in.
+  const fx = i.currency === 'EUR' && i.fxRate && i.fxRate > 0 ? i.fxRate : 0;
+  const chartPx = (v: number | null): number | null => (v === null ? v : fx > 0 ? v * fx : v);
   const subject: ChartSubject = {
-    entry: levels.entry,
-    stop: levels.stop,
-    target: levels.target,
+    entry: chartPx(levels.entry),
+    stop: chartPx(levels.stop),
+    target: chartPx(levels.target),
     exitPrice: null,
     keyDate: i.date,
     exitDate: null,
@@ -144,7 +159,11 @@ export function planReportHtml(i: PlanReportInput): string {
     catalysts: [],
   };
   const win = planWindow(i.bars, i.date);
-  const chart = win.length >= 5
+  // No rate for euro levels means the lines cannot be placed against these candles at all.
+  // A chart with the lines in the wrong place is worse than no chart, because it is the part
+  // of this document a reader trusts without reading.
+  const plottable = i.currency !== 'EUR' || fx > 0;
+  const chart = win.length >= 5 && plottable
     ? `<div class="chart">${caseSvgChart(win, subject, { width: 980, height: 420 })}</div>`
     : '';
 

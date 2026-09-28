@@ -64,7 +64,7 @@ import { accountPrices as prices, setAccountPrices, seedPrice } from '../portfol
 // The EURUSD table left this file for the same reason: a chat-recorded buy has to
 // divide a USD fill by the rate on the trade date, and a second rate table would
 // give the same trade two different cost bases depending on who booked it.
-import { applyEurUsdBars, eurUsdForDate, latestEurUsd } from '../portfolio/fx.js';
+import { applyEurUsdBars, eurUsdForDate, hasEurUsd, latestEurUsd } from '../portfolio/fx.js';
 // `snapshotNow` is shared with the assistant's write path, so a chat buy moves the
 // equity curve today exactly as the Buy button does. `onAgentWrite` fires only for
 // writes this tab did not make — see the note on the notifier.
@@ -90,7 +90,7 @@ import {
 } from '../portfolio/planStore.js';
 import { gradePanelHtml } from '../portfolio/gradeView.js';
 import { ackLabel, buyGate, gateWords } from '../portfolio/buyGate.js';
-import { openPlanReport, printPlanReport } from '../portfolio/planReport.js';
+import { openPlanReport, printPlanReport, type PlanReportInput } from '../portfolio/planReport.js';
 // A buy freezes its plan under its own key, so opening a trade months later shows the plan it
 // was made on and not the one the symbol has now. See `planSnapshot.ts`.
 import {
@@ -256,6 +256,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   const gateEl = $('#b-gatehint');
   const goEl = $('#b-go') as HTMLButtonElement | null;
   const printEl = $('#b-plan-print') as HTMLButtonElement | null;
+  const viewEl = $('#b-plan-view') as HTMLButtonElement | null;
   const resetEl = $('#b-reset') as HTMLButtonElement | null;
   // The note editor's contenteditable, reached directly: `wireRichEditor` runs later in
   // `wire()` and only hands back a getter, and this needs to WRITE the plan's note in.
@@ -413,6 +414,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     }
     if (gateEl) gateEl.innerHTML = words ? `<span class="muted">${words}</span>` : '';
     if (printEl) printEl.disabled = !symNow();
+    if (viewEl) viewEl.disabled = !symNow();
   };
 
   /**
@@ -759,20 +761,43 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     };
   };
 
-  // Print the plan as it stands, not as it was stored: the user may have just moved the stop.
-  printEl?.addEventListener('click', () => {
-    if (!symNow()) return;
-    printPlanReport({
+  /**
+   * The report input as the form stands right now, not as it was stored: the user may have
+   * just moved the stop. Shared by the two buttons — see the markup for why there are two.
+   */
+  const reportNow = (): PlanReportInput => {
+    const date = dateEl?.value || today();
+    const ccy = (ccyEl?.value ?? 'USD') as 'EUR' | 'USD';
+    return {
       plan,
       grade,
       effective: effective(),
       levels: levelsNow(),
       shares: Number(sharesEl.value.replace(',', '.')) || 0,
-      currency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
-      date: dateEl?.value || today(),
+      currency: ccy,
+      // Euro levels have to go back to dollars to be drawn on a chart of dollar closes, and
+      // the rate is the trade date's — the same one the lot itself is recorded at.
+      ...(ccy === 'EUR' && hasEurUsd() ? { fxRate: eurUsdForDate(date) } : {}),
+      date,
       bars: lastBars,
       pctOfFull: effective() ? ladderConfig().ratingPct[effective()!] : 100,
       vi,
+    };
+  };
+
+  printEl?.addEventListener('click', () => {
+    if (!symNow()) return;
+    printPlanReport(reportNow());
+  });
+
+  // Read it on screen instead — "doi khi minh chi muon xem thoi chu khong muon print".
+  viewEl?.addEventListener('click', () => {
+    const sym = symNow();
+    if (!sym) return;
+    openPlanReport(reportNow(), {
+      title: `${sym} — ${t('plan.viewttl')}`,
+      print: t('pf.tx.planprint'),
+      close: t('pf.tx.planclose'),
     });
   });
 
@@ -1324,15 +1349,15 @@ function draw(ctx: AppContext): void {
 
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
-        <div class="row" style="justify-content:space-between;align-items:baseline">
+        <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
           <div class="section-title" style="margin-top:0">${t('pf.sec.buy')}</div>
-          <div class="row" style="gap:6px;flex-wrap:nowrap">
+          <div class="card-head-actions">
           <!-- Reset sits up here rather than beside Buy on purpose: it is about the FORM, and a
                button that empties everything is the last thing that should be a thumb's width
                from the one that places the trade. -->
-          <button id="b-reset" class="btn-outline" style="padding:2px 8px;font-size:11px"
+          <button id="b-reset" class="btn-outline mini-btn"
             title="${t('pf.buy.resettitle')}">✕ ${t('pf.buy.reset')}</button>
-          <button id="b-playbook-cfg" class="btn-outline" style="padding:2px 8px;font-size:11px"
+          <button id="b-playbook-cfg" class="btn-outline mini-btn"
             title="${getLang() === 'vi'
               ? 'Đổi các con số mặc định của cẩm nang: cắt lỗ, mục tiêu, cỡ vị thế theo từng thiết lập'
               : 'Change the playbook’s default numbers: stops, targets and size per setup'}"
@@ -1363,7 +1388,13 @@ function draw(ctx: AppContext): void {
         <div style="margin-top:8px">
           <div class="tp-note-head">
             <label class="field-label" style="margin-bottom:0">${t('pf.buy.plannote')}</label>
-            <button id="b-plan-print" class="btn-outline" style="padding:2px 8px;font-size:11px"
+            <!-- Both, on purpose — the user's "cu de ca 2 options la tot nhat". Reading the
+                 plan and filing it are different acts: one happens before every buy, the
+                 other once, and making the first one go through a download is why nobody
+                 would do it. The viewer has its own print button for changing your mind. -->
+            <button id="b-plan-view" class="btn-outline mini-btn"
+              title="${t('plan.viewtitle')}">👁 ${t('plan.view')}</button>
+            <button id="b-plan-print" class="btn-outline mini-btn"
               title="${t('plan.printtitle')}">⎙ ${t('plan.print')}</button>
           </div>
           ${richEditorHtml('buy-note', buyNoteDraft, { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 })}
@@ -1728,6 +1759,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
             levels: snap.levels,
             shares: snap.shares,
             currency: snap.currency,
+            // Not stored on the snapshot: the rate for a past date does not change, so the
+            // cache is as good a source as a copy would be — and one fewer field that can be
+            // missing on a record written by an older version.
+            ...(snap.currency === 'EUR' && hasEurUsd() ? { fxRate: eurUsdForDate(snap.date) } : {}),
             date: snap.date,
             bars,
             pctOfFull: snap.pctOfFull,

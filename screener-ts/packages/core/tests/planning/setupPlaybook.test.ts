@@ -177,21 +177,70 @@ describe('suggestLevels', () => {
     expect(s.stop).toBeLessThan(1000); // the stop is still usable
   });
 
-  it('WARNS about a structure stop wider than the ATR guide — and does NOT pull it in', () => {
+  // Quiet bars (daily range ~1 point) with one deep flush to 88 inside the lookback: a
+  // 12-point structural stop where the ATR guide would have said ~3.6. Shared by the two
+  // tests below, which are the same trade under the two readings of the cap.
+  const deepFlush = (): Bar[] => [
+    ...flat(60, 100, 99.5),
+    bar(60, 100, { high: 100.5, low: 88, open: 100 }),
+    ...Array.from({ length: 5 }, (_, i) => bar(61 + i, 100, { high: 100.5, low: 99.5 })),
+  ];
+
+  it('WARNS about a structure stop wider than the ATR guide — and does NOT pull it in for money', () => {
     // THE RULE THAT MUST NOT BE SOFTENED. Stops are placed by structure; clamping one
     // to fit a share count is moving the stop for money reasons, which is the book's
-    // first-listed way to lose money. The correct response is fewer shares.
-    // Quiet bars (daily range ~1 point) with one deep flush to 88 inside the lookback:
-    // a 12-point structural stop where the ATR guide would have said ~3.6.
-    const bars = [
-      ...flat(60, 100, 99.5),
-      bar(60, 100, { high: 100.5, low: 88, open: 100 }),
-      ...Array.from({ length: 5 }, (_, i) => bar(61 + i, 100, { high: 100.5, low: 99.5 })),
-    ];
-    const s = suggestLevels(bars, 100, 'Pullback')!;
+    // first-listed way to lose money. The correct response is fewer shares. `'off'` is
+    // that reading, and it stays reachable per setup.
+    const s = suggestLevels(deepFlush(), 100, 'Pullback', { Pullback: { maxStopRef: 'off' } })!;
     expect(s.warnings).toContain('stopWiderThanAtr');
+    expect(s.warnings).not.toContain('stopCappedByMax');
     expect(s.stop).toBeLessThan(88);                       // still under the real low
     expect(s.riskPerShare).toBeGreaterThan(s.atr! * 2);    // untouched by the ATR guide
+    expect(s.maxStopPrice).toBeNull();                     // nothing was even measured
+  });
+
+  it('caps that same stop against the ATR guide, and says it did', () => {
+    // The default rule now. Price is flat at its own 21 EMA, so the EMA is not below the
+    // entry and cannot be a stop — the ATR guide alone is the cap, which is the case where
+    // the cap bites hardest. See `maxStopRef`.
+    const s = suggestLevels(deepFlush(), 100, 'Pullback')!;
+    expect(s.warnings).toContain('stopCappedByMax');
+    expect(s.maxStopEmaValue).toBeNull();
+    expect(s.stop).toBeCloseTo(100 - s.atr! * 2, 2);
+    expect(s.stop).toBeGreaterThan(88);                    // pulled up off the flush low
+    expect(s.anchorPrice).toBeCloseTo(88, 2);              // but the anchor is still reported
+  });
+
+  it('takes the deeper of the EMA and the ATR guide, so the cap stays generous', () => {
+    // A steady advance: the entry sits well above the 21 EMA, so both references exist.
+    // 'deeper' must pick the lower of the two and leave a stop between them alone.
+    const bars = Array.from({ length: 80 }, (_, i) => bar(i, 100 + i, { high: 101 + i, low: 99 + i }));
+    const entry = 180;
+    const deep = suggestLevels(bars, entry, 'VCP')!;
+    const tight = suggestLevels(bars, entry, 'VCP', { VCP: { maxStopRef: 'shallower' } })!;
+    expect(deep.maxStopEmaValue).not.toBeNull();
+    expect(deep.maxStopPrice!).toBeLessThanOrEqual(tight.maxStopPrice!);
+    // The same two references, read the two ways: the tighter reading can only produce a
+    // stop at or above the more generous one.
+    expect(tight.stop).toBeGreaterThanOrEqual(deep.stop);
+  });
+
+  it('never pushes a stop DOWN to meet the cap — the cap limits distance only', () => {
+    // A tight stop the rule did not ask for: `Surge` anchors on the lowest low of 3, which
+    // here is inches below the entry, while the cap sits far lower. It must stay put.
+    const bars = Array.from({ length: 80 }, (_, i) => bar(i, 100 + i, { high: 101 + i, low: 99 + i }));
+    const s = suggestLevels(bars, 180, 'Surge')!;
+    expect(s.maxStopPrice!).toBeLessThan(s.stop);
+    expect(s.warnings).not.toContain('stopCappedByMax');
+  });
+
+  it('ignores an EMA that is not below the entry rather than stopping above it', () => {
+    // Falling into the entry: the 21 EMA is ABOVE price, so as a cap it would put the stop
+    // over the entry. 'shallower' is the reading that would do it, so test that one.
+    const bars = Array.from({ length: 60 }, (_, i) => bar(i, 200 - i, { high: 201 - i, low: 198 - i }));
+    const s = suggestLevels(bars, 141, 'Mean Reversion', { 'Mean Reversion': { maxStopRef: 'shallower' } })!;
+    expect(s.maxStopEmaValue).toBeNull();
+    expect(s.stop).toBeLessThan(141);
   });
 
   it('warns when the plan comes out under 2R instead of filling it silently', () => {

@@ -35,11 +35,22 @@
  * question from how big, and the two are not in competition.
  *
  * ── WHERE THE CURRENCIES SIT ────────────────────────────────────────────────
- * Bars, and therefore entry/stop/target, are raw USD — the levels are labelled as such and
- * never converted, because a stop is a price you type into a broker. Money (equity, position
- * value, risk) comes out of `buildBuyPlan` in the ACCOUNT's currency, so `planConv` converts
- * from THAT, not from USD. Getting this backwards is a silent error exactly the size of the
- * EURUSD rate.
+ * One toggle, `planCcy`, and it now governs the LEVELS as well as the money. The user buys
+ * these names in euros most of the time ("minh se mua bang gia EUR thuong xuyen") and a stop
+ * is a price you type into a broker, so it has to be typeable in the currency the broker
+ * quotes. So:
+ *
+ *   • the entry/stop/target boxes hold prices in `planCcy`, and `levelToUsd` converts them
+ *     back for anything that touches BARS (the chart's overlay, and `buildBuyPlan`, which
+ *     takes `entryCurrency` and hands its own levels back in the same currency);
+ *   • money (equity, position value, risk) comes out of `buildBuyPlan` in the ACCOUNT's
+ *     currency, so `planConv` converts from THAT, not from USD;
+ *   • one rate does all of it — `eurUsdForDate(planDate)`, the TRADE DATE's rate, the same
+ *     one `plannedPrice` records the lot at. A screen converting at today's rate while the
+ *     write converts at the trade date's is a disagreement nothing downstream would flag.
+ *
+ * Getting any of this backwards is a silent error exactly the size of the EURUSD rate, which
+ * is why the conversions live in three named functions and nowhere else.
  */
 import {
   scanQm, fetchMany, buildTradePlan, explainPlan, computeCash, computeEquity,
@@ -70,7 +81,7 @@ import { printPlanReport } from './planReport.js';
 import { savePlanSnapshot } from './planSnapshot.js';
 import { applyWrite, plannedPrice, type PlannedPrice, type Rating, type WritePlan } from './writes.js';
 import { accounts, ensureAccountsLoaded, today } from './store.js';
-import { ensureEurUsd } from './fx.js';
+import { ensureEurUsd, eurUsdForDate, hasEurUsd } from './fx.js';
 import { accountPrices, hasPrices } from './prices.js';
 import { drawCandles, type CandleChart, type TradeOverlay } from '../ui/charts.js';
 import { t, getLang } from '../ui/i18n.js';
@@ -138,13 +149,11 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
   if (!mount) return;
   const panel = mount.host;
 
-  // Latest EURUSD rate (shared with the Portfolio tab's cache) so USD levels can be
-  // turned into account money, and so the €/$ display toggle has something to use.
-  // `ensureEurUsd` first because the Buy button refuses without a rate on a EUR account,
-  // and the cache may be on disk but not yet in memory — this reads it, it never fetches.
+  // The EURUSD history (shared with the Portfolio tab's cache), so `planRate` has the trade
+  // date's rate to work from. `ensureEurUsd` first because the Buy button refuses without a
+  // rate on a EUR account, and the cache may be on disk but not yet in memory — this reads
+  // it, it never fetches.
   await ensureEurUsd(ctx).catch(() => {});
-  const fxBars = (await ctx.storage.get<Bar[]>('pf_eurusd_bars')) ?? [];
-  if (fxBars.length) planEurUsd = fxBars[fxBars.length - 1]!.close || 1;
 
   // Opening this panel IS the explicit "plan some trades" gesture, so this is the
   // right moment to spend a request on the regime — the size ladder must not run
@@ -190,7 +199,8 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
           }" step="10000" ${planAcctId ? 'disabled' : ''} />
           ${planAcctId ? `<div class="muted tp-ctl-note">${t('wl.plan.eqfromacct')}</div>` : ''}
         </div>
-        <button id="tp-ccy" class="btn-outline tp-ctl-btn" title="Toggle display currency">${planSym()} ${planCcy}</button>
+        <button id="tp-ccy" class="btn-outline tp-ctl-btn" ${planRate() > 0 ? '' : 'disabled'}
+          title="${planRate() > 0 ? t('wl.plan.ccytitle') : t('wl.plan.ccynorate')}">${planSym()} ${planCcy}</button>
         <button id="tp-refresh" class="btn-outline tp-ctl-btn">${t('wl.plan.run')}</button>
         <button id="tp-playbook-cfg" class="btn-outline tp-ctl-btn" title="${t('wl.plan.cfgtitle')}">⚙ ${t('wl.plan.cfg')}</button>
       </div>
@@ -219,8 +229,13 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
   const dateEl = document.getElementById('tp-date') as HTMLInputElement | null;
   dateEl?.addEventListener('change', () => {
     // An emptied box means "today" rather than nothing: a plan has to be dated to be sized.
+    const before = planRate();
     planDate = dateEl.value || today();
     dateEl.value = planDate;
+    // In euros the boxes are a USD level seen through the date's rate, so a new date is a new
+    // euro figure for the same trade. Without this the lines would slide against the candles.
+    const after = planRate();
+    if (planCcy === 'EUR' && before > 0 && after > 0) rescaleLevels(before / after);
     void computePlans(ctx);
   });
 
@@ -233,8 +248,15 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
     void openPlaybookSettings(ctx, planAccount(), () => void computePlans(ctx));
   });
 
-  // Currency toggle — display-only; repaint the money in the other currency.
+  // Currency toggle. It moves the PRICE BOXES too, not just the money — the user asked to be
+  // able to edit in euros because that is what they mostly buy in — so the levels are
+  // re-expressed at the trade date's rate as the same trade in the other currency. Disabled
+  // without a rate rather than converting at 1: see `planRate`.
   document.getElementById('tp-ccy')!.addEventListener('click', () => {
+    const r = planRate();
+    if (!(r > 0)) return;
+    // USD → EUR divides, EUR → USD multiplies. Read off `planCcy` BEFORE it flips.
+    rescaleLevels(planCcy === 'USD' ? 1 / r : r);
     planCcy = planCcy === 'USD' ? 'EUR' : 'USD';
     void renderPlannerPanel(ctx);
   });
@@ -246,9 +268,16 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
   acctSel?.addEventListener('change', () => {
     planAcctId = acctSel.value || null;
     const acct = planAccount();
-    // Follow the account's own currency by default — the money about to be shown is
-    // that account's money, and showing it in the other one is a choice, not a default.
-    if (acct) planCcy = acct.account.currency === 'EUR' ? 'EUR' : 'USD';
+    // Follow the account's own currency by default — the money about to be shown is that
+    // account's money, and showing it in the other one is a choice, not a default. Since the
+    // boxes follow `planCcy` too, this converts them as the toggle does, and refuses for the
+    // same reason when there is no rate: a EUR label over a USD number is the error.
+    const want = acct?.account.currency === 'EUR' ? 'EUR' : 'USD';
+    const r = planRate();
+    if (acct && want !== planCcy && r > 0) {
+      rescaleLevels(planCcy === 'USD' ? 1 / r : r);
+      planCcy = want;
+    }
     void renderPlannerPanel(ctx);
   });
 
@@ -320,9 +349,10 @@ async function computePlans(ctx: AppContext): Promise<void> {
     const prev = planEdits.get(plan.symbol);
     const saved = stored.get(plan.symbol);
     const edit: PlanEdit = prev ?? {
-      entry: plan.entry ?? null,
-      stop: plan.stop ?? null,
-      target: plan.target ?? null,
+      // `buildTradePlan` reads the bars, so its seed is USD; the boxes are in `planCcy`.
+      entry: usdToLevel(plan.entry),
+      stop: usdToLevel(plan.stop),
+      target: usdToLevel(plan.target),
       shares: plan.shares || 0,
       // The playbook's own answer is the default. The % chips are still there, one
       // click away, but they are now the override rather than the rule.
@@ -389,11 +419,11 @@ async function computePlans(ctx: AppContext): Promise<void> {
         <div class="tp-grade" data-tp-grade="${S}"></div>
 
         <div class="tp-fields">
-          <label class="tp-field"><span>${t('wl.plan.entry')}</span>
+          <label class="tp-field"><span>${t('wl.plan.entry')} (${planSym()})</span>
             <input class="field" type="number" step="any" inputmode="decimal" data-tp="entry" data-sym="${S}" value="${edit.entry ?? ''}" /></label>
-          <label class="tp-field"><span style="color:var(--danger)">${t('wl.plan.stop')}</span>
+          <label class="tp-field"><span style="color:var(--danger)">${t('wl.plan.stop')} (${planSym()})</span>
             <input class="field" type="number" step="any" inputmode="decimal" data-tp="stop" data-sym="${S}" value="${edit.stop ?? ''}" /></label>
-          <label class="tp-field"><span style="color:var(--accent)">${t('wl.plan.target')}</span>
+          <label class="tp-field"><span style="color:var(--accent)">${t('wl.plan.target')} (${planSym()})</span>
             <input class="field" type="number" step="any" inputmode="decimal" data-tp="target" data-sym="${S}" value="${edit.target ?? ''}" /></label>
           <label class="tp-field"><span>${t('wl.plan.shares')}</span>
             <input class="field" type="number" step="1" inputmode="numeric" data-tp="shares" data-sym="${S}" value="${edit.shares || ''}" /></label>
@@ -420,8 +450,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
         <div class="tp-note-head">
           <span class="tp-note-label">${t('wl.plan.note')}</span>
           <button type="button" class="note-btn has-note" data-tp-noteedit="${S}" title="${t('pf.note.edit')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button type="button" class="btn-outline" data-tp-print="${S}"
-            style="padding:2px 8px;font-size:11px" title="${t('plan.printtitle')}">⎙ ${t('plan.print')}</button>
+          <button type="button" class="btn-outline mini-btn" data-tp-print="${S}"
+            title="${t('plan.printtitle')}">⎙ ${t('plan.print')}</button>
         </div>
         <div class="tp-note note-html" data-tp-note="${S}">${edit.note ?? ''}</div>
       </div>`;
@@ -661,11 +691,28 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Display currency for MONEY only. Stock levels stay in USD, always, because a stop is
-// a number you hand to a broker.
+// The currency the whole card is in: the money AND the price boxes. See the header.
 let planCcy: 'USD' | 'EUR' = 'USD';
-let planEurUsd = 1; // 1 EUR = planEurUsd USD (latest cached rate)
 const planSym = (): string => (planCcy === 'EUR' ? '€' : '$');
+
+/**
+ * 1 EUR = N USD on the TRADE DATE, or 0 when no rate is known at all.
+ *
+ * Not the latest rate, and not a 1: the date this plan is dated is the date its lot will be
+ * recorded under, and `plannedPrice` refuses to convert at all without a rate rather than
+ * turning a $232.50 fill into a €232.50 cost basis. This returns 0 for the same reason —
+ * every caller has to decide what to do about it, and none of them may quietly divide by 1.
+ */
+function planRate(): number {
+  if (!hasEurUsd()) return 0;
+  const r = eurUsdForDate(planDate);
+  return r > 0 ? r : 0;
+}
+
+/** Prices carry two decimals here for the same reason `buildBuyPlan` rounds: a stop is typed. */
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
 
 /**
  * Account-currency money → the display currency.
@@ -676,13 +723,48 @@ const planSym = (): string => (planCcy === 'EUR' ? '€' : '$');
  */
 function planConv(v: number): number {
   const from = planAcctCcy();
-  if (from === planCcy || planEurUsd <= 1) return v;
-  return from === 'EUR' ? v * planEurUsd : v / planEurUsd;
+  const r = planRate();
+  if (from === planCcy || !(r > 0)) return v;
+  return from === 'EUR' ? v * r : v / r;
 }
 
-/** A USD stock level → account-currency money, for the position and risk figures. */
-function usdToAcct(v: number): number {
-  return planAcctCcy() === 'EUR' && planEurUsd > 1 ? v / planEurUsd : v;
+/** A level out of the boxes → raw USD, which is what the bars are in. */
+function levelToUsd(v: number): number {
+  const r = planRate();
+  return planCcy === 'EUR' && r > 0 ? v * r : v;
+}
+
+/** The other direction, for seeding a box from a number that came off the bars. */
+function usdToLevel(v: number | null | undefined): number | null {
+  if (v === null || v === undefined || !Number.isFinite(v)) return null;
+  const r = planRate();
+  return planCcy === 'EUR' && r > 0 ? round2(v / r) : v;
+}
+
+/** A level out of the boxes → account-currency money, for the position and risk figures. */
+function levelToAcct(v: number): number {
+  const acct = planAcctCcy();
+  if (acct === planCcy) return v;
+  const r = planRate();
+  if (!(r > 0)) return v;
+  return acct === 'EUR' ? v / r : v * r;
+}
+
+/**
+ * Re-express every card's levels in another currency, or at another rate.
+ *
+ * Called from the two controls that change what the boxes MEAN without the user having
+ * touched them: the €/$ toggle and the trade date. Both preserve the trade — the same price
+ * against the same candles — rather than the digits, because the digits came off the chart in
+ * the first place. So a plan does not drift when the date moves; only the euro figure does.
+ */
+function rescaleLevels(factor: number): void {
+  if (!(factor > 0) || factor === 1) return;
+  for (const e of planEdits.values()) {
+    if (e.entry !== null) e.entry = round2(e.entry * factor);
+    if (e.stop !== null) e.stop = round2(e.stop * factor);
+    if (e.target !== null) e.target = round2(e.target * factor);
+  }
 }
 
 /** `explainPlan`'s narrative as rich-note HTML: the headline plus what passed and failed. */
@@ -700,7 +782,13 @@ function paintPlanStatus(): void {
   if (!box) return;
   const vi = getLang() === 'vi';
   const acct = planAccount();
-  const bits: string[] = [t('wl.plan.usdlevels')];
+  const rate = planRate();
+  const bits: string[] = [
+    t('wl.plan.levelccy').replace('{ccy}', planCcy) +
+    // The rate is part of the claim, not decoration: in euros every price on this card is a
+    // USD close through this number, and it is the number the lot will be recorded at.
+    (planCcy === 'EUR' && rate > 0 ? ` <span class="muted">(1 € = ${num(rate, 4)} $)</span>` : ''),
+  ];
   if (acct) {
     bits.push(
       `${vi ? 'Tiền theo' : 'Money in'} ${acct.account.currency}` +
@@ -730,8 +818,10 @@ function cardPlan(symbol: string, rating: ConvictionRating | null): BuyPlan | nu
     prices: planPrices(),
     bars,
     entry: e.entry,
-    // The entry box holds a raw USD close, like the bars it came from.
-    entryCurrency: 'USD',
+    // Whatever the boxes are in. `buildBuyPlan` converts to USD to read the bars and hands
+    // its stop and target back in this same currency, so `recalcPlan` can write them straight
+    // into the boxes — and it uses `date` for the rate, exactly as `planRate` does.
+    entryCurrency: planCcy,
     setup: e.setup,
     // The panel's date, not today's: it is the date the EUR/USD rate is taken on, so on a
     // EUR account it moves the equity the size is a percentage of — and a plan sized at
@@ -824,15 +914,17 @@ function recalcPlan(symbol: string): void {
 
   if (e.sizeMode === 'pct' && e.sizePct != null && entry > 0) {
     // The % is of equity, which is account money, so the entry has to become account
-    // money too before the division — otherwise a EUR account buys 1.17× too many.
-    e.shares = Math.round((equity * e.sizePct) / 100 / usdToAcct(entry));
+    // money too before the division — otherwise a EUR account buys 1.17× too many. (A
+    // no-op when the boxes are already in the account's currency, which is now the
+    // common case, and still needed for the USD-boxes-on-a-EUR-account one.)
+    e.shares = Math.round((equity * e.sizePct) / 100 / levelToAcct(entry));
     setFieldValue(symbol, 'shares', String(e.shares || ''));
   }
 
   const shares = Math.max(0, Math.round(e.shares || 0));
-  const positionValue = shares * usdToAcct(entry);
+  const positionValue = shares * levelToAcct(entry);
   const positionPct = equity > 0 ? (positionValue / equity) * 100 : 0;
-  const riskAmount = shares * usdToAcct(riskPerShare);
+  const riskAmount = shares * levelToAcct(riskPerShare);
   const riskPctOfPos = positionValue > 0 ? (riskAmount / positionValue) * 100 : 0;
   const riskPctOfEq = equity > 0 ? (riskAmount / equity) * 100 : 0;
   const rr = riskPerShare > 0 && e.target != null && e.target > entry
@@ -879,7 +971,9 @@ function recalcPlan(symbol: string): void {
   // The note explains the plan; once the user has written in it, it is theirs.
   if (!e.noteEdited) {
     const head = plan
-      ? `<p>${planLines(plan, { vi, levelSym: '$', moneySym: sym, money: true }).join('<br>')}</p>`
+      // One symbol for both now: `buildBuyPlan` returned its levels in `planCcy` because
+      // that is the currency it was handed the entry in.
+      ? `<p>${planLines(plan, { vi, levelSym: sym, moneySym: sym, money: true }).join('<br>')}</p>`
       : `<p class="muted">${e.setup ? t('wl.plan.nolevels') : t('wl.plan.picksetup')}</p>`;
     e.note = sanitizeNoteHtml(head + e.explain);
     const noteBox = document.querySelector<HTMLElement>(`[data-tp-note="${CSS.escape(symbol)}"]`);
@@ -1035,13 +1129,14 @@ async function buyFromPlan(ctx: AppContext, symbol: string): Promise<void> {
     name: live.account.name,
     currency: live.account.currency,
   };
-  // The boxes hold raw USD closes, the same numbers `cardPlan` feeds the playbook — so the
-  // fill is quoted in USD and `plannedPrice` converts it on the trade date if the account
-  // keeps its books in euros. It REFUSES rather than converting at 1: a rate of 1 would turn
-  // a $232.50 fill into a €232.50 cost basis, an error no later screen would flag.
-  const price = plannedPrice(account.currency, e.entry!, 'USD', planDate);
-  const stop = e.stop === null ? undefined : plannedPrice(account.currency, e.stop, 'USD', planDate);
-  const target = e.target === null ? undefined : plannedPrice(account.currency, e.target, 'USD', planDate);
+  // The boxes are in `planCcy`, the same numbers `cardPlan` feeds the playbook — so the fill
+  // is quoted in that currency and `plannedPrice` converts it on the trade date when the
+  // account keeps its books in the other one. It REFUSES rather than converting at 1: a rate
+  // of 1 would turn a $232.50 fill into a €232.50 cost basis, an error no later screen would
+  // flag. Same date, and therefore the same rate, as everything on the card.
+  const price = plannedPrice(account.currency, e.entry!, planCcy, planDate);
+  const stop = e.stop === null ? undefined : plannedPrice(account.currency, e.stop, planCcy, planDate);
+  const target = e.target === null ? undefined : plannedPrice(account.currency, e.target, planCcy, planDate);
   for (const p of [price, stop, target]) {
     if (p && 'error' in p) { buyHint(symbol, t('wl.plan.buyno.norate').replace('{ccy}', account.currency)); return; }
   }
@@ -1102,8 +1197,9 @@ async function buyFromPlan(ctx: AppContext, symbol: string): Promise<void> {
       effective,
       levels: { entry: e.entry, stop: e.stop, target: e.target },
       shares,
-      // USD: the levels above are raw closes off the bars, not account money.
-      currency: 'USD',
+      // Whatever the boxes were in when the trade was made — frozen with the levels, because
+      // a stored 232.50 with no currency beside it is unreadable a month later.
+      currency: planCcy,
       pctOfFull: effective ? ladderConfig().ratingPct[effective] : 100,
     }).catch(() => {});
   }
@@ -1193,7 +1289,13 @@ function paintPlanChart(symbol: string): void {
   if (!box || !e) return;
   if (!bars?.length) { box.innerHTML = ''; return; }
 
-  const overlay: TradeOverlay = { entry: e.entry, stop: e.stop, target: e.target };
+  // Back to USD: these lines are drawn against the candles, and the candles are raw closes.
+  // A €198 line on a $232 chart would be off the bottom of the axis.
+  const overlay: TradeOverlay = {
+    entry: e.entry === null ? null : levelToUsd(e.entry),
+    stop: e.stop === null ? null : levelToUsd(e.stop),
+    target: e.target === null ? null : levelToUsd(e.target),
+  };
 
   // Already drawn: move the lines and leave the candles, the zoom and the scroll
   // position exactly where the user put them.
@@ -1369,10 +1471,11 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
         effective: rating,
         levels: { entry: e.entry, stop: e.stop, target: e.target },
         shares: e.shares,
-        // USD, not `planCcy`: the entry box holds a raw close off the bars, the same as
-        // `cardPlan` feeds the playbook. The account currency belongs to the money figures,
-        // and the report derives those from these prices.
-        currency: 'USD',
+        // `planCcy`: the boxes and the report's money now agree, because the boxes are in the
+        // currency the user is buying in and the report derives its money from these prices.
+        currency: planCcy,
+        // Only the chart needs it, and only in euros — see `PlanReportInput.fxRate`.
+        ...(planRate() > 0 ? { fxRate: planRate() } : {}),
         date: planDate,
         bars: planBars.get(sym) ?? [],
         pctOfFull: rating ? ladderConfig().ratingPct[rating] : 100,

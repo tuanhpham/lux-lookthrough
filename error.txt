@@ -3145,3 +3145,167 @@ XOA mat dong ket qua ("Da ghi vao X" hoac cau bao loi) ngay khi no vua hien. Sua
 - Ban build Pages cua lux-lookthrough van do (nghi la tran 500 build/thang): phai chay
   wrangler pages deploy dist --project-name the-professional tu apps/desktop tren may co dang
   nhap Cloudflare.
+
+## CHAT-27 — Chan cat lo toi da (EMA21 / ATR) cho moi thiet lap, gia nhap sua duoc bang EUR, va nut xem ke hoach
+
+Yeu cau cua nguoi dung, bon phan: (1) giai thich hien tai entry, stop, target duoc tinh nhu the
+nao; (2) hien VA SUA duoc gia bang EUR, vi "minh se mua bang gia EUR thuong xuyen nua, thinh
+thoang mua ben USD nhung se it hon"; (3) "Stop should be maximun is EMA21 hoac la ATR dua vao
+cai nao thap hon", va "Luat chan do cho tat ca cac setup di", kem cau hoi "lieu Stop, Target co
+cho vao configurable dduoc khong nhi"; (4) "Ben Buy Form, lieu la minh co nut view trade plan
+khong, doi khi minh chi muon xem thoi chu khong muon print. cu de ca 2 options la tot nhat".
+Phan lam dep nut Reset tren mobile lam truoc do, ghi o muc G.
+
+### A. Tra loi: entry, stop, target hien dang tinh o dau
+
+Ba chang, khong phai mot:
+
+1. Hat giong: computePlans goi buildTradePlan (core) cho tung ma. Ham nay cham diem thiet lap va
+   dua ra entry/stop/target dau tien, chi de do vao ba o input lan dau.
+2. Moi khi go vao o Entry hoac doi thiet lap: recalcPlan roi cardPlan roi buildBuyPlan (app) roi
+   suggestLevels (core). suggestLevels moi la noi quyet dinh:
+   - Cat lo neo theo CAU TRUC, theo tung thiet lap: signalBarLow (day nen tin hieu) hoac
+     lowestLowN (day thap nhat N phien), roi noi them padPct phan tram.
+   - Chi khi khong co day nao DUOI gia vao moi lui ve entry tru atrMult nhan ATR(14), va day
+     canh bao fellBackToAtr.
+   - Muc tieu: rMultiple (entry cong R nhan firstTargetR), measuredMove (chieu cao mau hinh),
+     hoac ema (chot ngay tai EMA20, dung cho Mean Reversion).
+   - So co: suggestSize, theo thang rui ro cong trang thai thi truong cong hang A/B/C.
+3. Neu nguoi dung tu go cat lo hoac muc tieu thi ownStop/ownTarget bat len va so do khong bi ghi
+   de nua, cho den khi xoa trang o do.
+
+Diem quan trong: TRUOC chat nay stop KHONG co tran nao ca. Cau truc xa hon moc ATR chi sinh ra
+mot canh bao stopWiderThanAtr roi giu nguyen cat lo va giam so co. Dung cai lo hong do la cai
+yeu cau (3) lap vao.
+
+### B. Tran cat lo toi da — packages/core/src/planning/setupPlaybook.ts
+
+Them hai truong vao SetupRule, co trong ca 7 dong mac dinh:
+
+- maxStopEma: number | null, mac dinh 21. De trong nghia la chi chan bang ATR.
+- maxStopRef: 'deeper' | 'shallower' | 'off', mac dinh 'deeper'.
+
+Cach tinh, dat ngay truoc cho kiem tra stop >= entry:
+
+- Hai moc ung vien: EMA(maxStopEma) tai nen cuoi, va entry tru atrMult nhan ATR(14). Chi lay moc
+  nao DUOI gia vao: mot EMA nam tren gia vao khong the la cat lo, va o che do 'shallower' no se
+  sinh ra cat lo NAM TREN gia vao.
+- maxStopPrice la min cua hai moc khi 'deeper', max khi 'shallower', null khi 'off' hoac khong do
+  duoc moc nao.
+- Chi keo LEN: stop bang max cua stop va maxStopPrice. Tran gioi han KHOANG CACH, nen khong bao
+  gio duoc day mot cat lo dang gan xuong cho bang tran — lam the la tu tay sinh them rui ro.
+- Khi tran an, day canh bao stopCappedByMax. LevelSuggestion tra them maxStopPrice va
+  maxStopEmaValue de man hinh noi duoc "cat lo cua ban la 4.10, sau nhat duoc phep la 3.80".
+- stopWiderThanAtr tinh SAU khi chan, vi canh bao phai noi ve cai cat lo nguoi dung dang nhan. O
+  che do 'deeper' hai canh bao co the cung bat: EMA sau hon moc ATR thi tran an ma cat lo van
+  rong hon moc ATR, va ca hai deu dung.
+
+Vi sao min chu khong phai max: "thap hon" doc theo nghia GIA thap hon thi ra min, tuc moc sau
+hon, tuc tran rong rai va it khi an. Nguoi dung KHONG tra loi cau hoi min hay max (xem muc J),
+nen chon min va de 'shallower' trong dropdown cho ho bam mot cai la doi. Neu chon max thi mot
+breakout co gia vao nam ngay tren EMA21 se bi chan thanh cat lo chung 2 phan tram, va cai bong
+nen ke tiep quet mat.
+
+Vi sao con giu 'off': doc comment dau tep goi "cat lo dat theo cau truc, khong theo so tien" la
+luat khong duoc lam mem. Tran nay khong pha luat do — no chan bang hai thuoc do CUA THI TRUONG
+(mot EMA va ATR), khong phai bang so tien — nhung no CO doi cat lo, nen doc comment da duoc viet
+lai, them mot muc noi ro su khac nhau; va 'off' giu lai duoc hanh vi cu theo tung thiet lap.
+
+Test: them 4 test trong packages/core/tests/planning/setupPlaybook.test.ts. Test cu "WARNS about
+a structure stop wider than the ATR guide" doi thanh dung maxStopRef 'off' — no van la bang
+chung cho luat cu, chi la gio luat cu nam sau mot lua chon chu khong bi xoa.
+
+### C. Stop / Target configurable — da co san tu truoc, va da mo rong
+
+Tra loi cau hoi cua nguoi dung: DA CO SAN. Trang Cam nang (apps/desktop/src/ui/
+playbookSettings.ts) cho sua theo tung thiet lap: neo cat lo, N phien, dem phan tram, so lan
+ATR, kieu muc tieu, R dau, EMA chot, EMA keo, han so phien. Chat nay them hai cot: "EMA chan"
+(maxStopEma) va "Lay moc" (maxStopRef, ba lua chon). Luu y ky thuat: dung NULLABLE_FIELDS thay
+cho danh sach viet thang trong ham Save, va maxStopRef phai nam cung nhom voi anchor/targetKind
+vi no la chu chu khong phai so. Trang nay chi luu PHAN KHAC mac dinh, nen them cot khong lam
+phinh du lieu dong bo.
+
+### D. Gia nhap, cat lo, muc tieu bang EUR — apps/desktop/src/portfolio/tradePlanner.ts
+
+Truoc: ba o gia luon la USD tho, planCcy chi doi cach hien thi TIEN. Gio planCcy doi ca ba o
+gia. Doc lai doc comment "WHERE THE CURRENCIES SIT" o dau tep de thay day du.
+
+- planRate() la eurUsdForDate(planDate), tra 0 khi chua co ty gia. Bo han bien planEurUsd (truoc
+  lay ty gia MOI NHAT). Day la sua mot loi tiem an: man hinh quy doi theo ty gia hom nay con
+  plannedPrice ghi so theo ty gia NGAY GIAO DICH, khong co gi phia sau bao ra su khac nhau do.
+  Gio ca hai di qua mot ham.
+- Ba ham quy doi co ten, va khong quy doi o dau khac: planConv (tien tai khoan sang tien hien
+  thi), levelToUsd va usdToLevel (gia trong o doi voi USD, vi nen la USD tho), levelToAcct (gia
+  trong o sang tien tai khoan, dung cho gia tri vi the va so tien rui ro).
+- cardPlan truyen entryCurrency: planCcy. buildBuyPlan da ho tro san viec nay tu truoc (toUsd /
+  fromUsd theo eurUsdForDate(date)) — Buy Form da lam dung tu lau, chi Trade Planner la cho lech.
+- Do thi: overlay phai doi NGUOC ve USD, vi nen la gia tho. Mot duong 198 EUR ve tren do thi 232
+  USD khong phai la nhan sai, ma la duong nam ngoai truc.
+- rescaleLevels(factor): khi doi tien te hoac doi NGAY, ba o duoc quy doi lai de giu dung MOT
+  giao dich (cung mot gia tren cung mot nen), chu khong giu nguyen chu so. Doi ngay thi nhan
+  before chia after, nen so EUR doi con duong tren do thi dung yen.
+- Khong co ty gia thi nut EUR/USD bi disable (kem title giai thich), va viec tu doi sang EUR khi
+  chon tai khoan EUR cung bi chan. Nhan EUR de tren mot so USD dung la cai loi can tranh.
+- buyFromPlan: plannedPrice(..., planCcy, planDate) cho ca ba muc. Snapshot va bao cao in ra ghi
+  currency: planCcy.
+- Nhan ba o gia co them (EUR) hoac (USD). Dong trang thai dung khoa moi wl.plan.levelccy co
+  {ccy}, va khi la EUR thi noi luon ty gia dang dung.
+
+### E. Do thi trong bao cao ke hoach — apps/desktop/src/portfolio/planReport.ts
+
+PlanReportInput them fxRate?: number (1 EUR bang N USD tai ngay do). Truyen VAO chu khong doc tu
+fx.ts, de planReportHtml van la ham thuan — day la dieu kien de test duoc no trong vitest khong
+co DOM. Cac muc gia bang EUR duoc doi ve USD chi de VE do thi; tien trong tai lieu van la EUR.
+Neu la EUR ma khong co ty gia thi BO do thi: mot do thi ve sai cho con te hon khong co do thi,
+vi do la phan nguoi doc tin ma khong doc so. Loi nay Buy Form cung da mac tu truoc (o gia ben
+do cho chon EUR tu lau), nen sua o day la sua cho ca hai duong goi. Them 1 test.
+
+### F. Nut xem ke hoach o Buy Form
+
+Giu ca hai nut, dung nhu "cu de ca 2 options la tot nhat": Xem ke hoach (#b-plan-view) canh In
+ke hoach (#b-plan-print). Nut Xem dung lai openPlanReport da co san (dialog cong iframe sandbox
+cong mot nut in o trong), tuc dang xem ma doi y muon in thi in ngay duoc. Mot ham reportNow()
+dung chung cho ca hai nut, nen khong the co chuyen mot nut in ban cu va mot nut xem ban moi. Ca
+hai disable khi o ma con trong. Khoa moi: plan.view, plan.viewtitle, plan.viewttl.
+
+### G. Nut Reset o Buy Form tren mobile
+
+Loi that nam o luat mobile: #tab-portfolio .card .row .btn-outline { flex: 1 1 120px } de cho
+cac nut CUA FORM tu dan thanh hang deu, nhung no bat luon hai nut nho o dong tieu de (Reset va
+Cam nang): 2 nhan 120px cong khoang cach la khoang 246px, nen cap nut bi day xuong dong. Sua
+bang cau truc chu khong nhich pixel: them class .mini-btn (flex 0 0 auto, padding nho, nowrap)
+va .card-head-actions cho nhom nut canh section-title, roi them :not(.mini-btn) vao HAI luat
+mobile. Truoc day padding la inline style nen mien nhiem luat mobile; chuyen thanh class thi
+phai loai tru bang tay — day la cai bay do sap xep do uu tien chon loc (mot id cong ba class
+thang moi mot class don).
+
+### H. Da chay
+
+- packages/core: tsc sach, 775 test pass (49 tep), npm run build sach.
+- apps/desktop: tsc sach, 185 test pass (14 tep), npm run build sach.
+- package-lock.json khong doi, nen npm ci cua Cloudflare khong bi anh huong.
+
+### I. Phai tan mat xem lai (vitest o day chay environment: node, khong co DOM)
+
+- Nut EUR/USD tren Trade Planner: bam qua EUR thi ba o gia doi so, nhan doi thanh (EUR), do thi
+  KHONG xe dich, va dong trang thai noi dung ty gia.
+- Doi ngay giao dich khi dang o EUR: so EUR doi, duong tren do thi dung yen.
+- Chua nap ty gia: nut EUR/USD mo (disabled) va co title giai thich.
+- Mua tu ke hoach khi dang o EUR: hop thoai xac nhan hien EUR sang USD dung chieu, va lo ghi vao
+  tai khoan dung gia goc.
+- Tran cat lo: chon mot ma vua co mot cu quet sau, xem co canh bao stopCappedByMax va cat lo bi
+  keo len; vao Cam nang doi "Lay moc" thanh "Khong chan" thi cat lo phai tro lai day cau truc.
+- Hai cot moi trong bang luat theo tung thiet lap: sua, Luu, mo lai, va bam ve mac dinh.
+- Nut Xem ke hoach o Buy Form: mo ra doc duoc, nut in o trong chay, va no disable khi chua co ma.
+- Cap nut Reset / Cam nang tren dien thoai: cung mot dong voi tieu de, khong bi keo rong.
+
+### J. Con no
+
+- Loi nhan f0b6b0e9 van viet "22 tieu chi" (dung la 26) — sua thi phai force-push, nen de nguyen,
+  ghi o CHAT-24 muc O.
+- Ban build Pages cua lux-lookthrough van do (nghi la tran 500 build/thang): phai chay
+  wrangler pages deploy dist --project-name the-professional tu apps/desktop tren may co dang
+  nhap Cloudflare.
+- Nguoi dung van muon assistant co web search (CHAT-26 muc B): chua lam.
+- Nguoi dung chua tra loi min hay max cho tran cat lo; mac dinh dang la min ('deeper'), doi bang
+  mot dropdown trong Cam nang.
