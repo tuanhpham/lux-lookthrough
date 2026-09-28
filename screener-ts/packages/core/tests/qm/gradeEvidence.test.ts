@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { qmGradeEvidence } from '../../src/qm/gradeEvidence.js';
-import { gradeTrade, gradeByGroup } from '../../src/planning/tradeGrader.js';
+import { qmGradeEvidence, patternFamily } from '../../src/qm/gradeEvidence.js';
+import { gradeTrade, gradeByGroup, GRADE_CRITERIA } from '../../src/planning/tradeGrader.js';
+import { SETUP_KEYS } from '../../src/planning/setupPlaybook.js';
 import type { QmScanResult } from '../../src/qm/types.js';
 
 /**
@@ -177,5 +178,47 @@ describe('the bridge, scored end to end', () => {
     expect(at('UPTREND')).toBe(100);
     expect(at('UPTREND_UNDER_STRESS')).toBeLessThan(100);
     expect(at('DOWNTREND')).toBeLessThan(at('RANGE'));
+  });
+
+  // ── The declared scope has to match what the bridge actually routes ──────────
+  //
+  // `GradeCriterion.scope` exists so the Learn book can tell the user which questions
+  // their setup is asked. That makes it a SECOND statement of something the bridge
+  // already decides by filling in one family and not the other, and a second statement
+  // is a second thing to get wrong — the book would teach a checklist the app does not
+  // score. These tests are the only thing keeping the two honest.
+  describe('the declared scope matches the bridge', () => {
+    for (const setup of SETUP_KEYS) {
+      it(`asks a ${setup} exactly the criteria declared for it`, () => {
+        const family = patternFamily(setup);
+        const r = gradeTrade(qmGradeEvidence(SCAN, { setup, regime: 'UPTREND', rMultiple: 3, stopPct: 6 }));
+        for (const c of GRADE_CRITERIA) {
+          if (c.source === 'manual') continue; // manual rows are unasked until ticked
+          const o = r.outcomes.find((x) => x.key === c.key)!;
+          const inScope = c.scope === 'always' || c.scope === family;
+          expect(o.known, `${setup} / ${c.key} (scope ${c.scope})`).toBe(inScope);
+        }
+      });
+    }
+
+    it('declares a scope on every criterion, and no pattern scope on a manual one', () => {
+      for (const c of GRADE_CRITERIA) {
+        expect(['always', 'base', 'pivot']).toContain(c.scope);
+        // A manual question is one the user answers from outside the chart, so it cannot
+        // depend on which pattern the detectors found. Scoping one to a family would hide
+        // the earnings question from an EP — the setup that gaps ON earnings.
+        if (c.source === 'manual') expect(c.scope).toBe('always');
+      }
+    });
+
+    it('gives Mean Reversion neither family, and still asks it the rest', () => {
+      expect(patternFamily('Mean Reversion')).toBe('none');
+      const r = gradeTrade(qmGradeEvidence(SCAN, { setup: 'Mean Reversion', regime: 'UPTREND', rMultiple: 3, stopPct: 6 }));
+      for (const c of GRADE_CRITERIA) {
+        if (c.source === 'manual') continue;
+        const o = r.outcomes.find((x) => x.key === c.key)!;
+        expect(o.known, c.key).toBe(c.scope === 'always');
+      }
+    });
   });
 });

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   gradeTrade,
   gradeByGroup,
+  gradeByHand,
+  criteriaForFamily,
   isAutoCriterion,
   GRADE_CRITERIA,
   GRADE_BARS,
@@ -334,5 +336,116 @@ describe('gradeByGroup', () => {
     expect(g.find((x) => x.group === 'market')).toMatchObject({ earned: 14, possible: 14, unknown: 0 });
     expect(g.find((x) => x.group === 'momentum')).toMatchObject({ possible: 0, unknown: 8 });
     expect(g.find((x) => x.group === 'fundamental')).toMatchObject({ possible: 0, unknown: 22 });
+  });
+});
+
+describe('criteriaForFamily', () => {
+  it('asks a base setup the base rows and none of the gap rows', () => {
+    const keys = criteriaForFamily('base').map((c) => c.key);
+    expect(keys).toContain('contractions');
+    expect(keys).toContain('volumeDryUp');
+    expect(keys).not.toContain('gapSize');
+    expect(keys).not.toContain('catalyst');
+  });
+
+  it('asks a gap setup the gap rows and none of the base rows', () => {
+    const keys = criteriaForFamily('pivot').map((c) => c.key);
+    expect(keys).toContain('gapSize');
+    expect(keys).not.toContain('contractions');
+    expect(keys).not.toContain('volumeDryUp');
+  });
+
+  it('asks a setup with no family only the universal rows', () => {
+    // Mean reversion is not a pattern this checklist's authors would grade at all, so it
+    // gets the trend, strength, market, liquidity and risk questions and nothing else.
+    const fam = criteriaForFamily('none');
+    expect(fam.every((c) => c.scope === 'always')).toBe(true);
+    expect(fam.length).toBeLessThan(GRADE_CRITERIA.length);
+    expect(fam.map((c) => c.key)).toContain('rsStrong');
+  });
+
+  it('gives every criterion to one family or another', () => {
+    // A criterion no family asks is dead weight in the denominator of nothing — it would
+    // sit in the table looking scored and never be reachable.
+    const seen = new Set([
+      ...criteriaForFamily('base').map((c) => c.key),
+      ...criteriaForFamily('pivot').map((c) => c.key),
+    ]);
+    for (const c of GRADE_CRITERIA) expect(seen.has(c.key), c.key).toBe(true);
+  });
+});
+
+describe('gradeByHand', () => {
+  const all = (family: 'base' | 'pivot' | 'none') => criteriaForFamily(family).map((c) => c.key);
+
+  it('scores a fully ticked checklist as 100 and an A', () => {
+    const r = gradeByHand(all('base'), 'base');
+    expect(r.score).toBe(100);
+    expect(r.grade).toBe('A');
+    expect(r.earned).toBe(r.possible);
+  });
+
+  it('scores nothing ticked as 0 and a D — not as ungraded', () => {
+    // This is the whole reason the function exists. Through `gradeTrade` an untouched
+    // checklist is `unknown`, so it scores 0/0 and comes back with no letter at all. Here
+    // an unticked box is an answer: the user looked and it was false.
+    const r = gradeByHand([], 'base');
+    expect(r.grade).toBe('D');
+    expect(r.score).toBe(0);
+    expect(r.earned).toBe(0);
+    expect(r.possible).toBeGreaterThan(GRADE_BARS.MIN_GRADE_WEIGHT);
+    expect(r.unknownWeight).toBe(0);
+  });
+
+  it('never reports anything as unknown', () => {
+    const r = gradeByHand(['rsStrong'], 'pivot');
+    expect(r.unknownWeight).toBe(0);
+    expect(r.outcomes.every((o) => o.known)).toBe(true);
+  });
+
+  it('leaves the other family out of the denominator entirely', () => {
+    // A VCP must not be marked down for having no gap day, exactly as in `gradeTrade`.
+    const base = gradeByHand(all('base'), 'base');
+    const pivot = gradeByHand(all('pivot'), 'pivot');
+    expect(base.possible).not.toBe(GRADE_CRITERIA.reduce((s, c) => s + c.weight, 0));
+    expect(base.outcomes.map((o) => o.key)).not.toContain('gapSize');
+    expect(pivot.outcomes.map((o) => o.key)).not.toContain('contractions');
+    expect(base.grade).toBe('A');
+    expect(pivot.grade).toBe('A');
+  });
+
+  it('ignores a key that is out of scope rather than crediting it', () => {
+    // Ticking `gapSize` on a VCP must not earn points for a question the setup was never
+    // asked, or the score could exceed the weight the checklist actually put on the table.
+    const r = gradeByHand([...all('base'), 'gapSize', 'nonsense'], 'base');
+    expect(r.score).toBe(100);
+    expect(r.earned).toBe(r.possible);
+  });
+
+  it('honours the user’s own A/B/C lines', () => {
+    // The thresholds are the configurable half of the checklist — the user's selectivity,
+    // not a quotation. A stricter user should see the same ticks score a worse letter.
+    const ticks = criteriaForFamily('base').filter((c) => c.weight >= 6).map((c) => c.key);
+    const s = gradeByHand(ticks, 'base').score;
+    expect(s).toBeGreaterThan(0);
+    expect(s).toBeLessThan(100);
+
+    // Thresholds straddling the actual score, so the test says what it means — the same
+    // ticks, graded by two users with different standards — rather than hard-coding a
+    // letter that moves whenever a weight changes.
+    const loose = gradeByHand(ticks, 'base', { a: s - 1, b: s - 2, c: s - 3 });
+    const strict = gradeByHand(ticks, 'base', { a: s + 3, b: s + 2, c: s + 1 });
+    expect(loose.score).toBe(s);
+    expect(strict.score).toBe(s);
+    expect(loose.grade).toBe('A');
+    expect(strict.grade).toBe('D');
+  });
+
+  it('agrees with gradeByGroup about its own totals', () => {
+    const r = gradeByHand(['rsStrong', 'rsElite', 'aboveMa50'], 'base');
+    const g = gradeByGroup(r);
+    expect(g.reduce((s, x) => s + x.earned, 0)).toBe(r.earned);
+    expect(g.reduce((s, x) => s + x.possible, 0)).toBe(r.possible);
+    expect(g.find((x) => x.group === 'strength')!.earned).toBe(20);
   });
 });

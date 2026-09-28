@@ -23,7 +23,9 @@
  */
 import {
   DEFAULT_RISK_LADDER,
+  DEFAULT_GRADE_THRESHOLDS,
   DEFAULT_SETUP_RULES,
+  GRADE_CRITERIA,
   SETUP_KEYS,
   RATING_KEYS,
   closedTradePnls,
@@ -39,7 +41,8 @@ import type { AppContext } from '../context.js';
 import { getLang } from './i18n.js';
 import {
   currentRegime, ladderConfig, loadPlaybookConfig, playbookConfig,
-  savePlaybookConfig, regimeStale, type PlaybookConfig,
+  savePlaybookConfig, regimeStale, gradeThresholds, EMPTY_PLAYBOOK_CONFIG,
+  type PlaybookConfig,
 } from '../portfolio/playbook.js';
 // Shared with the Buy form and the Trade Planner, so all three dropdowns spell the
 // setups the same way.
@@ -165,6 +168,7 @@ export async function openPlaybookSettings(
   const vi = getLang() === 'vi';
   const cfg = playbookConfig();
   const ladder = ladderConfig();
+  const thresholds = gradeThresholds();
 
   /** The rule as it currently stands: default merged with the user's override. */
   const eff = (k: SetupKey): SetupRule => ({ ...DEFAULT_SETUP_RULES[k], ...(cfg.setups[k] ?? {}) });
@@ -240,6 +244,28 @@ export async function openPlaybookSettings(
           ${vi
             ? 'Phần này nhân vào số cổ đã tính xong, chứ không nằm trong chồng giảm nửa vì thị trường: % rủi ro chỉ là một trong bốn giới hạn, nên nếu giới hạn tập trung 25% đang quyết định cỡ thì giảm % rủi ro sẽ không đổi được gì. Sàn rủi ro vì thế không chặn phần này — nó để chặn app tự bóp lệnh, không phải để chặn bạn. Nhưng hạng thấp nhất vẫn luôn còn ít nhất 1 cổ.'
             : 'This multiplies the finished share count rather than sitting in the stack of market halvings: risk percent is only one of four limits, so cutting it changed nothing whenever the 25% concentration cap was the binding one. The risk floor therefore does not catch this cut — the floor exists to stop the APP whittling a position away, not to stop you. The lowest grade still never falls below 1 share.'}
+        </div>
+
+        <div class="section-title">${vi ? 'Xếp hạng — hai đường A/B/C' : 'Grading — where A/B/C fall'}</div>
+        <p class="muted" style="font-size:12px;line-height:1.6;margin:0 0 10px">
+          ${vi
+            ? `Điểm tối thiểu để một lệnh được xếp hạng đó, tính theo % của phần bảng tiêu chí mà app trả lời được. Đây là <b>độ khắt khe của riêng bạn</b> nên mới cho sửa — còn các ngưỡng đo (RS 80, nền ≤ 25%, nhảy khoảng ≥ 10%) thì không, vì mỗi con số đó là một câu trích dẫn. ${GRADE_CRITERIA.length} tiêu chí, xem giải thích từng cái ở mục 11 của cẩm nang.`
+            : `The minimum score for a trade to earn that letter, as a percent of the checklist the app could actually answer. This is <b>your own selectivity</b>, which is why it is editable — the measurement bars (RS 80, a base ≤ 25%, a gap ≥ 10%) are not, because each of those is a quotation. ${GRADE_CRITERIA.length} criteria, each explained in §11 of the playbook.`}
+        </p>
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          ${(['a', 'b', 'c'] as const).map((k) => `
+            <div style="width:110px">
+              <label class="field-label" style="margin-bottom:2px">${
+                vi ? 'Hạng' : 'Grade'} ${k.toUpperCase()} ${vi ? 'từ' : 'from'} (%)</label>
+              <input class="field" data-grade-th="${k}" type="text" inputmode="decimal"
+                autocorrect="off" autocapitalize="off" value="${thresholds[k]}"
+                style="width:100%;padding:5px 7px;font-size:12px;text-align:right" />
+            </div>`).join('')}
+        </div>
+        <div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">
+          ${vi
+            ? `Mặc định A ${DEFAULT_GRADE_THRESHOLDS.a} · B ${DEFAULT_GRADE_THRESHOLDS.b} · C ${DEFAULT_GRADE_THRESHOLDS.c}; dưới C là D. Nên sửa bằng dữ liệu của chính bạn sau 50–100 lệnh có ghi chép — nếu lệnh loại B thắng ngang loại A thì đường A đang quá cao — chứ không phải bằng cảm giác sau một lệnh thua. Sửa giữa hai lệnh thì được, sửa lúc đang cầm một lệnh thì không.`
+            : `Defaults are A ${DEFAULT_GRADE_THRESHOLDS.a} · B ${DEFAULT_GRADE_THRESHOLDS.b} · C ${DEFAULT_GRADE_THRESHOLDS.c}; below C is a D. Move these on your own recorded data after 50–100 logged trades — if your Bs win as often as your As, the A line is too high — not on the feeling that follows a loss. Between trades, never while holding one.`}
         </div>
 
         <div class="section-title">${vi ? 'Luật theo từng thiết lập' : 'Rules per setup'}</div>
@@ -329,13 +355,13 @@ export async function openPlaybookSettings(
   );
 
   host.querySelector('#pb-reset-all')!.addEventListener('click', async () => {
-    await savePlaybookConfig(ctx, { setups: {}, ladder: {}, pinnedRiskPct: null });
+    await savePlaybookConfig(ctx, EMPTY_PLAYBOOK_CONFIG);
     onSaved?.();
     close();
   });
 
   host.querySelector('#pb-save')!.addEventListener('click', async () => {
-    const next: PlaybookConfig = { setups: {}, ladder: {}, pinnedRiskPct: null };
+    const next: PlaybookConfig = { setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {} };
 
     // Ladder: keep only what differs from the default, and reject nonsense rather
     // than storing it — a blank or negative risk floor would come back as a plan.
@@ -365,6 +391,21 @@ export async function openPlaybookSettings(
       if (use !== DEFAULT_RISK_LADDER.ratingPct[k]) gradeChanged = true;
     }
     if (gradeChanged) next.ladder.ratingPct = gradePct as RiskLadderConfig['ratingPct'];
+
+    // ── WHY ONLY THE LINES THAT DIFFER ARE STORED ───────────────────────────
+    // `gradeThresholds()` merges field by field over the defaults, so a partial record is
+    // safe here in a way `ladder.ratingPct` was not — and storing nothing when nothing was
+    // changed means a later change to the shipped defaults reaches users who never touched
+    // this box, which is the behaviour anyone would expect from "I left it alone".
+    for (const k of ['a', 'b', 'c'] as const) {
+      const raw = (host.querySelector<HTMLInputElement>(`[data-grade-th="${k}"]`)?.value ?? '')
+        .trim().replace(',', '.');
+      const v = Number(raw);
+      // A blank or nonsensical line keeps the default rather than storing a 0, which would
+      // make every trade an A — the one direction this field must never fail in.
+      if (!raw || !Number.isFinite(v) || v <= 0 || v > 100) continue;
+      if (v !== DEFAULT_GRADE_THRESHOLDS[k]) next.gradeThresholds[k] = v;
+    }
 
     const pinnedRaw = (host.querySelector<HTMLInputElement>('#pb-pinned')?.value ?? '').trim().replace(',', '.');
     const pinned = Number(pinnedRaw);

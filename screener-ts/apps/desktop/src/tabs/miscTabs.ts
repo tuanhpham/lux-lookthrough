@@ -22,6 +22,7 @@ import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
+import { openPlaybookSettings } from '../ui/playbookSettings.js';
 import { sanitizeNoteHtml, richNoteDialog, isNoteEmpty } from '../ui/richNote.js';
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
 import { swingPlaybookHtml, wireSwingPlaybook } from './swingPlaybook.js';
@@ -324,8 +325,14 @@ async function renderTradePlanner(ctx: AppContext): Promise<void> {
   await ensureRegime(ctx, { refresh: true }).catch(() => null);
 
   planAccounts = (await ctx.storage.get<AccountState[]>('accounts')) ?? [];
-  const prevEquity = Number((document.getElementById('tp-equity') as HTMLInputElement | null)?.value);
-  if (Number.isFinite(prevEquity) && prevEquity > 0) planManualEquity = prevEquity;
+  // Carry the typed equity across the re-render — but ONLY when the box was the one in
+  // charge. With an account selected the box now displays that account's equity, so
+  // reading it back here would overwrite the user's own figure with the account's and
+  // lose it the moment they switched back to manual.
+  if (!planAcctId) {
+    const prevEquity = Number((document.getElementById('tp-equity') as HTMLInputElement | null)?.value);
+    if (Number.isFinite(prevEquity) && prevEquity > 0) planManualEquity = prevEquity;
+  }
 
   const acctOpts = planAccounts
     .map((a) => {
@@ -352,10 +359,17 @@ async function renderTradePlanner(ctx: AppContext): Promise<void> {
         </div>` : ''}
         <div class="tp-ctl">
           <label class="field-label">${t('wl.plan.equity')} (USD)</label>
-          <input id="tp-equity" class="field" type="number" value="${planManualEquity}" step="10000" ${planAcctId ? 'disabled' : ''} />
+          <input id="tp-equity" class="field" type="number" value="${
+            // With an account chosen, show THAT account's equity. Leaving the typed figure
+            // in a greyed-out box states a number that is not the one being used — the
+            // grey says "not editable", it cannot say "and also wrong".
+            planAcctId ? Math.round(planEquityGuess()) : planManualEquity
+          }" step="10000" ${planAcctId ? 'disabled' : ''} />
+          ${planAcctId ? `<div class="muted tp-ctl-note">${t('wl.plan.eqfromacct')}</div>` : ''}
         </div>
         <button id="tp-ccy" class="btn-outline tp-ctl-btn" title="Toggle display currency">${planSym()} ${planCcy}</button>
         <button id="tp-refresh" class="btn-outline tp-ctl-btn">${t('wl.plan.run')}</button>
+        <button id="tp-playbook-cfg" class="btn-outline tp-ctl-btn" title="${t('wl.plan.cfgtitle')}">⚙ ${t('wl.plan.cfg')}</button>
       </div>
       <div id="tp-status" class="muted" style="font-size:11px;line-height:1.5;margin:6px 0 0"></div>
       <div id="tp-results"><div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div></div>
@@ -363,6 +377,15 @@ async function renderTradePlanner(ctx: AppContext): Promise<void> {
 
   document.getElementById('tp-close')!.addEventListener('click', () => { panel.innerHTML = ''; });
   document.getElementById('tp-refresh')!.addEventListener('click', () => void computePlans(ctx));
+
+  // The same dialog the Buy form opens. The planner needs it more, not less: this is the
+  // screen where the user is comparing eight sized plans at once, so it is where a stop
+  // rule or an A/B/C line being wrong is most visible — and it is where they will want to
+  // change it. `computePlans` rather than a full re-render so the panel does not scroll
+  // back to the top, and so the account/currency choices survive.
+  document.getElementById('tp-playbook-cfg')!.addEventListener('click', () => {
+    void openPlaybookSettings(ctx, planAccount(), () => void computePlans(ctx));
+  });
 
   // Currency toggle — display-only; repaint the money in the other currency.
   document.getElementById('tp-ccy')!.addEventListener('click', () => {

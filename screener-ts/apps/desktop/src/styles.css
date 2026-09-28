@@ -402,6 +402,19 @@ h1 { font-size: 26px; margin: 0 0 5px; font-weight: 300; font-family: 'Source Se
   outline: none; border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--ring);
 }
+/* A disabled field has to LOOK disabled.
+ *
+ * The Trade Planner's Account Equity box has carried `disabled` since accounts were added
+ * — once an account is chosen its equity is the account's, so typing a number there would
+ * be ignored. But there was no rule for the state, so it rendered identically to an
+ * editable box: the user could click it, see a text cursor, and reasonably conclude the app
+ * had lost their input. `not-allowed` plus the flattened surface says the number is being
+ * decided elsewhere, and `:hover` is neutralised so it does not invite the click either. */
+.field:disabled {
+  background: var(--bg); color: var(--faint);
+  border-color: var(--border-soft); cursor: not-allowed;
+}
+.field:disabled:hover { border-color: var(--border-soft); }
 label.field-label {
   display: block; font-size: 11px; color: var(--subtext); margin-bottom: 6px;
   font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
@@ -804,6 +817,14 @@ a.tkr:hover { text-decoration: underline; }
 .tp-acct-select { min-width: 210px; max-width: 320px; height: 38px; line-height: 1.4; padding-top: 0; padding-bottom: 0; }
 #tp-equity { width: 130px; height: 38px; }
 .tp-ctl-btn { height: 38px; align-self: flex-end; }
+/* The "this number comes from the account" line under a disabled equity box. Absolutely
+   positioned so adding it does not make the whole control row taller and shove the buttons
+   out of line with the fields they sit beside. */
+.tp-ctl { position: relative; }
+.tp-ctl-note {
+  position: absolute; top: 100%; left: 0; margin-top: 2px;
+  font-size: 10.5px; line-height: 1.3; white-space: nowrap;
+}
 
 /* ── Trade planner editable card ─────────────────────────────────────────── */
 .tp-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
@@ -2739,6 +2760,59 @@ html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c);
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .07em; margin-bottom: 7px;
 }
+.swp-ck-lbl small {
+  margin-left: 7px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--faint);
+}
+
+/* -- §11 scorecard: the setup picker and the per-criterion rows ------------- */
+/* The picker wraps rather than scrolls: seven setups on a phone is two tidy rows, and a
+   horizontal scroller hides the options the user has not thought of yet. */
+.swp-ck-setups { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.swp-ck-setup {
+  padding: 4px 10px; font-size: 11.5px; cursor: pointer;
+  border: 1px solid var(--border-soft); border-radius: 999px;
+  background: var(--surface); color: var(--subtext);
+}
+.swp-ck-setup:hover { border-color: var(--accent); color: var(--text); }
+.swp-ck-setup.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent); color: var(--accent); font-weight: 600;
+}
+.swp-ck-scope {
+  font-size: 11.5px; line-height: 1.5; color: var(--faint);
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-soft);
+}
+/* A grid rather than a flex row so the weight column lines up down the whole list —
+   comparing what each criterion is worth is the main thing this section teaches. */
+.swp-crit {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: start;
+  column-gap: 8px;
+}
+.swp-crit[hidden] { display: none; }
+.swp-crit-w {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--faint);
+  padding-top: 8px; min-width: 2ch; text-align: right;
+}
+.swp-crit-q {
+  margin-top: 5px; width: 20px; height: 20px; flex: none; cursor: pointer;
+  border: 1px solid var(--border-soft); border-radius: 50%;
+  background: var(--surface); color: var(--faint);
+  font-size: 11px; line-height: 1; padding: 0;
+}
+.swp-crit-q:hover { border-color: var(--accent); color: var(--accent); }
+.swp-crit-q.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent); color: var(--accent);
+}
+.swp-crit-why {
+  grid-column: 1 / -1; margin: 2px 0 10px; padding: 9px 12px;
+  border-left: 2px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface);
+}
+.swp-crit-why[hidden] { display: none; }
+.swp-crit-why p { margin: 0; font-size: 12px; line-height: 1.7; color: var(--subtext); }
+.swp-crit-why p + p { margin-top: 8px; }
 .swp-ck { display: flex; gap: 9px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
 .swp-ck input { margin-top: 3px; accent-color: var(--accent); flex: none; }
 .swp-ck-t { font-size: 12.5px; line-height: 1.45; color: var(--text); }

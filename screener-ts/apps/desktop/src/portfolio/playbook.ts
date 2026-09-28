@@ -25,6 +25,7 @@
  */
 import {
   DEFAULT_RISK_LADDER,
+  DEFAULT_GRADE_THRESHOLDS,
   closedTradePnls,
   detectPlaybookRegime,
   openRiskOf,
@@ -37,6 +38,7 @@ import {
   type AccountState,
   type Bar,
   type ConvictionRating,
+  type GradeThresholds,
   type LevelSuggestion,
   type PriceMap,
   type RegimeRead,
@@ -69,9 +71,23 @@ export interface PlaybookConfig {
    * it has to be an explicit number, not a silent default.
    */
   pinnedRiskPct: number | null;
+  /**
+   * Where the A/B/C lines fall on the conviction score. Empty = the shipped defaults.
+   *
+   * ── WHY THESE ARE CONFIGURABLE AND `GRADE_BARS` ARE NOT ─────────────────────
+   * The measurement bars are quotations: a user who moves `RS_STRONG` to 50 has deleted
+   * O'Neil's criterion and kept his name on it, so they stay named constants in core.
+   * Where the letters fall is a different kind of question — it asks how selective THIS
+   * user wants to be, which no author can answer for them. The Learn book's §11 says so
+   * in as many words, and the whole point of writing the reasons down is that the user can
+   * eventually disagree with them on their own recorded evidence.
+   */
+  gradeThresholds: Partial<GradeThresholds>;
 }
 
-export const EMPTY_PLAYBOOK_CONFIG: PlaybookConfig = { setups: {}, ladder: {}, pinnedRiskPct: null };
+export const EMPTY_PLAYBOOK_CONFIG: PlaybookConfig = {
+  setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {},
+};
 
 let cfg: PlaybookConfig = EMPTY_PLAYBOOK_CONFIG;
 let cfgLoaded = false;
@@ -89,6 +105,26 @@ export function setupOverrides(): SetupRuleOverrides {
   return cfg.setups;
 }
 
+/**
+ * The A/B/C lines with the user's overrides applied.
+ *
+ * Clamped and re-ordered rather than trusted: a stored `{ a: 40, b: 90 }` — reachable by
+ * hand-editing the synced blob, or by a half-finished edit in the dialog — would make B a
+ * higher standard than A, and the grader's `score >= a ? 'A' : score >= b ? 'B'` would then
+ * silently never return a B. Sorting descending means a nonsensical config produces a
+ * strange-looking but coherent scale instead of a letter that cannot occur.
+ */
+export function gradeThresholds(): GradeThresholds {
+  const m = { ...DEFAULT_GRADE_THRESHOLDS, ...cfg.gradeThresholds };
+  const clamp = (v: number, d: number) => (Number.isFinite(v) && v > 0 && v <= 100 ? v : d);
+  const [a, b, c] = [
+    clamp(m.a, DEFAULT_GRADE_THRESHOLDS.a),
+    clamp(m.b, DEFAULT_GRADE_THRESHOLDS.b),
+    clamp(m.c, DEFAULT_GRADE_THRESHOLDS.c),
+  ].sort((x, y) => y - x) as [number, number, number];
+  return { a, b, c };
+}
+
 export async function loadPlaybookConfig(ctx: AppContext): Promise<PlaybookConfig> {
   if (cfgLoaded) return cfg;
   const stored = await ctx.storage.get<Partial<PlaybookConfig>>(CFG_KEY).catch(() => null);
@@ -96,6 +132,7 @@ export async function loadPlaybookConfig(ctx: AppContext): Promise<PlaybookConfi
     setups: stored?.setups ?? {},
     ladder: stored?.ladder ?? {},
     pinnedRiskPct: typeof stored?.pinnedRiskPct === 'number' ? stored.pinnedRiskPct : null,
+    gradeThresholds: stored?.gradeThresholds ?? {},
   };
   cfgLoaded = true;
   return cfg;

@@ -25,10 +25,10 @@ export type {
 
 // The conviction grade, scored from named criteria instead of picked from a dropdown.
 export {
-  gradeTrade, gradeByGroup, isAutoCriterion,
+  gradeTrade, gradeByGroup, gradeByHand, criteriaForFamily, isAutoCriterion,
   GRADE_CRITERIA, GRADE_GROUPS, GRADE_BARS, DEFAULT_GRADE_THRESHOLDS,
 } from './tradeGrader.js';
 export type {
   GradeGroup, GradeCriterion, GradeEvidence, GradeAnswers,
-  CriterionOutcome, GradeResult, GradeThresholds,
+  CriterionOutcome, GradeResult, GradeThresholds, CriterionScope,
 } from './tradeGrader.js';

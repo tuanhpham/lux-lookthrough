@@ -79,7 +79,28 @@ export interface GradeCriterion {
   source: 'auto' | 'manual';
   /** Who says this matters. Rendered in the UI, so the checklist teaches as it scores. */
   authority: string;
+  /**
+   * Which setups this criterion is scored for.
+   *
+   * ── WHY SCOPE IS DECLARED HERE AND NOT INFERRED AT THE CALL SITE ────────────
+   * A VCP has no gap day and an EP has no contracting base, so `qmGradeEvidence` only
+   * fills in the family that matches the chosen setup and leaves the other undefined —
+   * which the scorer then reports as unknown rather than failed. That routing was
+   * knowledge held ONLY inside the bridge, where nothing could read it: the Learn book
+   * could not tell the user which questions their setup is actually asked, and no test
+   * could check that the answer matched. Declaring it beside the weight makes it
+   * readable, teachable and testable, and `tests/planning/tradeGrader.test.ts` asserts
+   * the bridge agrees with what is written here.
+   *
+   * 'always' — asked of every setup.
+   * 'base'   — needs a base to measure (VCP / Breakout / Pullback).
+   * 'pivot'  — needs a gap day to measure (EP / Surge).
+   */
+  scope: CriterionScope;
 }
+
+/** @see GradeCriterion.scope */
+export type CriterionScope = 'always' | 'base' | 'pivot';
 
 /**
  * What the app knows about the candidate. Every field is nullable, and null means
@@ -251,50 +272,50 @@ export const GRADE_BARS = {
  */
 export const GRADE_CRITERIA: readonly GradeCriterion[] = [
   // ── The market (CAN SLIM "M") ──
-  { key: 'regimeUptrend', group: 'market', weight: 8, source: 'auto', authority: 'O’Neil (M — market direction)' },
-  { key: 'regimeNotHostile', group: 'market', weight: 6, source: 'auto', authority: 'O’Neil (M); Weinstein' },
+  { key: 'regimeUptrend', group: 'market', weight: 8, source: 'auto', authority: 'O’Neil (M — market direction)', scope: 'always' },
+  { key: 'regimeNotHostile', group: 'market', weight: 6, source: 'auto', authority: 'O’Neil (M); Weinstein', scope: 'always' },
 
   // ── Trend template (Minervini) / stage 2 (Weinstein) ──
-  { key: 'aboveMa50', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template' },
-  { key: 'maStack', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template; Weinstein, stage 2' },
-  { key: 'ma200Rising', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template' },
-  { key: 'near52wHigh', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template' },
+  { key: 'aboveMa50', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template', scope: 'always' },
+  { key: 'maStack', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template; Weinstein, stage 2', scope: 'always' },
+  { key: 'ma200Rising', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template', scope: 'always' },
+  { key: 'near52wHigh', group: 'trend', weight: 6, source: 'auto', authority: 'Minervini, Trend Template', scope: 'always' },
 
   // ── Leadership ──
-  { key: 'rsStrong', group: 'strength', weight: 12, source: 'auto', authority: 'O’Neil (L — leader, RS 80+)' },
-  { key: 'rsElite', group: 'strength', weight: 8, source: 'auto', authority: 'Minervini: the best sit 90+' },
+  { key: 'rsStrong', group: 'strength', weight: 12, source: 'auto', authority: 'O’Neil (L — leader, RS 80+)', scope: 'always' },
+  { key: 'rsElite', group: 'strength', weight: 8, source: 'auto', authority: 'Minervini: the best sit 90+', scope: 'always' },
 
   // ── The base (VCP footprint) ──
-  { key: 'contractions', group: 'base', weight: 7, source: 'auto', authority: 'Minervini, VCP (2T/3T/4T)' },
-  { key: 'baseTight', group: 'base', weight: 6, source: 'auto', authority: 'Minervini: shallow beats deep' },
-  { key: 'atrContracting', group: 'base', weight: 5, source: 'auto', authority: 'Minervini, volatility contraction' },
-  { key: 'noOverheadSupply', group: 'base', weight: 6, source: 'manual', authority: 'O’Neil: overhead supply' },
+  { key: 'contractions', group: 'base', weight: 7, source: 'auto', authority: 'Minervini, VCP (2T/3T/4T)', scope: 'base' },
+  { key: 'baseTight', group: 'base', weight: 6, source: 'auto', authority: 'Minervini: shallow beats deep', scope: 'base' },
+  { key: 'atrContracting', group: 'base', weight: 5, source: 'auto', authority: 'Minervini, volatility contraction', scope: 'base' },
+  { key: 'noOverheadSupply', group: 'base', weight: 6, source: 'manual', authority: 'O’Neil: overhead supply', scope: 'always' },
 
   // ── Demand ──
-  { key: 'volumeDryUp', group: 'volume', weight: 10, source: 'auto', authority: 'O’Neil (S — supply/demand); Minervini' },
+  { key: 'volumeDryUp', group: 'volume', weight: 10, source: 'auto', authority: 'O’Neil (S — supply/demand); Minervini', scope: 'base' },
 
   // ── The gap, for an episodic pivot ──
-  { key: 'gapSize', group: 'pivot', weight: 6, source: 'auto', authority: 'Qullamaggie, EP: a 10%+ gap' },
-  { key: 'gapVolume', group: 'pivot', weight: 7, source: 'auto', authority: 'Qullamaggie, EP: volume behind the gap' },
-  { key: 'closedStrong', group: 'pivot', weight: 5, source: 'auto', authority: 'Qullamaggie, EP: held the high' },
-  { key: 'clearedResistance', group: 'pivot', weight: 5, source: 'auto', authority: 'O’Neil: gapped over the supply' },
-  { key: 'catalyst', group: 'pivot', weight: 5, source: 'auto', authority: 'Qullamaggie, EP: a reason, not a squeeze' },
+  { key: 'gapSize', group: 'pivot', weight: 6, source: 'auto', authority: 'Qullamaggie, EP: a 10%+ gap', scope: 'pivot' },
+  { key: 'gapVolume', group: 'pivot', weight: 7, source: 'auto', authority: 'Qullamaggie, EP: volume behind the gap', scope: 'pivot' },
+  { key: 'closedStrong', group: 'pivot', weight: 5, source: 'auto', authority: 'Qullamaggie, EP: held the high', scope: 'pivot' },
+  { key: 'clearedResistance', group: 'pivot', weight: 5, source: 'auto', authority: 'O’Neil: gapped over the supply', scope: 'pivot' },
+  { key: 'catalyst', group: 'pivot', weight: 5, source: 'auto', authority: 'Qullamaggie, EP: a reason, not a squeeze', scope: 'pivot' },
 
   // ── The move the base is resting from ──
-  { key: 'priorAdvance', group: 'momentum', weight: 8, source: 'auto', authority: 'Qullamaggie: momentum first' },
+  { key: 'priorAdvance', group: 'momentum', weight: 8, source: 'auto', authority: 'Qullamaggie: momentum first', scope: 'base' },
 
   // ── Liquidity ──
-  { key: 'liquid', group: 'liquidity', weight: 6, source: 'auto', authority: 'Qullamaggie: a hard floor' },
+  { key: 'liquid', group: 'liquidity', weight: 6, source: 'auto', authority: 'Qullamaggie: a hard floor', scope: 'always' },
 
   // ── This trade's mechanics ──
-  { key: 'rrOk', group: 'risk', weight: 6, source: 'auto', authority: 'The playbook: 2R minimum' },
-  { key: 'stopSane', group: 'risk', weight: 4, source: 'auto', authority: 'The playbook: structural stop' },
-  { key: 'earningsClear', group: 'risk', weight: 8, source: 'manual', authority: 'Minervini: do not hold a new position through earnings' },
+  { key: 'rrOk', group: 'risk', weight: 6, source: 'auto', authority: 'The playbook: 2R minimum', scope: 'always' },
+  { key: 'stopSane', group: 'risk', weight: 4, source: 'auto', authority: 'The playbook: structural stop', scope: 'always' },
+  { key: 'earningsClear', group: 'risk', weight: 8, source: 'manual', authority: 'Minervini: do not hold a new position through earnings', scope: 'always' },
 
   // ── The fundamentals nobody can read off a chart ──
-  { key: 'epsGrowth', group: 'fundamental', weight: 8, source: 'manual', authority: 'O’Neil (C + A — current and annual earnings)' },
-  { key: 'groupLeader', group: 'fundamental', weight: 8, source: 'manual', authority: 'O’Neil (L — leading industry group)' },
-  { key: 'institutional', group: 'fundamental', weight: 6, source: 'manual', authority: 'O’Neil (I — institutional sponsorship)' },
+  { key: 'epsGrowth', group: 'fundamental', weight: 8, source: 'manual', authority: 'O’Neil (C + A — current and annual earnings)', scope: 'always' },
+  { key: 'groupLeader', group: 'fundamental', weight: 8, source: 'manual', authority: 'O’Neil (L — leading industry group)', scope: 'always' },
+  { key: 'institutional', group: 'fundamental', weight: 6, source: 'manual', authority: 'O’Neil (I — institutional sponsorship)', scope: 'always' },
 ];
 
 /** Every criterion the app measures for itself, so callers can tell them apart. */
@@ -503,6 +524,65 @@ export function gradeTrade(
         : 'D';
 
   return { grade, score, earned, possible, unknownWeight, outcomes };
+}
+
+/**
+ * Which criteria a given pattern family is asked, read off the declared `scope`.
+ *
+ * Takes the family rather than the setup so this file stays free of `setupPlaybook` and
+ * `qm`: the setup-to-family translation is `patternFamily`, and it belongs with the
+ * bridge that already does every other translation. @see GradeCriterion.scope
+ */
+export function criteriaForFamily(family: 'base' | 'pivot' | 'none'): readonly GradeCriterion[] {
+  return GRADE_CRITERIA.filter((c) => c.scope === 'always' || c.scope === family);
+}
+
+/**
+ * Grade a checklist the user answered entirely by hand.
+ *
+ * ── WHY THIS EXISTS ALONGSIDE `gradeTrade` ──────────────────────────────────
+ * `gradeTrade` grades a trade the app has measurements for, and its whole design turns on
+ * the difference between "unanswered" and "failed". A teaching scorecard is the opposite
+ * situation: the user is working through the list on a chart in front of them, so every
+ * in-scope row IS answered — an unticked box means "I looked and it is not true", not "no
+ * data". Feeding that through `gradeTrade` would need a fake evidence bag per criterion,
+ * and the unticked rows would land in `unknownWeight` and be quietly dropped from the
+ * denominator, so a chart that failed everything would score 0/0 and come back ungraded.
+ *
+ * What it buys: the Learn book's scorecard and the grader that actually sizes positions are
+ * now the same 26 criteria with the same weights and the same A/B/C lines. The previous §11
+ * had its own hand-written list of 15 with a "all musts + 4 pluses" rule of its own — two
+ * checklists that could disagree about the same trade, which is exactly the failure this
+ * codebase keeps leaving comments about.
+ *
+ * `MIN_GRADE_WEIGHT` is deliberately not applied: it guards against putting a size
+ * multiplier on thin evidence, and nothing here sizes anything. Every in-scope row is
+ * answered by construction, so the fraction is always over the full in-scope weight.
+ */
+export function gradeByHand(
+  ticked: Iterable<string>,
+  family: 'base' | 'pivot' | 'none',
+  thresholds: GradeThresholds = DEFAULT_GRADE_THRESHOLDS,
+): GradeResult {
+  const on = new Set(ticked);
+  const outcomes: CriterionOutcome[] = [];
+  let earned = 0;
+  let possible = 0;
+
+  for (const c of criteriaForFamily(family)) {
+    const met = on.has(c.key);
+    possible += c.weight;
+    if (met) earned += c.weight;
+    outcomes.push({ ...c, known: true, met, measured: null });
+  }
+
+  const score = possible > 0 ? Math.round((earned / possible) * 1000) / 10 : 0;
+  const grade: ConvictionRating = score >= thresholds.a ? 'A'
+    : score >= thresholds.b ? 'B'
+      : score >= thresholds.c ? 'C'
+        : 'D';
+
+  return { grade, score, earned, possible, unknownWeight: 0, outcomes };
 }
 
 /**

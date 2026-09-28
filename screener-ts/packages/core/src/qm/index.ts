@@ -28,5 +28,5 @@ export type { QmScanOptions } from './scanQm.js';
 export { qmToRow } from './qmRow.js';
 // The one place a scan result becomes conviction-grade evidence. The dependency points
 // this way on purpose — see the file header.
-export { qmGradeEvidence } from './gradeEvidence.js';
+export { qmGradeEvidence, patternFamily } from './gradeEvidence.js';
 export type { GradeEvidenceInput } from './gradeEvidence.js';

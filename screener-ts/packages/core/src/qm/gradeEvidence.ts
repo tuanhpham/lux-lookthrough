@@ -35,7 +35,7 @@ export interface GradeEvidenceInput {
  * a different trade that those authors would not grade at all. It still scores on trend,
  * strength, market, liquidity and its own risk mechanics.
  */
-function patternFamily(setup: SetupKey | ''): 'base' | 'pivot' | 'none' {
+export function patternFamily(setup: SetupKey | ''): 'base' | 'pivot' | 'none' {
   switch (setup) {
     case 'VCP':
     case 'Breakout':

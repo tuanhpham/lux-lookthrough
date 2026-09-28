@@ -181,6 +181,15 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'wl.plan.custom': { en: 'Custom', vi: 'Tùy chỉnh' },
   'wl.plan.useacct': { en: 'Use account cash', vi: 'Dùng tiền tài khoản' },
   'wl.plan.manualeq': { en: 'Manual equity', vi: 'Vốn thủ công' },
+  'wl.plan.eqfromacct': {
+    en: 'From the chosen account — edit it there',
+    vi: 'Lấy từ tài khoản đã chọn — sửa ở tài khoản đó',
+  },
+  'wl.plan.cfg': { en: 'Playbook', vi: 'Cẩm nang' },
+  'wl.plan.cfgtitle': {
+    en: 'Change the playbook’s numbers: stops, targets, size per setup, and where A/B/C fall',
+    vi: 'Đổi các con số của cẩm nang: cắt lỗ, mục tiêu, cỡ vị thế theo từng thiết lập, và hai đường A/B/C',
+  },
   'wl.plan.nocash': {
     en: 'Not enough cash: needs {need} but only {have} available (short {over}). Reduce the position size or shares.',
     vi: 'Không đủ tiền: cần {need} nhưng chỉ có {have} (thiếu {over}). Giảm cỡ vị thế hoặc số cổ phiếu.',

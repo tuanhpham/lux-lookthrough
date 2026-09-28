@@ -30,7 +30,16 @@ import {
   volFigure,
   volumeCasesFigure,
 } from './swingPlaybookFigures.js';
-import { requestPlaybookSettings } from '../portfolio/playbook.js';
+import { requestPlaybookSettings, gradeThresholds } from '../portfolio/playbook.js';
+import {
+  GRADE_CRITERIA, GRADE_GROUPS, GRADE_BARS, DEFAULT_GRADE_THRESHOLDS,
+  SETUP_KEYS, criteriaForFamily, gradeByHand, patternFamily,
+  type GradeGroup, type SetupKey,
+} from '@screener/core';
+import {
+  criterionLabel, criterionWhy, groupLabel, scopeLabel, sourceLabel,
+} from '../portfolio/gradeWords.js';
+import { setupName } from '../portfolio/planWords.js';
 
 type Lang = 'en' | 'vi';
 type Bi = { en: string; vi: string };
@@ -1196,138 +1205,119 @@ function s10(lang: Lang): string {
 
 // ── 11 · scorecard ──────────────────────────────────────────────────────────
 
-const MUSTS: [Bi, Bi][] = [
-  [
-    { en: 'The current regime permits this setup', vi: 'Regime hiện tại cho phép setup này' },
-    { en: 'Uptrend → pullback/breakout/VCP · Range → mean reversion only', vi: 'Uptrend → pullback/breakout/VCP · Range → chỉ mean reversion' },
-  ],
-  [
-    { en: 'The stock is in a top-3 sector', vi: 'Cổ phiếu thuộc top 3 sector' },
-    { en: 'Prefer a sector that is climbing, not just the one on top', vi: 'Ưu tiên sector đang tăng hạng, không chỉ sector đang đứng đầu' },
-  ],
-  [
-    { en: 'It touched a reference MA (10 / 21 / 50 EMA)', vi: 'Chạm vùng MA tham chiếu (10 / 21 / 50 EMA)' },
-    { en: 'No reference level means no sensible place for the stop', vi: 'Không có vùng tham chiếu = không có chỗ đặt stop hợp lý' },
-  ],
-  [
-    { en: 'The higher-low structure is intact', vi: 'Cấu trúc higher-low còn nguyên vẹn' },
-    { en: 'This pullback low is above the previous pullback low', vi: 'Đáy pullback này cao hơn đáy pullback trước' },
-  ],
-  [
-    { en: 'No earnings in the next 10 sessions', vi: 'Không có earnings trong 10 phiên tới' },
-    { en: 'An overnight gap goes straight through any stop', vi: 'Gap qua đêm xuyên thủng mọi stop' },
-  ],
-  [
-    { en: 'The close is in the top 30% of the bar', vi: 'Đóng cửa nằm ở top 30% biên nến' },
-    { en: '(C − L) / (H − L) > 0.7', vi: '(C − L) / (H − L) &gt; 0.7' },
-  ],
-];
-
-const PLUSES: [Bi, Bi][] = [
-  [
-    { en: 'Pullback volume / advance volume < 0.7', vi: 'Volume pullback / volume tăng &lt; 0.7' },
-    { en: 'Sellers have run out of force', vi: 'Người bán đã cạn lực' },
-  ],
-  [
-    { en: 'Signal-bar volume > 1.3× average', vi: 'Volume nến tín hiệu &gt; 1.3× trung bình' },
-    { en: 'Somebody genuinely absorbed the selling', vi: 'Có người thật sự hấp thụ hàng bán' },
-  ],
-  [
-    { en: 'Lower wick is > 50% of the bar', vi: 'Bóng dưới chiếm &gt; 50% biên nến' },
-    { en: 'Strong rejection at the lows', vi: 'Bị từ chối mạnh ở vùng giá thấp' },
-  ],
-  [
-    { en: 'RS positive vs SPY on both 21 and 63 sessions', vi: 'RS dương so với SPY ở cả 21 và 63 phiên' },
-    { en: 'Stronger than the market before you buy', vi: 'Mạnh hơn thị trường trước khi anh mua' },
-  ],
-  [
-    { en: 'Within 15% of the 52-week high', vi: 'Nằm trong 15% so với đỉnh 52 tuần' },
-    { en: 'Still a leading stock', vi: 'Vẫn là cổ phiếu dẫn dắt' },
-  ],
-  [
-    { en: 'Pullback 3–8% deep, lasting 3–7 sessions', vi: 'Pullback sâu 3–8%, kéo dài 3–7 phiên' },
-    { en: 'A healthy correction, not a broken trend', vi: 'Điều chỉnh lành mạnh, không phải gãy trend' },
-  ],
-  [
-    { en: 'ATR% between 2% and 6%', vi: 'ATR% nằm trong khoảng 2–6%' },
-    { en: 'Room enough for 3R without the stop being far away', vi: 'Đủ biên độ để đạt 3R nhưng stop không quá xa' },
-  ],
-  [
-    { en: 'A clear catalyst (news, earnings beat, upgrade)', vi: 'Có chất xúc tác rõ ràng (tin, earnings beat, nâng hạng)' },
-    { en: 'You can say in one sentence why it is moving', vi: 'Nói được một câu tại sao nó đang chuyển động' },
-  ],
-  [
-    { en: 'The nearest target pays at least 2R', vi: 'Mục tiêu gần nhất cho ít nhất 2R' },
-    { en: 'Below 2R, skip it — however pretty the pattern', vi: 'Dưới 2R thì bỏ qua, bất kể mẫu hình đẹp đến đâu' },
-  ],
-];
-
+/**
+ * The scorecard is GENERATED from `GRADE_CRITERIA` — it is not a list kept here.
+ *
+ * ── WHY THE HAND-WRITTEN LIST WAS DELETED ───────────────────────────────────
+ * This section used to hold its own `MUSTS` (6) and `PLUSES` (9) with a scoring rule of
+ * its own ("all musts and at least 4 pluses"). The grader that actually decides position
+ * size scores 26 weighted criteria against A/B/C thresholds. So the app had two checklists
+ * that could reach opposite verdicts about the same trade, and the one the user had just
+ * been taught in the Learn book was the one with no effect on anything.
+ *
+ * Generating from core costs the must/plus distinction, which is a real loss — "one missing
+ * and it is out" is a good teaching device. What replaces it is the weight on each row plus
+ * `authority`, which says the same thing more honestly: `rsStrong` is worth 12 and
+ * `atrContracting` is worth 5, and the user can see that rather than being told a binary.
+ * A criterion added to core now appears here on the next render, with its own explanation,
+ * and `swingPlaybook.test.ts` fails if it has no words.
+ */
 function s11(lang: Lang): string {
   const vi = lang === 'vi';
-  // `data-swp-ck` carries the must/plus split — the wiring reads it, and the
-  // group heading above each list says it in words, so no extra class is needed.
-  const ck = (kind: 'must' | 'plus', [label, hint]: [Bi, Bi]) =>
-    `<label class="swp-ck"><input type="checkbox" data-swp-ck="${kind}"><span class="swp-ck-t">${tx(
-      label,
-      lang,
-    )}<small>${tx(hint, lang)}</small></span></label>`;
+  // The user's own lines if they have set any, so the prose and the verdict below it agree.
+  const T = gradeThresholds();
 
-  const code = vi
-    ? `# Luật vào lệnh cuối cùng
-if tat_ca_bat_buoc and diem_cong &gt;= 4:
-    vao_lenh(size=size_theo_regime)
-else:
-    bo_qua()   # luôn còn lệnh khác vào ngày mai`
-    : `# The final entry rule
-if all_musts and plus_count &gt;= 4:
-    enter(size=size_for_regime)
-else:
-    skip()   # there is always another trade tomorrow`;
+  // The setup picker: the user's request was for the criteria to be explained "for each
+  // setup", and which questions a setup is even ASKED is the first thing to explain.
+  const setupTabs = SETUP_KEYS.map(
+    (k, i) =>
+      `<button type="button" class="swp-ck-setup${i === 0 ? ' active' : ''}" data-swp-setup="${k}"
+        aria-selected="${i === 0 ? 'true' : 'false'}">${setupName(k, vi)}</button>`,
+  ).join('');
+
+  const total = GRADE_CRITERIA.reduce((s, c) => s + c.weight, 0);
+
+  // Every criterion, grouped, each with its weight, its source, who says it matters, and
+  // the paragraph explaining it. `data-swp-crit` carries the key and `data-swp-scope` the
+  // family, so the wiring can hide the rows a chosen setup is not asked without rebuilding
+  // the DOM — which would throw away the user's ticks on every setup change.
+  const rows = GRADE_GROUPS.map((g: GradeGroup) => {
+    const inGroup = GRADE_CRITERIA.filter((c) => c.group === g);
+    if (!inGroup.length) return '';
+    const weight = inGroup.reduce((s, c) => s + c.weight, 0);
+    return `<div class="swp-ck-grp" data-swp-grp="${g}">
+      <div class="swp-ck-lbl">${groupLabel(g, vi)}<small>${weight} ${
+        vi ? 'điểm' : 'pts'
+      }</small></div>
+      ${inGroup
+        .map(
+          (c) => `<div class="swp-crit" data-swp-crit="${c.key}" data-swp-scope="${c.scope}">
+          <label class="swp-ck">
+            <input type="checkbox" data-swp-ck="${c.key}">
+            <span class="swp-ck-t">${criterionLabel(c.key, vi)}<small>${
+            c.authority
+          } · ${sourceLabel(c.source, vi)}${
+            c.scope === 'always' ? '' : ` · ${scopeLabel(c.scope, vi)}`
+          }</small></span>
+          </label>
+          <span class="swp-crit-w" title="${vi ? 'Trọng số' : 'Weight'}">${c.weight}</span>
+          <button type="button" class="swp-crit-q" data-swp-why="${c.key}"
+            aria-expanded="false" title="${vi ? 'Vì sao tiêu chí này' : 'Why this matters'}">?</button>
+          <div class="swp-crit-why" hidden>${criterionWhy(c.key, vi)
+            .split('\n\n')
+            .map((p) => `<p>${p}</p>`)
+            .join('')}</div>
+        </div>`,
+        )
+        .join('')}
+    </div>`;
+  }).join('');
 
   return sec(
     'scorecard',
     '11',
     vi ? 'Bảng chấm điểm — biến trực giác thành luật' : 'The scorecard — turning intuition into rules',
     vi
-      ? 'Chuyển toàn bộ phần trên thành checklist tính điểm thay vì nhận dạng hình ảnh. Cấu trúc này <b>code được, log được, và quan trọng nhất là backtest được</b>.'
-      : 'Everything above becomes a scored checklist instead of a visual judgement. This structure is <b>codeable, loggable and — most importantly — backtestable</b>.',
+      ? `Đây <b>chính là</b> bảng điểm mà ứng dụng dùng để xếp hạng và tính size — không phải một bản dạy học riêng. ${GRADE_CRITERIA.length} tiêu chí, tổng ${total} điểm, mỗi tiêu chí có trọng số và có người chịu trách nhiệm cho nó. Bấm dấu <b>?</b> ở mỗi dòng để đọc vì sao nó đáng điểm.`
+      : `This <b>is</b> the scorecard the app grades and sizes with — not a teaching copy of it. ${GRADE_CRITERIA.length} criteria, ${total} points in total, each with a weight and each with somebody’s name against it. Press the <b>?</b> on any row to read why it earns points.`,
     `<div class="swp-tool">
       <div class="swp-tool-h"><span class="swp-tool-i">✅</span><b>${vi ? 'Chấm điểm setup' : 'Score a setup'}</b></div>
       <div class="swp-tool-sub">${
         vi
-          ? 'Tick từng mục cho lệnh anh đang cân nhắc. Dùng thử ngay bây giờ với một biểu đồ bất kỳ để làm quen.'
-          : 'Tick each item for the trade you are considering. Try it now on any chart to get a feel for it.'
+          ? 'Chọn setup trước — mỗi setup được hỏi một bộ tiêu chí khác nhau, và các dòng không liên quan sẽ được ẩn đi thay vì bị tính là trượt. Sau đó tick từng mục cho lệnh anh đang cân nhắc.'
+          : 'Pick the setup first — each one is asked a different set of criteria, and the rows that do not apply are hidden rather than counted as failures. Then tick each item for the trade you are considering.'
       }</div>
-      <div class="swp-ck-grp">
-        <div class="swp-ck-lbl swp-p-gold">${
-          vi ? 'Điều kiện bắt buộc — thiếu 1 là loại' : 'Mandatory — one missing and it is out'
-        }</div>
-        ${MUSTS.map((x) => ck('must', x)).join('')}
-      </div>
-      <div class="swp-ck-grp">
-        <div class="swp-ck-lbl swp-p-up">${vi ? 'Điểm cộng — cần ít nhất 4' : 'Bonus points — at least 4 needed'}</div>
-        ${PLUSES.map((x) => ck('plus', x)).join('')}
-      </div>
+      <div class="swp-ck-setups" role="tablist">${setupTabs}</div>
+      <div class="swp-ck-scope" data-swp="scopeNote"></div>
+      ${rows}
       <div class="swp-score-row">
-        <div class="swp-score-item"><span>${vi ? 'Bắt buộc' : 'Mandatory'}</span><b data-swp="mScore">0/${
-          MUSTS.length
-        }</b></div>
-        <div class="swp-score-item"><span>${vi ? 'Điểm cộng' : 'Bonus'}</span><b data-swp="pScore">0/${
-          PLUSES.length
-        }</b></div>
+        <div class="swp-score-item"><span>${vi ? 'Điểm' : 'Score'}</span><b data-swp="mScore">—</b></div>
+        <div class="swp-score-item"><span>${vi ? 'Xếp hạng' : 'Grade'}</span><b data-swp="pScore">—</b></div>
         <div class="swp-score-item swp-score-btn"><button type="button" class="btn" data-swp="reset">${
           vi ? 'Làm lại' : 'Reset'
         }</button></div>
       </div>
       <div class="swp-verdict" data-swp="verdict"><b>—</b><span>—</span></div>
     </div>` +
-      pre(code) +
       callout(
         'info',
-        vi ? 'Giá trị thật của bảng điểm này' : 'What this scorecard is really for',
+        vi ? 'Cái gì sửa được, cái gì không' : 'What you may change, and what you may not',
         vi
-          ? 'Sau 100+ lệnh, anh sẽ <b>biết điểm cộng nào thực sự có giá trị thống kê</b> và điểm nào chỉ là niềm tin phổ biến được truyền tay. Đó là thứ không sách nào dạy được — nó đến từ dữ liệu của chính anh.'
-          : 'After 100+ trades you will <b>know which bonus points carry statistical weight</b> and which are folklore passed from hand to hand. No book can teach you that — it comes out of your own data.',
+          ? `Hai đường A/B/C (<b>A ≥ ${T.a}, B ≥ ${T.b}, C ≥ ${T.c}</b>) là <b>sửa được</b> trong trang cấu hình Cẩm nang: chúng nói về độ khắt khe của riêng anh, và đó là quyền của anh. Còn các <b>ngưỡng đo</b> — RS ${GRADE_BARS.RS_STRONG}, nền không sâu quá ${GRADE_BARS.MAX_BASE_DEPTH_PCT}%, nhảy khoảng ${GRADE_BARS.MIN_GAP_PCT}% — thì <b>không sửa được</b>, và đó là chủ ý: mỗi con số đó là một câu trích dẫn. Hạ RS ${GRADE_BARS.RS_STRONG} xuống 50 không phải là tinh chỉnh checklist, mà là bỏ tiêu chí của O’Neil đi rồi vẫn để tên ông ở đó.`
+          : `The A/B/C lines (<b>A ≥ ${T.a}, B ≥ ${T.b}, C ≥ ${T.c}</b>) <b>are</b> yours to move, on the Playbook settings page: they are a statement about your own selectivity. The <b>measurement bars</b> — RS ${GRADE_BARS.RS_STRONG}, a base no deeper than ${GRADE_BARS.MAX_BASE_DEPTH_PCT}%, a ${GRADE_BARS.MIN_GAP_PCT}% gap — are <b>not</b>, and that is deliberate: each one is a quotation. Moving RS ${GRADE_BARS.RS_STRONG} down to 50 is not tuning the checklist, it is deleting O’Neil’s criterion and leaving his name on it.`,
+      ) +
+      callout(
+        'note',
+        vi ? 'Khi nào thì nên sửa — và sửa bằng gì' : 'When to change it, and on what evidence',
+        vi
+          ? 'Anh hỏi chỗ nào để học và sau này điều chỉnh khi có kinh nghiệm hơn. Đây là chỗ đó, và cách điều chỉnh đúng là <b>bằng dữ liệu của chính anh, không phải bằng cảm giác sau một lệnh thua</b>. Sau 50–100 lệnh có ghi chép, hãy so kết quả theo từng hạng: nếu lệnh loại B của anh thắng ngang loại A thì đường A đang quá cao. Nếu một tiêu chí bật/tắt không làm thay đổi gì trong thống kê, nó là niềm tin được truyền tay chứ không phải một lợi thế — và lúc đó anh <i>đã kiếm được</i> quyền hạ trọng số của nó. Quy tắc: sửa bảng điểm giữa hai lệnh thì được, sửa giữa lúc đang cầm một lệnh thì không.'
+          : 'You asked for somewhere to learn these and to adapt them later as experience improves. This is that place, and the right way to adapt is <b>on your own recorded data, not on the feeling that follows a loss</b>. After 50–100 logged trades, compare outcomes by grade: if your Bs win as often as your As, the A line is set too high. If toggling a criterion changes nothing in the results, it is folklore rather than an edge — and at that point you have <i>earned</i> the right to lower its weight. The rule: change the scorecard between trades, never while holding one.',
+      ) +
+      cfgPointer(
+        vi,
+        vi
+          ? `Hai đường A/B/C nằm ở mục <b>Xếp hạng</b> trong trang cấu hình Cẩm nang. Đổi chúng thì mọi thẻ trong Trade Planner và ô xếp hạng của form Buy đều được chấm lại ngay — cùng ${GRADE_CRITERIA.length} tiêu chí này.`
+          : `The A/B/C lines live under <b>Grading</b> in the playbook settings. Change them and every Trade Planner card and the Buy form’s grade are re-scored at once — off these same ${GRADE_CRITERIA.length} criteria.`,
       ),
   );
 }
@@ -1843,52 +1833,86 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
   }
 
   // -- scorecard ------------------------------------------------------------
-  const musts = qa<HTMLInputElement>('input[data-swp-ck="must"]');
-  const pluses = qa<HTMLInputElement>('input[data-swp-ck="plus"]');
+  // Scored by `gradeByHand` from core, so this section and the grader that sizes real
+  // positions cannot disagree. See the comment above `s11`.
+  const ticks = qa<HTMLInputElement>('input[data-swp-ck]');
+  const critRows = qa<HTMLElement>('[data-swp-crit]');
+  const setupBtns = qa<HTMLButtonElement>('[data-swp-setup]');
   const mScore = q<HTMLElement>('[data-swp="mScore"]');
   const pScore = q<HTMLElement>('[data-swp="pScore"]');
   const verdict = q<HTMLElement>('[data-swp="verdict"]');
+  const scopeNote = q<HTMLElement>('[data-swp="scopeNote"]');
+
+  let setup: SetupKey = SETUP_KEYS[0]!;
+
+  const GRADE_COL: Record<string, string> = {
+    A: 'var(--accent)', B: 'var(--accent)', C: 'var(--warn)', D: 'var(--danger)',
+  };
 
   function updateScore(): void {
     if (!mScore || !pScore || !verdict) return;
-    const mOK = musts.filter((i) => i.checked).length;
-    const pOK = pluses.filter((i) => i.checked).length;
-    const allMust = mOK === musts.length;
-    mScore.textContent = `${mOK}/${musts.length}`;
-    pScore.textContent = `${pOK}/${pluses.length}`;
-    mScore.style.color = allMust ? 'var(--accent)' : 'var(--danger)';
-    pScore.style.color = pOK >= 4 ? 'var(--accent)' : 'var(--faint)';
+    const family = patternFamily(setup);
+    const inScope = new Set(criteriaForFamily(family).map((c) => c.key));
 
+    // Hide rather than rebuild: re-rendering the rows on every setup change would throw
+    // away ticks the user had already made on the rows that stay.
+    for (const row of critRows) {
+      const on = inScope.has(row.dataset.swpCrit ?? '');
+      row.hidden = !on;
+    }
+    // A group whose every row is out of scope would otherwise leave a heading over nothing.
+    for (const grp of qa<HTMLElement>('[data-swp-grp]')) {
+      const rows = Array.from(grp.querySelectorAll<HTMLElement>('[data-swp-crit]'));
+      grp.hidden = !rows.some((r) => !r.hidden);
+    }
+
+    const on = ticks.filter((i) => i.checked && inScope.has(i.dataset.swpCk ?? ''));
+    const r = gradeByHand(on.map((i) => i.dataset.swpCk ?? ''), family, gradeThresholds());
+    const letter = r.grade ?? 'D';
+    const col = GRADE_COL[letter] ?? 'var(--faint)';
+
+    mScore.textContent = `${r.earned}/${r.possible}`;
+    pScore.textContent = `${letter} · ${r.score}%`;
+    mScore.style.color = 'var(--fg)';
+    pScore.style.color = col;
+
+    if (scopeNote) {
+      const n = inScope.size;
+      const hidden = GRADE_CRITERIA.length - n;
+      scopeNote.textContent = vi
+        ? `${setupName(setup, true)}: được hỏi ${n} trong ${GRADE_CRITERIA.length} tiêu chí${
+          hidden ? `, ${hidden} tiêu chí của họ mẫu hình khác được ẩn đi (không bị tính là trượt)` : ''
+        }.`
+        : `${setupName(setup, false)}: asked ${n} of ${GRADE_CRITERIA.length} criteria${
+          hidden ? `, with ${hidden} belonging to the other pattern family hidden rather than failed` : ''
+        }.`;
+    }
+
+    const T = gradeThresholds();
     let title: string;
     let body: string;
-    let col: string;
-    if (!allMust) {
-      title = vi ? '❌ KHÔNG VÀO LỆNH' : '❌ DO NOT TRADE';
-      body = vi
-        ? `Còn thiếu ${musts.length - mOK} điều kiện bắt buộc. Thiếu một là loại — không có ngoại lệ, không "gần đủ".`
-        : `${musts.length - mOK} mandatory condition${
-            musts.length - mOK === 1 ? '' : 's'
-          } still missing. One missing and it is out — no exceptions, no "close enough".`;
-      col = 'var(--danger)';
-    } else if (pOK >= 6) {
+    if (letter === 'A') {
       title = vi ? '✅ SETUP LOẠI A' : '✅ GRADE-A SETUP';
       body = vi
-        ? `Đủ bắt buộc + ${pOK} điểm cộng. Đây là loại lệnh đáng vào full size theo regime.`
-        : `All mandatory plus ${pOK} bonus points. This is the kind of trade worth full size for the regime.`;
-      col = 'var(--accent)';
-    } else if (pOK >= 4) {
+        ? `${r.score}% (A từ ${T.a}%). Đây là loại lệnh đáng vào full size theo regime.`
+        : `${r.score}% (A from ${T.a}%). This is the kind of trade worth full size for the regime.`;
+    } else if (letter === 'B') {
       title = vi ? '✅ ĐỦ ĐIỀU KIỆN VÀO' : '✅ TRADEABLE';
       body = vi
-        ? `Đủ bắt buộc + ${pOK} điểm cộng. Vào lệnh theo kế hoạch, size chuẩn.`
-        : `All mandatory plus ${pOK} bonus points. Take it per the plan, standard size.`;
-      col = 'var(--accent)';
-    } else {
+        ? `${r.score}% (B từ ${T.b}%). Vào lệnh theo kế hoạch, size chuẩn.`
+        : `${r.score}% (B from ${T.b}%). Take it per the plan, standard size.`;
+    } else if (letter === 'C') {
       title = vi ? '⚠️ CHƯA ĐỦ CHẤT LƯỢNG' : '⚠️ NOT GOOD ENOUGH';
       body = vi
-        ? `Đủ bắt buộc nhưng chỉ ${pOK} điểm cộng (cần ≥4). Bỏ qua — luôn còn lệnh khác.`
-        : `Mandatory is met but only ${pOK} bonus points (≥4 needed). Skip it — there is always another.`;
-      col = 'var(--warn)';
+        ? `${r.score}% — loại C (từ ${T.c}%). Nếu vẫn vào thì phải nhỏ hơn hẳn, và phải biết mình đang làm thế.`
+        : `${r.score}% — a C (from ${T.c}%). If you take it at all, take it much smaller, and know that you are.`;
+    } else {
+      title = vi ? '❌ KHÔNG VÀO LỆNH' : '❌ DO NOT TRADE';
+      body = vi
+        ? `${r.score}% — dưới ${T.c}%. Bỏ qua; luôn còn lệnh khác vào ngày mai.`
+        : `${r.score}% — below ${T.c}%. Skip it; there is always another trade tomorrow.`;
     }
+
     verdict.style.borderColor = col;
     const b = verdict.querySelector('b');
     const s = verdict.querySelector('span');
@@ -1899,11 +1923,35 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
     if (s) s.textContent = body;
   }
 
-  for (const i of [...musts, ...pluses]) i.addEventListener('change', updateScore);
+  for (const i of ticks) i.addEventListener('change', updateScore);
+  for (const btn of setupBtns) {
+    btn.addEventListener('click', () => {
+      setup = (btn.dataset.swpSetup ?? SETUP_KEYS[0]!) as SetupKey;
+      for (const x of setupBtns) {
+        const active = x === btn;
+        x.classList.toggle('active', active);
+        x.setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      updateScore();
+    });
+  }
   q<HTMLButtonElement>('[data-swp="reset"]')?.addEventListener('click', () => {
-    for (const i of [...musts, ...pluses]) i.checked = false;
+    for (const i of ticks) i.checked = false;
     updateScore();
   });
+
+  // The `?` on each row: the explanation is in the DOM already, so opening it is free and
+  // it prints. Rendering all 26 paragraphs open would bury the checklist.
+  for (const btn of qa<HTMLButtonElement>('[data-swp-why]')) {
+    btn.addEventListener('click', () => {
+      const why = btn.parentElement?.querySelector<HTMLElement>('.swp-crit-why');
+      if (!why) return;
+      const open = why.hidden;
+      why.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('active', open);
+    });
+  }
   updateScore();
 
   // -- position size calculator --------------------------------------------
