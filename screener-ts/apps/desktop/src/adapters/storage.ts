@@ -156,6 +156,15 @@ const LOCAL_ONLY_PREFIXES = [
   'pf_autoupdate',
   'sectorlabels',
   'agent_audit',
+  // The calendar's sweep receipt, for the same reason as `pf_autoupdate` and with a
+  // sharper edge: it is a statement ABOUT a device — "this machine has already spent
+  // its ~60 requests today". The window it vouches for is `calendar:`, which is
+  // EXPENDABLE, so the receipt and its snapshot do not fail together. Synced, the
+  // receipt told a device with no snapshot that the sweep was already done, and
+  // `decideSweep` answered `swept-but-no-snapshot`: no earnings on screen, no sweep,
+  // all day, every day, on any device that had run short of room. A receipt must not
+  // outlive the thing it is a receipt for.
+  'calendar_sweep_log',
 ];
 
 /**

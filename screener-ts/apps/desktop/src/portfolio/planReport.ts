@@ -269,3 +269,42 @@ export function planReportHtml(i: PlanReportInput): string {
 export function printPlanReport(i: PlanReportInput): void {
   downloadHtml(planReportHtml(i), `trade-plan-${i.plan.symbol || 'plan'}-${i.date}`);
 }
+
+/**
+ * The same report, on screen — for "show me the plan this trade was made from".
+ *
+ * ── WHY AN IFRAME AND NOT A SECOND LAYOUT ───────────────────────────────────
+ * Rendering the plan again in the app's own styles would be a second version of this document,
+ * and the two would drift: a criterion added here, a level renamed there, and the plan the
+ * user reads on screen would stop being the plan they printed. `srcdoc` puts the actual file
+ * in front of them, so there is exactly one layout and looking is the same as printing.
+ *
+ * Sandboxed without `allow-scripts`, which disables the document's own print button — hence
+ * the dialog's own. A stored snapshot is the oldest data in the app and may have been written
+ * by a version of this code that is no longer here; it is rendered as a document, so it is
+ * given no way to run anything.
+ */
+export function openPlanReport(i: PlanReportInput, opts: { title: string; print: string; close: string }): void {
+  const host = document.createElement('div');
+  host.className = 'dialog-host';
+  host.innerHTML = `
+    <div class="dialog-backdrop"></div>
+    <div class="dialog" style="width:min(1100px,96vw)">
+      <div class="dialog-title">${esc(opts.title)}</div>
+      <div class="dialog-body" style="padding:0">
+        <iframe sandbox style="width:100%;height:68vh;border:1px solid var(--border);border-radius:8px;background:#07080b"></iframe>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn-outline" data-act="close">${esc(opts.close)}</button>
+        <button class="btn" data-act="print">⎙ ${esc(opts.print)}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  // `srcdoc` after insertion: assigning it while the iframe is detached loads the document
+  // twice in WebKit, and this one carries an inline SVG chart.
+  host.querySelector('iframe')!.srcdoc = planReportHtml(i);
+  const close = (): void => host.remove();
+  host.querySelector('[data-act="close"]')!.addEventListener('click', close);
+  host.querySelector('.dialog-backdrop')!.addEventListener('click', close);
+  host.querySelector('[data-act="print"]')!.addEventListener('click', () => printPlanReport(i));
+}

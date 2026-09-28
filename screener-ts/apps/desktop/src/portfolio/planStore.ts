@@ -127,6 +127,19 @@ export async function loadPlan(ctx: AppContext, symbol: string): Promise<SymbolP
   if (!sym) return emptyPlan(sym);
   const raw = await ctx.storage.get<Partial<SymbolPlan>>(planKey(sym)).catch(() => null);
   if (!raw) return emptyPlan(sym);
+  return normalizePlan(raw, sym);
+}
+
+/**
+ * A stored blob → a plan this code can trust, field by field.
+ *
+ * Exported because a plan is stored in two shapes: under its own key, and FROZEN inside a
+ * lot's plan snapshot (`planSnapshot.ts`). Both come off the same sync and can predate any
+ * field here, and the boolean guard on `answers` is the one that must not be duplicated — a
+ * stringy `"false"` is truthy, and would award a criterion the user never ticked.
+ */
+export function normalizePlan(raw: Partial<SymbolPlan>, symbol: string): SymbolPlan {
+  const sym = symbol.trim().toUpperCase();
   const base = emptyPlan(sym);
   return {
     symbol: sym,

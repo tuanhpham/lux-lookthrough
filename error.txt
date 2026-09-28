@@ -2710,3 +2710,192 @@ dang dung o day la mot TEP nguoi dung se mo truc tiep bang trinh duyet.
 - Van con phai XEM BANG MAT (khong test duoc voi environment: 'node'): bang diem moi tren
   form Buy, o .b-ack va cach no tu bo tich, nut Buy luc bi tat, ghi chu dung chung, va tep
   bao cao ke hoach tai ve.
+
+## CHAT-25 — Lich earning khong quet nua (bien nhan song lau hon thu no bao dam), nut Bo chon o form Buy, va ke hoach dong bang theo tung lo mua
+
+Bon viec nguoi dung yeu cau: (1) "Event Calendar, toi khong thay quet earning nua"; (2) form
+Buy can mot nut reset de bo chon ma dang chon; (3) trong watchlist thi in ke hoach ra PDF o
+dau; (4) "save the trade plan for the transaction we made — mot nut xem day du se hien ke
+hoach cua lan mua do hoac cua vi the da dong".
+
+(3) khong phai viec phai lam: nut da co san tu 6afc3e7d. Lam (1), (2), (4).
+
+### A. Muc (1) — khong phai loi giao dien, cung khong phai loi thuong nguon
+
+Da loai tru tung cai mot truoc khi sua gi:
+
+- calendarScan.ts KHONG phai duong nay — do la ban quet ~540 request VCP / mean-reversion /
+  attention, khong lien quan earning sap toi.
+- adapters/earningsDates.ts cung khong — do la ngay bao cao DA QUA, dung ve dau "E" tren do
+  thi.
+- Thuong nguon con song. Da goi that ngay 2026-09-28:
+  api.nasdaq.com/api/calendar/earnings?date=... tra ve data.rows voi time
+  (time-pre-market / time-after-hours), symbol, marketCap, epsForecast, noOfEsts — dung y
+  hop dong rowsAt(json, ['data','rows']) cua parseEarnings. Dividends van o
+  data.calendar.rows. Vay parseEarnings khong sai.
+- Cac bo loc cung khong: kind earnings mac dinh bat, scope 'all', minCap 0, tat ca loc trong
+  bo nho. buildWindow chi tra lai dung tham so cua no, khong co tran so su kien.
+
+Con lai mot thu, va no la mot mau bat can doi do 3385e230 tao ra.
+
+### B. Nguyen nhan that — mot bien nhan song lau hon thu no bao dam
+
+calendar_sweep_log nho, nen no duoc luu duoi khoa RIENG de con song sot khi ghi snapshot
+that bai. Va no DUOC DONG BO. Nhung cai no bao dam — snapshot calendar:<ngay> — lai nam
+trong EXPENDABLE_PREFIXES, tuc la thu dau tien bi bo khi may khong con cho. Chinh bai test
+co san "gives up day-stamped cache before it gives up syncing" chung minh dieu do.
+
+Hau qua: decideSweep thay log.lastSweepDay >= today tren mot may CHUA BAO GIO quet (hoac da
+mat snapshot), va tra ve 'swept-but-no-snapshot'. Khong co earning nao tren man hinh, khong
+quet lai, ca ngay, ngay nao cung the.
+
+Mot bien nhan khong duoc phep song lau hon thu ma no bao dam.
+
+### C. Cach sua muc (1)
+
+calendar_sweep_log vao LOCAL_ONLY_PREFIXES. Bien nhan tro thanh tung may mot — "may NAY da
+dung ~60 request cua no hom nay" — dung nghia goc cua no, giong pf_autoupdate. Phan tiet
+kiem xuyen may van con nguyen: nhanh 'use-snapshot' van chay o bat cu may nao snapshot that
+su den duoc.
+
+Khong can migration. Duong tai ve loc syncable() theo thoi diem doc, nen bien nhan cu tu
+dong bi bo; va renderStatus dat mayResweep = stale && sweptDay < today roi tu dung lai —
+tren may chua tung quet thi sweptDay === '', nen no tu hoi phuc.
+
+### D. Muc (2) — nut Bo chon dat o dau va tai sao
+
+Nut nam tren dau the Buy, canh nut Cam nang, KHONG canh nut Buy. Mot nut xoa trang moi thu
+khong nen nam cach nut dat lenh mot be ngon tay.
+
+resetForm phai nam TRONG wireBuyPlan. Xoa may o tu ben ngoai se de lai plan, grade,
+lastBars, noteSeed, filled va token cua ma cu — va o tich xac nhan la mot BAN VE cua
+reviewCurrent(plan, ...), khong phai cua may o input. Mot lan dispatch 'change' tren o ma
+cho wirePriceHint tu xoa dong "gia dong cua gan nhat" cua no, khong phai voi tay vao closure
+cua no.
+
+Ngay thi CO Y giu lai: nhap nhieu giao dich cho cung mot ngay qua khu la viec nguoi dung lam
+nhieu nhat, go lai ngay moi lan la cai gia.
+
+Khong mat gi: ke hoach nam duoi plan:<MA>, go lai ma la bang tieu chi, hang va ghi chu tro
+lai. Tooltip noi dung dieu do, vi chinh no lam nut nay an toan de bam.
+
+### E. Muc (4) — tai sao la SNAPSHOT chu khong phai tra cuu
+
+plan:NVDA la MOT ke hoach cho mot ma, va co the sua — dung thiet ke: no la ke hoach cho lan
+mua NVDA TIEP THEO. Mua thang Mot, sua bang tieu chi thang Ba, thi lo thang Mot se hien ly
+le cua thang Ba. Day la cho duy nhat trong app ma sai thi VO HINH, vi ca hai phia van trong
+nhu nhau. Mot ban mo xe khong con gia tri gi neu ke hoach dem ra so sanh co the sua sau khi
+da biet ket qua.
+
+Nen luc mua thi SAO LAI: ke hoach, bang diem, hang dang co hieu luc, cac muc gia va so co
+nhu da nhap. Khong bao gio ghi lai nua.
+
+### F. Tai sao la plansnap:<lotId> chu khong phai lot.plan
+
+Moi lo nam trong MOT hang accounts duy nhat, doc-sua-ghi lai moi lan giao dich, moi lan doi
+cat lo, moi lan lam moi gia — va dong bo NGUYEN hang, da tung 912 KB. Mot bang 26 tieu chi
+cong mot ghi chu cho tung lo se di thang vao do.
+
+Ngoai nay thi snapshot ghi mot lan, doc khi nguoi dung hoi, va khong lam hang accounts to
+len chut nao. Id cua lo CHINH LA khoa, nen khong phai them gi vao BuyLot va khong co chi muc
+nao co the troi: lotIdsWithPlan liet ke tien to.
+
+### G. Cai CO Y khong luu
+
+Bars. Do thi ve lai tu lich su gia luc XEM, khong ton cho nao va lai la buc tranh tot hon —
+luc do no cho thay co phieu da di the nao SAU khi ke hoach duoc viet, ngay ben canh muc cat
+lo da du tinh cho no.
+
+Nguoc lai, pctOfFull thi CO luu: nguoi dung sua duoc bang thang, tinh lai se lam mot giao
+dich cu bi phat bieu lai theo luat cua hom nay.
+
+### H. Tai sao nguoi xem la mot iframe srcdoc chu khong phai mot bo cuc thu hai
+
+Ve lai ke hoach bang style cua app se la ban thu hai cua cung mot tai lieu, va hai ban se
+troi: them mot tieu chi ben nay, doi ten mot muc ben kia, roi ke hoach nguoi dung doc tren
+man hinh khong con la ke hoach ho in ra. srcdoc dat DUNG cai tep do truoc mat ho, nen chi co
+mot bo cuc va xem cung la in.
+
+sandbox khong co allow-scripts — nen nut in cua chinh tai lieu tat, va hop thoai tu dua nut
+in cua no. Mot snapshot da luu la du lieu cu nhat trong app va co the do mot ban code khong
+con ton tai viet ra; no duoc ve nhu mot tai lieu, nen khong cho no chay gi ca.
+
+srcdoc gan SAU khi da chen vao DOM: gan luc iframe con roi se nap tai lieu hai lan tren
+WebKit, ma tai lieu nay mang mot SVG trong.
+
+### I. Nut tren hang giao dich: an truoc, hien sau
+
+transactionHistoryHtml chay DONG BO tu accounts, khong the await mot lan doc storage cho
+tung hang. Nen nut ve ra hidden, roi wire() mo bang mot lan lotIdsWithPlan(ctx). Mot nut mo
+ra hop thoai trong tren moi giao dich cu se day nguoi dung den cho thoi khong bam nua.
+
+Ca hang CLOSED va hang OPEN deu mang lotId, nen ca hai deu moi duoc.
+
+Xoa lo thi xoa luon snapshot (void deletePlanSnapshot): id cua lo la duong vao duy nhat, nen
+de lai chi la cho ma dong bo mang theo mai cho mot giao dich khong con ton tai.
+
+### J. Doc lai snapshot: chuan hoa chu khong ep kieu
+
+Blob nay dong bo va theo dinh nghia la du lieu cu nhat trong app.
+
+- normalizePlan tach ra khoi loadPlan va export, de ke hoach dong bang di qua DUNG cai chan
+  cua ke hoach song. Quan trong nhat la chan boolean tren answers: mot "false" dang chuoi la
+  truthy, se cong diem cho mot tieu chi nguoi dung chua bao gio tich — o ben trong mot ban
+  ghi cua quyet dinh da xong, cho khong ai kiem lai.
+- validGrade bo CA CUC grade khi thieu outcomes hoac score khong phai so huu han. Mot
+  GradeResult khong co outcomes khong phai mot hang bi thieu, do la mot chu cai khong co gi
+  dang sau; in no duoi chu "Bang tieu chi" la tai lieu tu khang dinh dieu no khong trung ra
+  duoc. Ma bao cao lai di qua grade.outcomes, nen tren man hinh no thanh mot nut bam khong
+  lam gi.
+- pctOfFull khong doc duoc thi ve 100, KHONG phai 0: 0% se in giao dich do nhu la khong duoc
+  cap co nao ca, doc ra thanh mot loi tu choi ma app chua bao gio dua ra.
+
+### K. Ghi snapshot o dau trong luong mua
+
+Trong handler #b-go, NGAY sau buy() va sau khi chuan hoa gia, TRUOC save(ctx) va draw(ctx) —
+vi draw() dung lai closure dang giu plan, grade va bars.
+
+takeBuyPlanSnapshot la mot bien o cap module do wireBuyPlan gan vao, vi handler Buy nam
+ngoai closure do va khong thay duoc ke hoach. Cung ly do voi viec chu cai hang di tren
+dataset cua #b-go — chi khac la ca mot bang tieu chi thi khong nhet duoc vao mot attribute.
+
+Ke hoach duoc sao SAU: { ...plan, answers: { ...plan.answers }, levels: {...} }. Dung chung
+tham chieu se cho phep phim tiep theo ghi lai mot ban ghi cua qua khu.
+
+That bai khi ghi thi BO QUA: mot cho luu day khong duoc lam nguoi dung mat giao dich ho dang
+ghi. Lo da nam trong state roi, thieu snapshot chi la hang do khong co nut ke hoach.
+
+### L. Tep da sua
+
+- apps/desktop/src/adapters/storage.ts — calendar_sweep_log vao LOCAL_ONLY_PREFIXES.
+- apps/desktop/src/portfolio/planSnapshot.ts — MOI. PlanSnapshot, planSnapshotKey,
+  savePlanSnapshot, loadPlanSnapshot, validGrade, lotIdsWithPlan, deletePlanSnapshot.
+- apps/desktop/src/portfolio/planStore.ts — tach va export normalizePlan tu loadPlan.
+- apps/desktop/src/portfolio/planReport.ts — them openPlanReport (hop thoai + iframe
+  sandbox srcdoc + nut in rieng).
+- apps/desktop/src/tabs/portfolioTab.ts — nut #b-reset tren dau the Buy; resetForm va
+  takeBuyPlanSnapshot trong wireBuyPlan; ghi snapshot trong handler #b-go; planBtn
+  (data-plan-lot, hidden) trong transactionHistoryHtml; mo bang lotIdsWithPlan va handler mo
+  openPlanReport trong wire(); deletePlanSnapshot trong handler [data-del-lot].
+- apps/desktop/src/ui/i18n.ts — pf.buy.reset, pf.buy.resettitle, pf.tx.plan,
+  pf.tx.plantitle, pf.tx.planttl, pf.tx.planprint, pf.tx.planclose.
+
+### M. Kiem
+
+- tests/planSnapshot.test.ts MOI (13 bai). tests/syncMerge.test.ts them mot bai: "never
+  downloads the calendar sweep receipt, whose snapshot is expendable" — bien nhan khong ve,
+  ma snapshot thi VAN ve (khi no den that thi khong con gi phai lay lai).
+- App 176/176 (13 tep). Core 771/771 (49 tep). tsc --noEmit sach, npm run build sach ca hai
+  goi. package-lock.json khong doi.
+- Khong co loi bien dich nao trong phien nay.
+- Van con phai XEM BANG MAT (khong test duoc voi environment: 'node'): nut Bo chon va viec
+  no xoa bang diem lan o tich, nut ke hoach tren hang giao dich va hop thoai cua no, va do
+  thi trong bao cao mo tu snapshot.
+
+### N. Con no
+
+- Loi nhan f0b6b0e9 van viet "22 tieu chi" (dung la 26) — sua thi phai force-push, nen de
+  nguyen, ghi o CHAT-24 muc O.
+- Ban build Pages cua lux-lookthrough van do (nghi la tran 500 build/thang): phai chay
+  wrangler pages deploy dist --project-name the-professional tu apps/desktop tren may co
+  dang nhap Cloudflare.

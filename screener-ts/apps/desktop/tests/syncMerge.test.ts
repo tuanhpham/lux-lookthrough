@@ -168,6 +168,26 @@ describe('pullAndMerge plumbing', () => {
     expect(mem.map.has('sectorlabels')).toBe(false);
   });
 
+  it('never downloads the calendar sweep receipt, whose snapshot is expendable', async () => {
+    // The receipt says "the ~60-request sweep already ran today", and `decideSweep` reads it
+    // as "so do not sweep again". The window it vouches for is `calendar:`, which this very
+    // merge is allowed to drop — so a synced receipt made a device with no snapshot show an
+    // empty Event Calendar and refuse to fetch one, all day. The two must fail together.
+    const { SyncedStorage, pullAndMerge, setSyncCode } = await load();
+    setSyncCode('testcode');
+    const mem = new Mem();
+    globalThis.fetch = serverWith([
+      { key: 'calendar_sweep_log', value: { lastSweepDay: '2026-09-28', at: 1, count: 1 }, updatedAt: 2000 },
+      { key: 'calendar:2026-09-28', value: { events: [] }, updatedAt: 2000 },
+    ]);
+
+    await pullAndMerge(new SyncedStorage(mem), { freshCode: true });
+
+    expect(mem.map.has('calendar_sweep_log')).toBe(false);
+    // The snapshot itself still syncs: when it DOES arrive there is nothing to re-fetch.
+    expect(mem.map.has('calendar:2026-09-28')).toBe(true);
+  });
+
   it('gives up day-stamped cache before it gives up syncing', async () => {
     // The trade this exists to make: a phone that holds fewer past calendar days
     // but syncs its real data, instead of a phone that syncs nothing because a

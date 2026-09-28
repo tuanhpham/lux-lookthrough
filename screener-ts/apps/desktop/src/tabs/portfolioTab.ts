@@ -90,7 +90,12 @@ import {
 } from '../portfolio/planStore.js';
 import { gradePanelHtml } from '../portfolio/gradeView.js';
 import { ackLabel, buyGate, gateWords } from '../portfolio/buyGate.js';
-import { printPlanReport } from '../portfolio/planReport.js';
+import { openPlanReport, printPlanReport } from '../portfolio/planReport.js';
+// A buy freezes its plan under its own key, so opening a trade months later shows the plan it
+// was made on and not the one the symbol has now. See `planSnapshot.ts`.
+import {
+  deletePlanSnapshot, loadPlanSnapshot, lotIdsWithPlan, savePlanSnapshot, type PlanSnapshot,
+} from '../portfolio/planSnapshot.js';
 import { openPlaybookSettings } from '../ui/playbookSettings.js';
 import { openStock } from '../ui/stockModal.js';
 import { infoIcon, attachTooltips } from '../ui/tooltip.js';
@@ -217,6 +222,17 @@ function wirePriceHint(
  * is an explicit "plan this trade", which is the right moment to spend a request —
  * `wirePriceHint` already fetches on the same gesture.
  */
+/**
+ * Freeze the plan the Buy form is showing, for the lot that is about to be created.
+ *
+ * Set by `wireBuyPlan` and called by the Buy click handler, which lives outside that closure
+ * and therefore cannot see the plan, the grade or the bars. The same reason the letter travels
+ * on `#b-go`'s dataset — except a whole checklist will not fit in an attribute.
+ *
+ * Null before the form has been wired, and null again whenever there is nothing worth freezing.
+ */
+let takeBuyPlanSnapshot: ((lotId: string) => PlanSnapshot | null) | null = null;
+
 function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   const vi = getLang() === 'vi';
   const setupEl = $('#b-setup') as HTMLSelectElement | null;
@@ -240,6 +256,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   const gateEl = $('#b-gatehint');
   const goEl = $('#b-go') as HTMLButtonElement | null;
   const printEl = $('#b-plan-print') as HTMLButtonElement | null;
+  const resetEl = $('#b-reset') as HTMLButtonElement | null;
   // The note editor's contenteditable, reached directly: `wireRichEditor` runs later in
   // `wire()` and only hands back a getter, and this needs to WRITE the plan's note in.
   const noteEl = document.querySelector<HTMLElement>('[data-rn-editor="buy-note"]');
@@ -666,6 +683,81 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     // which moves the share count. Cheap — `run` re-reads bars that are already cached.
     void run();
   });
+
+  /**
+   * Put the form back to "no stock chosen" — the user's reset button.
+   *
+   * ── WHY THIS HAS TO LIVE IN HERE ────────────────────────────────────────────
+   * Emptying the six boxes from outside would leave this closure still holding NVDA's plan,
+   * its grade, its bars and its note seed. The next keystroke anywhere would repaint that
+   * panel over an empty form, and the acknowledgement — which is a rendering of the plan, not
+   * of the fields — could still read as ticked. So the reset is the closure's own job.
+   *
+   * Nothing is lost by clearing: the plan was saved under `plan:NVDA` on every edit, so typing
+   * the ticker again brings back the same checklist, the same override and the same note. That
+   * is the difference between this and a destructive button, and it is worth knowing before
+   * pressing it — hence the tooltip.
+   *
+   * `token` is bumped first: an evaluation may be in flight, and a stale `run` that resolved
+   * afterwards would repaint the panel and re-fill the stop on a form the user had just
+   * emptied.
+   */
+  const resetForm = (): void => {
+    token++;
+    plan = emptyPlan('');
+    grade = null;
+    planning = false;
+    critOpen = false;
+    noteSeed = '';
+    lastBars = [];
+    filled = { stop: '', target: '', shares: '' };
+    for (const box of [tickerEl, priceEl, sharesEl, stopEl, targetEl]) box.value = '';
+    setupEl.value = '';
+    if (ratingEl) ratingEl.value = '';
+    // The date is deliberately kept: entering several trades for the same past day is the
+    // one thing the user does repeatedly, and re-typing the date every time is the cost.
+    if (noteEl) noteEl.innerHTML = '';
+    buyNoteDraft = '';
+    paintPanel();
+    // One dispatch, two wirings: `wirePriceHint` listens for `change` on the ticker and
+    // clears its "latest close" line when the box is empty, and `run` repaints the hint,
+    // the panel and the gate. Reaching into that other closure from here is what a shared
+    // event avoids.
+    tickerEl.dispatchEvent(new Event('change', { bubbles: true }));
+    onFilled();
+    tickerEl.focus();
+  };
+
+  resetEl?.addEventListener('click', resetForm);
+
+  /**
+   * The copy the lot keeps. Taken from the live closure, not re-read from storage: the levels
+   * that matter are the ones in the boxes at the instant of the buy, which may be the user's
+   * own and may never have been saved anywhere.
+   *
+   * A symbol-less form has nothing to freeze. Everything else is snapshot even when it is
+   * unflattering — an ungraded trade, an unacknowledged plan, an overridden letter — because
+   * those are exactly the facts a post-mortem needs and the ones that go missing otherwise.
+   */
+  takeBuyPlanSnapshot = (lotId: string): PlanSnapshot | null => {
+    const sym = symNow();
+    if (!sym || !lotId) return null;
+    return {
+      lotId,
+      symbol: sym,
+      savedAt: new Date().toISOString(),
+      date: dateEl?.value || today(),
+      // A deep copy: `plan` keeps being edited in this closure after the buy, and a shared
+      // reference would let the next keystroke rewrite a record of the past.
+      plan: { ...plan, answers: { ...plan.answers }, levels: plan.levels ? { ...plan.levels } : null },
+      grade,
+      effective: effective(),
+      levels: levelsNow(),
+      shares: Number(sharesEl.value.replace(',', '.')) || 0,
+      currency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
+      pctOfFull: effective() ? ladderConfig().ratingPct[effective()!] : 100,
+    };
+  };
 
   // Print the plan as it stands, not as it was stored: the user may have just moved the stop.
   printEl?.addEventListener('click', () => {
@@ -1234,11 +1326,18 @@ function draw(ctx: AppContext): void {
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:baseline">
           <div class="section-title" style="margin-top:0">${t('pf.sec.buy')}</div>
+          <div class="row" style="gap:6px;flex-wrap:nowrap">
+          <!-- Reset sits up here rather than beside Buy on purpose: it is about the FORM, and a
+               button that empties everything is the last thing that should be a thumb's width
+               from the one that places the trade. -->
+          <button id="b-reset" class="btn-outline" style="padding:2px 8px;font-size:11px"
+            title="${t('pf.buy.resettitle')}">✕ ${t('pf.buy.reset')}</button>
           <button id="b-playbook-cfg" class="btn-outline" style="padding:2px 8px;font-size:11px"
             title="${getLang() === 'vi'
               ? 'Đổi các con số mặc định của cẩm nang: cắt lỗ, mục tiêu, cỡ vị thế theo từng thiết lập'
               : 'Change the playbook’s default numbers: stops, targets and size per setup'}"
           >${getLang() === 'vi' ? '⚙ Cẩm nang' : '⚙ Playbook'}</button>
+          </div>
         </div>
         <div class="row"><input id="b-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
           <input id="b-shares" class="field" type="text" inputmode="numeric" autocorrect="off" autocapitalize="off" placeholder="Shares" style="width:90px" />
@@ -1606,6 +1705,43 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       )),
     );
 
+    // ── "show me the plan this trade was made on" ─────────────────────────────
+    // The buttons are in the DOM already but hidden, because the table was built without
+    // touching storage. One `list()` decides which ones have something behind them.
+    void lotIdsWithPlan(ctx).then((ids) => {
+      for (const b of root.querySelectorAll<HTMLElement>('[data-plan-lot]')) {
+        if (ids.has(b.dataset.planLot ?? '')) b.hidden = false;
+      }
+    }).catch(() => {});
+    root.querySelectorAll<HTMLElement>('[data-plan-lot]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const snap = await loadPlanSnapshot(ctx, b.dataset.planLot!);
+        if (!snap) return;
+        // Bars are fetched now rather than stored: by the time anyone opens this, the chart
+        // shows what the stock actually did next to the stop that was planned for it.
+        const bars = await barsFor(ctx, snap.symbol).catch(() => []);
+        openPlanReport(
+          {
+            plan: snap.plan,
+            grade: snap.grade,
+            effective: snap.effective,
+            levels: snap.levels,
+            shares: snap.shares,
+            currency: snap.currency,
+            date: snap.date,
+            bars,
+            pctOfFull: snap.pctOfFull,
+            vi: getLang() === 'vi',
+          },
+          {
+            title: `${snap.symbol} — ${t('pf.tx.planttl')}`,
+            print: t('pf.tx.planprint'),
+            close: t('pf.tx.planclose'),
+          },
+        );
+      }),
+    );
+
     // orders list
     renderOrders(ctx);
 
@@ -1683,6 +1819,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         lot.stop = stop != null ? stop / fxAtBuy : undefined;
         lot.target = target != null ? target / fxAtBuy : undefined;
       }
+      // Freeze the plan against the new lot BEFORE `draw()` rebuilds the form and the closure
+      // holding it. Its own key, so a failure here cannot cost the user the trade — the lot is
+      // already in the state either way, and a missing plan just means no ⎙ button on that row.
+      const snap = takeBuyPlanSnapshot?.(lot.id) ?? null;
+      if (snap) await savePlanSnapshot(ctx, snap).catch(() => {});
       seedPrice(active().account.id, t, normPrice);
       snapshotNow(active());
       buyNoteDraft = ''; // consumed
@@ -2041,6 +2182,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const lotDesc = lot ? `${lot.shares} × ${lot.ticker} @ ${dispSymbol()}${num(toDisplay(lot.buyPrice))} on ${lot.buyDate}` : 'this buy';
         if (!confirm(`Delete buy: ${lotDesc}?\nThis removes the lot and any sells matched to it. Average cost will update.`)) return;
         deleteLot(active(), lotId);
+        // The frozen plan goes with the lot it belonged to. Nothing else can ever reach it
+        // again — the lot's id was the only key — so leaving it behind would only be storage
+        // the sync carries forever for a trade that no longer exists.
+        void deletePlanSnapshot(ctx, lotId);
         snapshotNow(active());
         await save(ctx);
         draw(ctx);
@@ -2302,6 +2447,14 @@ function transactionHistoryHtml(st: AccountState): string {
       const heldDays = r.holdDays != null ? r.holdDays : daysBetween(r.buyDate, todayStr);
       const chartTo = r.status === 'CLOSED' ? (r.sellDate ?? '') : '';
       const chartBtn = `<button class="action-btn action-btn--chart" data-closed-chart="${r.ticker}" data-chart-from="${r.buyDate}" data-chart-to="${chartTo}" data-chart-shares="${r.shares}" title="Show price × shares chart"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M1 14 5 9l3 3 3-4 4-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Chart</button>`;
+      // The plan this lot was bought on, if it was frozen at the buy. Rendered hidden and
+      // unhidden by `wire()` from `lotIdsWithPlan`: this table is built synchronously from
+      // `accounts`, so it cannot await a storage read per row — and a button that opens an
+      // empty dialog on every trade made before this feature existed teaches the user to
+      // stop pressing it. Both CLOSED and OPEN rows carry a `lotId`, so both can offer it.
+      const planBtn = r.lotId
+        ? `<button class="action-btn" data-plan-lot="${r.lotId}" hidden title="${t('pf.tx.plantitle')}">⎙ ${t('pf.tx.plan')}</button>`
+        : '';
       return `<tr>
         <td><span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${r.status}</span></td>
         <td><a href="#" class="link-ticker" data-open="${r.ticker}"><strong>${r.ticker}</strong></a></td>
@@ -2317,7 +2470,7 @@ function transactionHistoryHtml(st: AccountState): string {
         <td>${pnlPctCap}</td>
         ${setupCell(r)}
         ${noteCell(r.noteKind!, r.noteId!, r.note)}
-        <td style="display:flex;gap:4px;align-items:center">${chartBtn}${delBtn(r.delKind, r.delId)}</td>
+        <td style="display:flex;gap:4px;align-items:center">${chartBtn}${planBtn}${delBtn(r.delKind, r.delId)}</td>
       </tr>`;
     })
     .join('');

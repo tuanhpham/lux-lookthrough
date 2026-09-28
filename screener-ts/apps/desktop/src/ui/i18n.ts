@@ -191,6 +191,24 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'pf.buy.gradeover': { en: 'Grade (override)', vi: 'Hạng (ghi đè)' },
   'pf.buy.gradeauto': { en: '— Auto (from score)', vi: '— Tự động (theo điểm)' },
   'pf.buy.plannote': { en: 'Plan note — saved with the trade', vi: 'Ghi chú kế hoạch — lưu cùng giao dịch' },
+  // The tooltip says the plan survives, because that is what makes this button safe to press:
+  // the checklist and the note are stored under the symbol, not in the form.
+  'pf.buy.reset': { en: 'Reset', vi: 'Bỏ chọn' },
+  'pf.buy.resettitle': {
+    en: 'Clear the form and unchoose this stock. The trade plan itself is kept — type the ticker again and its checklist, grade and note come back.',
+    vi: 'Xóa trắng form và bỏ chọn mã này. Kế hoạch giao dịch vẫn được giữ — nhập lại mã là bảng tiêu chí, hạng và ghi chú trở lại.',
+  },
+  // The transaction row's plan button. "Frozen" / "lúc mua" is the whole point of the label:
+  // this is not the symbol's current plan, it is the one the trade was actually made on, and a
+  // user who expects to edit it here would read the document as if it were still live.
+  'pf.tx.plan': { en: 'Plan', vi: 'Kế hoạch' },
+  'pf.tx.plantitle': {
+    en: 'Show the trade plan this position was bought on — the checklist, grade and levels as they stood at the buy, unchanged since',
+    vi: 'Xem kế hoạch giao dịch đã dùng để mua vị thế này — bảng tiêu chí, hạng và các mức giá đúng như lúc mua, không đổi từ đó',
+  },
+  'pf.tx.planttl': { en: 'Trade plan at the buy', vi: 'Kế hoạch lúc mua' },
+  'pf.tx.planprint': { en: 'Print / Save PDF', vi: 'In / Lưu PDF' },
+  'pf.tx.planclose': { en: 'Close', vi: 'Đóng' },
   // Not `pf.buy.*` or `wl.plan.*`: the Buy form and the Trade Planner print the same report
   // from the same module, so one label rather than two that can drift apart.
   'plan.print': { en: 'Print plan', vi: 'In kế hoạch' },
