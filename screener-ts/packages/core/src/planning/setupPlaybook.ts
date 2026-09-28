@@ -155,6 +155,48 @@ export function isSetupKey(v: string | undefined): v is SetupKey {
   return v !== undefined && (SETUP_KEYS as readonly string[]).includes(v);
 }
 
+// ---------------------------------------------------------------------------
+// Conviction grade
+// ---------------------------------------------------------------------------
+
+/**
+ * The A–D grade already carried on every buy lot (`Lot.rating`), read here as a
+ * statement about size.
+ *
+ * The grade is how the trader says "this one is the real thing" versus "this one I am
+ * taking because I am bored". The playbook has no table for it, so the ladder below is
+ * the app's, not the book's — which is exactly why it is editable.
+ *
+ * It stays OPTIONAL everywhere. An ungraded trade is planned at full size rather than
+ * refused: grading is a discipline the user is invited into, not a gate, and a blank
+ * dropdown that silently quartered the position would teach the wrong lesson.
+ */
+export type ConvictionRating = 'A' | 'B' | 'C' | 'D';
+
+export const RATING_KEYS: readonly ConvictionRating[] = ['A', 'B', 'C', 'D'];
+
+export function isRating(v: string | undefined | null): v is ConvictionRating {
+  return v !== undefined && v !== null && (RATING_KEYS as readonly string[]).includes(v);
+}
+
+/**
+ * The grade's share of the full risk budget, as a fraction of 1.
+ *
+ * `null`/unset and `A` both mean 1: the ladder's percentages are written for the trade
+ * you actually wanted, and A is the name for that trade.
+ */
+export function ratingScale(
+  rating: ConvictionRating | null | undefined,
+  cfg: RiskLadderConfig = DEFAULT_RISK_LADDER,
+): number {
+  if (!rating) return 1;
+  const pct = cfg.ratingPct[rating];
+  // A negative or absent entry would come back as a share count, so treat nonsense as
+  // "no grade" rather than as zero — a plan of 0 shares must be a decision, never a typo.
+  if (!Number.isFinite(pct) || pct < 0) return 1;
+  return pct / 100;
+}
+
 export function rulesFor(setup: SetupKey, overrides?: SetupRuleOverrides): SetupRule {
   return { ...DEFAULT_SETUP_RULES[setup], ...(overrides?.[setup] ?? {}) };
 }
@@ -184,6 +226,15 @@ export interface RiskLadderConfig {
   /** Consecutive losses that halve the size, and how long the cut lasts. */
   losingStreakTrigger: number;
   /**
+   * Share of the full risk budget each conviction grade gets, in percent.
+   *
+   * A is 100 because A *means* "the size the ladder is written for"; the other three
+   * are the app's numbers, not the book's. Kept as one record rather than four flat
+   * fields so the four always move together — see the note in `playbookSettings.ts`
+   * about why a partially-stored record would be a trap.
+   */
+  ratingPct: Record<ConvictionRating, number>;
+  /**
    * A floor, so two stacked halvings cannot round the plan down to nothing.
    * The book stacks its cuts without saying where they stop; this is the app's
    * answer, and it is a number the user can see and change.
@@ -202,6 +253,7 @@ export const DEFAULT_RISK_LADDER: RiskLadderConfig = {
   maxPositionPct: 25,
   minRR: 2,
   losingStreakTrigger: 3,
+  ratingPct: { A: 100, B: 75, C: 50, D: 25 },
   minRiskPct: 0.1,
 };
 
@@ -289,6 +341,8 @@ export type RiskCut =
   | 'regimeStress'
   | 'regimeRange'
   | 'losingStreak'
+  /** The conviction grade is below A, so this trade gets a share of the budget. */
+  | 'rating'
   /** The stacked cuts hit `minRiskPct`. */
   | 'flooredAtMin';
 
@@ -301,12 +355,19 @@ export interface RiskBudget {
 }
 
 /**
- * Apply the regime and the recent record to the stage's base risk.
+ * Apply the regime, the recent record and the conviction grade to the stage's base risk.
  *
  * The cuts MULTIPLY. Expanded volatility in a tape that has also just taken three
  * trades off you is not the same situation as either one alone, and the book's answer
  * to both is independently "half". `minRiskPct` stops the stack from reaching zero,
  * because a plan of nought shares reads like a bug rather than a decision.
+ *
+ * ── WHY THE GRADE IS IN THE SAME STACK AND NOT APPLIED AFTERWARDS ────────────
+ * Scaling the finished percent by the grade outside this function would put the grade
+ * BELOW the floor, so a C could come back under `minRiskPct` while the budget still
+ * claimed it had been floored — two true-sounding statements that contradict each
+ * other on screen. The grade is one more multiplier, so it belongs in the stack the
+ * floor catches, and the order the `cuts` list prints is the order they applied.
  *
  * `regime === null` (not enough index history) is treated as no cut rather than as a
  * cut: the app has to say the regime is unknown, and inventing a penalty for missing
@@ -314,7 +375,12 @@ export interface RiskBudget {
  */
 export function riskBudget(
   stage: StageRead,
-  ctx: { regime: PlaybookRegime | null; atrRatio: number | null },
+  ctx: {
+    regime: PlaybookRegime | null;
+    atrRatio: number | null;
+    /** The trade's A–D grade, or null/absent for an ungraded trade (full size). */
+    rating?: ConvictionRating | null;
+  },
   cfg: RiskLadderConfig = DEFAULT_RISK_LADDER,
 ): RiskBudget {
   const cuts: RiskCut[] = [];
@@ -344,6 +410,13 @@ export function riskBudget(
     pct /= 2;
     maxPositions = Math.min(maxPositions, 2);
     cuts.push('losingStreak');
+  }
+  // The grade scales the risk, never the position count: a C-grade idea is a smaller
+  // bet on the same list of things you are allowed to be in at once.
+  const scale = ratingScale(ctx.rating, cfg);
+  if (scale !== 1) {
+    pct *= scale;
+    cuts.push('rating');
   }
 
   if (pct < cfg.minRiskPct) {

@@ -2064,3 +2064,177 @@ Khong co test cho phan nay: cau hinh test cua app la `environment: 'node'` co y 
 dau file `vitest.config.ts`), va them `jsdom` se doi `package-lock.json` — dieu khong
 duoc phep vi `npm ci` cua Cloudflare. Nen day dung la khoang trong da de loi nay ra
 duoc: moi phan tinh toan deu co test, con day dan su kien thi khong.
+
+## CHAT-22 — Trade Planner dung chung bang luat: Setup, xep hang, tai khoan, bieu do va Ghi chu
+
+Yeu cau: "for the watchlist, the trade plan, we should have a dropdown to choose the
+setup and rating as well ... Rating will decide how position size is: A will be full, B
+will be 75%, C will be 50%, D will be only 25%. This should be also configurable. And in
+the Trade Plan we should be able to choose the account, so that the system can
+automatically base on the cash available and decide how 100% position size should be
+(market regime, chosen setup) ... and based on rating to decide on the size, and then the
+share, the Entry Price is adjustable to automatically change the stop and target ... In
+the trade plan we will see then also how does it look like in the graph (entry, stop,
+target, ...) and Note will additionally explain also those figures, risk, and so on
+(explanation will come with market regime, setup, rating ...)".
+
+Day chinh la phan da HOAN LAI co y o CHAT-21 muc I ("Trade Planner chua dung bang luat
+moi"). Vong nay tra no.
+
+### A. Vi sao Planner goi `buildBuyPlan` chu khong tu tinh size
+
+CHAT-21 muc B da noi ly do: hai cho tra loi "cat lo dat dau, mua bao nhieu co" thi mot
+trong hai se sai va nguoi dung khong co cach nao biet cai nao moi la luat. Truoc vong
+nay Planner van co phep nhan size RIENG cua no (% von), tuc la dung cai loi do.
+
+Gio Planner goi DUNG `buildBuyPlan` cua form Buy. `buildTradePlan` / `explainPlan` VAN
+duoc goi — nhung cho mot cau hoi KHAC: "thiet lap co o day khong, diem nay co dang mua
+khong" (`qualityScore`, `actionable`, va muc gia khoi diem). Phan biet nay dang ghi lai
+vi no khong hien ra tu ten ham: mot cai xet CO NEN vao, cai kia xet vao BAO NHIEU.
+
+Van con che do % von, nhung gio la mot LUA CHON hien tren the ("Playbook" hay 5/10/15/
+20/25%) chu khong phai duong duy nhat. Bo han se lay mat cong cu cua nguoi da quen no.
+
+### B. Xep hang nhan o BEN TRONG `riskBudget`, khong o ngoai
+
+Cho nhan quan trong hon ve mat hien thi. Xep hang nhan sau `losingStreak` va TRUOC san
+`minRiskPct`.
+
+Neu nhan o ngoai: bac hoc viec 0,25% gap hang D (25%) ra 0,0625% — duoi san 0,1%. Ham se
+tra ve `pct` da duoc san do LAM TRON, roi minh moi nhan tiep, va man hinh se in ra ca
+`flooredAtMin` ("da chan o muc san") LAN mot con so nam duoi cai san do. Hai cau dung
+theo tung ve, gop lai thi vo ly, va nguoi dung khong co cach nao biet cai nao that.
+
+Nhan ben trong: 0,25% -> 0,0625% -> san keo len 0,1%, `cuts` co CA `rating` LAN
+`flooredAtMin`, va so co > 0. Co mot test ten han hoi ly le nay.
+
+BO TRONG XEP HANG = SIZE DAY. `ratingScale(null) === 1`. Cau hinh vo nghia (am, khong
+phai so) cung tra 1. Mot o chon de trong ma am tham cat con 1/4 se day sai bai hoc: xep
+hang la mot ky luat duoc MOI vao, khong phai mot cai cong chan.
+
+Xep hang KHONG dau duoc lenh veto downtrend. Mot hang A trong ngay downtrend van ra 0
+co. Cung ly le CHAT-21 muc C: to bao nhieu va co nen vao hay khong la HAI luat.
+
+### C. Vi sao trang cau hinh ghi CA BON hang hoac khong hang nao
+
+`ladderConfig()` gop MOT CAP: `{...DEFAULT_RISK_LADDER, ...cfg.ladder}`. Nen mot
+`ratingPct` da luu se THAY THE ca ban ghi mac dinh, khong phai gop vao no.
+
+Nghia la neu chi ghi chu KHAC mac dinh — dung nguyen tac "chi luu phan khac biet" cua
+CHAT-21 muc B — thi ba hang con lai ve `undefined`, `ratingScale` doc thanh "khong co
+xep hang", va mot hang C se am tham duoc len ke hoach o size DAY. Nen: he co MOT hang
+khac mac dinh thi ghi DU bon. Ly le nay nam ngay tai cho ghi trong
+`playbookSettings.ts`, vi doc code ma khong biet ham gop chi sau mot cap thi "chi luu
+phan khac biet" trong nhu dung.
+
+### D. Mot tai khoan gia, khong phai mot nhanh code thu hai
+
+Planner cho chon tai khoan (thi lay tien va von that) HOAC go von tay. Duong go tay
+khong co nhanh tinh rieng: no dung mot `AccountState` DUNG RA, `initialCapital` la so
+nguoi dung go, khong lo, khong lenh da dong.
+
+Khong lenh da dong nghia la bac HOC VIEC (0,25%) — va do dung la cau tra loi cua cam
+nang cho mot nguoi chua co so sach. Nhung dieu do phai NOI RA, nen dong trang thai in
+`wl.plan.manualnote`. Am tham thi nguoi dung se thay so co nho hon minh tuong va khong
+biet tai sao.
+
+Mot loi THAT da tim thay khi viet lai: canh bao "khong du tien" truoc day so voi VON,
+khong so voi TIEN. Tuc la mot tai khoan da giai ngan het van im lang — dung cai luc canh
+bao co nghia. Gio so voi `computeCash`.
+
+`prices.ts` them `accountPrices(accId)` / `hasPrices(accId)` de goi ham co the noi "toi
+chua co gia". `computePositionsValue` roi ve `lot.buyPrice`, nen `prices: {}` ra von
+theo GIA GOC — mot con so dung du, nhung phai ghi ro tren man hinh (`wl.plan.costbasis`)
+vi no khong phai von theo gia thi truong.
+
+### E. Duong mach tien te — lan thu hai, va lan nay nguoc chieu
+
+CHAT-21 muc E: nen gia USD, tien tai khoan EUR. Trong Planner con mot nhip nua: `planConv`
+cu GIA DINH dau vao la USD, nhung so no nhan thuc te la tien TAI KHOAN (`BuyPlan.size.*`,
+`BuyPlan.equity`, `computeCash` deu la tien tai khoan). Da viet lai dung chieu, va them
+`usdToAcct` cho chieu con lai (muc gia USD -> tien tai khoan).
+
+Vi the `planLines` nhan HAI ky hieu tien: `levelSym` cho MUC GIA (cat lo, muc tieu) va
+`moneySym` cho TIEN (rui ro, gia tri vi the). Trong form Buy hai cai la MOT o nen truyen
+cung mot ky hieu; trong Planner thi khac nhau — muc gia USD canh tien EUR. Mot ky hieu
+dung cho ca hai se in sai gia bang dung ty gia trong khi phep tinh van dung.
+
+### F. Vi sao tach `portfolio/planWords.ts`
+
+Core tra ve MA (`'contractionLow'`, `'heatExceeded'`, `'rating'`); app dat cau. Truoc
+vong nay bang chu nam trong `portfolioTab.ts`, nen Planner muon giai thich cung mot ke
+hoach thi phai co ban thu hai — va hai ban chu la cach mot con so co hai loi giai thich.
+Cung y le da tach `fx.ts` va da dat bang luat vao core.
+
+`planLines` tra ve MOT MANG CHUOI chu khong phai HTML: form Buy noi bang `<br>`, cai the
+trong Planner con nhet them phan `explain` cua scanner vao sau. Tra ve HTML da dinh la
+tra ve mot bo tri.
+
+Thu tu dong co y: cat lo + muc tieu -> so co / rui ro / bac / do nong -> XEP HANG (mot
+dong rieng, vi day la dau vao duy nhat app khong kiem duoc) -> danh sach phep cat ->
+trang thai thi truong -> canh bao muc gia -> canh bao size -> ghi chu "luat suy ra".
+Nguoi doc dung sau hai dong dau van da doc duoc cat lo va so co.
+
+Phan lon test cua `planWords.test.ts` la KIEM DU, khong kiem cau chu: mot `StopAnchor`
+moi trong core ma thieu o trong `ANCHOR_MEANS` se in `undefined` ngay canh gia cat lo —
+dung cai so khong duoc phep trong nhu loi. Va mot test doi hai ngon ngu ra CUNG so dong:
+mot ban dich lam roi mot canh bao se giau no khoi dung nguoi can nhat.
+
+### G. Vi sao ve nen thay vi ve mot thanh ngang
+
+`ui/miniChart.ts` da co `candleChart(cfg)`, nen khong them thu vien (them phu thuoc la
+doi `package-lock.json`, dieu `npm ci` cua Cloudflare khong cho). Hai chi tiet dang ghi:
+thang gia tinh CA `levels`, nen mot muc tieu xa se lam nen NHO lai chu khong roi ra ngoai
+khung; va mau dung bien CSS nen bieu do theo giao dien sang/toi san co.
+
+`QM_TO_SETUP` anh `QmSetupType` sang `SetupKey`. `BOTH` -> `'VCP'`, vi VCP la dong CHAT
+hon trong bang luat: khi hai cach doc cung mot do thi khong dong y ve viec cho cat lo bao
+nhieu cho, lay vi the NHO hon la cai sai con cuu duoc.
+
+### H. Go phim vao o Entry khong duoc lam mat con tro
+
+`recalcPlan` KHONG ve lai ca the. No ghi `.value` len nhung o dang khong duoc focus, va
+thay MOI BA khung khong co listener (bieu do, dong suy ra, ghi chu). Ve lai ca the moi
+lan go mot chu so se lam mat con tro sau ky tu dau tien.
+
+Va no chi dien nhung o CON THUOC VE NO: da tu go cat lo thi `ownStop` bat, tu do ke
+hoach khong ghi de nua — dung luat CHAT-21 muc F. Ghi chu tu sinh cung vay:
+`noteEdited` bat sau khi nguoi dung sua ghi chu bang tay.
+
+Khi chua chon Setup thi chua co ke hoach de doc von ra, nhung cac chip % va canh bao tien
+van can mot so von — va phai dung CAI SO ke hoach se dung, khong duoc la mot so khac,
+neu khong % vi the se nhay ngay luc chon Setup.
+
+### I. File doi
+
+- `packages/core/src/planning/setupPlaybook.ts` — `ConvictionRating`, `RATING_KEYS`,
+  `isRating`, `ratingScale`; `ratingPct` trong `RiskLadderConfig` va mac dinh
+  100/75/50/25; ma cat `'rating'`; `riskBudget` nhan `rating`.
+- `packages/core/src/planning/index.ts` — xuat nhung cai tren.
+- `apps/desktop/src/portfolio/playbook.ts` — `BuyPlanInput.rating`, `BuyPlan.rating`,
+  `pinnedBudget` nhan xep hang ma van giu veto downtrend.
+- `apps/desktop/src/portfolio/planWords.ts` — MOI. Bang chu dung chung, `planLines`.
+- `apps/desktop/src/tabs/portfolioTab.ts` — xoa nam bang chu cuc bo, doc + nghe
+  `#b-rating`.
+- `apps/desktop/src/ui/playbookSettings.ts` — phan "Co theo xep hang", chu cho phep cat
+  `rating`, ghi ca bon hang; `setupName` chuyen sang `planWords.ts`.
+- `apps/desktop/src/tabs/miscTabs.ts` — viet lai Planner: hai o chon, chon tai khoan,
+  Entry keo theo cat lo/muc tieu/size, bieu do nen, Ghi chu tu sinh.
+- `apps/desktop/src/ui/i18n.ts` — 12 khoa moi. `src/styles.css` — `.tp-playfields`,
+  `.tp-chart`.
+
+### J. Kiem
+
+- `tests/planning/setupPlaybook.test.ts` 63/63 (+9). `tests/buyPlan.test.ts` 20/20 (+7).
+  `tests/planWords.test.ts` MOI 7/7.
+- 756/757 workspace. Test do van la `syncMerge.test.ts > writes the timestamp map once
+  per batch` — xem CHAT-18/19/20/21.
+- `tsc --noEmit` sach ca hai goi, `npm run build` sach ca hai.
+- Mot test SAI ky vong cua chinh minh, dang ghi lai vi no day lai code: da tuong mot thi
+  truong RANGE voi `atrRatio: 1.6` se bi cat CA `volExpanded` LAN `regimeRange`. Doc lai
+  `setupPlaybook.ts` thi `volExpanded` chi ap dung khi `regime === 'UPTREND'` — trong mot
+  thi truong di ngang thi phep giam nua VI di ngang da noi dung dieu do roi. Sua ky vong,
+  khong sua code.
+- Van khong co test cho phan day day su kien: `environment: 'node'` co y, va them jsdom
+  se doi `package-lock.json` (CHAT-21 muc K). Nen cai gi tinh duoc thi tach ra thanh ham
+  thuan — `planLines` chinh la vi the.

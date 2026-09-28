@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_SETUP_RULES, DEFAULT_RISK_LADDER, SETUP_KEYS,
-  isSetupKey, rulesFor, closedTradePnls, riskStageOf, riskBudget,
+  DEFAULT_SETUP_RULES, DEFAULT_RISK_LADDER, SETUP_KEYS, RATING_KEYS,
+  isSetupKey, isRating, ratingScale, rulesFor, closedTradePnls, riskStageOf, riskBudget,
   suggestLevels, suggestSize, openRiskOf,
   type SetupKey, type StageRead,
 } from '../../src/planning/setupPlaybook.js';
@@ -382,6 +382,85 @@ describe('riskBudget', () => {
     const b = riskBudget(stable, { regime: 'UPTREND', atrRatio: null });
     expect(b.pct).toBe(1);
     expect(b.cuts).not.toContain('volExpanded');
+  });
+
+  it('takes a share of the size for a grade below A', () => {
+    const ctx = { regime: 'UPTREND' as const, atrRatio: 1 };
+    expect(riskBudget(stable, { ...ctx, rating: 'A' }).pct).toBe(1);
+    expect(riskBudget(stable, { ...ctx, rating: 'B' }).pct).toBe(0.75);
+    expect(riskBudget(stable, { ...ctx, rating: 'C' }).pct).toBe(0.5);
+    expect(riskBudget(stable, { ...ctx, rating: 'D' }).pct).toBe(0.25);
+    expect(riskBudget(stable, { ...ctx, rating: 'C' }).cuts).toContain('rating');
+    expect(riskBudget(stable, { ...ctx, rating: 'A' }).cuts).not.toContain('rating');
+  });
+
+  it('treats an absent grade as full size, not as no trade', () => {
+    const b = riskBudget(stable, { regime: 'UPTREND', atrRatio: 1, rating: null });
+    expect(b.pct).toBe(1);
+    expect(b.cuts).toEqual([]);
+  });
+
+  it('applies the grade INSIDE the stack the floor catches', () => {
+    // THE REASON THE GRADE LIVES HERE AND NOT IN THE CALLER. On the learning rung a D
+    // is 0.25% × 25% = 0.0625%, under the 0.1% floor. Scale the finished percent from
+    // outside and the grade lands below the floor, so `flooredAtMin` would be in `cuts`
+    // while `pct` sat under `minRiskPct` — two true-sounding statements that contradict
+    // each other on the same line of the screen.
+    const learning = riskStageOf(Array.from({ length: 10 }, () => 100));
+    const b = riskBudget(learning, { regime: 'UPTREND', atrRatio: 1, rating: 'D' });
+    expect(b.pct).toBe(DEFAULT_RISK_LADDER.minRiskPct);
+    expect(b.cuts).toEqual(['rating', 'flooredAtMin']);
+  });
+
+  it('cuts for the grade after the market and the record, in the order it prints', () => {
+    const bruised = riskStageOf([...Array.from({ length: 120 }, () => 100), -1, -1, -1]);
+    const b = riskBudget(bruised, { regime: 'RANGE', atrRatio: 1.6, rating: 'C' });
+    // 1% → half for the range → half for the streak → half for the grade. The expanded
+    // ATR charges nothing here: that cut is the uptrend's, because in a range the
+    // halving for the range itself has already said the same thing.
+    expect(b.pct).toBe(0.125);
+    expect(b.cuts).toEqual(['regimeRange', 'losingStreak', 'rating']);
+  });
+
+  it('does not let an A talk the app into a downtrend', () => {
+    const b = riskBudget(stable, { regime: 'DOWNTREND', atrRatio: 1, rating: 'A' });
+    expect(b.pct).toBe(0);
+  });
+});
+
+describe('ratingScale', () => {
+  it('reads an unset grade and an A as the same thing: full size', () => {
+    // The ladder's percentages are written for the trade you actually wanted, and A is
+    // the name for that trade.
+    expect(ratingScale(null)).toBe(1);
+    expect(ratingScale(undefined)).toBe(1);
+    expect(ratingScale('A')).toBe(1);
+  });
+
+  it('turns the configured percent into a fraction', () => {
+    expect(ratingScale('B')).toBeCloseTo(0.75, 6);
+    expect(ratingScale('D', { ...DEFAULT_RISK_LADDER, ratingPct: { A: 100, B: 60, C: 40, D: 10 } }))
+      .toBeCloseTo(0.1, 6);
+  });
+
+  it('reads nonsense as "no grade" rather than as zero', () => {
+    // A negative or missing entry would otherwise come back as a share count, and a
+    // plan of 0 shares has to be a decision, never a typo in a settings box.
+    const bad = { ...DEFAULT_RISK_LADDER, ratingPct: { A: 100, B: -5, C: NaN, D: 25 } };
+    expect(ratingScale('B', bad)).toBe(1);
+    expect(ratingScale('C', bad)).toBe(1);
+    expect(ratingScale('D', bad)).toBeCloseTo(0.25, 6);
+  });
+});
+
+describe('isRating', () => {
+  it('accepts the four letters and nothing else', () => {
+    for (const k of RATING_KEYS) expect(isRating(k)).toBe(true);
+    expect(isRating('')).toBe(false);
+    expect(isRating('E')).toBe(false);
+    expect(isRating('a')).toBe(false); // the dropdown's values are upper case
+    expect(isRating(undefined)).toBe(false);
+    expect(isRating(null)).toBe(false);
   });
 });
 

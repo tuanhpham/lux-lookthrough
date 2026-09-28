@@ -807,6 +807,10 @@ a.tkr:hover { text-decoration: underline; }
 
 /* ── Trade planner editable card ─────────────────────────────────────────── */
 .tp-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+/* Setup + grade: the two choices the other four fields are derived FROM, so they get
+   their own wider row rather than a quarter each of .tp-fields. */
+.tp-playfields { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 10px; }
+.tp-chart { margin-bottom: 10px; }
 .tp-field { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--subtext); font-weight: 600; }
 .tp-field .field { width: 100%; }
 .tp-size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
@@ -839,6 +843,7 @@ a.tkr:hover { text-decoration: underline; }
 .tp-note li { margin: 2px 0; }
 @media (max-width: 640px) {
   .tp-fields { grid-template-columns: repeat(2, 1fr); }
+  .tp-playfields { grid-template-columns: 1fr; }
 }
 
 /* ── Case-study rich inputs ──────────────────────────────────────────────── */

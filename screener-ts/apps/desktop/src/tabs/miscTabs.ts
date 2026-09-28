@@ -1,9 +1,19 @@
 import {
-  scanQm, qmToRow, fetchMany, buildTradePlan, explainPlan, computeCash,
-  type QmRow, type QmScanResult, type AccountState, type Bar,
+  scanQm, qmToRow, fetchMany, buildTradePlan, explainPlan, computeCash, computeEquity,
+  ema, isSetupKey, isRating, SETUP_KEYS, RATING_KEYS,
+  type QmRow, type QmScanResult, type QmSetupType, type AccountState, type Bar,
+  type ConvictionRating, type PriceMap, type SetupKey,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, num } from '../ui/dom.js';
+// One rule table, one set of words: the Buy form and this planner size and explain the
+// same trade, so they call the same two modules rather than each carrying a copy.
+import {
+  buildBuyPlan, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan,
+} from '../portfolio/playbook.js';
+import { planLines, setupName } from '../portfolio/planWords.js';
+import { accountPrices, hasPrices } from '../portfolio/prices.js';
+import { candleChart, type Level } from '../ui/miniChart.js';
 import { openStock } from '../ui/stockModal.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { t, getLang } from '../ui/i18n.js';
@@ -273,35 +283,55 @@ async function refreshRows(ctx: AppContext, force = false): Promise<void> {
 
 // ── Trade Planner ───────────────────────────────────────────────────────────────
 /**
- * Scan the active watchlist with `scanQm` + `buildTradePlan` and display a
- * position-sizing card for every actionable setup. Also runs `explainPlan` so
- * the user can read why each stock passed or failed. Shown in the #wl-plan-panel
- * div (above the watchlist table); dismissed when the user closes it.
+ * The Trade Planner: one card per watchlist name, sized by the same playbook the
+ * Buy form uses.
+ *
+ * ── WHY IT CALLS `buildBuyPlan` AND NOT ITS OWN SIZING ──────────────────────
+ * This panel used to size positions itself (a % of a typed equity figure) while the
+ * Buy form asked the playbook. Two answers to "how many shares" is the failure
+ * `setupPlaybook.ts` was written to end: the planner would offer 300 shares, the form
+ * would fill 140 for the same trade, and nothing on either screen said which was the
+ * rule. Now both call one function, and the % chips are what they should always have
+ * been — a visible manual override, not a second rule.
+ *
+ * `buildTradePlan`/`explainPlan` are still here, and still earn their place: they say
+ * whether the SETUP is there at all (quality score, the passed/failed list). That is a
+ * different question from how big, and the two are not in competition.
+ *
+ * ── WHERE THE CURRENCIES SIT ────────────────────────────────────────────────
+ * Bars, and therefore entry/stop/target, are raw USD — the levels are labelled as
+ * such and never converted, because a stop is a price you type into a broker. Money
+ * (equity, position value, risk) comes out of `buildBuyPlan` in the ACCOUNT's
+ * currency, so `planConv` converts from THAT, not from USD. Getting this backwards is
+ * a silent error exactly the size of the EURUSD rate.
  */
 async function renderTradePlanner(ctx: AppContext): Promise<void> {
   const panel = $('#wl-plan-panel')!;
   if (!activeId) { panel.innerHTML = ''; return; }
 
-  // Latest EURUSD rate (shared with the Portfolio tab's cache) so we can convert
-  // EUR account cash → USD for sizing and offer a €/$ display toggle.
+  // Latest EURUSD rate (shared with the Portfolio tab's cache) so USD levels can be
+  // turned into account money, and so the €/$ display toggle has something to use.
   const fxBars = (await ctx.storage.get<Bar[]>('pf_eurusd_bars')) ?? [];
   if (fxBars.length) planEurUsd = fxBars[fxBars.length - 1]!.close || 1;
 
-  // Portfolio accounts → pick one to size against (uses its live cash). Account
-  // cash is in the account currency; convert EUR → USD so sizing matches the
-  // USD stock prices. Falls back to a manual figure when no account is chosen.
-  const pfAccounts = (await ctx.storage.get<AccountState[]>('accounts')) ?? [];
-  const prevEquity = Number((document.getElementById('tp-equity') as HTMLInputElement | null)?.value);
-  const equity = Number.isFinite(prevEquity) && prevEquity > 0 ? prevEquity : 100_000;
+  // Opening this panel IS the explicit "plan some trades" gesture, so this is the
+  // right moment to spend a request on the regime — the size ladder must not run
+  // silently without one. Same rule the Buy form follows on its first Setup.
+  await loadPlaybookConfig(ctx);
+  await ensureRegime(ctx, { refresh: true }).catch(() => null);
 
-  const acctOpts = pfAccounts
+  planAccounts = (await ctx.storage.get<AccountState[]>('accounts')) ?? [];
+  const prevEquity = Number((document.getElementById('tp-equity') as HTMLInputElement | null)?.value);
+  if (Number.isFinite(prevEquity) && prevEquity > 0) planManualEquity = prevEquity;
+
+  const acctOpts = planAccounts
     .map((a) => {
-      const cashBase = computeCash(a);
-      const cashUsd = Math.round(a.account.currency === 'EUR' && planEurUsd > 1 ? cashBase * planEurUsd : cashBase);
-      const label = a.account.currency === 'EUR'
-        ? `${a.account.name} — €${Math.round(cashBase).toLocaleString()}`
-        : `${a.account.name} — $${cashUsd.toLocaleString()}`;
-      return `<option value="${a.account.id}" data-cash="${cashUsd}">${label}</option>`;
+      // Cash in the account's OWN currency: this dropdown is about which pot of money
+      // is paying, and converting it here would only invite reading it as the other one.
+      const cash = Math.round(computeCash(a));
+      const sym = a.account.currency === 'EUR' ? '€' : '$';
+      const sel = planAcctId === a.account.id ? ' selected' : '';
+      return `<option value="${a.account.id}"${sel}>${a.account.name} — ${sym}${cash.toLocaleString()}</option>`;
     })
     .join('');
 
@@ -319,43 +349,48 @@ async function renderTradePlanner(ctx: AppContext): Promise<void> {
         </div>` : ''}
         <div class="tp-ctl">
           <label class="field-label">${t('wl.plan.equity')} (USD)</label>
-          <input id="tp-equity" class="field" type="number" value="${equity}" step="10000" />
+          <input id="tp-equity" class="field" type="number" value="${planManualEquity}" step="10000" ${planAcctId ? 'disabled' : ''} />
         </div>
         <button id="tp-ccy" class="btn-outline tp-ctl-btn" title="Toggle display currency">${planSym()} ${planCcy}</button>
         <button id="tp-refresh" class="btn-outline tp-ctl-btn">${t('wl.plan.run')}</button>
       </div>
+      <div id="tp-status" class="muted" style="font-size:11px;line-height:1.5;margin:6px 0 0"></div>
       <div id="tp-results"><div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div></div>
     </div>`;
 
   document.getElementById('tp-close')!.addEventListener('click', () => { panel.innerHTML = ''; });
   document.getElementById('tp-refresh')!.addEventListener('click', () => void computePlans(ctx));
 
-  // Currency toggle — display-only; recompute derived blocks in the new currency.
+  // Currency toggle — display-only; repaint the money in the other currency.
   document.getElementById('tp-ccy')!.addEventListener('click', () => {
     planCcy = planCcy === 'USD' ? 'EUR' : 'USD';
-    void computePlans(ctx);
+    void renderTradePlanner(ctx);
   });
 
-  // Selecting an account fills the equity box with its (USD) cash and re-plans.
+  // Choosing an account switches the whole basis of the sizing: its cash, its open
+  // risk, its closed-trade record. The typed-equity box goes grey rather than away,
+  // so it is obvious which number is in charge.
   const acctSel = document.getElementById('tp-acct') as HTMLSelectElement | null;
   acctSel?.addEventListener('change', () => {
-    const opt = acctSel.selectedOptions[0];
-    const cash = Number(opt?.dataset.cash);
-    if (cash > 0) {
-      (document.getElementById('tp-equity') as HTMLInputElement).value = String(cash);
-      void computePlans(ctx);
-    }
+    planAcctId = acctSel.value || null;
+    const acct = planAccount();
+    // Follow the account's own currency by default — the money about to be shown is
+    // that account's money, and showing it in the other one is a choice, not a default.
+    if (acct) planCcy = acct.account.currency === 'EUR' ? 'EUR' : 'USD';
+    void renderTradePlanner(ctx);
+  });
+
+  document.getElementById('tp-equity')!.addEventListener('change', () => {
+    const v = Number((document.getElementById('tp-equity') as HTMLInputElement).value);
+    if (v > 0) { planManualEquity = v; void computePlans(ctx); }
   });
 
   await computePlans(ctx);
 }
 
 async function computePlans(ctx: AppContext): Promise<void> {
-  const panel = $('#wl-plan-panel')!;
   const out = document.getElementById('tp-results')!;
   if (!activeId || !out) return;
-
-  const eq = Number((document.getElementById('tp-equity') as HTMLInputElement | null)?.value) || 100_000;
 
   out.innerHTML = `<div class="muted"><span class="spinner"></span> ${t('msg.scanning')}…</div>`;
   const syms = await loadItems(ctx, activeId);
@@ -366,12 +401,18 @@ async function computePlans(ctx: AppContext): Promise<void> {
   for (const sym of syms) {
     const d = data.get(sym);
     if (d && d.bars.length >= 60) scans.push(scanQm(sym, d.bars));
+    // Keep the bars: editing the Entry price re-derives the stop from structure, and
+    // that needs the same history the scan used. Re-fetching per keystroke is not an
+    // option, and a planner whose stop did not follow the entry would be a form that
+    // quietly disagreed with itself.
+    if (d?.bars.length) planBars.set(sym, d.bars);
   }
 
-  // Levels/quality come from buildTradePlan; sizing defaults to DEFAULT_SIZE_PCT
-  // of equity (shares recomputed per-card in recalcPlan).
+  // `buildTradePlan` still answers "is the setup there": levels for the seed, a
+  // quality score to sort by, and the actionable badge. The SIZE comes from the
+  // playbook further down.
   const plans = scans
-    .map((s) => ({ scan: s, plan: buildTradePlan(s, { equity: eq, riskPctPerTrade: 1 }) }))
+    .map((s) => ({ scan: s, plan: buildTradePlan(s, { equity: planEquityGuess(), riskPctPerTrade: 1 }) }))
     .sort((a, b) => b.plan.qualityScore - a.plan.qualityScore);
 
   if (!plans.length) { out.innerHTML = `<p class="muted">${t('wl.empty')}</p>`; return; }
@@ -380,20 +421,9 @@ async function computePlans(ctx: AppContext): Promise<void> {
   const liveSyms = new Set(plans.map((p) => p.plan.symbol));
   for (const key of [...planEdits.keys()]) if (!liveSyms.has(key)) planEdits.delete(key);
 
+  const vi = getLang() === 'vi';
   const lang = getLang();
   const rows = plans.map(({ scan, plan }) => {
-    const explanation = explainPlan(scan);
-
-    // Default note = the planner's own narrative as FORMATTED HTML (bold
-    // headline + green "passed" bullets + red "failed" bullets), so the note
-    // keeps the explanation block's formatting and stays richly editable.
-    const esc = (s: string): string => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
-    const passedLis = explanation.passed.map((p) => `<li>${esc(p[lang])}</li>`).join('');
-    const failedLis = explanation.failed.map((f) => `<li><span style="color:#ff5266">${esc(f[lang])}</span></li>`).join('');
-    const defaultNote = sanitizeNoteHtml(
-      `<h3>${esc(explanation.headline[lang])}</h3><ul>${passedLis}${failedLis}</ul>`,
-    );
-
     // Seed the editable state once per symbol; keep any prior user edits.
     const prev = planEdits.get(plan.symbol);
     const edit: PlanEdit = prev ?? {
@@ -401,18 +431,31 @@ async function computePlans(ctx: AppContext): Promise<void> {
       stop: plan.stop ?? null,
       target: plan.target ?? null,
       shares: plan.shares || 0,
-      sizeMode: 'pct',           // default: size by % of equity
+      // The playbook's own answer is the default. The % chips are still there, one
+      // click away, but they are now the override rather than the rule.
+      sizeMode: 'plan',
       sizePct: DEFAULT_SIZE_PCT,
-      note: defaultNote,
+      // What the scan already thinks this is. The user can disagree with the dropdown —
+      // that is the point of it — but starting blank would make them re-type a
+      // classification the screener had just made.
+      setup: QM_TO_SETUP[scan.setupType],
+      // Blank on purpose: the grade is a judgement the app has no business guessing,
+      // and an ungraded trade is planned at full size rather than refused.
+      rating: null,
+      note: '',
+      noteEdited: false,
+      ownStop: false,
+      ownTarget: false,
+      explain: explainHtml(scan, lang),
     };
     planEdits.set(plan.symbol, edit);
+
     const actionColor = plan.actionable ? 'var(--accent)' : 'var(--faint)';
     const S = plan.symbol;
     const activePreset = edit.sizeMode === 'pct' ? edit.sizePct : null;
     const sizeChips = SIZE_PRESETS.map((p) =>
       `<button type="button" class="tp-size-chip${p === activePreset ? ' active' : ''}" data-tp-size="${S}" data-pct="${p}">${p}%</button>`,
     ).join('');
-    // Show a non-preset % (e.g. custom) in the custom box.
     const customVal = edit.sizeMode === 'pct' && edit.sizePct != null && !SIZE_PRESETS.includes(edit.sizePct)
       ? edit.sizePct : '';
     return `
@@ -422,6 +465,19 @@ async function computePlans(ctx: AppContext): Promise<void> {
           <span class="badge" style="background:var(--surface);border-color:${actionColor};color:${actionColor}">
             ${plan.actionable ? t('wl.plan.actionable') : t('wl.plan.nosetup')} · Q ${plan.qualityScore.toFixed(0)}/100
           </span>
+        </div>
+
+        <div class="tp-playfields">
+          <label class="tp-field"><span>${t('wl.plan.setup')}</span>
+            <select class="field" data-tp-setup="${S}">
+              <option value="">${t('wl.plan.nosetupopt')}</option>
+              ${SETUP_KEYS.map((k) => `<option value="${k}"${k === edit.setup ? ' selected' : ''}>${setupName(k, vi)}</option>`).join('')}
+            </select></label>
+          <label class="tp-field"><span>${t('wl.plan.grade')}</span>
+            <select class="field" data-tp-rating="${S}">
+              <option value="">${t('wl.plan.nograde')}</option>
+              ${RATING_KEYS.map((r) => `<option value="${r}"${r === edit.rating ? ' selected' : ''}>${r} — ${ladderConfig().ratingPct[r]}%</option>`).join('')}
+            </select></label>
         </div>
 
         <div class="tp-fields">
@@ -437,6 +493,7 @@ async function computePlans(ctx: AppContext): Promise<void> {
 
         <div class="tp-size-row">
           <span class="tp-size-label">${t('wl.plan.possize')}</span>
+          <button type="button" class="tp-size-chip${edit.sizeMode === 'plan' ? ' active' : ''}" data-tp-size="${S}" data-pct="book">${t('wl.plan.frombook')}</button>
           ${sizeChips}
           <span class="tp-size-custom">
             <span class="tp-size-customlabel">${t('wl.plan.custom')}:</span>
@@ -444,7 +501,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
           </span>
         </div>
 
-        <div class="tp-derived" data-tp-derived="${S}"><!-- filled by recalcPlan --></div>
+        <div class="tp-chart" data-tp-chart="${S}"></div>
+        <div class="tp-derived" data-tp-derived="${S}"></div>
 
         <div class="tp-note-head">
           <span class="tp-note-label">${t('wl.plan.note')}</span>
@@ -455,10 +513,9 @@ async function computePlans(ctx: AppContext): Promise<void> {
   });
 
   out.innerHTML = rows.join('');
-
-  // Recompute every card's derived stats from its current edit state.
-  for (const { plan } of plans) recalcPlan(plan.symbol, eq);
-  wirePlanEdits(out, eq);
+  paintPlanStatus();
+  for (const { plan } of plans) recalcPlan(plan.symbol);
+  wirePlanEdits(out);
 
   // Clicking a symbol opens its stock detail.
   out.querySelectorAll<HTMLElement>('[data-tp-open]').forEach((a) =>
@@ -475,61 +532,247 @@ interface PlanEdit {
   stop: number | null;
   target: number | null;
   shares: number;
-  /** 'risk' sizes shares from risk %/trade; 'pct' sizes from a % of equity. */
-  sizeMode: 'risk' | 'pct';
+  /**
+   * Where the share count comes from: the playbook, a % of equity, or the box.
+   *
+   * 'plan' is the default and the only one of the three that knows about the regime,
+   * the record and the grade — the other two are the user overruling it, which they
+   * are allowed to do as long as the screen keeps saying what the book would have said.
+   */
+  sizeMode: 'plan' | 'pct' | 'manual';
   sizePct: number | null;
+  /** Which playbook row to use. '' = none chosen, so there is nothing to suggest. */
+  setup: SetupKey | '';
+  /** A–D, or null for ungraded — which means full size, not no trade. */
+  rating: ConvictionRating | null;
   note: string;
+  /** Once the user has edited the note, the planner stops rewriting it. */
+  noteEdited: boolean;
+  /** The user typed their own stop / target, so the plan offers rather than fills. */
+  ownStop: boolean;
+  ownTarget: boolean;
+  /** `explainPlan`'s passed/failed narrative, rendered once — the setup half. */
+  explain: string;
 }
 const planEdits = new Map<string, PlanEdit>();
+const planBars = new Map<string, Bar[]>();
 const SIZE_PRESETS = [3.5, 5, 7.5, 10, 12.5, 15, 17.25, 20];
 const DEFAULT_SIZE_PCT = 3.5;
 
-// Trade-planner display currency. Stock levels are in USD; toggling to EUR only
-// converts the displayed dollar amounts (equity, position $, risk $) via the
-// latest EURUSD rate. Percentages are currency-agnostic.
+/**
+ * What the screener thinks the setup is, as a playbook row.
+ *
+ * `BOTH` picks VCP rather than EP because the VCP row is the tighter of the two: when
+ * two readings of the same chart disagree about how much room to give the stop, taking
+ * the smaller position is the recoverable mistake.
+ */
+const QM_TO_SETUP: Record<QmSetupType, SetupKey | ''> = {
+  VCP: 'VCP',
+  EPISODIC_PIVOT: 'EP',
+  BOTH: 'VCP',
+  NONE: '',
+};
+
+// Which account is paying, and the money to use when none is. `planAccounts` is the
+// list as last read from storage — the planner re-reads it whenever the panel is drawn.
+let planAccounts: AccountState[] = [];
+let planAcctId: string | null = null;
+let planManualEquity = 100_000;
+
+function planAccount(): AccountState | null {
+  return planAccounts.find((a) => a.account.id === planAcctId) ?? null;
+}
+
+/**
+ * The account to size against — the real one, or a stand-in holding the typed equity.
+ *
+ * ── WHY A MADE-UP ACCOUNT AND NOT A SECOND CODE PATH ────────────────────────
+ * `buildBuyPlan` needs an account: cash, open risk, and the closed-trade record the
+ * risk ladder reads. The planner still has to answer "how big" before the user has
+ * picked one. Branching on that would give this panel a second sizing rule — the exact
+ * thing this rewrite removed. A stand-in with the typed money as cash and no history
+ * keeps one path, and what it implies is honest rather than convenient: no closed
+ * trades means the learning rung, which is what the book prescribes for someone with
+ * no record to show.
+ */
+function planState(): AccountState {
+  const real = planAccount();
+  if (real) return real;
+  return {
+    account: {
+      id: '', name: '', initialCapital: planManualEquity, currency: 'USD',
+      createdAt: new Date().toISOString().slice(0, 10),
+    },
+    lots: [], sells: [], orders: [], snapshots: [], cashFlows: [],
+  };
+}
+
+/**
+ * Prices for the chosen account's holdings, in its own currency.
+ *
+ * Empty is a real answer, not a gap: `computePositionsValue` then falls back to cost
+ * basis, so the equity is what was paid rather than what it is worth. The status line
+ * says so — see `paintPlanStatus` — because an equity figure the user cannot date is
+ * one they will trade off anyway.
+ */
+function planPrices(): PriceMap {
+  const id = planAccount()?.account.id;
+  return id ? accountPrices(id) : {};
+}
+
+/** A rough equity for `buildTradePlan`'s own sizing, which only feeds its quality view. */
+function planEquityGuess(): number {
+  const a = planAccount();
+  return a ? Math.max(1, computeEquity(a, planPrices())) : planManualEquity;
+}
+
+/** The currency the money in this panel is denominated in before display conversion. */
+function planAcctCcy(): 'USD' | 'EUR' {
+  return planAccount()?.account.currency === 'EUR' ? 'EUR' : 'USD';
+}
+
+// Display currency for MONEY only. Stock levels stay in USD, always, because a stop is
+// a number you hand to a broker.
 let planCcy: 'USD' | 'EUR' = 'USD';
 let planEurUsd = 1; // 1 EUR = planEurUsd USD (latest cached rate)
 const planSym = (): string => (planCcy === 'EUR' ? '€' : '$');
-/** Convert a USD amount to the current display currency. */
-const planConv = (usd: number): number => (planCcy === 'EUR' && planEurUsd > 1 ? usd / planEurUsd : usd);
 
-/** Recompute shares (when sizing by %) and all derived risk/position stats,
- * then repaint just this card's derived block. Pure DOM update — no re-scan. */
-function recalcPlan(symbol: string, equity: number): void {
+/**
+ * Account-currency money → the display currency.
+ *
+ * Note the input: NOT USD. `buildBuyPlan` hands back `equity`, `riskAmount` and the
+ * rest already converted into the account's currency, and feeding those through a
+ * USD→EUR conversion would divide by the rate twice.
+ */
+function planConv(v: number): number {
+  const from = planAcctCcy();
+  if (from === planCcy || planEurUsd <= 1) return v;
+  return from === 'EUR' ? v * planEurUsd : v / planEurUsd;
+}
+
+/** A USD stock level → account-currency money, for the position and risk figures. */
+function usdToAcct(v: number): number {
+  return planAcctCcy() === 'EUR' && planEurUsd > 1 ? v / planEurUsd : v;
+}
+
+/** `explainPlan`'s narrative as rich-note HTML: the headline plus what passed and failed. */
+function explainHtml(scan: QmScanResult, lang: 'en' | 'vi'): string {
+  const e = explainPlan(scan);
+  const esc = (s: string): string => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
+  const passedLis = e.passed.map((p) => `<li>${esc(p[lang])}</li>`).join('');
+  const failedLis = e.failed.map((f) => `<li><span style="color:#ff5266">${esc(f[lang])}</span></li>`).join('');
+  return `<h3>${esc(e.headline[lang])}</h3><ul>${passedLis}${failedLis}</ul>`;
+}
+
+/** The line above the cards: which money is being used, and how trustworthy it is. */
+function paintPlanStatus(): void {
+  const box = document.getElementById('tp-status');
+  if (!box) return;
+  const vi = getLang() === 'vi';
+  const acct = planAccount();
+  const bits: string[] = [t('wl.plan.usdlevels')];
+  if (acct) {
+    bits.push(
+      `${vi ? 'Tiền theo' : 'Money in'} ${acct.account.currency}` +
+      (planCcy !== planAcctCcy() ? ` (${vi ? 'đang hiện bằng' : 'shown in'} ${planCcy})` : ''),
+    );
+    if (!hasPrices(acct.account.id)) bits.push(t('wl.plan.costbasis'));
+  } else {
+    bits.push(t('wl.plan.manualnote'));
+  }
+  box.innerHTML = bits.join(' · ');
+}
+
+/**
+ * The plan for one card, from the playbook, at whatever entry is currently in the box.
+ *
+ * Returns null when there is nothing honest to compute — no setup chosen, no entry, no
+ * bars, or no stop below the entry. Every caller has to say which of those it is,
+ * because a card that just shows nothing reads as a broken feature.
+ */
+function cardPlan(symbol: string): BuyPlan | null {
+  const e = planEdits.get(symbol);
+  const bars = planBars.get(symbol);
+  if (!e || !e.setup || !bars?.length) return null;
+  if (e.entry === null || !(e.entry > 0)) return null;
+  return buildBuyPlan({
+    state: planState(),
+    prices: planPrices(),
+    bars,
+    entry: e.entry,
+    // The entry box holds a raw USD close, like the bars it came from.
+    entryCurrency: 'USD',
+    setup: e.setup,
+    date: new Date().toISOString().slice(0, 10),
+    rating: e.rating,
+  });
+}
+
+/**
+ * Re-run the playbook for one card and repaint everything derived from it.
+ *
+ * ── WHY THIS DOES NOT REDRAW THE CARD ───────────────────────────────────────
+ * It runs on every keystroke in the Entry box. Replacing the card's HTML would take
+ * the input the user is typing in out from under the caret. So it writes `.value` on
+ * the fields it still owns, and replaces only the three containers whose children have
+ * no listeners: the chart, the stats and the note.
+ */
+function recalcPlan(symbol: string): void {
   const e = planEdits.get(symbol);
   const box = document.querySelector<HTMLElement>(`[data-tp-derived="${CSS.escape(symbol)}"]`);
   if (!e || !box) return;
+  const vi = getLang() === 'vi';
+  const plan = cardPlan(symbol);
+
+  // Stop and target follow the entry — that is the whole point of the Setup dropdown —
+  // but only while they are still the planner's numbers. A hand-typed stop survives,
+  // because overwriting it would place a trade at a level the user had rejected.
+  if (plan) {
+    if (!e.ownStop) { e.stop = plan.stop; setFieldValue(symbol, 'stop', String(plan.stop)); }
+    if (!e.ownTarget) {
+      e.target = plan.target;
+      setFieldValue(symbol, 'target', plan.target === null ? '' : String(plan.target));
+    }
+    if (e.sizeMode === 'plan') { e.shares = plan.shares; setFieldValue(symbol, 'shares', String(plan.shares || '')); }
+  }
 
   const entry = e.entry ?? 0;
   const stop = e.stop ?? 0;
-  const riskPerShare = entry > 0 && stop > 0 ? entry - stop : 0;
+  const riskPerShare = entry > 0 && stop > 0 && stop < entry ? entry - stop : 0;
+  // With no setup chosen there is no plan to read the equity off, but the % chips and
+  // the cash warning still need one — and it has to be the SAME number the plan would
+  // have used, or the position percentages would jump when the setup is picked.
+  const equity = plan ? plan.equity : planEquityGuess();
 
-  // When sizing by % of equity, derive shares from that; else keep the shares
-  // field (which itself was seeded from risk-based sizing).
   if (e.sizeMode === 'pct' && e.sizePct != null && entry > 0) {
-    e.shares = Math.round((equity * e.sizePct) / 100 / entry);
-    const sharesInput = document.querySelector<HTMLInputElement>(`input[data-tp="shares"][data-sym="${CSS.escape(symbol)}"]`);
-    if (sharesInput && document.activeElement !== sharesInput) sharesInput.value = String(e.shares || '');
+    // The % is of equity, which is account money, so the entry has to become account
+    // money too before the division — otherwise a EUR account buys 1.17× too many.
+    e.shares = Math.round((equity * e.sizePct) / 100 / usdToAcct(entry));
+    setFieldValue(symbol, 'shares', String(e.shares || ''));
   }
 
   const shares = Math.max(0, Math.round(e.shares || 0));
-  const positionValue = shares * entry;
+  const positionValue = shares * usdToAcct(entry);
   const positionPct = equity > 0 ? (positionValue / equity) * 100 : 0;
-  const riskAmount = shares * Math.max(0, riskPerShare);
+  const riskAmount = shares * usdToAcct(riskPerShare);
   const riskPctOfPos = positionValue > 0 ? (riskAmount / positionValue) * 100 : 0;
   const riskPctOfEq = equity > 0 ? (riskAmount / equity) * 100 : 0;
   const rr = riskPerShare > 0 && e.target != null && e.target > entry
     ? (e.target - entry) / riskPerShare : null;
 
   const sym = planSym();
-  // Warn when the intended position costs more cash than the account has.
-  const overBy = positionValue - equity;
+  const cash = computeCash(planState());
+  // The cash test is against CASH, not equity: money already in positions cannot buy
+  // this one. The old version compared to equity and so stayed quiet on a fully
+  // invested account — the one time the warning matters.
+  const overBy = positionValue - cash;
   const warn = overBy > 0
     ? `<div class="tp-cash-warn">⚠ ${t('wl.plan.nocash')
         .replace('{need}', `${sym}${num(planConv(positionValue), 0)}`)
-        .replace('{have}', `${sym}${num(planConv(equity), 0)}`)
+        .replace('{have}', `${sym}${num(planConv(cash), 0)}`)
         .replace('{over}', `${sym}${num(planConv(overBy), 0)}`)}</div>`
     : '';
+
   box.innerHTML = `
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
       <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v"${overBy > 0 ? ' style="color:var(--danger)"' : ''}>${sym}${num(planConv(positionValue), 0)} <span class="muted" style="font-size:11px">(${num(positionPct, 1)}%)</span></div></div>
@@ -537,22 +780,116 @@ function recalcPlan(symbol: string, equity: number): void {
       <div class="stat"><div class="k">${t('wl.plan.riskeq')}</div><div class="v" style="color:var(--warn)">${num(riskPctOfEq, 2)}%</div></div>
       <div class="stat"><div class="k">R:R</div><div class="v">${rr != null ? num(rr, 2) + ':1' : '—'}</div></div>
     </div>${warn}`;
+
+  paintPlanChart(symbol);
+
+  // The note explains the plan; once the user has written in it, it is theirs.
+  if (!e.noteEdited) {
+    const head = plan
+      ? `<p>${planLines(plan, { vi, levelSym: '$', moneySym: sym, money: true }).join('<br>')}</p>`
+      : `<p class="muted">${e.setup ? t('wl.plan.nolevels') : t('wl.plan.picksetup')}</p>`;
+    e.note = sanitizeNoteHtml(head + e.explain);
+    const noteBox = document.querySelector<HTMLElement>(`[data-tp-note="${CSS.escape(symbol)}"]`);
+    if (noteBox) noteBox.innerHTML = e.note;
+  }
+}
+
+/** Write a planner field without stealing the caret from someone typing in it. */
+function setFieldValue(symbol: string, field: 'stop' | 'target' | 'shares', value: string): void {
+  const el2 = document.querySelector<HTMLInputElement>(
+    `input[data-tp="${field}"][data-sym="${CSS.escape(symbol)}"]`,
+  );
+  if (el2 && document.activeElement !== el2) el2.value = value;
+}
+
+/**
+ * The plan, drawn: the last stretch of bars with entry, stop and target across them.
+ *
+ * The three levels are the point. Reading "stop 47.20, target 61.40" tells you the
+ * arithmetic; seeing where they sit against the base tells you whether the stop is
+ * under something or hanging in the middle of a range — which is the judgement the
+ * numbers cannot make for you. `candleChart` includes the levels in its price scale,
+ * so a target far above the bars shrinks the candles rather than falling off the top.
+ */
+function paintPlanChart(symbol: string): void {
+  const box = document.querySelector<HTMLElement>(`[data-tp-chart="${CSS.escape(symbol)}"]`);
+  const e = planEdits.get(symbol);
+  const bars = planBars.get(symbol);
+  if (!box || !e) return;
+  if (!bars?.length) { box.innerHTML = ''; return; }
+
+  const vi = getLang() === 'vi';
+  const slice = bars.slice(-80);
+  const closes = slice.map((b) => b.close);
+  const levels: Level[] = [];
+  if (e.entry !== null && e.entry > 0) {
+    levels.push({ y: e.entry, color: 'var(--fg)', label: `${vi ? 'Vào' : 'Entry'} ${num(e.entry)}`, dash: '4 3' });
+  }
+  if (e.stop !== null && e.stop > 0) {
+    levels.push({ y: e.stop, color: 'var(--danger)', label: `${vi ? 'Cắt' : 'Stop'} ${num(e.stop)}` });
+  }
+  if (e.target !== null && e.target > 0) {
+    levels.push({ y: e.target, color: 'var(--accent)', label: `${vi ? 'Đích' : 'Target'} ${num(e.target)}` });
+  }
+
+  box.innerHTML = candleChart({
+    height: 150,
+    showVolume: false,
+    data: slice.map((b) => ({ o: b.open, h: b.high, l: b.low, c: b.close })),
+    overlays: [{ values: ema(closes, 21), color: 'var(--faint)', width: 1, label: 'EMA21' }],
+    levels,
+    title: vi ? `${symbol}: giá vào, cắt lỗ và mục tiêu` : `${symbol}: entry, stop and target`,
+  });
 }
 
 /** Wire input/blur/click handlers for every editable planner card. */
-function wirePlanEdits(root: HTMLElement, equity: number): void {
+function wirePlanEdits(root: HTMLElement): void {
   // Field inputs (entry/stop/target/shares).
   root.querySelectorAll<HTMLInputElement>('input[data-tp][data-sym]').forEach((el2) => {
     el2.addEventListener('input', () => {
       const sym = el2.dataset.sym!;
       const e = planEdits.get(sym);
       if (!e) return;
-      const key = el2.dataset.tp as keyof PlanEdit;
-      if (key === 'shares') { e.shares = Number(el2.value) || 0; e.sizeMode = 'risk'; recalcPlan(sym, equity); return; }
-      // entry / stop / target — numeric, blank → null.
-      const v = el2.value.trim();
-      (e as unknown as Record<string, number | null>)[key] = v === '' ? null : Number(v.replace(',', '.'));
-      recalcPlan(sym, equity);
+      const key = el2.dataset.tp!;
+      const raw = el2.value.trim();
+      if (key === 'shares') {
+        // Typing a share count is the user taking the size off the playbook. Say so by
+        // dropping the chip highlight, so the screen does not claim the book chose this.
+        e.shares = Number(raw) || 0;
+        e.sizeMode = 'manual';
+        el2.closest('.tp-card')?.querySelectorAll('[data-tp-size]').forEach((x) => x.classList.remove('active'));
+        recalcPlan(sym);
+        return;
+      }
+      const v = raw === '' ? null : Number(raw.replace(',', '.'));
+      if (key === 'entry') e.entry = v;
+      // A typed stop or target becomes theirs for good — until they clear the box,
+      // which is the one gesture that plainly means "you take it back".
+      if (key === 'stop') { e.stop = v; e.ownStop = raw !== ''; }
+      if (key === 'target') { e.target = v; e.ownTarget = raw !== ''; }
+      recalcPlan(sym);
+    });
+  });
+
+  // Setup dropdown — a different playbook row, so different stop, target and size.
+  root.querySelectorAll<HTMLSelectElement>('[data-tp-setup]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const sym = sel.dataset.tpSetup!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      e.setup = isSetupKey(sel.value) ? sel.value : '';
+      recalcPlan(sym);
+    });
+  });
+
+  // Grade dropdown — same trade, smaller bet.
+  root.querySelectorAll<HTMLSelectElement>('[data-tp-rating]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const sym = sel.dataset.tpRating!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      e.rating = isRating(sel.value) ? sel.value : null;
+      recalcPlan(sym);
     });
   });
 
@@ -565,25 +902,26 @@ function wirePlanEdits(root: HTMLElement, equity: number): void {
       const res = await richNoteDialog(`${sym} · ${t('wl.plan.note')}`, e.note ?? '', { lang: getLang() === 'vi' ? 'vi' : 'en' });
       if (res === null) return;
       e.note = res;
+      // From here the planner stops rewriting it. Regenerating over someone's own
+      // words on the next keystroke would lose work with no way to get it back.
+      e.noteEdited = true;
       const box = root.querySelector<HTMLElement>(`[data-tp-note="${CSS.escape(sym)}"]`);
       if (box) box.innerHTML = isNoteEmpty(res) ? `<span class="muted">${t('wl.plan.noteph')}</span>` : sanitizeNoteHtml(res);
     });
   });
 
-  // Preset size chips.
+  // Size chips: the playbook's own number, or a % of equity.
   root.querySelectorAll<HTMLElement>('[data-tp-size]').forEach((b) => {
     b.addEventListener('click', () => {
       const sym = b.dataset.tpSize!;
-      const pct = Number(b.dataset.pct);
       const e = planEdits.get(sym);
       if (!e) return;
-      e.sizeMode = 'pct'; e.sizePct = pct;
-      // Reflect selection: highlight the active chip, clear the custom box.
+      if (b.dataset.pct === 'book') { e.sizeMode = 'plan'; } else { e.sizeMode = 'pct'; e.sizePct = Number(b.dataset.pct); }
       const card = b.closest('.tp-card')!;
       card.querySelectorAll('[data-tp-size]').forEach((x) => x.classList.toggle('active', x === b));
       const custom = card.querySelector<HTMLInputElement>('[data-tp-sizeinput]');
       if (custom) custom.value = '';
-      recalcPlan(sym, equity);
+      recalcPlan(sym);
     });
   });
 
@@ -597,7 +935,7 @@ function wirePlanEdits(root: HTMLElement, equity: number): void {
       if (v === '') { return; }
       e.sizeMode = 'pct'; e.sizePct = Number(v.replace(',', '.')) || 0;
       inp.closest('.tp-card')!.querySelectorAll('[data-tp-size]').forEach((x) => x.classList.remove('active'));
-      recalcPlan(sym, equity);
+      recalcPlan(sym);
     });
   });
 }

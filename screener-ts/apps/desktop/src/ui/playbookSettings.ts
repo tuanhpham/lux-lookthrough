@@ -25,6 +25,7 @@ import {
   DEFAULT_RISK_LADDER,
   DEFAULT_SETUP_RULES,
   SETUP_KEYS,
+  RATING_KEYS,
   closedTradePnls,
   riskBudget,
   riskStageOf,
@@ -40,6 +41,9 @@ import {
   currentRegime, ladderConfig, loadPlaybookConfig, playbookConfig,
   savePlaybookConfig, regimeStale, type PlaybookConfig,
 } from '../portfolio/playbook.js';
+// Shared with the Buy form and the Trade Planner, so all three dropdowns spell the
+// setups the same way.
+import { setupName } from '../portfolio/planWords.js';
 
 /** Editable numeric fields of a setup rule, in column order. */
 const NUM_FIELDS = ['lookback', 'padPct', 'atrMult', 'firstTargetR', 'targetEma', 'trailEma', 'maxHoldSessions'] as const;
@@ -75,19 +79,6 @@ const TARGETS: { value: SetupRule['targetKind']; vi: string; en: string }[] = [
   { value: 'measuredMove', vi: 'Chiều cao nền', en: 'Measured move' },
   { value: 'ema', vi: 'Chạm EMA', en: 'At an EMA' },
 ];
-
-function setupName(k: SetupKey, vi: boolean): string {
-  const names: Record<SetupKey, [string, string]> = {
-    VCP: ['VCP', 'VCP'],
-    EP: ['Điểm xoay đột biến', 'Episodic Pivot'],
-    'Mean Reversion': ['Hồi quy trung bình', 'Mean Reversion'],
-    Breakout: ['Bứt phá', 'Breakout'],
-    Pullback: ['Điều chỉnh', 'Pullback'],
-    Surge: ['Tăng vọt', 'Surge'],
-    Other: ['Khác', 'Other'],
-  };
-  return vi ? names[k][0] : names[k][1];
-}
 
 /** `null` shows as an empty box — "no trail", "never expires" — not as a 0. */
 function numVal(v: number | null): string {
@@ -135,6 +126,12 @@ function statusHtml(state: AccountState | null, vi: boolean): string {
     regimeStress: ['xu hướng tăng đang căng → giảm nửa', 'uptrend under stress → halved'],
     regimeRange: ['thị trường đi ngang → giảm nửa', 'range → halved'],
     losingStreak: [`${ladder.losingStreakTrigger} lệnh lỗ liên tiếp → giảm nửa`, `${ladder.losingStreakTrigger} losses in a row → halved`],
+    // The status block computes an UNGRADED budget (no `rating` in the ctx), so this
+    // line cannot appear here today. It is written anyway: the map is keyed by
+    // `RiskCut`, and a cut with no wording prints as nothing at all — a size that
+    // silently dropped with no reason given is the one failure this block exists to
+    // prevent.
+    rating: ['xếp hạng dưới A → chỉ lấy một phần', 'graded below A → a share of the budget'],
     flooredAtMin: ['đã chạm sàn rủi ro', 'hit the risk floor'],
   };
   const cuts = budget.cuts.map((c) => (vi ? cutText[c]![0] : cutText[c]![1]));
@@ -223,6 +220,27 @@ export async function openPlaybookSettings(
               ? 'Ghim vẫn không mở lệnh mua mới khi thị trường ở xu hướng giảm: đó là luật “có giao dịch hay không”, không phải luật “to bao nhiêu”.'
               : 'A pin still refuses new longs in a downtrend: that rule is about whether to trade, not about how big.'}
           </div>
+        </div>
+
+        <div class="section-title">${vi ? 'Cỡ theo xếp hạng' : 'Size by grade'}</div>
+        <p class="muted" style="font-size:12px;line-height:1.6;margin:0 0 10px">
+          ${vi
+            ? 'Phần rủi ro mà mỗi hạng được lấy, tính theo % của cỡ đầy đủ. A là 100 vì A nghĩa là “đúng cái lệnh mà thang rủi ro được viết cho”. Ba hạng còn lại là số của app, không phải của cẩm nang — nên mới cho sửa. Để trống ô Xếp hạng khi mua thì lệnh vẫn được cỡ đầy đủ: chấm điểm là kỷ luật được mời, không phải cửa chặn.'
+            : 'The share of the risk each grade gets, as a percent of full size. A is 100 because A <i>means</i> “the trade the ladder was written for”. The other three are the app’s numbers, not the book’s — which is exactly why they are editable. Leaving the grade blank on a buy still plans full size: grading is a discipline you are invited into, not a gate.'}
+        </p>
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          ${RATING_KEYS.map((k) => `
+            <div style="width:110px">
+              <label class="field-label" style="margin-bottom:2px">${vi ? 'Hạng' : 'Grade'} ${k} (%)</label>
+              <input class="field" data-rating="${k}" type="text" inputmode="decimal"
+                autocorrect="off" autocapitalize="off" value="${ladder.ratingPct[k]}"
+                style="width:100%;padding:5px 7px;font-size:12px;text-align:right" />
+            </div>`).join('')}
+        </div>
+        <div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">
+          ${vi
+            ? 'Phần giảm này nằm trong cùng chồng với các lần giảm nửa vì thị trường, nên sàn rủi ro ở trên vẫn đỡ được nó — hạng D không rơi xuống 0 cổ.'
+            : 'This cut sits in the same stack as the market halvings, so the risk floor above still catches it — a D does not fall through to 0 shares.'}
         </div>
 
         <div class="section-title">${vi ? 'Luật theo từng thiết lập' : 'Rules per setup'}</div>
@@ -329,6 +347,25 @@ export async function openPlaybookSettings(
       if (!raw || !Number.isFinite(v) || v < 0) continue;
       if (v !== DEFAULT_RISK_LADDER[f.key]) (next.ladder as Record<string, number>)[f.key] = v;
     }
+
+    // ── WHY ALL FOUR GRADES GO IN OR NONE DO ────────────────────────────────
+    // `ladderConfig()` merges one level deep (`{...DEFAULT_RISK_LADDER, ...cfg.ladder}`),
+    // so a stored `ratingPct` REPLACES the default record wholesale instead of being
+    // merged into it. Save only the differing letters and the other three come back
+    // `undefined` — `ratingScale` would read them as "no grade" and quietly plan a C at
+    // full size. So: if any letter differs, write the complete record.
+    const gradePct: Record<string, number> = {};
+    let gradeChanged = false;
+    for (const k of RATING_KEYS) {
+      const raw = (host.querySelector<HTMLInputElement>(`[data-rating="${k}"]`)?.value ?? '').trim().replace(',', '.');
+      const v = Number(raw);
+      // Nonsense keeps the default for that letter rather than storing a 0 that would
+      // read as "plan no shares" — which must be a decision, never a typo.
+      const use = raw && Number.isFinite(v) && v > 0 ? v : DEFAULT_RISK_LADDER.ratingPct[k];
+      gradePct[k] = use;
+      if (use !== DEFAULT_RISK_LADDER.ratingPct[k]) gradeChanged = true;
+    }
+    if (gradeChanged) next.ladder.ratingPct = gradePct as RiskLadderConfig['ratingPct'];
 
     const pinnedRaw = (host.querySelector<HTMLInputElement>('#pb-pinned')?.value ?? '').trim().replace(',', '.');
     const pinned = Number(pinnedRaw);

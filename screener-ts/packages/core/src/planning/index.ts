@@ -13,12 +13,12 @@ export type { PlaybookRegime, RegimeRead } from './playbookRegime.js';
 
 // Per-setup stop/target rules, the risk ladder, and position sizing.
 export {
-  DEFAULT_SETUP_RULES, DEFAULT_RISK_LADDER, SETUP_KEYS,
-  isSetupKey, rulesFor, closedTradePnls, riskStageOf, riskBudget,
+  DEFAULT_SETUP_RULES, DEFAULT_RISK_LADDER, SETUP_KEYS, RATING_KEYS,
+  isSetupKey, isRating, ratingScale, rulesFor, closedTradePnls, riskStageOf, riskBudget,
   suggestLevels, suggestSize, openRiskOf,
 } from './setupPlaybook.js';
 export type {
-  SetupKey, SetupRule, SetupRuleOverrides, StopAnchor, TargetKind,
+  SetupKey, SetupRule, SetupRuleOverrides, StopAnchor, TargetKind, ConvictionRating,
   RiskLadderConfig, RiskStage, StageRead, RiskBudget, RiskCut,
   LevelSuggestion, LevelWarning, SizeInput, SizeSuggestion, SizeLimit, SizeWarning,
 } from './setupPlaybook.js';

@@ -189,6 +189,29 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'wl.plan.riskeq': { en: 'Risk % of equity', vi: 'Rủi ro % vốn' },
   'wl.plan.note': { en: 'Note', vi: 'Ghi chú' },
   'wl.plan.noteph': { en: 'Plan notes — trigger, invalidation, context…', vi: 'Ghi chú kế hoạch — điều kiện, ngưỡng hủy, bối cảnh…' },
+  // The playbook half of the planner: which rule row, and how much conviction.
+  'wl.plan.setup': { en: 'Setup', vi: 'Loại thiết lập' },
+  'wl.plan.nosetupopt': { en: '— none', vi: '— chưa chọn' },
+  'wl.plan.grade': { en: 'Grade', vi: 'Xếp hạng' },
+  'wl.plan.nograde': { en: '— none (full size)', vi: '— chưa (cỡ đầy đủ)' },
+  'wl.plan.frombook': { en: 'Playbook', vi: 'Cẩm nang' },
+  'wl.plan.usdlevels': { en: 'Entry, stop and target are in USD', vi: 'Giá vào, cắt lỗ và mục tiêu tính bằng USD' },
+  'wl.plan.picksetup': {
+    en: 'Pick a <b>Setup</b> to get the stop, the target and the share count from the playbook.',
+    vi: 'Chọn <b>Loại thiết lập</b> để cẩm nang tính cắt lỗ, mục tiêu và số cổ.',
+  },
+  'wl.plan.nolevels': {
+    en: 'No stop level below this entry for this setup — set the stop yourself.',
+    vi: 'Không có mốc cắt lỗ nào dưới giá vào cho thiết lập này — hãy tự đặt cắt lỗ.',
+  },
+  'wl.plan.costbasis': {
+    en: 'no prices cached for this account, so equity is at cost — run ↻ Update on Portfolio',
+    vi: 'tài khoản này chưa có giá nào được nạp, nên vốn đang tính theo giá mua — bấm ↻ Cập nhật ở tab Danh Mục',
+  },
+  'wl.plan.manualnote': {
+    en: 'no account chosen, so the size assumes no closed trades yet (the learning rung)',
+    vi: 'chưa chọn tài khoản, nên cỡ vị thế tính như chưa đóng lệnh nào (bậc đang học)',
+  },
 
   // Portfolio
   'pf.title': { en: 'Portfolio', vi: 'Danh Mục' },

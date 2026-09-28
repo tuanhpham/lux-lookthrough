@@ -225,6 +225,89 @@ describe('the risk budget the form uses', () => {
   });
 });
 
+describe('the conviction grade', () => {
+  /** €50,000 at a pinned 1% is €500 of risk; €8 per share is 62 shares at full size. */
+  async function graded(rating: 'A' | 'B' | 'C' | 'D' | null, ladder = {}) {
+    const { ctx, pb } = await load();
+    await pb.savePlaybookConfig(ctx, {
+      setups: { Pullback: { padPct: 0 } }, ladder, pinnedRiskPct: 1,
+    });
+    await pb.ensureRegime(ctx, { refresh: true });
+    return pb.buildBuyPlan({
+      state: eurAccount(), prices: {}, bars: TICKER_BARS,
+      entry: 100, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25', rating,
+    })!;
+  }
+
+  it('takes a share of the size per grade, and full size for A', async () => {
+    expect((await graded('A')).shares).toBe(62);   // €500 ÷ €8
+    expect((await graded('B')).shares).toBe(46);   // 0.75% → €375
+    expect((await graded('C')).shares).toBe(31);   // 0.50% → €250
+    expect((await graded('D')).shares).toBe(15);   // 0.25% → €125
+  });
+
+  it('plans an ungraded trade at full size rather than refusing it', async () => {
+    // A blank dropdown that silently quartered the position would teach the wrong
+    // lesson: grading is a discipline the user is invited into, not a gate.
+    const blank = await graded(null);
+    expect(blank.shares).toBe(62);
+    expect(blank.rating).toBeNull();
+    expect(blank.budget.cuts).not.toContain('rating');
+  });
+
+  it('echoes the grade back so the explanation can name it', async () => {
+    const c = await graded('C');
+    expect(c.rating).toBe('C');
+    expect(c.budget.cuts).toContain('rating');
+  });
+
+  it('still scales a PINNED percent, so the dropdown is not decorative', async () => {
+    // What the user pinned is the size of the trade they actually wanted — which is
+    // what an A means. A pin that ignored the grade would make A–D do nothing at all
+    // for everyone who had pinned a number.
+    expect((await graded('C')).budget.pct).toBe(0.5);
+    expect((await graded('A')).budget.pct).toBe(1);
+  });
+
+  it('is configurable', async () => {
+    const half = await graded('B', { ratingPct: { A: 100, B: 50, C: 25, D: 10 } });
+    expect(half.budget.pct).toBe(0.5);
+    expect(half.shares).toBe(31);
+  });
+
+  it('is caught by the risk floor rather than falling through it', async () => {
+    // THE REASON THE GRADE MULTIPLIES INSIDE `riskBudget`. On the learning rung (0.25%)
+    // a D would be 0.0625% — under the 0.1% floor. Applied outside the function the
+    // grade would land BELOW the floor, and the screen would claim the budget had been
+    // floored while showing a number under it.
+    const { ctx, pb } = await load();
+    await pb.savePlaybookConfig(ctx, { setups: { Pullback: { padPct: 0 } }, ladder: {}, pinnedRiskPct: null });
+    await pb.ensureRegime(ctx, { refresh: true });
+    const d = pb.buildBuyPlan({
+      state: eurAccount(), prices: {}, bars: TICKER_BARS,
+      entry: 100, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25', rating: 'D',
+    })!;
+    expect(d.budget.pct).toBe(0.1);
+    expect(d.budget.cuts).toContain('rating');
+    expect(d.budget.cuts).toContain('flooredAtMin');
+    expect(d.shares).toBeGreaterThan(0); // a plan of nought shares must be a decision
+  });
+
+  it('does not override the downtrend veto', async () => {
+    // The grade is about how big. Whether to be long at all is a different rule, and an
+    // A on a downtrend day must not talk the app into the trade.
+    const { ctx, pb } = await load({ rising: false });
+    await pb.savePlaybookConfig(ctx, { setups: {}, ladder: {}, pinnedRiskPct: 1 });
+    await pb.ensureRegime(ctx, { refresh: true });
+    const plan = pb.buildBuyPlan({
+      state: eurAccount(), prices: {}, bars: TICKER_BARS,
+      entry: 100, entryCurrency: 'USD', setup: 'VCP', date: '2026-09-25', rating: 'A',
+    })!;
+    expect(plan.budget.pct).toBe(0);
+    expect(plan.shares).toBe(0);
+  });
+});
+
 describe('the pointer from the playbook chapter', () => {
   it('hands the request over exactly once', async () => {
     // The book asks, the Portfolio tab answers. If the flag stayed set, the dialog

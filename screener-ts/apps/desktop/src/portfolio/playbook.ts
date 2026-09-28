@@ -34,8 +34,10 @@ import {
   suggestSize,
   computeCash,
   computeEquity,
+  ratingScale,
   type AccountState,
   type Bar,
+  type ConvictionRating,
   type LevelSuggestion,
   type PriceMap,
   type RegimeRead,
@@ -230,6 +232,8 @@ export interface BuyPlanInput {
   setup: SetupKey;
   /** Buy date, for the FX rate. */
   date: string;
+  /** A–D conviction grade. Absent means ungraded, which is planned at full size. */
+  rating?: ConvictionRating | null;
 }
 
 export interface BuyPlan {
@@ -245,6 +249,8 @@ export interface BuyPlan {
   regime: RegimeRead | null;
   /** Equity the sizing was based on, in the account's currency. */
   equity: number;
+  /** The grade the size was scaled by, echoed back so the explanation can name it. */
+  rating: ConvictionRating | null;
 }
 
 /**
@@ -256,6 +262,7 @@ export interface BuyPlan {
  */
 export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
   const { state, prices, bars, entry, entryCurrency, setup, date } = input;
+  const rating = input.rating ?? null;
   const ladder = ladderConfig();
 
   // Bars are USD; the form may be in EUR. Work in USD, report in the form's currency.
@@ -273,11 +280,11 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
   const equity = computeEquity(state, prices);
   const stage = riskStageOf(closedTradePnls(state), ladder);
   const budget = cfg.pinnedRiskPct === null
-    ? riskBudget(stage, { regime: regime?.regime ?? null, atrRatio: regime?.atrRatio ?? null }, ladder)
+    ? riskBudget(stage, { regime: regime?.regime ?? null, atrRatio: regime?.atrRatio ?? null, rating }, ladder)
     // A pinned percent still respects "no new longs in a downtrend": that rule is
     // about whether to trade at all, not about how big, so pinning a size must not
     // quietly switch it off.
-    : pinnedBudget(cfg.pinnedRiskPct, stage, ladder);
+    : pinnedBudget(cfg.pinnedRiskPct, stage, ladder, rating);
 
   const size = suggestSize({
     equity,
@@ -301,17 +308,33 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
     budget,
     regime,
     equity,
+    rating,
   };
 }
 
+/**
+ * A pinned percent, with the two things a pin does NOT override.
+ *
+ * The regime's veto stands (a downtrend is about whether to trade, not how big), and
+ * the conviction grade still scales it: what the user pinned is the size of the trade
+ * they actually wanted, which is what an A means. A pin that ignored the grade would
+ * make the A–D dropdown silently decorative for anyone who had pinned a number.
+ */
 function pinnedBudget(
   pct: number,
   stage: ReturnType<typeof riskStageOf>,
   ladder: RiskLadderConfig,
+  rating: ConvictionRating | null,
 ): RiskBudget {
   const auto = riskBudget(stage, { regime: regime?.regime ?? null, atrRatio: regime?.atrRatio ?? null }, ladder);
   if (auto.pct === 0) return auto; // a downtrend still means no new longs
-  return { pct, maxPositions: stage.maxPositions, cuts: [], stage };
+  const scale = ratingScale(rating, ladder);
+  return {
+    pct: Math.round(pct * scale * 10000) / 10000,
+    maxPositions: stage.maxPositions,
+    cuts: scale === 1 ? [] : ['rating'],
+    stage,
+  };
 }
 
 /** Distinct tickers still held — what the ladder's position limit counts. */

@@ -25,8 +25,11 @@ import {
   fetchMany,
   lastSettledSession,
   isSetupKey,
+  isRating,
+  RATING_KEYS,
   SECTOR_STOCKS,
   type AccountState,
+  type ConvictionRating,
   type PriceMap,
   type Bar,
 } from '@screener/core';
@@ -71,6 +74,7 @@ import {
   barsFor, buildBuyPlan, currentRegime, ensureRegime,
   loadPlaybookConfig, regimeStale, takePlaybookSettingsRequest, type BuyPlan,
 } from '../portfolio/playbook.js';
+import { planLines } from '../portfolio/planWords.js';
 import { openPlaybookSettings } from '../ui/playbookSettings.js';
 import { openStock } from '../ui/stockModal.js';
 import { infoIcon, attachTooltips } from '../ui/tooltip.js';
@@ -178,68 +182,9 @@ function wirePriceHint(
 // Playbook auto-fill for the Buy form
 // ---------------------------------------------------------------------------
 
-/** Where the suggested stop is hanging, in words. */
-const ANCHOR_MEANS: Record<string, [string, string]> = {
-  pullbackLow: ['dưới đáy của nhịp điều chỉnh', 'below the pullback low'],
-  contractionLow: ['dưới đáy của lần nén cuối', 'below the last contraction low'],
-  breakoutBarLow: ['dưới đáy nến bứt phá', 'below the breakout bar’s low'],
-  signalBarLow: ['dưới đáy nến tín hiệu', 'below the signal bar’s low'],
-  gapBarLow: ['dưới đáy nến nhảy khoảng', 'below the gap bar’s low'],
-  recentLow: ['dưới đáy gần nhất', 'below the recent low'],
-  atrOnly: ['theo ATR, vì thiết lập này không có mốc cấu trúc', 'by ATR — this setup has no structural mark'],
-};
-
-const LEVEL_WARN: Record<string, [string, string]> = {
-  // Deliberately phrased as a consequence, not as an error: the wide stop is CORRECT
-  // and the smaller position is the right response to it.
-  stopWiderThanAtr: [
-    'Cấu trúc đặt cắt lỗ xa hơn thước đo ATR — đúng thì vẫn là đúng, nên số cổ nhỏ đi thay vì kéo cắt lỗ lại gần.',
-    'Structure puts the stop wider than the ATR guide — that stands, so the share count shrinks instead of the stop moving in.',
-  ],
-  belowMinRR: [
-    'Dưới mức R:R tối thiểu. Cẩm nang: bỏ qua, bất kể mẫu hình đẹp đến đâu.',
-    'Under the minimum R:R. The book: skip it, however pretty the pattern.',
-  ],
-  fellBackToAtr: [
-    'Không có đáy nào dưới giá vào để neo — đã dùng ATR thay thế.',
-    'No low below the entry to anchor on — used ATR instead.',
-  ],
-  emaTargetBelowEntry: [
-    'EMA chốt lời chưa nằm trên giá vào, nên chưa có mục tiêu để đặt.',
-    'The exit EMA is not above the entry yet, so there is no target to set.',
-  ],
-  measuredMoveTooSmall: [
-    'Chiều cao nền nhỏ hơn R:R tối thiểu — đã dùng bội số R.',
-    'The base height came out under the minimum R:R — used the R multiple.',
-  ],
-};
-
-const SIZE_WARN: Record<string, [string, string]> = {
-  heatExceeded: [
-    'Tổng rủi ro đang mở đã chạm hạn mức — đóng hoặc nâng cắt lỗ một vị thế trước.',
-    'Total open risk is already at the limit — close or tighten something first.',
-  ],
-  noNewLongs: ['Thị trường ở xu hướng giảm: không mở lệnh mua mới.', 'Downtrend: no new longs.'],
-  tooManyPositions: [
-    'Đã đủ số vị thế cho bậc rủi ro hiện tại.',
-    'Already at the position count for this risk rung.',
-  ],
-  notEnoughCash: ['Tiền còn lại không đủ mua một cổ.', 'Not enough cash for a single share.'],
-};
-
-const SIZE_LIMIT: Record<string, [string, string]> = {
-  risk: ['rủi ro mỗi lệnh', 'risk per trade'],
-  cash: ['tiền còn lại', 'cash on hand'],
-  concentration: ['tỷ trọng tối đa một mã', 'max weight in one name'],
-  heat: ['tổng rủi ro đang mở', 'total open risk'],
-};
-
-const REGIME_SHORT: Record<string, [string, string]> = {
-  UPTREND: ['tăng', 'uptrend'],
-  UPTREND_UNDER_STRESS: ['tăng nhưng căng', 'uptrend under stress'],
-  RANGE: ['đi ngang', 'range'],
-  DOWNTREND: ['giảm', 'downtrend'],
-};
+// The words for the plan — anchors, warnings, cuts, grades — now live in
+// `portfolio/planWords.ts`, because the Trade Planner explains the same plan and a
+// second copy of those tables is how one number ends up with two explanations.
 
 /**
  * Fill stop / target / shares from the chosen Setup, and explain the numbers.
@@ -262,6 +207,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   const tickerEl = $('#b-ticker') as HTMLInputElement | null;
   const priceEl = $('#b-price') as HTMLInputElement | null;
   const ccyEl = $('#b-price-ccy') as HTMLSelectElement | null;
+  const ratingEl = $('#b-rating') as HTMLSelectElement | null;
   const dateEl = $('#b-date') as HTMLInputElement | null;
   const stopEl = $('#b-stop') as HTMLInputElement | null;
   const targetEl = $('#b-target') as HTMLInputElement | null;
@@ -285,58 +231,17 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
 
   const render = (plan: BuyPlan, kept: string[]): void => {
     const sym = (ccyEl?.value ?? 'USD') === 'EUR' ? '€' : '$';
-    const r = plan.regime;
-    const lines: string[] = [];
+    // The levels are in the form's currency and the money in the account's; here they
+    // are the same field, so the same symbol goes to both. The planner is where they
+    // differ — which is why `planLines` takes two.
+    const lines = planLines(plan, { vi, levelSym: sym, moneySym: sym });
 
-    const anchor = ANCHOR_MEANS[plan.levels.rule.means];
-    lines.push(
-      `<b>${vi ? 'Cắt lỗ' : 'Stop'}</b> ${sym}${num(plan.stop)} ` +
-      `<span class="muted">(${plan.stopPct.toFixed(1)}% — ${vi ? anchor![0] : anchor![1]})</span>` +
-      (plan.target !== null
-        ? ` · <b>${vi ? 'Mục tiêu' : 'Target'}</b> ${sym}${num(plan.target)}` +
-          (plan.rMultiple !== null ? ` <span class="muted">(${plan.rMultiple.toFixed(1)}R)</span>` : '')
-        : ''),
-    );
-
-    const limit = plan.size.limitedBy ? SIZE_LIMIT[plan.size.limitedBy] : null;
-    lines.push(
-      `<b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}` +
-      (limit ? ` <span class="muted">· ${vi ? 'bị chặn bởi' : 'bound by'} ${vi ? limit[0] : limit[1]}</span>` : '') +
-      ` · ${vi ? 'rủi ro' : 'risk'} <b>${plan.budget.pct}%</b>` +
-      ` <span class="muted">(${vi ? 'bậc' : 'rung'} ${plan.budget.stage.stage}, ` +
-      `${plan.budget.stage.closedTrades} ${vi ? 'lệnh đã đóng' : 'closed trades'})</span>` +
-      ` · ${vi ? 'tổng rủi ro mở sau lệnh' : 'open risk after'} <b>${plan.size.heatPctAfter}%</b>`,
-    );
-
-    lines.push(
-      `<span class="muted">${vi ? 'Thị trường' : 'Market'}: ` +
-      (r
-        ? `${vi ? REGIME_SHORT[r.regime]![0] : REGIME_SHORT[r.regime]![1]} (SPY ${r.asOf}` +
-          `${regimeStale() ? (vi ? ', đã cũ' : ', stale') : ''})` +
-          (r.atrRatio !== null ? ` · ATR ${r.atrRatio}×` : '')
-        : (vi ? 'chưa xác định được — bấm ↻ Cập nhật' : 'not established yet — press ↻ Update')) +
-      '</span>',
-    );
-
-    for (const w of plan.levels.warnings) {
-      const m = LEVEL_WARN[w];
-      if (m) lines.push(`<span style="color:var(--warn,#ffb648)">⚠ ${vi ? m[0] : m[1]}</span>`);
-    }
-    for (const w of plan.size.warnings) {
-      const m = SIZE_WARN[w];
-      if (m) lines.push(`<span style="color:var(--warn,#ffb648)">⚠ ${vi ? m[0] : m[1]}</span>`);
-    }
+    // The one line the shared wording cannot produce: it is about this form's boxes,
+    // not about the plan.
     if (kept.length) {
       lines.push(
         `<span class="muted">${vi ? 'Giữ nguyên số bạn đã nhập' : 'Kept what you typed'}: ${kept.join(', ')} · ` +
         `<a href="#" data-apply>${vi ? 'dùng gợi ý' : 'use the suggestion'}</a></span>`,
-      );
-    }
-    if (plan.levels.rule.source === 'derived') {
-      lines.push(
-        `<span class="muted">${vi
-          ? 'Cẩm nang không có dòng cho thiết lập này — các con số là suy ra, nên xem lại.'
-          : 'The book has no row for this setup — these numbers are extrapolated, worth a look.'}</span>`,
       );
     }
 
@@ -402,6 +307,10 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     const setup = setupEl.value;
     const sym = tickerEl.value.trim().toUpperCase();
     const price = Number(priceEl.value.replace(',', '.'));
+    // The grade the user is already recording on the lot now also sizes it. Blank
+    // stays blank: an ungraded trade is planned at full size, not refused.
+    const grade = ratingEl?.value ?? '';
+    const rating = isRating(grade) ? grade : null;
     if (!isSetupKey(setup)) return; // narrowed already; here for the type
 
     const me = ++token;
@@ -431,6 +340,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
         entryCurrency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
         setup,
         date: dateEl?.value || today(),
+        rating,
       });
       if (!plan) {
         hintEl.innerHTML = `<span class="muted">${vi
@@ -453,6 +363,10 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   };
 
   setupEl.addEventListener('change', () => void run());
+  // The grade changes the share count, so it has to re-plan like the Setup does —
+  // a dropdown that moved the size only on the next keystroke elsewhere would look
+  // like it did nothing.
+  ratingEl?.addEventListener('change', () => void run());
   ccyEl?.addEventListener('change', () => void run());
   dateEl?.addEventListener('change', () => void run());
   tickerEl.addEventListener('change', () => void run());
@@ -475,7 +389,9 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
 // ---------------------------------------------------------------------------
 // Setup type + A–D rating for buy lots (matches the Case Studies setup list).
 // ---------------------------------------------------------------------------
-type Rating = 'A' | 'B' | 'C' | 'D';
+// The grade is core's `ConvictionRating` now that it sizes the position — a local copy
+// of the four letters would be a second place to add a fifth.
+type Rating = ConvictionRating;
 const SETUP_TYPES: { value: string; en: string; vi: string }[] = [
   { value: '', en: '— None', vi: '— Không' },
   { value: 'VCP', en: 'VCP', vi: 'VCP' },
@@ -486,7 +402,7 @@ const SETUP_TYPES: { value: string; en: string; vi: string }[] = [
   { value: 'Surge', en: 'Surge', vi: 'Tăng vọt' },
   { value: 'Other', en: 'Other', vi: 'Khác' },
 ];
-const RATINGS: ('' | Rating)[] = ['', 'A', 'B', 'C', 'D'];
+const RATINGS: ('' | Rating)[] = ['', ...RATING_KEYS];
 const RATING_COLOR: Record<string, string> = {
   A: 'var(--accent)', B: '#5b8cff', C: 'var(--warn, #ffb648)', D: 'var(--danger)',
 };
