@@ -374,44 +374,82 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     onFilled(); // the risk/R:R line reads the fields we just wrote
   };
 
+  /**
+   * What the plan is still waiting for, in words — or null when it can run.
+   *
+   * Clearing the hint instead of saying this was the original mistake: with the
+   * Setup chosen and the price not typed yet, the form did nothing and looked
+   * broken, and there was no way to tell "it is waiting for you" from "it is not
+   * working". A feature that only appears once three fields agree has to say which
+   * one it is missing.
+   */
+  const waitingFor = (): string | null => {
+    if (!setupEl.value || !isSetupKey(setupEl.value)) {
+      return vi
+        ? 'Chọn <b>Loại thiết lập</b> để tự tính cắt lỗ, mục tiêu và số cổ.'
+        : 'Pick a <b>Setup</b> to get the stop, target and share count.';
+    }
+    const missing: string[] = [];
+    if (!tickerEl.value.trim()) missing.push(vi ? 'mã' : 'the symbol');
+    if (!(Number(priceEl.value.replace(',', '.')) > 0)) missing.push(vi ? 'giá vào' : 'the entry price');
+    if (!missing.length) return null;
+    return `${vi ? 'Đang chờ' : 'Waiting for'} ${missing.join(vi ? ' và ' : ' and ')}…`;
+  };
+
   const run = async (): Promise<void> => {
+    const wait = waitingFor();
+    if (wait) { hintEl.innerHTML = `<span class="muted">${wait}</span>`; return; }
     const setup = setupEl.value;
     const sym = tickerEl.value.trim().toUpperCase();
     const price = Number(priceEl.value.replace(',', '.'));
-    if (!setup || !isSetupKey(setup) || !sym || !(price > 0)) { hintEl.innerHTML = ''; return; }
+    if (!isSetupKey(setup)) return; // narrowed already; here for the type
 
     const me = ++token;
     hintEl.innerHTML = `<span class="spinner"></span> ${vi ? 'đang tính kế hoạch…' : 'planning…'}`;
-    const [bars] = await Promise.all([
-      barsFor(ctx, sym),
-      // First Setup of the session is also the first time the regime matters. Asking
-      // for it here means the size ladder is not silently running without one.
-      currentRegime() ? Promise.resolve(null) : ensureRegime(ctx, { refresh: true }).catch(() => null),
-    ]);
-    if (me !== token) return;
-    if (!bars.length) {
-      hintEl.innerHTML = `<span class="muted">${vi
-        ? 'Không tải được dữ liệu giá — hãy tự đặt cắt lỗ và mục tiêu.'
-        : 'Could not load price data — set the stop and target yourself.'}</span>`;
-      return;
-    }
+    // Anything that throws in here used to become an unhandled rejection, which on
+    // screen is indistinguishable from the feature not existing. Say it instead.
+    try {
+      const [bars] = await Promise.all([
+        barsFor(ctx, sym),
+        // First Setup of the session is also the first time the regime matters. Asking
+        // for it here means the size ladder is not silently running without one.
+        currentRegime() ? Promise.resolve(null) : ensureRegime(ctx, { refresh: true }).catch(() => null),
+      ]);
+      if (me !== token) return;
+      if (!bars.length) {
+        hintEl.innerHTML = `<span class="muted">${vi
+          ? 'Không tải được dữ liệu giá — hãy tự đặt cắt lỗ và mục tiêu.'
+          : 'Could not load price data — set the stop and target yourself.'}</span>`;
+        return;
+      }
 
-    const plan = buildBuyPlan({
-      state: active(),
-      prices: prices(active().account.id),
-      bars,
-      entry: price,
-      entryCurrency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
-      setup,
-      date: dateEl?.value || today(),
-    });
-    if (!plan) {
-      hintEl.innerHTML = `<span class="muted">${vi
-        ? 'Không tìm được mốc cắt lỗ nào dưới giá vào cho thiết lập này.'
-        : 'No stop level below the entry for this setup.'}</span>`;
-      return;
+      const plan = buildBuyPlan({
+        state: active(),
+        prices: prices(active().account.id),
+        bars,
+        entry: price,
+        entryCurrency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
+        setup,
+        date: dateEl?.value || today(),
+      });
+      if (!plan) {
+        hintEl.innerHTML = `<span class="muted">${vi
+          ? 'Không tìm được mốc cắt lỗ nào dưới giá vào cho thiết lập này.'
+          : 'No stop level below the entry for this setup.'}</span>`;
+        return;
+      }
+      apply(plan);
+    } catch (e) {
+      if (me !== token) return;
+      hintEl.innerHTML = `<span class="danger">${vi ? 'Không tính được kế hoạch' : 'Could not build the plan'}: ${(e as Error).message}</span>`;
+      console.error('buy plan error', e);
     }
-    apply(plan);
+  };
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const runSoon = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => void run(), 250);
   };
 
   setupEl.addEventListener('change', () => void run());
@@ -419,9 +457,19 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   dateEl?.addEventListener('change', () => void run());
   tickerEl.addEventListener('change', () => void run());
   tickerEl.addEventListener('blur', () => void run());
-  // The price arrives by typing or by the "use latest close" link, which dispatches
-  // an input event for exactly this reason.
+  // BOTH events on the price, and this is the whole feature working or not.
+  // `change` alone fires only when the user types and then leaves the box — but the
+  // usual way the price gets filled is the "use latest close" link, which assigns
+  // `.value` and dispatches `input` (a programmatic assignment fires nothing by
+  // itself). So the one gesture most people make never planned anything.
+  // Debounced because `input` also arrives per keystroke.
+  priceEl.addEventListener('input', runSoon);
   priceEl.addEventListener('change', () => void run());
+
+  // Say the invitation once, now. On a freshly drawn form this only prints "pick a
+  // Setup" — it fetches nothing, because the ticker and price boxes are empty. It is
+  // also the only thing that tells a first-time reader the feature is there at all.
+  void run();
 }
 
 // ---------------------------------------------------------------------------

@@ -2037,3 +2037,30 @@ tai khoan ho. Phan luat van sua binh thuong — luat la chung, khong theo tai kh
 
 File doi: `tabs/swingPlaybook.ts` (khung tro + wiring), `portfolio/playbook.ts` (co mot
 lan), `tabs/portfolioTab.ts` (nhan yeu cau sau `draw`), `tests/buyPlan.test.ts` (+1).
+
+### K. Vi sao thu o may that thi KHONG tu dien gi (loi that, da sua)
+
+Chay local, chon Setup, dien gia, so co, xep hang — khong co cat lo hay muc tieu nao
+duoc dien. Khong phai loi tinh toan: **cai nghe su kien sai**.
+
+`#b-price` chi duoc nghe su kien `change`. `change` cua mot o text chi no khi nguoi dung
+TU GO roi roi khoi o. Nhung duong nap gia thuong dung nhat la link "use" o dong goi y
+gia: no gan `.value` roi tu phat su kien `input` (gan `.value` bang code khong tu phat
+su kien nao). Tuc la dung cai cu chi ma nhieu nguoi lam nhat thi ke hoach KHONG bao gio
+chay. Trong ma con mot dong ghi chu noi ro "gia den tu link use, no phat `input`" — ngay
+ben canh doan nghe `change`. Ghi chu dung, ma nghe sai.
+
+Da sua: nghe CA `input` (tre 250ms vi `input` no theo tung ky tu) VA `change`.
+
+Hai thu di kem, vi loi nay am den muc khong the bao cao duoc:
+- Khi con thieu truong, o goi y gio NOI RA dang cho gi ("Chon Loai thiet lap…", "Dang
+  cho ma va gia…") thay vi xoa trang. Truoc do, "dang cho ban" va "tinh nang khong
+  chay" nhin giong nhau y het.
+- Moi loi trong `run()` truoc day thanh unhandled rejection — tren man hinh khong khac
+  gi tinh nang khong ton tai. Gio bat va in ra dong goi y.
+- Va goi loi moi mot lan luc ve form, nen nguoi dung lan dau BIET la co tinh nang nay.
+
+Khong co test cho phan nay: cau hinh test cua app la `environment: 'node'` co y (xem
+dau file `vitest.config.ts`), va them `jsdom` se doi `package-lock.json` — dieu khong
+duoc phep vi `npm ci` cua Cloudflare. Nen day dung la khoang trong da de loi nay ra
+duoc: moi phan tinh toan deu co test, con day dan su kien thi khong.
