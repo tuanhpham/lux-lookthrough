@@ -1988,8 +1988,8 @@ dau tai du lieu thi truong (luat `ensureEurUsd` da theo).
 
 - `tests/planning/playbookRegime.test.ts` MOI, 12 test.
   `tests/planning/setupPlaybook.test.ts` MOI, 54 test.
-  `apps/desktop/tests/buyPlan.test.ts` MOI, 12 test.
-- 732/733 workspace. Test do van la `syncMerge.test.ts > writes the timestamp map once
+  `apps/desktop/tests/buyPlan.test.ts` MOI, 13 test.
+- 733/734 workspace. Test do van la `syncMerge.test.ts > writes the timestamp map once
   per batch` (timeout 5000ms trong ca suite, 8/8 khi chay rieng) — xem CHAT-18/19/20.
 - `tsc --noEmit` sach ca hai goi, `npm run build` sach.
 - Bay cu, lai gan sap lan nua: phai `npm run build` trong `packages/core` TRUOC khi
@@ -2005,5 +2005,35 @@ dau tai du lieu thi truong (luat `ensureEurUsd` da theo).
 
 - Trade Planner / `buildTradePlan` chua dung bang luat moi — van mu ve trang thai thi
   truong va ve thiet lap. Day la phan "ung dung vao trade planner nua" cua yeu cau.
-- Chua co duong tu chuong cam nang (muc 11/13) sang nut cau hinh, nen nguoi doc chuong
-  do khong biet nhung con so ay sua duoc, va sua o dau.
+- (DA LAM, xem muc J) Duong tu chuong cam nang sang trang cau hinh.
+
+### J. Duong tu cuon cam nang sang trang cau hinh
+
+Muc 12 (tinh size) va muc 13 (thoat lenh) moi muc gio co mot khung "Nhung con so nay
+sua duoc" kem nut mo thang cau hinh.
+
+Vi sao can: nguoi doc vua duoc day "chot nua o 2R" khong co cach nao biet so 2 la MOT
+MAC DINH chu khong phai mot luat, va cang khong biet no nam o dau. Va cuon sach la cho
+DUY NHAT giai thich vi sao tung con so la nhu vay — nen no cung la cho dung de moi nguoi
+doi con so do. Mot trang cai dat vao tu thanh cong cu thi bi doi theo cam tinh.
+
+Cach noi hai ben: tab Learn KHONG co `AppContext` (`renderLearn()` khong nhan tham so
+nao), ma hop thoai thi can ctx de doc/ghi cau hinh. Nen cuon sach chi DAT YEU CAU
+(`requestPlaybookSettings`) roi doi hash sang `#portfolio`; tab Portfolio — cho co ctx
+— nhan yeu cau do sau khi `draw` xong va mo hop thoai. Dung hash vi do la duong di giua
+cac tab co san cua app (`tabFromHash` -> `show` -> render), khong phai them ong dan moi,
+va Back tra nguoi doc ve dung chuong ho dang doc.
+
+Yeu cau la MOT LAN (`takePlaybookSettingsRequest` xoa co ngay khi doc). Co ma nam mai
+thi hop thoai se bat lai moi lan nguoi dung tro ve tab Portfolio trong ca phien, khong
+man hinh nao noi tai sao. Co mot test rieng cho tinh mot-lan nay.
+
+Mo sau `draw`, khong truoc: dong hop thoai thi nguoi dung o lai mot tab da ve xong, chu
+khong phai mot tab trong.
+
+O man hinh Tong quan hop thoai mo voi tai khoan `null`: "so lenh cua anh" khong co cau
+tra loi duy nhat khi dang xem nhieu tai khoan, nen hop thoai NOI RA thay vi tu chon mot
+tai khoan ho. Phan luat van sua binh thuong — luat la chung, khong theo tai khoan.
+
+File doi: `tabs/swingPlaybook.ts` (khung tro + wiring), `portfolio/playbook.ts` (co mot
+lan), `tabs/portfolioTab.ts` (nhan yeu cau sau `draw`), `tests/buyPlan.test.ts` (+1).

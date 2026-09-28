@@ -69,7 +69,7 @@ import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNot
 import { attachCombobox } from '../ui/combobox.js';
 import {
   barsFor, buildBuyPlan, currentRegime, ensureRegime,
-  loadPlaybookConfig, regimeStale, type BuyPlan,
+  loadPlaybookConfig, regimeStale, takePlaybookSettingsRequest, type BuyPlan,
 } from '../portfolio/playbook.js';
 import { openPlaybookSettings } from '../ui/playbookSettings.js';
 import { openStock } from '../ui/stockModal.js';
@@ -723,6 +723,18 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
   }
 
   draw(ctx);
+
+  // A reader came here from the playbook chapter asking for the settings. Opened
+  // AFTER `draw`, so closing the dialog leaves them on a drawn tab rather than an
+  // empty one; and with a null account on Overview, where "your record" has no
+  // single answer — the dialog says so rather than picking an account for them.
+  if (takePlaybookSettingsRequest()) {
+    void openPlaybookSettings(
+      ctx,
+      activeId() === OVERVIEW_ID ? null : active(),
+      () => draw(ctx),
+    );
+  }
 
   // Draw from cache first, then go and get the close — the table is on screen
   // immediately and corrects itself a second later, rather than the page waiting on

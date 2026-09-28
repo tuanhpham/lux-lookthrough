@@ -107,6 +107,36 @@ export async function savePlaybookConfig(ctx: AppContext, next: PlaybookConfig):
 }
 
 // ---------------------------------------------------------------------------
+// "Open the settings when you get there"
+// ---------------------------------------------------------------------------
+
+/**
+ * A one-shot request to open the settings dialog, set by the Learn book and
+ * consumed by the Portfolio tab on its next render.
+ *
+ * The book explains why 2R is 2 and why the stop sits under the signal bar; it is
+ * therefore the right place to offer changing those numbers. But the Learn tab has
+ * no `AppContext` (`renderLearn()` takes none), and the dialog needs one to read and
+ * write storage — so the book asks, navigates to Portfolio, and the tab that DOES
+ * have a context opens it.
+ *
+ * One-shot on purpose: a flag that stayed set would re-open the dialog every time
+ * the user came back to Portfolio, with nothing on screen explaining why.
+ */
+let settingsRequested = false;
+
+export function requestPlaybookSettings(): void {
+  settingsRequested = true;
+}
+
+/** True at most once per request. */
+export function takePlaybookSettingsRequest(): boolean {
+  const want = settingsRequested;
+  settingsRequested = false;
+  return want;
+}
+
+// ---------------------------------------------------------------------------
 // The regime
 // ---------------------------------------------------------------------------
 

@@ -30,6 +30,7 @@ import {
   volFigure,
   volumeCasesFigure,
 } from './swingPlaybookFigures.js';
+import { requestPlaybookSettings } from '../portfolio/playbook.js';
 
 type Lang = 'en' | 'vi';
 type Bi = { en: string; vi: string };
@@ -110,6 +111,27 @@ function pre(text: string): string {
 
 function ul(items: string[]): string {
   return `<ul class="swp-ul">${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+}
+
+/**
+ * The pointer from a chapter to the dialog where its numbers actually live.
+ *
+ * The app now computes the stop, the target and the share count from the tables in
+ * sections 12 and 13, and every one of those numbers is editable. Without a pointer
+ * here that is unfindable: a reader who has just been told "half at 2R" has no way
+ * to know that 2 is a default rather than a law, or where it is kept. And this is
+ * the only place that explains WHY each number is what it is, which makes it the
+ * right place to offer changing it — a settings page reached from a toolbar gets
+ * changed by feel.
+ */
+function cfgPointer(vi: boolean, body: string): string {
+  return `<div class="swp-callout swp-c-info">
+    <div class="swp-callout-t">${vi ? '⚙ Những con số này sửa được' : '⚙ These numbers are editable'}</div>
+    <p>${body}</p>
+    <p><button type="button" class="btn" data-swp-cfg>${
+      vi ? 'Mở cấu hình cẩm nang' : 'Open playbook settings'
+    }</button></p>
+  </div>`;
 }
 
 // ── 01 · core principles ────────────────────────────────────────────────────
@@ -1388,6 +1410,12 @@ function s12(lang: Lang): string {
         vi
           ? 'Tổng rủi ro của tất cả vị thế đang mở không nên vượt <b>3–4% tài khoản</b>. Và cẩn thận với <b>tương quan</b>: 4 lệnh cùng nằm trong XLK không phải 4 lệnh độc lập — đó thực chất là một lệnh lớn gấp bốn lần.'
           : 'Total risk across all open positions should not exceed <b>3–4% of the account</b>. And beware <b>correlation</b>: four trades all inside XLK are not four independent trades — they are one trade four times the size.',
+      ) +
+      cfgPointer(
+        vi,
+        vi
+          ? 'Máy tính trên là để anh làm quen. Khi vào lệnh thật thì <b>thẻ Mua ở tab Portfolio tự chạy đúng bảng này</b>: chọn mã, giá và setup là nó điền số cổ theo bậc rủi ro hiện tại của anh, theo tiền còn lại, theo trần một mã và theo tổng rủi ro đang mở. Bậc rủi ro lấy từ <b>số lệnh anh đã đóng</b> — nên khi sổ còn mỏng, nó tự để 0.25%. Cả thang này, kể cả ngưỡng 50/100 lệnh và trần 1%, sửa được ở đây.'
+          : 'The calculator above is for getting a feel. For a real trade the <b>Buy card on the Portfolio tab runs this exact table</b>: pick the symbol, the price and the setup and it fills the share count from your current risk rung, the cash you have, the per-name cap and the total open risk. The rung comes from <b>the trades you have closed</b>, so while the record is thin it holds 0.25% by itself. The whole ladder — the 50/100-trade thresholds and the 1% ceiling included — is editable here.',
       ),
   );
 }
@@ -1452,6 +1480,12 @@ function s13(lang: Lang): string {
               ['<strong>Mean reversion</strong>', 'Below the signal bar low', 'All of it at the 20 EMA', 'No trail', 'Past 5–7 sessions'],
               ['<strong>Short the rally</strong>', 'Above the rally high', 'Half at 1.5R', 'Close above the 10 EMA', 'Reclaims the 21 EMA'],
             ],
+      ) +
+      cfgPointer(
+        vi,
+        vi
+          ? 'Thẻ Mua ở tab Portfolio đặt stop theo <b>đúng cột “Stop ban đầu”</b> của bảng này, và dùng cột “Trail” chỉ để kéo theo. Hai cột đó <b>không thay thế nhau được</b>: lấy 10 EMA làm stop ban đầu cho breakout sẽ ra một stop sát hơn nhiều, tức là nhiều cổ hơn mức đáng có, và bị quét ngay nhịp rung đầu tiên. Nếu stop theo cấu trúc rộng hơn thước đo ATR, ứng dụng <b>cảnh báo và giảm số cổ</b> chứ không kéo stop lại gần. Đáy tham chiếu, đệm %, bội ATR, mục tiêu R và EMA kéo theo của từng setup sửa được ở đây.'
+          : 'The Buy card on the Portfolio tab places the stop from <b>the “Initial stop” column of this very table</b>, and uses the “Trail” column only as a trail. The two are <b>not interchangeable</b>: using the 10 EMA as a breakout\'s initial stop gives a far tighter stop, therefore more shares than the trade deserves, and it gets taken out on the first shake. When the structural stop is wider than the ATR guide, the app <b>warns and cuts the share count</b> rather than pulling the stop in. The anchor, the padding, the ATR multiple, the R target and the trail EMA for each setup are all editable here.',
       ),
   );
 }
@@ -1779,6 +1813,18 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
       const id = chip.dataset.swpGoto;
       if (!id) return;
       root.ownerDocument.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  // -- pointer to the settings dialog ---------------------------------------
+  // The hash is the app's own way between tabs (`tabFromHash` → `show` → render),
+  // so this needs no new plumbing and Back returns the reader to the chapter they
+  // were in. The dialog itself is opened by the Portfolio tab, which has the
+  // `AppContext` this one does not.
+  for (const b of qa<HTMLButtonElement>('[data-swp-cfg]')) {
+    b.addEventListener('click', () => {
+      requestPlaybookSettings();
+      location.hash = '#portfolio';
     });
   }
 

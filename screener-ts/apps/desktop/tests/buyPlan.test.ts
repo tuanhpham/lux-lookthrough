@@ -225,6 +225,19 @@ describe('the risk budget the form uses', () => {
   });
 });
 
+describe('the pointer from the playbook chapter', () => {
+  it('hands the request over exactly once', async () => {
+    // The book asks, the Portfolio tab answers. If the flag stayed set, the dialog
+    // would re-open every time the user came back to Portfolio for the rest of the
+    // session, with nothing on screen saying why.
+    const { pb } = await load();
+    expect(pb.takePlaybookSettingsRequest()).toBe(false);
+    pb.requestPlaybookSettings();
+    expect(pb.takePlaybookSettingsRequest()).toBe(true);
+    expect(pb.takePlaybookSettingsRequest()).toBe(false);
+  });
+});
+
 describe('what the plan refuses to answer', () => {
   it('returns null rather than a made-up level when there are no bars', async () => {
     const { ctx, pb } = await load();
