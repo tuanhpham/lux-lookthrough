@@ -1682,3 +1682,68 @@ ben kia.
 `syncMerge.test.ts > writes the timestamp map once per batch` timeout 5000ms khi chay
 CA suite; chay rieng file do thi 8/8. Da kiem bang cach stash rieng `adapters/storage.ts`
 va chay lai ca suite — van dung mot loi do, nen no co truoc thay doi nay.
+
+## CHAT-19 — `priceCurrency` khong phai don vi dang luu: mot muc cat lo EUR bi dan nhan USD
+
+Cau hoi cua luot nay chi la "watchlist trong Tier 1 lay o dau, co phai chi cac ma trong
+watchlist khong". Tra loi: `watchlist.load()` doc `candidates WHERE setup='LEAD'` cua dem
+qua (cong cua tay `watch.kind='manual'`, van phai co dong trong `candidates`), roi ap
+them san `config.INTRADAY` — CO Y khong giong san o Stage 3. Nhung luat `stop` thi KHONG
+di qua watchlist: `watch.evaluate()` lap tren cac vi the DANG GIU lay tu
+`positions.load()` (key `scanner:positions`, do app ghi), o MOI mode ke ca downtrend —
+do la toan bo y nghia cua `stop_only`. Chinh cho do lam lo ra mot loi thuc su.
+
+### A. Loi: `priceCurrency` la "nguoi dung DA GO gi", khong phai "so dang luu bang gi"
+
+- Form Buy trong Portfolio goi `normalizeLotPrice()`: gia USD go vao mot tai khoan EUR
+  thi bi CHIA cho ty gia TRUOC KHI luu. `stop` va `target` cung vay (`stop/fxAtBuy`).
+  Sau do lot giu so EUR, ma `priceCurrency` VAN la 'USD' — no la ban ghi cua thao tac
+  go, khong phai cua don vi. Duong ghi cua chat (`applyApprovedWrite`) luu dung hinh
+  dang do.
+- `positionsDigest.ts` lai dan nhan `cur` cua dong theo `priceCurrency`. Ket qua: mot
+  muc cat lo 132 EUR duoc day len `scanner:positions` voi nhan 'USD'.
+- Hau qua tren VM, khong phai gia thiet: `positions.comparable()` thay 'USD' nen cho
+  rang so sanh duoc, `stop_hit()` khong co guard ve do lon, nen no do 132 EUR voi bao
+  gia 232 USD, thay khong vi pham, va IM LANG suot ca phien — dung tren cai vi the ma
+  nguoi dung tuong la dang duoc trong. `unchecked()` cung khong bat, vi dong do co
+  nhan hop le.
+
+### B. Cach sua
+
+- Them `lotCurrency(lot, acctCurrency)` trong `positionsDigest.ts`: don vi thuc cua
+  `buyPrice`/`stop` la EUR khi (tai khoan EUR) VA (`priceCurrency` = 'USD') VA (co
+  `fxRateAtBuy`) — khong co ty gia thi khong co quy doi, so van la so da go. Ham nay la
+  DUNG dieu kien cua `normalizeLotPrice()`, nen sua mot ben phai sua ben kia; khong co
+  build step nao kiem duoc.
+- KHONG ap ty gia trong digest. Digest chi dan nhan trung thuc de nguoi doc TU CHOI ban
+  mot muc no khong quy doi duoc. Mot canh bao cat lo sai con te hon mot canh bao bi
+  danh dau.
+- Nguong cua lenh cho la khong gian BAO GIA: `processOrders` khop STOP_LOSS voi bar
+  ngay THO, nen `o.threshold` la so USD du no nam trong tai khoan nao. Tach ra
+  `orderStops` rieng, chi tron vao `stops` khi dong da la USD; dong khong phai USD thi
+  giu lai VA them mot dong `warn` — de viec giu lai nhin thay duoc, khong im lang.
+- Dong `warn` EUR doi chu thanh "gia va muc cat lo dang luu bang EUR", vi cau cu ("go
+  vao bang EUR") chinh la cach hieu sai da sinh ra loi.
+
+### C. Kiem
+
+- 6 test moi, file len 24 xanh: dong EUR-quy-doi-tu-USD, truong hop khong co ty gia,
+  tai khoan USD co ty gia, MIXED khi cung mot ma nam o mot tai khoan EUR va mot USD,
+  lenh cho bi giu lai o dong khong USD, lenh cho van tron vao dong USD.
+- Da chung minh test ghim dung loi: stash RIENG `positionsDigest.ts` thi file bao
+  3 failed | 21 passed — dung ba test hanh vi moi.
+- 647/648 test pass. Test do van la `syncMerge.test.ts > writes the timestamp map once
+  per batch` (timeout 5000ms khi chay ca suite, 8/8 khi chay rieng) — co truoc thay doi
+  nay, xem CHAT-18.
+
+### D. Trien khai — khong can sua gi tren VM
+
+- VM chi DOC `scanner:positions`; nhan dung hay sai deu la do app ghi. Nen khong co
+  buoc nao tren VM lan nay.
+- Nhung gia tri da sua chi len toi key do o lan LUU PORTFOLIO DAU TIEN sau khi app moi
+  duoc deploy. `positionsFeed.ts` bo qua khi body khong doi, ma `lastBody` la bien
+  module — nap lai trang la quen, nen lan luu dau tien sau deploy se day.
+- Va noi ro hau qua cho nguoi dung: sau ban sua nay, cac vi the o tai khoan EUR se bi
+  DANH DAU la khong trong duoc, thay vi duoc trong o muc sai. Muon co canh bao cat lo
+  trong phien cho ma My: hoac de lenh khop o mot tai khoan USD, hoac dat mot lenh cho
+  STOP_LOSS (nguong cua lenh la khong gian bao gia).

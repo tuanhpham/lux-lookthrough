@@ -205,6 +205,80 @@ describe('currency — flagged, never silently converted', () => {
     expect(d.warn.join(' ')).toContain('EUR và USD');
   });
 
+  it('tags a USD price CONVERTED into a EUR account as EUR, not USD', () => {
+    // THE BUG THIS TEST EXISTS FOR. The Buy form (and the chat write path) divide a
+    // USD fill by the rate before storing it, and leave `priceCurrency: 'USD'` on
+    // the lot as a record of what was typed. Reading the tag off that field
+    // published a euro stop level labelled USD: the VM's positions.comparable()
+    // saw 'USD', decided it could compare, and then measured a €132 stop against a
+    // $232 quote — no breach, no alert, silence for the whole session on exactly
+    // the position the user thought was being watched.
+    const st = acct('TA Trade Republic', 'EUR');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 186, shares: 15,
+              stop: 132, priceCurrency: 'USD', fxRateAtBuy: 1.25 }, counterIds('A'));
+
+    const d = buildPositionsDigest([st], AT);
+    expect(d.rows[0]!.cur).toBe('EUR');
+    expect(d.warn.join(' ')).toContain('EUR');
+    // Published as stored. The fix is the label, never a rate applied here.
+    expect(d.rows[0]!.stops).toEqual([132]);
+  });
+
+  it('leaves it USD when there was no rate, because then nothing was converted', () => {
+    const st = acct('A', 'EUR');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 232.5, shares: 10,
+              stop: 165, priceCurrency: 'USD' }, counterIds('A'));
+
+    expect(row([st], 'AAPL')!.cur).toBe('USD');
+  });
+
+  it('keeps a USD account in USD even with a rate on the lot', () => {
+    const st = acct('TA IBKR', 'USD');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 232.5, shares: 10,
+              stop: 210, priceCurrency: 'USD', fxRateAtBuy: 1.25 }, counterIds('A'));
+
+    expect(row([st], 'AAPL')!.cur).toBe('USD');
+  });
+
+  it('says MIXED when the same ticker is held in a EUR and a USD account', () => {
+    const e = acct('EUR acct', 'EUR');
+    const u = acct('USD acct', 'USD');
+    buy(e, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 186, shares: 5,
+             stop: 132, priceCurrency: 'USD', fxRateAtBuy: 1.25 }, counterIds('e'));
+    buy(u, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 232.5, shares: 5,
+             stop: 210, priceCurrency: 'USD' }, counterIds('u'));
+
+    // Two levels that cannot be sorted against each other: 210 is not "above" 132
+    // in any shared unit. MIXED is the only honest answer.
+    expect(row([e, u], 'AAPL')!.cur).toBe('MIXED');
+  });
+
+  it('withholds a pending order threshold from a row that is not USD, and says so', () => {
+    // An order threshold fills against the RAW daily bars, so it is a USD number
+    // whatever the account. Dropping it into a row whose other numbers are euros
+    // would put two units in one array — the same defect, one level down.
+    const st = acct('TA Trade Republic', 'EUR');
+    const ids = counterIds('A');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 186, shares: 15,
+              stop: 132, priceCurrency: 'USD', fxRateAtBuy: 1.25 }, ids);
+    createOrder(st, { ticker: 'AAPL', type: 'STOP_LOSS', threshold: 170, shares: 15 }, ids);
+
+    const d = buildPositionsDigest([st], AT);
+    expect(d.rows[0]!.stops).toEqual([132]);
+    expect(d.warn.join(' ')).toContain('lệnh chờ cắt lỗ');
+  });
+
+  it('still merges a pending order threshold into a USD row', () => {
+    const st = acct('TA IBKR', 'USD');
+    const ids = counterIds('A');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-18', buyPrice: 232.5, shares: 10, stop: 210 }, ids);
+    createOrder(st, { ticker: 'AAPL', type: 'STOP_LOSS', threshold: 215, shares: 10 }, ids);
+
+    const d = buildPositionsDigest([st], AT);
+    expect(d.rows[0]!.stops).toEqual([215, 210]);
+    expect(d.warn.join(' ')).not.toContain('lệnh chờ');
+  });
+
   it('warns about open positions with no stop at all', () => {
     const st = acct('A');
     buy(st, { ticker: 'AAPL', buyDate: '2026-09-01', buyPrice: 200, shares: 10 }, counterIds('A'));
