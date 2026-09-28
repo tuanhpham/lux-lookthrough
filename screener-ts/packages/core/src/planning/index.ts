@@ -3,3 +3,22 @@ export { buildTradePlan, DEFAULT_TRADE_PLAN_CONFIG } from './tradePlan.js';
 export type { TradePlan, TradePlanAccount, TradePlanConfig } from './tradePlan.js';
 export { explainPlan } from './narrative.js';
 export type { TradeExplanation, Bilingual } from './narrative.js';
+
+// The playbook's own market regime (4 states on SPY) — deliberately NOT the same
+// thing as `momentum/marketRegime.detectRegime` (3 states on QQQ); see the file header.
+export {
+  detectPlaybookRegime, atrRatioOf, REGIME_MIN_BARS, ATR_EXPANDED,
+} from './playbookRegime.js';
+export type { PlaybookRegime, RegimeRead } from './playbookRegime.js';
+
+// Per-setup stop/target rules, the risk ladder, and position sizing.
+export {
+  DEFAULT_SETUP_RULES, DEFAULT_RISK_LADDER, SETUP_KEYS,
+  isSetupKey, rulesFor, closedTradePnls, riskStageOf, riskBudget,
+  suggestLevels, suggestSize, openRiskOf,
+} from './setupPlaybook.js';
+export type {
+  SetupKey, SetupRule, SetupRuleOverrides, StopAnchor, TargetKind,
+  RiskLadderConfig, RiskStage, StageRead, RiskBudget, RiskCut,
+  LevelSuggestion, LevelWarning, SizeInput, SizeSuggestion, SizeLimit, SizeWarning,
+} from './setupPlaybook.js';

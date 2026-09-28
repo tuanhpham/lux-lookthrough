@@ -24,6 +24,7 @@ import {
   netCashFlow,
   fetchMany,
   lastSettledSession,
+  isSetupKey,
   SECTOR_STOCKS,
   type AccountState,
   type PriceMap,
@@ -66,6 +67,11 @@ import { drawLine, drawCandles } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
 import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { attachCombobox } from '../ui/combobox.js';
+import {
+  barsFor, buildBuyPlan, currentRegime, ensureRegime,
+  loadPlaybookConfig, regimeStale, type BuyPlan,
+} from '../portfolio/playbook.js';
+import { openPlaybookSettings } from '../ui/playbookSettings.js';
 import { openStock } from '../ui/stockModal.js';
 import { infoIcon, attachTooltips } from '../ui/tooltip.js';
 import { t, getLang } from '../ui/i18n.js';
@@ -166,6 +172,256 @@ function wirePriceHint(
   dateEl?.addEventListener('change', () => void fetchHint());
   // When currency selector changes, re-convert the already-fetched close instantly.
   ccyEl?.addEventListener('change', refreshHint);
+}
+
+// ---------------------------------------------------------------------------
+// Playbook auto-fill for the Buy form
+// ---------------------------------------------------------------------------
+
+/** Where the suggested stop is hanging, in words. */
+const ANCHOR_MEANS: Record<string, [string, string]> = {
+  pullbackLow: ['dưới đáy của nhịp điều chỉnh', 'below the pullback low'],
+  contractionLow: ['dưới đáy của lần nén cuối', 'below the last contraction low'],
+  breakoutBarLow: ['dưới đáy nến bứt phá', 'below the breakout bar’s low'],
+  signalBarLow: ['dưới đáy nến tín hiệu', 'below the signal bar’s low'],
+  gapBarLow: ['dưới đáy nến nhảy khoảng', 'below the gap bar’s low'],
+  recentLow: ['dưới đáy gần nhất', 'below the recent low'],
+  atrOnly: ['theo ATR, vì thiết lập này không có mốc cấu trúc', 'by ATR — this setup has no structural mark'],
+};
+
+const LEVEL_WARN: Record<string, [string, string]> = {
+  // Deliberately phrased as a consequence, not as an error: the wide stop is CORRECT
+  // and the smaller position is the right response to it.
+  stopWiderThanAtr: [
+    'Cấu trúc đặt cắt lỗ xa hơn thước đo ATR — đúng thì vẫn là đúng, nên số cổ nhỏ đi thay vì kéo cắt lỗ lại gần.',
+    'Structure puts the stop wider than the ATR guide — that stands, so the share count shrinks instead of the stop moving in.',
+  ],
+  belowMinRR: [
+    'Dưới mức R:R tối thiểu. Cẩm nang: bỏ qua, bất kể mẫu hình đẹp đến đâu.',
+    'Under the minimum R:R. The book: skip it, however pretty the pattern.',
+  ],
+  fellBackToAtr: [
+    'Không có đáy nào dưới giá vào để neo — đã dùng ATR thay thế.',
+    'No low below the entry to anchor on — used ATR instead.',
+  ],
+  emaTargetBelowEntry: [
+    'EMA chốt lời chưa nằm trên giá vào, nên chưa có mục tiêu để đặt.',
+    'The exit EMA is not above the entry yet, so there is no target to set.',
+  ],
+  measuredMoveTooSmall: [
+    'Chiều cao nền nhỏ hơn R:R tối thiểu — đã dùng bội số R.',
+    'The base height came out under the minimum R:R — used the R multiple.',
+  ],
+};
+
+const SIZE_WARN: Record<string, [string, string]> = {
+  heatExceeded: [
+    'Tổng rủi ro đang mở đã chạm hạn mức — đóng hoặc nâng cắt lỗ một vị thế trước.',
+    'Total open risk is already at the limit — close or tighten something first.',
+  ],
+  noNewLongs: ['Thị trường ở xu hướng giảm: không mở lệnh mua mới.', 'Downtrend: no new longs.'],
+  tooManyPositions: [
+    'Đã đủ số vị thế cho bậc rủi ro hiện tại.',
+    'Already at the position count for this risk rung.',
+  ],
+  notEnoughCash: ['Tiền còn lại không đủ mua một cổ.', 'Not enough cash for a single share.'],
+};
+
+const SIZE_LIMIT: Record<string, [string, string]> = {
+  risk: ['rủi ro mỗi lệnh', 'risk per trade'],
+  cash: ['tiền còn lại', 'cash on hand'],
+  concentration: ['tỷ trọng tối đa một mã', 'max weight in one name'],
+  heat: ['tổng rủi ro đang mở', 'total open risk'],
+};
+
+const REGIME_SHORT: Record<string, [string, string]> = {
+  UPTREND: ['tăng', 'uptrend'],
+  UPTREND_UNDER_STRESS: ['tăng nhưng căng', 'uptrend under stress'],
+  RANGE: ['đi ngang', 'range'],
+  DOWNTREND: ['giảm', 'downtrend'],
+};
+
+/**
+ * Fill stop / target / shares from the chosen Setup, and explain the numbers.
+ *
+ * ── WHY IT NEVER OVERWRITES WHAT THE USER TYPED ─────────────────────────────
+ * A field is only filled while it is empty or still holds the last suggestion. Type
+ * your own stop and the suggestion becomes an offer with an "apply" link instead. An
+ * auto-fill that clobbered a hand-typed stop would be worse than none: the user would
+ * place a trade at a level they had already rejected, and the app would look like it
+ * had lost their input.
+ *
+ * ── WHY THE BARS ARE FETCHED HERE AND NOT ON DRAW ───────────────────────────
+ * The stop needs daily bars for a symbol the account may not hold. Choosing a Setup
+ * is an explicit "plan this trade", which is the right moment to spend a request —
+ * `wirePriceHint` already fetches on the same gesture.
+ */
+function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
+  const vi = getLang() === 'vi';
+  const setupEl = $('#b-setup') as HTMLSelectElement | null;
+  const tickerEl = $('#b-ticker') as HTMLInputElement | null;
+  const priceEl = $('#b-price') as HTMLInputElement | null;
+  const ccyEl = $('#b-price-ccy') as HTMLSelectElement | null;
+  const dateEl = $('#b-date') as HTMLInputElement | null;
+  const stopEl = $('#b-stop') as HTMLInputElement | null;
+  const targetEl = $('#b-target') as HTMLInputElement | null;
+  const sharesEl = $('#b-shares') as HTMLInputElement | null;
+  const hintEl = $('#b-planhint');
+  if (!setupEl || !tickerEl || !priceEl || !stopEl || !targetEl || !sharesEl || !hintEl) return;
+
+  /** What this wiring last put in each box, so a hand edit is recognisable. */
+  let filled = { stop: '', target: '', shares: '' };
+  let token = 0;
+
+  const mine = (el: HTMLInputElement, was: string): boolean => {
+    const v = el.value.trim();
+    return v === '' || v === was;
+  };
+  const put = (el: HTMLInputElement, value: string, was: string): boolean => {
+    if (!mine(el, was)) return false;
+    el.value = value;
+    return true;
+  };
+
+  const render = (plan: BuyPlan, kept: string[]): void => {
+    const sym = (ccyEl?.value ?? 'USD') === 'EUR' ? '€' : '$';
+    const r = plan.regime;
+    const lines: string[] = [];
+
+    const anchor = ANCHOR_MEANS[plan.levels.rule.means];
+    lines.push(
+      `<b>${vi ? 'Cắt lỗ' : 'Stop'}</b> ${sym}${num(plan.stop)} ` +
+      `<span class="muted">(${plan.stopPct.toFixed(1)}% — ${vi ? anchor![0] : anchor![1]})</span>` +
+      (plan.target !== null
+        ? ` · <b>${vi ? 'Mục tiêu' : 'Target'}</b> ${sym}${num(plan.target)}` +
+          (plan.rMultiple !== null ? ` <span class="muted">(${plan.rMultiple.toFixed(1)}R)</span>` : '')
+        : ''),
+    );
+
+    const limit = plan.size.limitedBy ? SIZE_LIMIT[plan.size.limitedBy] : null;
+    lines.push(
+      `<b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}` +
+      (limit ? ` <span class="muted">· ${vi ? 'bị chặn bởi' : 'bound by'} ${vi ? limit[0] : limit[1]}</span>` : '') +
+      ` · ${vi ? 'rủi ro' : 'risk'} <b>${plan.budget.pct}%</b>` +
+      ` <span class="muted">(${vi ? 'bậc' : 'rung'} ${plan.budget.stage.stage}, ` +
+      `${plan.budget.stage.closedTrades} ${vi ? 'lệnh đã đóng' : 'closed trades'})</span>` +
+      ` · ${vi ? 'tổng rủi ro mở sau lệnh' : 'open risk after'} <b>${plan.size.heatPctAfter}%</b>`,
+    );
+
+    lines.push(
+      `<span class="muted">${vi ? 'Thị trường' : 'Market'}: ` +
+      (r
+        ? `${vi ? REGIME_SHORT[r.regime]![0] : REGIME_SHORT[r.regime]![1]} (SPY ${r.asOf}` +
+          `${regimeStale() ? (vi ? ', đã cũ' : ', stale') : ''})` +
+          (r.atrRatio !== null ? ` · ATR ${r.atrRatio}×` : '')
+        : (vi ? 'chưa xác định được — bấm ↻ Cập nhật' : 'not established yet — press ↻ Update')) +
+      '</span>',
+    );
+
+    for (const w of plan.levels.warnings) {
+      const m = LEVEL_WARN[w];
+      if (m) lines.push(`<span style="color:var(--warn,#ffb648)">⚠ ${vi ? m[0] : m[1]}</span>`);
+    }
+    for (const w of plan.size.warnings) {
+      const m = SIZE_WARN[w];
+      if (m) lines.push(`<span style="color:var(--warn,#ffb648)">⚠ ${vi ? m[0] : m[1]}</span>`);
+    }
+    if (kept.length) {
+      lines.push(
+        `<span class="muted">${vi ? 'Giữ nguyên số bạn đã nhập' : 'Kept what you typed'}: ${kept.join(', ')} · ` +
+        `<a href="#" data-apply>${vi ? 'dùng gợi ý' : 'use the suggestion'}</a></span>`,
+      );
+    }
+    if (plan.levels.rule.source === 'derived') {
+      lines.push(
+        `<span class="muted">${vi
+          ? 'Cẩm nang không có dòng cho thiết lập này — các con số là suy ra, nên xem lại.'
+          : 'The book has no row for this setup — these numbers are extrapolated, worth a look.'}</span>`,
+      );
+    }
+
+    hintEl.innerHTML = lines.join('<br>');
+    hintEl.querySelector('[data-apply]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      filled = { stop: '', target: '', shares: '' }; // everything is ours again
+      apply(plan);
+    });
+  };
+
+  const apply = (plan: BuyPlan): void => {
+    const kept: string[] = [];
+    if (!put(stopEl, String(plan.stop), filled.stop)) kept.push(vi ? 'cắt lỗ' : 'stop');
+    else filled.stop = String(plan.stop);
+
+    // A number we put there and the new plan no longer stands behind has to GO, not
+    // linger. Leaving yesterday's 250 shares in the box after the heat limit cut the
+    // plan to zero would place exactly the trade the plan just refused.
+    if (plan.target !== null) {
+      if (!put(targetEl, String(plan.target), filled.target)) kept.push(vi ? 'mục tiêu' : 'target');
+      else filled.target = String(plan.target);
+    } else if (filled.target && mine(targetEl, filled.target)) {
+      targetEl.value = '';
+      filled.target = '';
+    }
+    if (plan.shares > 0) {
+      if (!put(sharesEl, String(plan.shares), filled.shares)) kept.push(vi ? 'số cổ' : 'shares');
+      else filled.shares = String(plan.shares);
+    } else if (filled.shares && mine(sharesEl, filled.shares)) {
+      sharesEl.value = '';
+      filled.shares = '';
+    }
+    render(plan, kept);
+    onFilled(); // the risk/R:R line reads the fields we just wrote
+  };
+
+  const run = async (): Promise<void> => {
+    const setup = setupEl.value;
+    const sym = tickerEl.value.trim().toUpperCase();
+    const price = Number(priceEl.value.replace(',', '.'));
+    if (!setup || !isSetupKey(setup) || !sym || !(price > 0)) { hintEl.innerHTML = ''; return; }
+
+    const me = ++token;
+    hintEl.innerHTML = `<span class="spinner"></span> ${vi ? 'đang tính kế hoạch…' : 'planning…'}`;
+    const [bars] = await Promise.all([
+      barsFor(ctx, sym),
+      // First Setup of the session is also the first time the regime matters. Asking
+      // for it here means the size ladder is not silently running without one.
+      currentRegime() ? Promise.resolve(null) : ensureRegime(ctx, { refresh: true }).catch(() => null),
+    ]);
+    if (me !== token) return;
+    if (!bars.length) {
+      hintEl.innerHTML = `<span class="muted">${vi
+        ? 'Không tải được dữ liệu giá — hãy tự đặt cắt lỗ và mục tiêu.'
+        : 'Could not load price data — set the stop and target yourself.'}</span>`;
+      return;
+    }
+
+    const plan = buildBuyPlan({
+      state: active(),
+      prices: prices(active().account.id),
+      bars,
+      entry: price,
+      entryCurrency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
+      setup,
+      date: dateEl?.value || today(),
+    });
+    if (!plan) {
+      hintEl.innerHTML = `<span class="muted">${vi
+        ? 'Không tìm được mốc cắt lỗ nào dưới giá vào cho thiết lập này.'
+        : 'No stop level below the entry for this setup.'}</span>`;
+      return;
+    }
+    apply(plan);
+  };
+
+  setupEl.addEventListener('change', () => void run());
+  ccyEl?.addEventListener('change', () => void run());
+  dateEl?.addEventListener('change', () => void run());
+  tickerEl.addEventListener('change', () => void run());
+  tickerEl.addEventListener('blur', () => void run());
+  // The price arrives by typing or by the "use latest close" link, which dispatches
+  // an input event for exactly this reason.
+  priceEl.addEventListener('change', () => void run());
 }
 
 // ---------------------------------------------------------------------------
@@ -412,6 +668,11 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
   await load(ctx);
   // Pre-load bar caches for all accounts and EURUSD rates into memory
   await Promise.all([
+    // The playbook's rules and the last cached market regime. `ensureRegime` without
+    // `refresh` reads the cache and computes — it does NOT fetch, because drawing a
+    // tab must not start a market-data download (the rule `ensureEurUsd` follows).
+    loadPlaybookConfig(ctx).catch(() => null),
+    ensureRegime(ctx).catch(() => null),
     ...accounts.map(async (acct) => {
       const bc = await loadBarCache(ctx, acct.account.id);
       barMapByAccount.set(acct.account.id, new Map(Object.entries(bc)));
@@ -668,7 +929,14 @@ function draw(ctx: AppContext): void {
 
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
       <div class="card">
-        <div class="section-title" style="margin-top:0">${t('pf.sec.buy')}</div>
+        <div class="row" style="justify-content:space-between;align-items:baseline">
+          <div class="section-title" style="margin-top:0">${t('pf.sec.buy')}</div>
+          <button id="b-playbook-cfg" class="btn-outline" style="padding:2px 8px;font-size:11px"
+            title="${getLang() === 'vi'
+              ? 'Đổi các con số mặc định của cẩm nang: cắt lỗ, mục tiêu, cỡ vị thế theo từng thiết lập'
+              : 'Change the playbook’s default numbers: stops, targets and size per setup'}"
+          >${getLang() === 'vi' ? '⚙ Cẩm nang' : '⚙ Playbook'}</button>
+        </div>
         <div class="row"><input id="b-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
           <input id="b-shares" class="field" type="text" inputmode="numeric" autocorrect="off" autocapitalize="off" placeholder="Shares" style="width:90px" />
           <input id="b-price" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Price" style="width:90px" />
@@ -694,6 +962,7 @@ function draw(ctx: AppContext): void {
           <button id="s-go" class="btn-outline">Sell</button>
           <button id="cash-go" class="btn-outline" title="${t('pf.cash.adjusttitle')}">${t('pf.cash.adjust')}</button></div>
         <div id="b-riskhint" class="price-hint" style="margin-top:4px"></div>
+        <div id="b-planhint" class="price-hint" style="margin-top:4px;line-height:1.6"></div>
       </div>
       <div class="card">
         <div class="section-title" style="margin-top:0">Pending BUY_STOP Order</div>
@@ -1048,6 +1317,12 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const el = $(sel);
       el?.addEventListener('input', updateRiskHint);
       el?.addEventListener('change', updateRiskHint); // fallback for iOS WKWebView
+    });
+
+    wireBuyPlan(ctx, updateRiskHint);
+
+    $('#b-playbook-cfg')?.addEventListener('click', () => {
+      void openPlaybookSettings(ctx, active(), () => draw(ctx));
     });
 
     // Buy note — always-visible inline rich editor (wired before the buy click).
@@ -1859,6 +2134,11 @@ async function update(ctx: AppContext): Promise<void> {
   } catch {
     // EURUSD fetch failed — display stays in EUR or uses stale rate
   }
+
+  // Top up SPY for the playbook's market regime, in the one place the user has
+  // already asked for market data. Best-effort: a failed fetch leaves the cached
+  // regime in place, and the read carries `asOf` so the screen can say it is old.
+  await ensureRegime(ctx, { refresh: true }).catch(() => null);
 
   // Build price map from latest bar — normalize to account base currency.
   // Yahoo always returns USD prices; EUR accounts need EUR prices so that

@@ -148,6 +148,11 @@ const SNAPSHOT_KEY = '__pre_merge_backup__';
 const LOCAL_ONLY_PREFIXES = [
   'pf_bars:',
   'pf_eurusd_bars',
+  // Two years of SPY, for the playbook's market regime. Market data: identical on
+  // every device and re-fetchable in one request, so syncing it would spend quota to
+  // move bytes that are already there. The REGIME numbers the user can edit live in
+  // `pf_playbook_cfg`, which does sync — those are rules they typed.
+  'pf_spy_bars',
   'pf_autoupdate',
   'sectorlabels',
   'agent_audit',

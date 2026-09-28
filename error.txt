@@ -1837,3 +1837,173 @@ nghia. Luot nay lam not phan con lai: cho VM quy doi duoc.
    gui `fx` cho VM ban cu thi truong do bi bo qua.
 4. Sau do ty gia phai duoc lam moi it nhat 7 ngay mot lan — tuc la mo app mot lan moi
    tuan. Qua han thi tin nhan mo phien NOI RA va noi cach sua, chu khong im lang.
+
+## CHAT-21 — Chon Setup la he thong tu dat cat lo, muc tieu va so co
+
+Yeu cau: "khi minh chon co phieu va gia va chon Setup thi system nen generate luon
+stop and target ... position size dua vao so cash con lai ... dua vao phan swing
+playbook ... va minh thich co mot phan configure place de change nhung con so default".
+
+Ba quyet dinh da chon truoc khi viet mot dong nao:
+- Pham vi vong nay: core + form Buy + trang cau hinh. Trade Planner GIU NGUYEN.
+- Trang thai thi truong: tinh bo 4 trang thai CUA CAM NANG tren SPY, khong dung
+  `detectRegime()` 3 trang thai san co.
+- Rui ro mac dinh moi lenh: tu nhan tu so lenh da dong, van cho phep ghi de.
+
+### A. Vi sao lai co HAM TRANG THAI THI TRUONG THU HAI
+
+`momentum/marketRegime.ts` da phan loai thi truong roi, nhung thanh 3 trang thai
+(BULL / TRANSITION / BEAR) tu chong EMA cua QQQ. Thang co vi the cua cam nang lai
+duoc danh chi muc bang mot bo 4 KHAC: SPY so voi MA50/MA200 cong do doc MA50.
+
+Anh 3 sang 4 nghia la phai BAY RA cai phan biet con thieu — va cai bi thieu dung la
+cai thang can: `UPTREND_UNDER_STRESS` (MA50 con tren MA200 nhung gia da mat MA50) la
+truong hop giam NUA co. Nen `planning/playbookRegime.ts` KHONG phai ban trung lap:
+`detectRegime` tra loi "thi truong co dang bat cho cac bo loc momentum khong", ham moi
+tra loi "hom nay duoc phep giao dich trang nao cua cam nang, va voi co nao". Hai cau
+tra loi duoc phep khac nhau, va gop lai thi mot trong hai phai sai.
+
+Vi sao SMA khong phai EMA: cam nang viet MA50/MA200, va moi bieu do nguoi dung doi
+chieu (TradingView mac dinh) hieu do la trung binh gian don. EMA lech vai phan muoi
+phan tram — dung ngay o cho ranh gioi phan loai bi lat.
+
+Vi sao tra `null` chu khong phai `RANGE` khi thieu du lieu: can 210 nen (200 cho MA,
+10 cho do doc). `RANGE` la mot trang thai THAT va no giam nua co. Tra `RANGE` cho
+"toi khong co du lieu" la am tham giam nua moi lenh trong khi man hinh bao la thi
+truong di ngang.
+
+Vi sao `atrRatio` la `null` chu khong phai `1.0` khi chua co moc 100 phien: so 1.0 lap
+cho doc thanh "bien dong binh thuong", va nhu vay se am tham cho vao FULL size trong
+mot thi truong chua he do. Cung ho ly le voi viec `fx` khong bao gio mac dinh la 1
+(CHAT-20).
+
+Mot loi da sap NGAY TRONG luc viet test: dieu kien chu cua cam nang ("MA50 > MA200 va
+gia < MA50") doc nguyen van thi mot thi truong da tao dinh tu nhieu thang truoc se bi
+goi la "tang nhung dang cang" MOI NGAY gia dong cua thap hon mot cai MA50 phang lan.
+Do la di ngang — va cam nang giao dich di ngang khac han (dao chieu trung binh moi duoc
+phep, pha canh thi thoi). Nen nhanh do doi thom do doc con duong: "dang cang" nghia la
+nhip tang CON hieu luc (50 tren 200 VA con len) va gia vua mat no. Co mot test hoi quy
+rieng ten han hoi cho chuyen nay.
+
+### B. Vi sao bang luat nam trong core, va vi sao chi luu PHAN KHAC BIET
+
+Hai cho phai tra loi "cat lo dat dau, mua bao nhieu co": form Buy, va Trade Planner
+(`buildTradePlan`). Neu moi cho tu mang mot ban luat thi Planner goi 3R con form dien
+2R cho cung mot thiet lap, va nguoi dung khong co cach nao biet cai nao moi la luat.
+Cung ly do `fx.ts` da duoc tach ra khoi `portfolioTab.ts`.
+
+Trang cau hinh chi luu nhung o KHAC mac dinh. Ghi lai ca bang khi bam Luu se dong bang
+ban luat cua phien nay vao du lieu dong bo mai mai: mot sua doi sau nay cho, vi du, so
+phien cua Surge se khong bao gio den duoc nguoi dung, va khong con cach nao phan biet
+con so ho CHON voi con so ho chi NHIN THAY roi bam Luu. "Ve mac dinh" vi the la mot
+phep XOA, khong phai mot phep ghi.
+
+`pf_playbook_cfg` DONG BO (la luat nguoi dung go — de tren mot may thi laptop goi 3R,
+dien thoai goi 2R, khong man hinh nao noi tai sao). `pf_spy_bars` thi KHONG dong bo (du
+lieu thi truong: giong nhau tren moi may, tai lai bang mot request) — da them vao
+`LOCAL_ONLY_PREFIXES` canh `pf_eurusd_bars`.
+
+### C. Ba luat khong duoc lam mem
+
+1. CAT LO DAT THEO CAU TRUC, KHONG THEO TIEN. Khi cat lo theo cau truc ra xa hon thuoc
+   do ATR, module CANH BAO va nguoi dung giam so co — KHONG keo cat lo lai gan. Keo lai
+   la dich cat lo vi ly do tien, tuc la dung cai loi cam nang xep dau bang.
+2. EMA10 LA MUC KEO THEO, KHONG PHAI CAT LO BAN DAU. Yeu cau ban dau de nghi breakout
+   dung EMA10 hom truoc lam cat lo; cam nang (muc 13) dat EMA10 o cot "keo theo", con
+   cat lo ban dau la duoi NEN pha. EMA10 nam gan gia hon nhieu, dung lam cat lo ban dau
+   se thoi phong so co va bi quet som. Da ma hoa ca hai, moi cai dung vai cua no
+   (`trailEma` rieng, `anchor` rieng).
+3. DUOI 2R THI CANH, KHONG TU DONG DIEN. Cam nang: "duoi 2R thi bo qua, bat ke mau hinh
+   dep den dau". `belowMinRR` la mot canh bao, khong phai mot phep nhan len cho du 2R.
+
+Mot cach doc can noi ro: cat lo breakout cua cam nang la "duoi diem pha", ma diem pha
+cung chinh la diem vao. Doc nguyen van thi do la cat lo cach 0,1% — khong ai y nhu vay.
+Cach doc thuc dung (va la cach da chon) la DAY CUA NEN da pha.
+
+Bay thiet lap co bang luat. VCP / Breakout / Pullback / Mean Reversion ghi `playbook`
+vi cam nang noi ro. EP / Surge / Other ghi `derived` — cam nang khong cho con so, day
+la suy ra. Nhan `source` ton tai de sau nay con biet cai nao sua duoc thoai mai.
+
+### D. "Mot lenh da dong" la mot LO ban het, khong phai mot dong ban
+
+Thang rui ro dem so lenh da dong (duoi 50 lenh: 0,25%; ky vong duong: 0,5%; 100 lenh
+on dinh: 1%). App thi ban tung phan: chot nua o 2R roi phan con lai theo muc keo la
+MOT lenh, nhung HAI dong `SellRecord`. Dem dong se cham moc "50 lenh" khi moi co 25
+lenh that, len bac som mot nhip, va doc mot lan chot nua thanh mot chuoi hai lenh
+thang (roi tha cai cat chuoi thua 3 lenh). Nen `closedTradePnls` gop theo `lotId` va
+chi tinh lo nao het co.
+
+Len bac con doi ky vong DUONG, khong chi doi so lenh: 200 lenh thua khong phai la
+bang chung de nhan doi co.
+
+Lo KHONG CO cat lo gop 0 vao tong rui ro dang mo — co y, va day la lua chon kho chiu.
+Rui ro that cua no la CA vi the, nen tinh vao cung co ly. Nhung khi do mot so sach
+toan lo khong cat lo se tu bao minh vuot han muc va chan moi lenh moi, tuc la day
+nguoi dung den cho tat con so do di. Thieu cat lo da co canh bao rieng (o
+`positionsDigest`), de no o day la du.
+
+### E. Duong mach tien te — cho duy nhat core khong kiem duoc
+
+Nen gia la USD tho. Von, tien va `PriceMap` la tien CUA TAI KHOAN (EUR). Gia trong form
+la don vi cua o chon ben canh no. Sai mot chieu chia thi so co lech dung bang ty gia —
+25% o muc 1,25 — am tham, moi lenh, voi mot con so trong rat binh thuong tren man hinh.
+
+Nen: tinh muc gia trong khong gian USD, quy ve tien tai khoan DUNG MOT LAN o ranh gioi
+(`portfolio/playbook.ts`), y nhu cach `prices.ts` da ghi: nguoi doc map gia can gia,
+khong can ty gia. `tests/buyPlan.test.ts` co mot test rang $100 cat lo $90 va 80EUR
+tren cung bo nen phai ra CUNG mot so co (15).
+
+### F. Form Buy khong bao gio ghi de len so nguoi dung tu go
+
+Mot o chi duoc dien khi no dang TRONG hoac dang giu dung goi y truoc do cua chinh no.
+Da tu go cat lo thi goi y xuong thanh mot loi de nghi kem link "dung goi y". Auto-fill
+de len mot cat lo go tay con te hon la khong co: nguoi dung vao lenh o muc ho DA TU
+CHOI, va app trong nhu vua lam mat cai ho nhap.
+
+Nguoc lai: mot so DO CHINH NO dien ma ke hoach moi khong con bao ve thi phai BI XOA. De
+lai 250 co cua lan truoc sau khi han muc rui ro cat ke hoach ve 0 la vao dung cai lenh
+ke hoach vua tu choi.
+
+Vi sao tai nen gia o day chu khong o luc ve tab: cat lo can nen gia ngay cua mot ma tai
+khoan co the chua he giu. Chon Setup la hanh dong "len ke hoach cho lenh nay" — dung
+luc de ton mot request, va `wirePriceHint` da tai o cung cai cu chi do. Ve tab thi
+`ensureRegime` KHONG co `refresh`, tuc la chi doc cache: mo mot tab khong duoc phep bat
+dau tai du lieu thi truong (luat `ensureEurUsd` da theo).
+
+### G. File nao doi
+
+- `packages/core/src/planning/playbookRegime.ts` — MOI. 4 trang thai tren SPY, `atrRatioOf`.
+- `packages/core/src/planning/setupPlaybook.ts` — MOI. Bang luat 7 thiet lap, thang rui
+  ro, `suggestLevels`, `suggestSize`, `openRiskOf`, `closedTradePnls`.
+- `packages/core/src/planning/index.ts` — xuat hai file tren, kem ghi chu la co Y khong
+  phai `detectRegime`.
+- `apps/desktop/src/portfolio/playbook.ts` — MOI. Cau hinh (dong bo), cache SPY (cuc
+  bo), `buildBuyPlan` va ranh gioi tien te.
+- `apps/desktop/src/ui/playbookSettings.ts` — MOI. Trang cau hinh; luu PHAN KHAC BIET.
+- `apps/desktop/src/tabs/portfolioTab.ts` — nut cau hinh trong the Buy, `wireBuyPlan`,
+  nap cau hinh + trang thai thi truong luc ve, lam moi SPY trong `update()`.
+- `apps/desktop/src/adapters/storage.ts` — `pf_spy_bars` vao `LOCAL_ONLY_PREFIXES`.
+
+### H. Kiem
+
+- `tests/planning/playbookRegime.test.ts` MOI, 12 test.
+  `tests/planning/setupPlaybook.test.ts` MOI, 54 test.
+  `apps/desktop/tests/buyPlan.test.ts` MOI, 12 test.
+- 732/733 workspace. Test do van la `syncMerge.test.ts > writes the timestamp map once
+  per batch` (timeout 5000ms trong ca suite, 8/8 khi chay rieng) — xem CHAT-18/19/20.
+- `tsc --noEmit` sach ca hai goi, `npm run build` sach.
+- Bay cu, lai gan sap lan nua: phai `npm run build` trong `packages/core` TRUOC khi
+  chay test ben app, vi app resolve `@screener/core` ve `packages/core/dist`.
+- Bon test da that su that bai truoc khi dung, ghi lai vi ba trong so do la loi FIXTURE
+  chu khong phai loi code — nen doc ky truoc khi sua code: cat lo rong hon ATR khong no
+  (nen fixture rong 30 diem nen 2xATR con rong hon), so co ra 250 thay vi 333 (bi chan
+  boi tran 25% von, khong phai boi lam tron), va DOWNTREND thay vi UPTREND_UNDER_STRESS
+  (fixture roi 72 diem, xuong duoi ca MA200). Cai thu tu — di ngang bi goi la "dang
+  cang" — la loi CODE that, va la ly do co nhanh do doc o muc A.
+
+### I. Con lai cho vong sau (da HOAN LAI co y, khong phai bo quen)
+
+- Trade Planner / `buildTradePlan` chua dung bang luat moi — van mu ve trang thai thi
+  truong va ve thiet lap. Day la phan "ung dung vao trade planner nua" cua yeu cau.
+- Chua co duong tu chuong cam nang (muc 11/13) sang nut cau hinh, nen nguoi doc chuong
+  do khong biet nhung con so ay sua duoc, va sua o dau.
