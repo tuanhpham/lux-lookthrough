@@ -5223,3 +5223,159 @@ Python, va `wc -c` ngay sau moi lan ghi.
   — Test moi chi giu ba dieu khong the phuc hoi ve sau, vi mot tap bao cao luu nam
     ngoai thi khong the tao lai: co the viewport, thu tu so cot 4 -> 2 -> 1, va cot
     gap lai van con chu trong markup.
+
+## CHAT-42 — Trang scanner: mot ngon ngu, va giai thich tan goc
+
+Yeu cau: ba phan. (1) "tieng viet va tieng anh lan lon trong khi user chon tieng
+anh" — chon tieng nao thi CA trang phai la tieng do. (2) "Minh muon co nhieu
+explanation in details cho cac khai niem o trong trang scanner": Why rejected phai
+noi ro reason nghia la gi, share nghia la gi, "count cai gi vay number of stocks
+ah?"; tuong tu cho Reversal va Sector Leader; mot kieu summary "phai dat moc nao do
+cua cac criteria"; watch list phai co "why it is on the list voi cac KPIs nhung so
+sanh voi cai gi". (3) "Candidates by setup, nhung phan nhu Breakout (BO) ... cung
+nen collapsible boi vi doi khi danh sach qua dai, scroll rat met".
+
+### A. Cho lan tieng: khong co mot chu Viet nao bi hardcode
+
+Dieu dau tien phai lam ro, vi no doi huong sua: `scannerTab.ts` KHONG chua mot chuoi
+tieng Viet co dau nao. Tat ca cac chu Viet hien ra khi dang o che do tieng Anh den
+tu bon nguon khac:
+
+  — `PLAYBOOK[...]["note"]` do chinh VM gui len, la tieng Viet CO DAU, va duoc in
+    tho o hai cho: the playbook o muc Today va bang playbook o muc Config. Day la
+    cho on nhat.
+  — Identifier dung thang lam nhan: `bars` / `struct` / `candidates` o bang Status,
+    `kind` = `NEW` / `UP` o bang Alerts, ten nhom va ten khoa cua config (`slope_win`,
+    `vol_contract`...), `SPIKE` trong o playbook, `UPTREND` / `CONTRACTED` trong bang
+    playbook. Cac chuoi nay khong phai tieng Anh cung khong phai tieng Viet — chung
+    la khoa schema, va khong ai ngoai nguoi viet scanner doc duoc.
+  — Bon khoa reject chua co ban dich tu CHAT-40 (`thieu_gia_pivot`, `thieu_gia`,
+    `khong_dong_o_vung_dinh_ngay`, `gap_to_entry_xau`).
+
+Cach sua: `scannerVocab.ts` nhan them `PLAYBOOK_NOTES` (12 o, khoa theo
+`(trend, vol)`), `ALERT_KINDS` va `TABLES`. Ban tieng Viet cua ghi chu playbook duoc
+COPY NGUYEN VAN tu `config.py` — khong dich lai, khong viet hay hon — vi dung nhung
+chuoi do cung di vao tin nhan Telegram buoi sang, va hai noi noi khac nhau ve cung
+mot o playbook thi tin nhan hay trang web se bi coi la sai. Bang playbook o muc
+Config chuyen sang `enumLabel('trend'|'vol', ...)`, tuc la in tu da dich kem ma goc
+trong mot span mo — ma goc phai con lai de doi chieu voi log cua VM.
+
+Mot cai bay nho trong luc lam: `enumLabel()` TRA VE HTML. Boc no trong `esc()` thi
+in ra the `<span>`. Va `Chip` khong co truong `tip`, ten that la `title`.
+
+### B. scannerGuide.ts: cho de doan giai thich nam canh du lieu
+
+Toan bo phan giai thich thanh mot module du lieu thuan, khong DOM, theo dung khuon
+`ui/playbookHelp.ts`: `SETUP_DOC` (moi setup: lam gi, universe nao, danh sach gate
+THEO DUNG THU TU, cac cap, cong thuc quality, cong thuc diem vao), `REJ_LEGEND`,
+`WATCH_WHY`, `PLAN_STEPS`, `METRICS` (tu dien cot, khoa theo dung ten truong cua
+payload), `CFG_DOC` (moi nhom va moi khoa cua config), va `G` cho cac nhan khung.
+Dat o mot file vi mot tieu de tach roi khoi doan van no dat ten thi som hay muon se
+lech nhau; ca hai nam canh nhau thi sua mot lan.
+
+Diem quan trong nhat cua module nay la phan biet nguong SONG va nguong COPY:
+
+  — `scanner:thresholds` mang nguyen `config.snapshot()` dang chay, nen cac nhom
+    LEAD / PLAN / SECTORS / REGIME / NIGHTLY / INTRADAY duoc doc SONG: gate khai
+    `path: 'lead.min_px'` va con so tren trang chinh la con so VM dang dung.
+  — `config.snapshot()` KHONG chua hai dict `BO` va `RV` cua `setups.py`. Nhung
+    nguong do bat buoc phai COPY sang TypeScript, nen chung khai `val:` va ca setup
+    duoc danh dau `mirrored: true` — tren trang hien mot dong noi ro "copy bang tay,
+    co the lech". Mot con so khong the kiem tra thi it nhat phai noi la no khong the
+    kiem tra.
+  — Mot gate co `path` HOAC `val`, khong bao gio ca hai (test chan). Mot test khac
+    lay fixture `config.snapshot()` that va doi MOI `path` giai duoc ra so — vi mot
+    `path` viet sai chi in ra dau gach ngang, va gach ngang thi giong het "VM chua
+    push", tuc la loi tu che mat minh.
+
+### C. Why rejected: ba cau hoi cua ban, tra ngay tren trang
+
+  — Reason la gate DAU TIEN bi truot. `_rej()` trong `setups.py` ghi lai ly do roi
+    `return` ngay, nen mot ma chi xuat hien dung MOT lan va cot Count cong lai bang
+    dung tong so ma da xet. Day la ly do ta duoc phep in ty le phan tram.
+  — Count la SO MA CO PHIEU — dung, "number of stocks".
+  — Share la phan cua ma do tren tong (bi loai + di qua), khong phai tren so bi
+    loai. Ba dong nay thanh mot legend hien ngay dau muc.
+  — Rieng doan chi tiet cho tung ly do thi phan lon DA CO tu CHAT-40, nam trong
+    `tipEn` / `tipVi`, nhung chi doc duoc khi HOVER. Muon hover thi phai co chuot, va
+    trang nay duoc doc tren dien thoai. Gio doan do in thanh dong thu hai ngay duoi
+    ten ly do, con bon ly do thieu tip thi viet moi. Mot cai dang ghi lai:
+    `gap_to_entry_xau` KHONG phai mot ly do loai — no la mot canh bao, va tip cua no
+    phai noi nhu vay.
+
+### D. Watch list: tai sao ma nay co trong danh sach
+
+Cau tra loi that ra nam trong `push.watchlist_payload()`: `WHERE setup='LEAD'`,
+`ORDER BY quality DESC`, `LIMIT nightly.watch_top` (40). Nghia la danh sach nay
+KHONG phai tron ba setup — no la LEAD va chi LEAD. Vi vay moi dong trong do da
+chung minh di qua dung danh sach gate cua `lead_candidate`, va nguong cua danh sach
+do thi ve SONG. Bon buoc ay thanh `WATCH_WHY`, va moi dong co mot nut ⓘ mo ra bang
+KPI cua rieng no: do duoc bao nhieu, phai dat bao nhieu, dat hay khong.
+
+Hai gate KHONG THE kiem lai tu mot dong watch, va day la cho de lam sai nhat:
+
+  — Gate thanh khoan do bang `adv50 x gia`, con dong du lieu chi mang `adv20`.
+  — Gate RVOL do bang `vol_ratio`, khong co trong payload.
+
+Hai cai do in dau `·` (chua biet) kem mot cau noi ro vi sao, KHONG BAO GIO in dau
+`✕`. In dau do o day la buoc toi mot dong da di qua gate — va truong hop de sai
+nhat chinh la dong co `adv20` mong, tuc la dung cho ma `adv50` rat co the da du.
+Tuong tu, khong co config thi khong in nguong nao ca: khong con so nao la dung hon
+mot con so cu mang san trong app.
+
+### E. Fold: Candidates by setup, va mot loai fold mac dinh DONG
+
+Muc Candidates gio moi setup la mot `foldBlock` rieng (`scan:cand:BO`...), muc Why
+rejected cung vay. Tieu de va chip so luong van hien khi dang dong, nen ca muc doc
+duoc thanh "BO 42 · RV 7 · LEAD 10" ma khong mo gi — ba bang 500 dong xep len nhau
+la thu day muc Config xuong duoi vai man hinh.
+
+Nhung cac hop GIAI THICH thi phai nguoc lai: mac dinh DONG, vi nguoi da biet khong
+nen phai gap sach huong dan lai moi lan vao trang. `ui/collapse.ts` co them
+`openAttrShut(id)`: khong biet thi dong. Dieu kien de no chay duoc la `setCollapsed`
+phai GHI ca gia tri `false` thay vi xoa khoa di nhu truoc — neu xoa thi "chua bao gio
+cham" va "da tung mo" la cung mot trang thai, va hop giai thich vua mo se tu sap lai
+o lan poll ke tiep. Comment trong ham noi ro dieu do; dung "don dep" dong ghi ay.
+
+### F. Bang alert: score, +15m, MFE, MAE
+
+Ba nhan MFE / MAE / +15m la cho toi nghia nhat ca trang: chung la thuat ngu trong
+tieng Anh va thuat ngu KHONG dich trong tieng Viet, trong khi day lai la noi duy
+nhat scanner tu cham diem cho canh bao cua chinh no. Nen:
+
+  — `score` o bang nay la diem TRONG PHIEN cua `scorer.py` (RVOL 2,2 + bien do theo
+    ATR 1,6 + vong quay float 1,4 + gia tri giao dich 0,5, cong 1,5 neu chi Alpaca
+    thay). Tu 7,0 moi gui Telegram. No KHONG LIEN QUAN gi den cot `quality` cua ban
+    dem, du trung y nghia ten goi — va tu dien noi thang dieu do.
+  — `hi_after` (MFE) va `lo_after` (MAE) duoc mo bang chinh gia luc gui, nen MFE
+    luon >= 0 va MAE luon <= 0. Trong phien hai so nay chi chinh xac toi muc cac
+    vong quet cham duoc; dem do `outcome.py` ghi lai tu nen thuc. Cau do phai co
+    trong tu dien, khong thi nguoi doc se tin vao mot con so lay mau thua.
+  — Nguong cua `scorer.py` la hang so cap module, khong nam trong
+    `config.snapshot()`, nen chung cung la nguong COPY.
+
+### G. Loi that: `trim()` an mat chu so 0
+
+Ham lam gon so cua `scannerGuide.ts` viet `v.toFixed(d).replace(/\.?0+$/, '')`. Voi
+`20` thi khong co dau cham nao, va regex an luon so 0 cuoi: ra `2`. Hau qua:
+
+  — Cap do sau nen cua Breakout in ra `2%` thay vi `20%`.
+  — `plan.max_pos_pct` in ra `2%` thay vi `20%`.
+
+Sai dung mot bac 10, va sai theo huong nhin rat hop ly — 2% cho mot vi the thi khong
+ai giat minh. Chi cat duoi trong PHAN THAP PHAN moi dung: `if (!s.includes('.'))
+return s;`. Hai test moi bat duoc cho nay truoc khi no len trang, va ca hai deu la
+loai test "doi con so that trong cau van", khong phai test goi ham xong so sanh
+chuoi rong.
+
+### H. Kiem tra
+
+  — `npx tsc -p tsconfig.json --noEmit`: sach.
+  — `npx vitest run`: 25 file / 401 test, xanh het (tu 24 file / 365 test).
+  — `tests/scannerGuide.test.ts` moi (28 test) khong khoa van ban — van ban con phai
+    sua — ma khoa ba tinh chat lam cho van ban DUNG: moi `path` giai duoc ra so tren
+    mot snapshot that, ty le in ra duoi dang phan tram (0,15 va 15% la cung mot su
+    that nhung chi mot trong hai so sanh duoc bang mat voi o `12.4%`), va
+    `watchChecks` khong bao gio ket mot dong truot gate ma no khong do lai duoc.
+  — `styles.css`: them 158 dong, xoa 0 dong, CRLF giu nguyen (kiem bang
+    `git diff --stat`, khong kiem bang grep).
