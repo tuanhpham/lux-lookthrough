@@ -170,6 +170,7 @@ describe('caseStudyFromPlan', () => {
     effective: 'B' as const,
     notes: '<p>Tight base.</p>',
     plan: PLAN,
+    currency: 'USD' as const,
     vi: false,
     todayIso: '2026-09-29',
   };
@@ -185,13 +186,29 @@ describe('caseStudyFromPlan', () => {
     expect(s.exitReason).toBe('Target reached — sold into strength');
   });
 
-  it('carries the levels through untouched — the caller converts, not this', () => {
-    // The contract the header states: dollars in, dollars out. Silently scaling here would put
-    // the conversion in two places and make the chart's lines depend on which one ran.
+  it('carries the levels through untouched, in whatever currency they arrived in', () => {
+    // The contract the header states: as typed in, as typed out. Silently scaling here would put a
+    // conversion in two places and make the chart's lines depend on which one ran.
     const s = caseStudyFromPlan(base);
     expect(s.entry).toBe(100);
     expect(s.stop).toBe(90);
     expect(s.target).toBe(130);
+  });
+
+  it('records euros as euros, and dollars as no field at all', () => {
+    /*
+     * The levels used to be converted to dollars before filing, because a study had nowhere to say
+     * otherwise — so a trade placed at €167 was journalled as "$194.12" beside a frozen plan that
+     * said "€167.19". Now the currency travels with the numbers.
+     *
+     * A dollar study is written with the field ABSENT rather than as 'USD': that is what every
+     * study filed before this looks like, and one representation of "in dollars" is what keeps the
+     * synced blob from diffing on every old entry.
+     */
+    const eur = caseStudyFromPlan({ ...base, currency: 'EUR', levels: { entry: 167.19, stop: 158, target: 195 } });
+    expect(eur.currency).toBe('EUR');
+    expect(eur.entry).toBe(167.19);
+    expect(Object.prototype.hasOwnProperty.call(caseStudyFromPlan(base), 'currency')).toBe(false);
   });
 
   it('maps the planner\'s letter onto the journal\'s rating rather than asking twice', () => {

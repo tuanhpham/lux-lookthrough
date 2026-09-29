@@ -42,6 +42,15 @@ export interface CaseStudyPromptContext {
   outcome?: string | null;
   /** Subjective A–D grade, '' or absent when ungraded. */
   rating?: string | null;
+  /**
+   * What the prices above are denominated in — 'EUR' or absent for dollars.
+   *
+   * Said out loud because the model is asked to check these levels against a chart it looks up
+   * itself, and every quote it will find is in dollars. Without this line a €167 entry on a stock
+   * that traded at $194 reads as a mistake, and the answer comes back correcting the user's own
+   * record.
+   */
+  currency?: string | null;
   /** Dated catalysts already recorded in the journal. */
   catalysts?: readonly { date: string; text: string }[];
   /** Titles of other case studies, for the comparison table. */
@@ -92,7 +101,12 @@ export function caseContextBlock(
   if (fin(c.entry)) lv.push(`${vi ? 'mua' : 'entry'} ${c.entry}`);
   if (fin(c.stop)) lv.push(`${vi ? 'cắt lỗ' : 'stop'} ${c.stop}`);
   if (fin(c.target)) lv.push(`${vi ? 'mục tiêu' : 'target'} ${c.target}`);
-  if (lv.length) add(vi ? 'Mức tôi đã ghi' : 'Levels I recorded', lv.join(' / '));
+  if (lv.length) {
+    const ccy = c.currency && c.currency !== 'USD'
+      ? ` (${vi ? 'bằng' : 'in'} ${c.currency}${vi ? ', không phải USD' : ', not USD'})`
+      : '';
+    add(vi ? 'Mức tôi đã ghi' : 'Levels I recorded', lv.join(' / ') + ccy);
+  }
 
   if (c.exitDate || fin(c.exitPrice)) {
     add(

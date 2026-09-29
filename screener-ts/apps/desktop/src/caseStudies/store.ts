@@ -73,6 +73,23 @@ export interface CaseStudy {
    * user simply wrote out, and on everything filed before this existed.
    */
   exitReasonKey?: string;
+  /**
+   * The currency `entry` / `stop` / `target` / `exitPrice` are written in. Absent means USD.
+   *
+   * ── WHY THIS HAD TO EXIST ───────────────────────────────────────────────────
+   * Bars arrive in dollars, always, so until now a study simply stored dollars: the planner
+   * converted the euro levels the user had typed before filing, and the chart matched. It was
+   * internally consistent and still wrong to read. A trade entered at €167 was journalled as
+   * "$194.12" beside a frozen plan section that said "€167.19" — one trade, two prices, in one
+   * document — and a study typed by hand in euros had its lines drawn in the wrong place entirely.
+   *
+   * With this field the levels are filed AS TYPED and the chart is converted to meet them (see
+   * `inCurrency`), which is the way round that keeps the prices the user recognises.
+   *
+   * Absent on every study filed before 2026-09-29, so every reader must default it to USD — and a
+   * EUR study needs a rate to draw at all, which is why the chart callers pass one.
+   */
+  currency?: 'USD' | 'EUR';
   catalysts: Catalyst[];
   /** Free-form markdown-ish notes / lessons learned. */
   notes: string;

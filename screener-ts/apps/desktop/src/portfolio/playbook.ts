@@ -160,6 +160,49 @@ export async function savePlaybookConfig(ctx: AppContext, next: PlaybookConfig):
 }
 
 // ---------------------------------------------------------------------------
+// "The rules changed — anything unfinished has to follow"
+// ---------------------------------------------------------------------------
+
+/**
+ * Listeners for a rule change, so every plan still being WRITTEN re-derives itself.
+ *
+ * The user's "khi user thay doi trong playbook, khi save, thi tat ca moi thu phai … vi du nhu dang
+ * setup trade plan, va vao thay doi playbook, thi sau khi save, cai trade plan do phai thay doi
+ * chu". Before this, each ⚙ button picked its own refresh: the Buy card's called `draw()` and wiped
+ * the half-filled form, the planner's re-scanned, and a Buy form opened from anywhere else simply
+ * kept the old stop. One broadcast means the entry point no longer decides who hears about it.
+ *
+ * The line the user drew holds: "chi khi ma da buy, da save plan, save case study thi moi khong
+ * thay doi thoi". Those three are records of a decision already taken, stored with the numbers they
+ * were taken on — a `Lot`, a frozen `PlanSnapshot`, a `CaseStudy`. Nothing here touches them; it
+ * only re-runs the derivations that are still drafts.
+ *
+ * NOT fired from `savePlaybookConfig`, deliberately. The exit-reason editor writes the same blob
+ * (`exitReasons.ts`), and a listener like the planner's re-scans bars over the network — renaming a
+ * reason must not cost a round of fetches. So the dialog that changed the RULES fires it, and the
+ * editor that changed a LABEL does not.
+ */
+type PlaybookListener = () => void;
+const playbookListeners = new Set<PlaybookListener>();
+
+/** Subscribe; the returned function unsubscribes, and must be called when the surface is rebuilt. */
+export function onPlaybookChange(fn: PlaybookListener): () => void {
+  playbookListeners.add(fn);
+  return () => playbookListeners.delete(fn);
+}
+
+/** Tell every live surface the rules moved. One throwing listener must not silence the rest. */
+export function notifyPlaybookChanged(): void {
+  for (const fn of [...playbookListeners]) {
+    try {
+      fn();
+    } catch (e) {
+      console.error('playbook listener failed', e);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // "Open the settings when you get there"
 // ---------------------------------------------------------------------------
 

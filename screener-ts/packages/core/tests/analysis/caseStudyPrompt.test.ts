@@ -38,6 +38,16 @@ describe('caseContextBlock', () => {
     expect(b).not.toContain('stop');
   });
 
+  it('says when the levels are not in dollars, and stays quiet when they are', () => {
+    // The model is asked to check these numbers against a chart it looks up itself, and every quote
+    // it finds is in dollars. Unsaid, a €167 entry on a stock that traded at $194 reads as a typo
+    // and the answer comes back correcting the user's own record.
+    const eur = caseContextBlock({ ...base, entry: 167.19, currency: 'EUR' });
+    expect(eur).toContain('in EUR, not USD');
+    expect(caseContextBlock({ ...base, entry: 167.19, currency: 'USD' })).not.toContain('USD');
+    expect(caseContextBlock({ ...base, entry: 167.19 })).not.toContain('USD');
+  });
+
   it('keeps a zero level rather than treating it as missing', () => {
     // 0 is falsy but a real recorded number; a `if (c.stop)` test would drop it.
     const b = caseContextBlock({ ...base, stop: 0 });

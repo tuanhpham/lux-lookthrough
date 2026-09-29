@@ -79,7 +79,7 @@ import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNot
 import { attachCombobox } from '../ui/combobox.js';
 import {
   barsFor, buildBuyPlan, currentRegime, ensureRegime, ladderConfig,
-  loadPlaybookConfig, regimeStale, takePlaybookSettingsRequest, type BuyPlan,
+  loadPlaybookConfig, onPlaybookChange, regimeStale, takePlaybookSettingsRequest, type BuyPlan,
 } from '../portfolio/playbook.js';
 import { planLines, planNoteHtml } from '../portfolio/planWords.js';
 // The same exit vocabulary the Trade Planner records a case study with — the user's
@@ -241,7 +241,18 @@ function wirePriceHint(
  */
 let takeBuyPlanSnapshot: ((lotId: string) => PlanSnapshot | null) | null = null;
 
+/**
+ * The Buy form's subscription to playbook changes, dropped before each re-wire.
+ *
+ * `draw(ctx)` rebuilds the form and calls `wireBuyPlan` again, so without this every redraw would
+ * leave another listener holding a closure over elements no longer in the document — and a save
+ * would re-plan a form that is gone, N times over.
+ */
+let unsubscribeBuyPlan: (() => void) | null = null;
+
 function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
+  unsubscribeBuyPlan?.();
+  unsubscribeBuyPlan = null;
   const vi = getLang() === 'vi';
   const setupEl = $('#b-setup') as HTMLSelectElement | null;
   const tickerEl = $('#b-ticker') as HTMLInputElement | null;
@@ -846,6 +857,13 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   priceEl.addEventListener('input', runSoon);
   priceEl.addEventListener('change', () => void run());
 
+  // The rules changing is the same event as the Setup changing: re-plan, in place. The old ⚙
+  // handler called `draw(ctx)` instead, which rebuilt the tab and threw away whatever the user
+  // had already typed — so the one way to see the new stop rule applied was to lose the form.
+  // `apply()` still respects a hand-typed stop or target (it reports them as "kept"), so this
+  // moves the numbers the app derived and leaves the numbers the user chose alone.
+  unsubscribeBuyPlan = onPlaybookChange(() => void run());
+
   // Say the invitation once, now. On a freshly drawn form this only prints "pick a
   // Setup" — it fetches nothing, because the ticker and price boxes are empty. It is
   // also the only thing that tells a first-time reader the feature is there at all.
@@ -1159,11 +1177,9 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
   // empty one; and with a null account on Overview, where "your record" has no
   // single answer — the dialog says so rather than picking an account for them.
   if (takePlaybookSettingsRequest()) {
-    void openPlaybookSettings(
-      ctx,
-      activeId() === OVERVIEW_ID ? null : active(),
-      () => draw(ctx),
-    );
+    // No `onSaved` redraw, same as the ⚙ on the Buy card: saving broadcasts, and the surfaces that
+    // care re-derive themselves in place.
+    void openPlaybookSettings(ctx, activeId() === OVERVIEW_ID ? null : active());
   }
 
   // Draw from cache first, then go and get the close — the table is on screen
@@ -1853,8 +1869,11 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
     wireBuyPlan(ctx, updateRiskHint);
 
+    // No redraw: the Buy form subscribes to the change itself and re-plans in place (see
+    // `unsubscribeBuyPlan`). Redrawing here was the bug — the user opened the settings from a
+    // half-filled form, saved, and got an empty one back.
     $('#b-playbook-cfg')?.addEventListener('click', () => {
-      void openPlaybookSettings(ctx, active(), () => draw(ctx));
+      void openPlaybookSettings(ctx, active());
     });
 
     // No redraw on save: nothing already on screen changes, and the Sell dialog reads the list

@@ -84,6 +84,21 @@ describe('planReportHtml', () => {
     expect(html).toContain('window.print()');
   });
 
+  /*
+   * The user's "khi ma tich ra de in mau trang ay, thi dang sau do o 4 margins co mau den trong rat
+   * ky". The page margins are painted by the canvas, and the canvas takes its background from the
+   * ROOT — `<body>`'s only propagates there while the root has none, and `:root{color-scheme:dark}`
+   * gives it one. So the white-paper box has to flip `<html>` as well, and the symptom otherwise
+   * only shows up in a print preview.
+   */
+  it('turns the page margins white too when the ink box is ticked', () => {
+    const html = planReportHtml(input());
+    expect(html).toMatch(/html:has\(#ink:checked\)\s*\{[^}]*color-scheme:\s*light/);
+    expect(html).toMatch(/html:has\(#ink:checked\)\s*\{[^}]*background:#fff/);
+    // The body rule stays: flipping only the root would leave the text light-on-white.
+    expect(html).toContain('body:has(#ink:checked)');
+  });
+
   it('names the stock, the setup and the intended date', () => {
     const html = planReportHtml(input());
     expect(html).toContain('NVDA');

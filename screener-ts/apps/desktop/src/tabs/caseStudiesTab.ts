@@ -41,7 +41,7 @@ import { openPlanReport } from '../portfolio/planReport.js';
 import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
 // One window rule for a plan's chart, shared with the planner so a filed study draws the same
 // picture the card it came from drew.
-import { planChartWindow } from '../portfolio/planExit.js';
+import { inCurrency, planChartWindow } from '../portfolio/planExit.js';
 // Read at render time, not imported as a constant: the list includes the user's own rows.
 import { exitReasonKeyOfText, exitReasonList } from '../portfolio/exitReasons.js';
 // Report dates for the chart's E flags. Same source the planner card and the stock modal use, so
@@ -184,6 +184,20 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   const study = await loadCase(ctx, id);
   if (!study) return void renderList(ctx);
 
+  /*
+   * The study's own currency, and the rate its chart needs.
+   *
+   * Bars are dollars, always. A study whose levels were typed in euros (`CaseStudy.currency`) is
+   * therefore drawn by converting the CANDLES at the key date's rate — the same direction, and the
+   * same one-rate-for-the-window rule, as the planner and the printed plan. From the device cache
+   * only: opening a journal entry must not start a market-data download, and a euro study with no
+   * cached rate shows a note instead of a chart whose lines would be off the axis.
+   */
+  const sym = caseSym(study);
+  const eurCase = study.currency === 'EUR';
+  if (eurCase) await ensureEurUsd(ctx).catch(() => {});
+  const caseFx = eurCase && hasEurUsd() ? eurUsdForDate(study.keyDate) : 0;
+
   root.innerHTML = `
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
       <button id="cs-back" class="btn-outline">← ${vi ? 'Quay lại' : 'Back'}</button>
@@ -210,12 +224,12 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
       <div id="cs-chart">${vi ? 'Đang tải…' : 'Loading…'}</div>
     </div>
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-      ${detailStat(vi ? 'Mua' : 'Entry', money(study.entry), '#5b8cff')}
-      ${detailStat(vi ? 'Cắt lỗ' : 'Stop', money(study.stop), 'var(--danger)')}
-      ${detailStat(vi ? 'Mục tiêu' : 'Target', money(study.target), 'var(--accent)')}
+      ${detailStat(vi ? 'Mua' : 'Entry', money(study.entry, sym), '#5b8cff')}
+      ${detailStat(vi ? 'Cắt lỗ' : 'Stop', money(study.stop, sym), 'var(--danger)')}
+      ${detailStat(vi ? 'Mục tiêu' : 'Target', money(study.target, sym), 'var(--accent)')}
       ${detailStat('R:R', plannedRr(study))}
       ${detailStat(vi ? 'Ngày thoát' : 'Exit date', study.exitDate ?? '—')}
-      ${detailStat(vi ? 'Giá thoát' : 'Exit price', money(study.exitPrice))}
+      ${detailStat(vi ? 'Giá thoát' : 'Exit price', money(study.exitPrice, sym))}
       ${detailStat(vi ? 'Kết quả R' : 'Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? 'var(--accent)' : 'var(--danger)') : undefined)}
       ${detailStat(vi ? 'Loại' : 'Setup', escapeAttr(study.setupType))}
       ${detailStat(vi ? 'Xếp hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
@@ -255,7 +269,15 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
    */
   let earnDates: readonly string[] = [];
   const drawChart = () => {
-    const win = windowBars(bars, study.keyDate, windowMonths);
+    if (eurCase && !(caseFx > 0)) {
+      $('#cs-chart')!.innerHTML = `<p class="muted" style="margin:0">${
+        vi
+          ? 'Không vẽ được đồ thị: hồ sơ này ghi giá bằng EUR nhưng chưa có tỷ giá EUR/USD của ngày then chốt trong bộ nhớ.'
+          : 'No chart: this study’s prices are in EUR and no cached EUR/USD rate for the key date was found.'
+      }</p>`;
+      return;
+    }
+    const win = inCurrency(windowBars(bars, study.keyDate, windowMonths), caseFx);
     // `study` itself, not a spread with the live `windowMonths` folded in: the renderer takes
     // levels and dates only (see `ChartSubject`), and `windowBars` above has already applied
     // the window. The spread was copying a field the chart never read.
@@ -297,7 +319,9 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   $('#cs-download')!.addEventListener('click', () => {
     // Whatever the chart on screen is marking, the downloaded file marks too — including nothing,
     // if the lookup found nothing or has not landed yet.
-    const html = caseStudyHtml({ ...study, windowMonths }, bars, earnDates);
+    // The rate too: the file is standalone and cannot look one up, so a euro study exported
+    // without it would arrive with no chart at all.
+    const html = caseStudyHtml({ ...study, windowMonths }, bars, earnDates, caseFx);
     downloadHtml(html, `case-study-${study.symbol}-${study.keyDate}`);
   });
 
@@ -306,17 +330,25 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   $('#cs-plan')?.addEventListener('click', async () => {
     const p = study.plan;
     if (!p) return;
-    // The plan's money is in ITS currency (usually euros) while the study's exit price is in
-    // dollars, so a rate is needed to state both in one document. Loaded from the device cache
-    // rather than fetched: opening a report must not start a market-data download.
+    // A rate is needed only when the study and the plan disagree about the currency — which now
+    // happens only on OLD studies, filed when the planner converted its euro levels to dollars
+    // before writing them (`CaseStudy.currency` did not exist yet). On anything filed since, both
+    // halves are in one currency and nothing is converted. Cache only: opening a report must not
+    // start a market-data download.
     await ensureEurUsd(ctx).catch(() => {});
     const eur = p.currency === 'EUR';
-    const rate = eur && hasEurUsd() ? eurUsdForDate(p.date) : 0;
+    const sameCcy = (study.currency ?? 'USD') === p.currency;
+    // Two different jobs, and conflating them was a bug worth naming: `planFx` lets the report draw
+    // euro levels on dollar candles (needed for EVERY euro plan), while `rate` restates the study's
+    // exit price in the plan's currency (needed only when the two disagree). One variable for both
+    // meant a same-currency euro study was printed with no chart.
+    const planFx = eur && hasEurUsd() ? eurUsdForDate(p.date) : 0;
+    const rate = sameCcy ? 0 : planFx;
     // Back to the plan's currency with the PLAN date's rate — the same one the levels beside it
     // are in. The exit-date rate would be more literal and less useful: an R multiple built from
     // an entry at one rate and an exit at another is part FX move.
     const toPlanCcy = (v: number | null): number | null =>
-      v === null ? null : rate > 0 ? Math.round((v / rate) * 100) / 100 : eur ? null : v;
+      v === null || sameCcy ? v : rate > 0 ? Math.round((v / rate) * 100) / 100 : eur ? null : v;
     const entry = study.entry;
     openPlanReport(
       {
@@ -326,12 +358,14 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
         levels: p.levels,
         shares: p.shares,
         currency: p.currency,
-        ...(rate > 0 ? { fxRate: rate } : {}),
+        ...(planFx > 0 ? { fxRate: planFx } : {}),
         date: p.date,
         // The same window the planner card drew — four months of the base before the trade date,
         // two after it (or past the exit on a longer hold). One shared function rather than a
         // filter written twice, because a post-mortem that framed the chart differently from the
         // card it was filed from would be a second opinion nobody asked for.
+        // Raw dollar bars: `planReportHtml` does its own conversion from `fxRate`, so converting
+        // here would divide by the rate twice.
         bars: planChartWindow(bars, p.date, study.exitDate),
         // Report dates are looked up now, not frozen into the plan when it was filed: a stored
         // plan records what the app DECIDED, and where the earnings fell is a fact about the
@@ -347,7 +381,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
           reason: study.exitReason ?? '',
           outcome: study.outcome,
           rMultiple: study.rMultiple,
-          // Both prices are dollars here, so the ratio needs no rate at all.
+          // A ratio of two prices in the SAME currency, whichever that is, so no rate is needed.
           pctGain: study.exitPrice != null && entry != null && entry > 0
             ? Math.round(((study.exitPrice - entry) / entry) * 10000) / 100
             : null,
@@ -405,6 +439,9 @@ async function renderAskSection(
     rMultiple: study.rMultiple,
     outcome: study.outcome,
     rating: study.rating,
+    // So the model is not asked to verify euro prices against the dollar quotes it will look up,
+    // and answer that the user's own record is wrong.
+    currency: study.currency ?? 'USD',
     catalysts: study.catalysts,
     otherCases: idx
       .filter((m) => m.id !== study.id)
@@ -476,6 +513,14 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
           <button id="f-title-auto" type="button" class="btn-outline" title="${vi ? 'Tạo tiêu đề tự động' : 'Generate title'}">↻</button></div></div>
         <div><label class="field-label">${vi ? 'Kết quả' : 'Outcome'}</label><select id="f-outcome" class="field">${OUTCOMES.map((o) => `<option value="${o}" ${o === study.outcome ? 'selected' : ''}>${outcomeLabel(o, vi)}</option>`).join('')}</select></div>
         <div><label class="field-label">${vi ? 'Xếp hạng' : 'Rating'}</label><select id="f-rating" class="field">${RATINGS.map((r) => `<option value="${r}" ${r === (study.rating ?? '') ? 'selected' : ''}>${r === '' ? (vi ? '— Chưa xếp' : '— Ungraded') : r}</option>`).join('')}</select></div>
+        <div><label class="field-label" title="${
+          vi
+            ? 'Đồng tiền của các mức giá bên dưới. Chọn EUR thì đồ thị được quy đổi theo tỷ giá ngày then chốt, chứ không phải đổi giá của anh.'
+            : 'The currency of the prices below. Choose EUR and the CHART is converted at the key date’s rate — your prices are left exactly as typed.'
+        }">${vi ? 'Đồng tiền' : 'Currency'}</label><select id="f-ccy" class="field">${
+          (['USD', 'EUR'] as const).map((c) =>
+            `<option value="${c}" ${c === (study.currency ?? 'USD') ? 'selected' : ''}>${c === 'EUR' ? '€ EUR' : '$ USD'}</option>`).join('')
+        }</select></div>
         <div><label class="field-label">${vi ? 'Mua' : 'Entry'}</label><input id="f-entry" class="field" type="number" step="any" value="${study.entry ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Cắt lỗ' : 'Stop'}</label><input id="f-stop" class="field" type="number" step="any" value="${study.stop ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Mục tiêu' : 'Target'}</label><input id="f-target" class="field" type="number" step="any" value="${study.target ?? ''}" /></div>
@@ -641,6 +686,12 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       // every save, including to undefined, because this object spreads `study`: a key left over
       // from a previous edit would go on claiming a reason the sentence no longer says.
       exitReasonKey: exitReasonKeyOfText(exitReasonTyped),
+      // Dollars are written as the ABSENCE of the field, which is what every study filed before
+      // this picker existed looks like — so a USD study saved today is indistinguishable from one
+      // saved last year, and there is only ever one representation of "in dollars" to read.
+      ...(($('#f-ccy') as HTMLSelectElement | null)?.value === 'EUR'
+        ? { currency: 'EUR' as const }
+        : { currency: undefined }),
       catalysts,
       notes: sanitizeNoteHtml(notesHtml),
       updatedAt: todayIso(),
@@ -656,8 +707,20 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
 function detailStat(k: string, v: string, color?: string): string {
   return `<div class="stat"><div class="k">${k}</div><div class="v"${color ? ` style="color:${color}"` : ''}>${v}</div></div>`;
 }
-function money(v: number | null): string {
-  return v == null ? '—' : '$' + (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(2));
+/** A study's price, in the study's own currency — `sym` comes from `caseSym`, never hardcoded. */
+function money(v: number | null, sym: string): string {
+  return v == null ? '—' : sym + (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(2));
+}
+
+/**
+ * € or $ for a study. Absent `currency` means dollars — every study filed before 2026-09-29.
+ *
+ * One function rather than the expression inline, because the detail view, the export and the
+ * editor must agree: a study whose stats said "€" and whose chart was drawn in dollars is the bug
+ * this field was added to fix.
+ */
+function caseSym(study: CaseStudy): string {
+  return study.currency === 'EUR' ? '€' : '$';
 }
 function plannedRr(s: CaseStudy): string {
   if (s.entry == null || s.stop == null || s.target == null || s.entry === s.stop) return '—';

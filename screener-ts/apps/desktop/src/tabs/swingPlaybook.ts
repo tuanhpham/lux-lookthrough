@@ -45,6 +45,16 @@ type Lang = 'en' | 'vi';
 type Bi = { en: string; vi: string };
 const tx = (b: Bi, lang: Lang) => b[lang] ?? b.en;
 
+/**
+ * Every weight on the board added up — NOT 100, and deliberately so.
+ *
+ * The weights are relative shares (regime 12, a round number nearby 4), so the honest total is
+ * whatever they sum to. Computed rather than written down because a criterion added to
+ * `GRADE_CRITERIA` must not leave a stale number in the prose. Both the section text and the live
+ * scorecard note quote it, which is why it is up here and not inside `s11`.
+ */
+const GRADE_TOTAL = GRADE_CRITERIA.reduce((s, c) => s + c.weight, 0);
+
 // ── markup helpers ──────────────────────────────────────────────────────────
 
 /** A numbered section. `id` gets the `swp-` prefix; the nav chips scroll to it. */
@@ -1235,8 +1245,6 @@ function s11(lang: Lang): string {
         aria-selected="${i === 0 ? 'true' : 'false'}">${setupName(k, vi)}</button>`,
   ).join('');
 
-  const total = GRADE_CRITERIA.reduce((s, c) => s + c.weight, 0);
-
   // Every criterion, grouped, each with its weight, its source, who says it matters, and
   // the paragraph explaining it. `data-swp-crit` carries the key and `data-swp-scope` the
   // family, so the wiring can hide the rows a chosen setup is not asked without rebuilding
@@ -1278,8 +1286,8 @@ function s11(lang: Lang): string {
     '11',
     vi ? 'Bảng chấm điểm — biến trực giác thành luật' : 'The scorecard — turning intuition into rules',
     vi
-      ? `Đây <b>chính là</b> bảng điểm mà ứng dụng dùng để xếp hạng và tính size — không phải một bản dạy học riêng. ${GRADE_CRITERIA.length} tiêu chí, tổng ${total} điểm, mỗi tiêu chí có trọng số và có người chịu trách nhiệm cho nó. Bấm dấu <b>?</b> ở mỗi dòng để đọc vì sao nó đáng điểm.`
-      : `This <b>is</b> the scorecard the app grades and sizes with — not a teaching copy of it. ${GRADE_CRITERIA.length} criteria, ${total} points in total, each with a weight and each with somebody’s name against it. Press the <b>?</b> on any row to read why it earns points.`,
+      ? `Đây <b>chính là</b> bảng điểm mà ứng dụng dùng để xếp hạng và tính size — không phải một bản dạy học riêng. ${GRADE_CRITERIA.length} tiêu chí, tổng ${GRADE_TOTAL} điểm — <b>không phải 100</b>: trọng số là tỷ lệ tương đối, nên xếp hạng lấy theo <b>phần trăm</b> điểm đạt trên điểm có thể đạt. Bấm dấu <b>?</b> ở mỗi dòng để đọc vì sao nó đáng điểm.`
+      : `This <b>is</b> the scorecard the app grades and sizes with — not a teaching copy of it. ${GRADE_CRITERIA.length} criteria, ${GRADE_TOTAL} points in total — <b>not 100</b>: the weights are relative shares, so the grade is the <b>percentage</b> of the points on offer, not the raw score. Press the <b>?</b> on any row to read why it earns points.`,
     `<div class="swp-tool">
       <div class="swp-tool-h"><span class="swp-tool-i">✅</span><b>${vi ? 'Chấm điểm setup' : 'Score a setup'}</b></div>
       <div class="swp-tool-sub">${
@@ -1291,7 +1299,7 @@ function s11(lang: Lang): string {
       <div class="swp-ck-scope" data-swp="scopeNote"></div>
       ${rows}
       <div class="swp-score-row">
-        <div class="swp-score-item"><span>${vi ? 'Điểm' : 'Score'}</span><b data-swp="mScore">—</b></div>
+        <div class="swp-score-item"><span>${vi ? 'Điểm thô' : 'Raw points'}</span><b data-swp="mScore">—</b></div>
         <div class="swp-score-item"><span>${vi ? 'Xếp hạng' : 'Grade'}</span><b data-swp="pScore">—</b></div>
         <div class="swp-score-item swp-score-btn"><button type="button" class="btn" data-swp="reset">${
           vi ? 'Làm lại' : 'Reset'
@@ -1871,7 +1879,18 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
     const letter = r.grade ?? 'D';
     const col = GRADE_COL[letter] ?? 'var(--faint)';
 
-    mScore.textContent = `${r.earned}/${r.possible}`;
+    /*
+     * ── TWO NUMBERS, AND WHY THE FIRST ONE IS NOT OUT OF 100 ────────────────────
+     * The user's "neu user answer all yes, no questions, the total points can be more than 100?".
+     * Yes — tick everything on a base setup and this reads 146/146, because the weights are
+     * RELATIVE SHARES, not percentage points: the market regime is worth 12 and a round number
+     * nearby is worth 4, and they add up to `GRADE_TOTAL`. Normalising them to sum to 100
+     * would have to shave the big ones, which is a lie about the shape of the checklist.
+     * So the raw total is printed with its unit, and the percentage next to it is what grades and
+     * sizes the trade — `r.score` is `earned/possible`, so it can never exceed 100 however many
+     * criteria are added later.
+     */
+    mScore.textContent = vi ? `${r.earned}/${r.possible} điểm` : `${r.earned}/${r.possible} pts`;
     pScore.textContent = `${letter} · ${r.score}%`;
     mScore.style.color = 'var(--fg)';
     pScore.style.color = col;
@@ -1882,10 +1901,12 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
       scopeNote.textContent = vi
         ? `${setupName(setup, true)}: được hỏi ${n} trong ${GRADE_CRITERIA.length} tiêu chí${
           hidden ? `, ${hidden} tiêu chí của họ mẫu hình khác được ẩn đi (không bị tính là trượt)` : ''
-        }.`
+        }. Tick hết thì được ${r.possible} điểm, không phải 100 — trọng số là tỷ lệ tương đối`
+          + ` (tổng cả bảng ${GRADE_TOTAL} điểm), và xếp hạng lấy theo phần trăm ${r.earned}/${r.possible}.`
         : `${setupName(setup, false)}: asked ${n} of ${GRADE_CRITERIA.length} criteria${
           hidden ? `, with ${hidden} belonging to the other pattern family hidden rather than failed` : ''
-        }.`;
+        }. Ticking every one scores ${r.possible}, not 100 — the weights are relative shares`
+          + ` (${GRADE_TOTAL} across the whole board), and the grade is the percentage ${r.earned}/${r.possible}.`;
     }
 
     const T = gradeThresholds();

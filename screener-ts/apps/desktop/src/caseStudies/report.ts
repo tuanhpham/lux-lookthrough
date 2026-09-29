@@ -7,6 +7,7 @@
 import type { Bar } from '@screener/core';
 import type { CaseStudy } from './store.js';
 import { caseSvgChart, windowBars } from './svgChart.js';
+import { inCurrency } from '../portfolio/planExit.js';
 // `safeNoteHtml`, not `sanitizeNoteHtml`: this document is also built where there is no
 // `DOMParser` to sanitise with. See its comment in `ui/richNote.ts`.
 import { safeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
@@ -23,7 +24,9 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-const money = (v: number | null): string => (v == null ? '—' : '$' + (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(2)));
+/** A price in a given currency. The study says which; a study with no `currency` is in dollars. */
+const moneyIn = (sym: string) => (v: number | null | undefined): string =>
+  (v == null ? '—' : sym + (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(2)));
 
 const OUTCOME_LABEL: Record<CaseStudy['outcome'], string> = {
   win: 'Win',
@@ -48,6 +51,12 @@ const RATING_COLOR: Record<string, string> = { A: '#18d89a', B: '#5b8cff', C: '#
  * is deleted and `print-color-adjust: exact` asks for the colours back. Ink is still a real
  * cost, so the white document survives as a checkbox the reader ticks — done with `:has()` and
  * no script, matching `portfolio/planReport.ts`, which explains the reasoning in full.
+ *
+ * The checkbox flips `<html>` as well as `<body>`, because the page MARGINS are painted by the
+ * canvas and the canvas takes its colour from the root — `<body>`'s background only propagates
+ * there while the root has none of its own, and `:root { color-scheme: dark }` gives it one.
+ * Without the root rule the reader gets a white page inside a black 12mm frame, which is exactly
+ * what the user saw: "dang sau do o 4 margins co mau den trong rat ky".
  */
 const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @page { margin: 12mm; }
@@ -55,6 +64,9 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
     body { padding:0; max-width:none; }
     .toolbar { display:none; }
     .chart,.stat,.notes,.why,.ack,.gbar,tr { break-inside:avoid; }
+    /* The root as well as the body — otherwise the 12mm page margins print black around a white
+       document. Why, in full, in the block comment above this string. */
+    html:has(#ink:checked) { background:#fff; color-scheme: light; }
     body:has(#ink:checked) { background:#fff; color:#000; }
     body:has(#ink:checked) .chart,
     body:has(#ink:checked) .stat,
@@ -70,15 +82,30 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
  * `earnings` are report dates for the chart's E flags — passed in rather than looked up, so this
  * stays a pure function of its input and can be rendered with no network. They are deliberately
  * NOT merged into `study.catalysts`: see `ChartSubject.earnings`.
+ *
+ * `fxRate` is 1 EUR = N USD on the key date, and is needed ONLY for a study whose levels are in
+ * euros: `bars` are always dollars, so the CANDLES are divided to meet the levels rather than the
+ * levels multiplied to meet the candles — one rate for the whole window, so no currency move is
+ * smuggled into the price action. Same argument, same direction, as `portfolio/planReport.ts`.
+ * Missing it on a euro study drops the chart instead of drawing the lines off the axis.
  */
 export function caseStudyHtml(
   study: CaseStudy,
   bars: readonly Bar[],
   earnings: readonly string[] = [],
+  fxRate = 0,
 ): string {
-  const win = windowBars(bars, study.keyDate, study.windowMonths);
-  const svg = caseSvgChart(win, { ...study, earnings }, { width: 980, height: 420 });
-  const earnInWin = earnings.some(
+  const eur = study.currency === 'EUR';
+  const money = moneyIn(eur ? '€' : '$');
+  const fx = eur && fxRate > 0 ? fxRate : 0;
+  const plottable = !eur || fx > 0;
+  const win = inCurrency(windowBars(bars, study.keyDate, study.windowMonths), fx);
+  const svg = plottable
+    ? caseSvgChart(win, { ...study, earnings }, { width: 980, height: 420 })
+    : '<p class="sub" style="color:#ffb648">Chart not drawn: this study’s prices are in euros and '
+      + 'no EUR/USD rate for the key date was available, so the levels could not be placed on the '
+      + 'dollar candles.</p>';
+  const earnInWin = plottable && earnings.some(
     (d) => win.length > 0 && d >= win[0]!.date && d <= win[win.length - 1]!.date,
   );
   const earnNote = earnInWin
@@ -121,9 +148,11 @@ export function caseStudyHtml(
   const p = study.plan;
   const pg = p?.grade && Array.isArray(p.grade.outcomes) && typeof p.grade.score === 'number'
     ? p.grade : null;
+  // Still read off the FROZEN plan rather than off the study: a plan filed before
+  // `CaseStudy.currency` existed recorded euros here while the study above it recorded dollars, and
+  // for those older studies each half has to keep printing the currency it was actually written in.
   const pc = p?.currency === 'EUR' ? '€' : '$';
-  const pmoney = (v: number | null | undefined): string =>
-    v == null ? '—' : pc + (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(2));
+  const pmoney = moneyIn(pc);
   // The acknowledgement, with the levels it was given against — unfalsifiable without them,
   // exactly as in the printed plan.
   const ack = p?.plan?.reviewedAt && p.plan.levels
@@ -197,7 +226,12 @@ ${PRINT_CSS}
 
   <h1>${esc(study.symbol)} <span class="pill" style="color:${OUTCOME_COLOR[study.outcome]};border-color:${OUTCOME_COLOR[study.outcome]}">${OUTCOME_LABEL[study.outcome]}</span>${study.rating ? ` <span class="pill" style="color:${RATING_COLOR[study.rating] ?? '#99a2b2'};border-color:${RATING_COLOR[study.rating] ?? '#99a2b2'}">Grade ${esc(study.rating)}</span>` : ''}</h1>
   <p class="sub">${esc(study.title || '')}</p>
-  <p class="sub">${esc(study.setupType)} · key date <b>${esc(study.keyDate)}</b> · ±${study.windowMonths} month window</p>
+  <p class="sub">${esc(study.setupType)} · key date <b>${esc(study.keyDate)}</b> · ±${study.windowMonths} month window${
+    // Said out loud only for a euro study. On a dollar one it would be noise on every document ever
+    // exported; on a euro one it is the difference between a price the reader recognises and one
+    // they think is wrong.
+    eur ? ' · prices in <b>EUR</b>, chart converted at the key date’s rate' : ''
+  }</p>
 
   <div class="chart">${svg}${earnNote}</div>
 

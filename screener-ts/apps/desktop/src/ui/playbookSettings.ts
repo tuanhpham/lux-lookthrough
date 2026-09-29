@@ -42,6 +42,7 @@ import { getLang } from './i18n.js';
 import {
   currentRegime, ladderConfig, loadPlaybookConfig, playbookConfig,
   savePlaybookConfig, regimeStale, gradeThresholds, EMPTY_PLAYBOOK_CONFIG,
+  notifyPlaybookChanged,
   type PlaybookConfig,
 } from '../portfolio/playbook.js';
 // Shared with the Buy form and the Trade Planner, so all three dropdowns spell the
@@ -378,6 +379,7 @@ export async function openPlaybookSettings(
     // user typed has no default to restore to, and dropping it here would be a silent delete of
     // their writing from a button that says it is putting things back the way they were.
     await savePlaybookConfig(ctx, { ...EMPTY_PLAYBOOK_CONFIG, exitReasons: cfg.exitReasons ?? [] });
+    notifyPlaybookChanged();
     onSaved?.();
     close();
   });
@@ -467,6 +469,10 @@ export async function openPlaybookSettings(
     next.setups = setups;
 
     await savePlaybookConfig(ctx, next);
+    // Every unfinished plan in the app re-derives itself from the new rules — a Buy card being
+    // filled in, the trade planner's rows. What was already bought, saved as a plan or filed as a
+    // case study keeps the numbers it was decided on. See `onPlaybookChange` in `playbook.ts`.
+    notifyPlaybookChanged();
     onSaved?.();
     close();
   });

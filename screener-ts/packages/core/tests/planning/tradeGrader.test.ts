@@ -78,6 +78,29 @@ describe('the checklist itself', () => {
     expect(isAutoCriterion('nonsense')).toBe(false);
   });
 
+  /*
+   * The user's "neu user answer all yes, no questions, the total points can be more than 100? dieu
+   * do la nhu the nao".
+   *
+   * Yes, and on purpose. The weights are relative SHARES — the market regime is worth 12 where a
+   * round number nearby is worth 4 — so they sum to whatever they sum to, and normalising them to
+   * 100 would mean shaving the heavy ones every time a criterion is added. What must stay true is
+   * that the number the app GRADES and SIZES with is a percentage, so a full card is 100 however
+   * long the checklist grows. Both halves are pinned here, because the honest answer to the user's
+   * question is "the raw total is not out of 100, and the grade is".
+   */
+  it('adds up to more than 100 raw points, and still grades out of 100', () => {
+    const total = GRADE_CRITERIA.reduce((s, c) => s + c.weight, 0);
+    expect(total).toBeGreaterThan(100);
+    for (const family of ['base', 'pivot'] as const) {
+      const all = criteriaForFamily(family);
+      const perfect = gradeByHand(all.map((c) => c.key), family);
+      expect(perfect.earned).toBe(perfect.possible);
+      expect(perfect.possible).toBeGreaterThan(100); // → "146/146", which is what the user saw
+      expect(perfect.score).toBe(100);               // → the letter is taken from this, never that
+    }
+  });
+
   it('puts the market among the heaviest things it checks', () => {
     // O'Neil's M. If the checklist scored it like a footnote it would hand out A grades
     // in a bear market, which is the single most expensive way to be right about a chart.

@@ -258,12 +258,15 @@ export function autoCaseTitle(symbol: string, keyDate: string, setupLabel: strin
 /**
  * Everything the planner has to hand over to file a card as a case study.
  *
- * ── WHY THE LEVELS ARRIVE IN DOLLARS ────────────────────────────────────────
- * The planner's boxes are in `planCcy`, which for this user is usually euros. A `CaseStudy` is
- * stored with no currency field at all: its report prints `$`, and — the part that actually
- * breaks — its chart draws these numbers as price lines against raw closes, which are dollars.
- * A €198 entry stored here would print as "$198.00" beside a $232 candle. So the conversion
- * happens at the call site, where the rate lives, and this function takes dollars and says so.
+ * ── WHY THE LEVELS ARRIVE AS TYPED, NOT IN DOLLARS ──────────────────────────
+ * They used to arrive converted, because a `CaseStudy` had no currency field: its report printed
+ * `$` and its chart drew the levels against raw closes, which are dollars, so a €198 entry had to
+ * become $232 or the entry line would land off the axis.
+ *
+ * `CaseStudy.currency` ended that. The levels now arrive in `planCcy` — the numbers the user
+ * actually typed and will recognise — and the CHART is converted to meet them instead
+ * (`inCurrency`). The old way was internally consistent and unreadable: the journal said "$194.12"
+ * for a trade the frozen plan printed beside it recorded as "€167.19".
  */
 export interface CaseFromPlan {
   symbol: string;
@@ -271,10 +274,15 @@ export interface CaseFromPlan {
   date: string;
   /** The playbook row, which doubles as `setupType` — the keys match the journal's dropdown. */
   setup: SetupKey | '';
-  /** Entry / stop / target in USD. See the note above. */
+  /** Entry / stop / target in `currency`, exactly as typed. See the note above. */
   levels: { entry: number | null; stop: number | null; target: number | null };
-  /** The exit, with `price` in USD. */
+  /** The exit, with `price` in `currency` too. */
   exit: PlanExit;
+  /**
+   * What `levels` and `exit.price` are denominated in. Written onto the study, so its chart can be
+   * converted to match and its report can print the right symbol.
+   */
+  currency: 'USD' | 'EUR';
   shares: number;
   /** The letter in force, which becomes the journal's rating. */
   effective: ConvictionRating | null;
@@ -325,6 +333,9 @@ export function caseStudyFromPlan(i: CaseFromPlan): CaseStudy {
     exitDate: i.exit.date,
     exitPrice: i.exit.price,
     rMultiple: m.rMultiple,
+    // Only written when it is not the default, so a dollar study stays byte-for-byte what it
+    // always was — this blob syncs, and a field that is always present is a diff on every study.
+    ...(i.currency === 'EUR' ? { currency: 'EUR' as const } : {}),
     // Not derived from the note: catalysts are dated events the user adds in the journal's own
     // editor, and inventing them from a criteria summary would put made-up dates on a timeline.
     catalysts: [],

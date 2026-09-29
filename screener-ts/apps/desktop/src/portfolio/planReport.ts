@@ -131,6 +131,16 @@ function planWindow(bars: readonly Bar[], date: string): Bar[] {
  * `openPlanReport`) — a toggle that only worked in the downloaded copy would be a dead control
  * on the very screen where the user first meets it. `display:none` on the toolbar does not
  * stop `#ink:checked` matching, so the box keeps its state while being hidden from the page.
+ *
+ * ── WHY THE ROOT FLIPS AND NOT JUST THE BODY ────────────────────────────────
+ * The user's "khi ma tich ra de in mau trang ay, thi dang sau do o 4 margins co mau den trong rat
+ * ky". The page MARGINS are painted by the canvas, and the canvas takes its colour from the ROOT
+ * element — `<body>`'s background only propagates there while `<html>` has none of its own, and
+ * `:root { color-scheme: dark }` is exactly what gives it one: the UA paints a dark canvas to match
+ * the declared scheme. So ticking the box printed a white document inside a black border, with the
+ * 12mm `@page` margin as the frame. Flipping the scheme on the root stops the UA painting dark, and
+ * the explicit `background:#fff` covers the engines that keep a grey canvas anyway — both lines are
+ * needed, neither alone is enough. `caseStudies/report.ts` carries the same pair.
  */
 const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @page { margin: 12mm; }
@@ -139,7 +149,9 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
     .toolbar { display:none; }
     /* Never split a chart, a stat, the note or a criterion row across a page break. */
     .chart,.stat,.notes,.ack,.gbar,tr { break-inside:avoid; }
-    /* Opt in, per print: the old white document, for when ink matters more. */
+    /* Opt in, per print: the old white document, for when ink matters more. The ROOT flips as
+       well as the body — why, in the block comment above this string. */
+    html:has(#ink:checked) { background:#fff; color-scheme: light; }
     body:has(#ink:checked) { background:#fff; color:#000; }
     body:has(#ink:checked) .chart,
     body:has(#ink:checked) .stat,

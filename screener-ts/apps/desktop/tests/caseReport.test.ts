@@ -18,6 +18,7 @@ import { criteriaForFamily, gradeByHand, type Bar } from '@screener/core';
 import { caseStudyHtml } from '../src/caseStudies/report.js';
 import type { CasePlan, CaseStudy } from '../src/caseStudies/store.js';
 import { emptyPlan } from '../src/portfolio/planStore.js';
+import { inCurrency } from '../src/portfolio/planExit.js';
 import { criterionLabel } from '../src/portfolio/gradeWords.js';
 import { esc } from '../src/portfolio/gradeView.js';
 
@@ -165,6 +166,57 @@ describe('caseStudyHtml', () => {
     const html = caseStudyHtml(study({ plan: casePlan({ currency: 'EUR' }) }), bars);
     expect(html).toContain('€100.00');
     expect(html).toContain('in EUR');
+  });
+
+  /*
+   * ── THE EURO STUDY ───────────────────────────────────────────
+   * `bars` are dollars and a euro study's levels are euros, so the numbers can only meet if the
+   * CANDLES move — the direction the printed plan already settled on. What is worth pinning is that
+   * the document refuses to draw at all without a rate: the lines silently landing off the axis is
+   * the failure the user actually saw, and it looks like a real chart.
+   */
+  it('prints a euro study in euros and converts its candles to match', () => {
+    const eur = study({ currency: 'EUR', plan: casePlan({ currency: 'EUR' }) });
+    const html = caseStudyHtml(eur, bars, [], 1.16);
+    expect(html).toContain('€100.00');   // the study's own entry, as typed
+    expect(html).not.toContain('$100.00');
+    expect(html).toContain('prices in <b>EUR</b>');
+    expect(html).toContain('<svg');
+    // Exactly what "converted" means, stated as an equivalence rather than as an axis label: the
+    // euro study's picture is the picture a dollar study of the same numbers would draw on
+    // candles already divided by the rate. Nothing else about the chart may differ.
+    const svgOf = (h: string): string => h.slice(h.indexOf('<svg'), h.indexOf('</svg>'));
+    expect(svgOf(html)).toBe(svgOf(caseStudyHtml(study(), inCurrency(bars, 1.16))));
+  });
+
+  it('drops the chart rather than misplace the lines when a euro study has no rate', () => {
+    const html = caseStudyHtml(study({ currency: 'EUR' }), bars);
+    expect(html).not.toContain('<svg');
+    expect(html).toContain('no EUR/USD rate');
+    // The rest of the document still arrives — a missing rate costs the picture, not the journal.
+    expect(html).toContain('€100.00');
+    expect(html).toContain('Notes &amp; lessons');
+  });
+
+  it('leaves a dollar study exactly as it was, rate or no rate', () => {
+    // The field is absent on every study filed before it existed, and a passed rate must not be
+    // applied to one: dollars stay dollars however the caller behaves.
+    expect(caseStudyHtml(study(), bars, [], 1.16)).toBe(caseStudyHtml(study(), bars));
+    expect(caseStudyHtml(study(), bars)).toContain('$100.00');
+  });
+
+  /*
+   * The four black margins: the user's "khi ma tich ra de in mau trang ay, thi dang sau do o 4
+   * margins co mau den trong rat ky". The page margins are painted by the canvas, which takes its
+   * background from the ROOT — and `color-scheme: dark` on `:root` is what gives the root one. So
+   * the white-paper checkbox has to flip `<html>`, not only `<body>`, and a test is worth having
+   * because the symptom only appears in a print preview nobody opens on the way past.
+   */
+  it('turns the page margins white too when the ink box is ticked', () => {
+    const html = caseStudyHtml(study(), bars);
+    expect(html).toContain('html:has(#ink:checked)');
+    expect(html).toMatch(/html:has\(#ink:checked\)\s*\{[^}]*color-scheme:\s*light/);
+    expect(html).toMatch(/html:has\(#ink:checked\)\s*\{[^}]*background:#fff/);
   });
 
   it('is still a complete standalone document with the plan in it', () => {

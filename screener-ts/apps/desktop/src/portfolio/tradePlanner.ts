@@ -65,8 +65,8 @@ import { num } from '../ui/dom.js';
 // One rule table, one set of words: the Buy form and this planner size and explain the
 // same trade, so they call the same two modules rather than each carrying a copy.
 import {
-  buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, regimeAsOf,
-  type BuyPlan,
+  buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, onPlaybookChange,
+  regimeAsOf, type BuyPlan,
 } from './playbook.js';
 import { planNoteHtml, setupName } from './planWords.js';
 // The grade panel is shared with the Buy form: one checklist, rendered once, so the panel
@@ -180,7 +180,20 @@ export function closeTradePlanner(onlyInside?: HTMLElement): void {
   destroyPlanCharts();
   mounted.host.innerHTML = '';
   mounted = null;
+  unsubscribePlaybook?.();
+  unsubscribePlaybook = null;
 }
+
+/**
+ * The panel's subscription to playbook changes, so the plans follow the rules from ANY ⚙.
+ *
+ * The user's "dang setup trade plan, va vao thay doi playbook … cai trade plan do phai thay doi
+ * chu". The panel's own ⚙ already re-planned; this is what makes a save from the Portfolio tab's
+ * button, or from the Learn book, move these cards too. One subscription for the one panel (see
+ * the header), dropped on close — and `computePlans` re-seeds each `PlanEdit` from the existing
+ * one, so a hand-typed stop (`ownStop`) and an acknowledgement survive the re-plan.
+ */
+let unsubscribePlaybook: (() => void) | null = null;
 
 /**
  * Open the panel in `mount.host`, replacing whatever panel was open elsewhere.
@@ -214,6 +227,10 @@ export async function openTradePlanner(ctx: AppContext, mount: PlannerMount): Pr
     }
   }
   mounted = mount;
+  unsubscribePlaybook?.();
+  unsubscribePlaybook = onPlaybookChange(() => {
+    if (mounted && planCtx) void computePlans(planCtx);
+  });
   await renderPlannerPanel(ctx);
 }
 
@@ -332,7 +349,9 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
   // change it. `computePlans` rather than a full re-render so the panel does not scroll
   // back to the top, and so the account/currency choices survive.
   document.getElementById('tp-playbook-cfg')!.addEventListener('click', () => {
-    void openPlaybookSettings(ctx, planAccount(), () => void computePlans(ctx));
+    // No `onSaved` callback: the panel subscribes to the change itself now (`unsubscribePlaybook`),
+    // and passing one as well would re-plan twice — two rounds of bar fetches for one save.
+    void openPlaybookSettings(ctx, planAccount());
   });
 
   // Currency toggle. It moves the PRICE BOXES too, not just the money — the user asked to be
@@ -1784,10 +1803,12 @@ function paintExitStats(symbol: string): void {
  * exit reason, and the frozen plan (`CasePlan`) so the study can still show the grade, the
  * checklist and the acknowledgement the decision was made on.
  *
- * ── WHY THE LEVELS ARE CONVERTED ────────────────────────────────────────────
- * A `CaseStudy` has no currency field: its report prints dollars and its chart draws these
- * numbers against raw closes. The boxes here are usually in euros. `levelToUsd` on the way in is
- * therefore not a nicety — without it the study's chart would draw its entry line off the axis.
+ * ── WHY THE LEVELS ARE NOT CONVERTED ────────────────────────────────────────────
+ * They are NOT converted, any more. `CaseStudy.currency` carries what they were typed in, and the
+ * journal converts the CANDLES to meet them — so a trade placed at €167 is filed, charted and read
+ * back as €167, instead of being journalled as "$194.12" beside a frozen plan saying "€167.19".
+ * See `CaseFromPlan` for the full reasoning, and `CaseStudy.currency` for what a reader must
+ * default when the field is absent.
  */
 async function saveCaseStudy(ctx: AppContext, symbol: string, btn: HTMLElement): Promise<void> {
   const e = planEdits.get(symbol);
@@ -1806,7 +1827,6 @@ async function saveCaseStudy(ctx: AppContext, symbol: string, btn: HTMLElement):
 
   const grade = cardGrade(symbol);
   const effective = e.gradeOverride ?? grade?.grade ?? null;
-  const usd = (v: number | null): number | null => (v === null ? null : round2(levelToUsd(v)));
   const suggested = autoCaseTitle(symbol, planDate, e.setup || 'Setup');
   const m = cardExitMath(symbol);
 
@@ -1827,14 +1847,15 @@ async function saveCaseStudy(ctx: AppContext, symbol: string, btn: HTMLElement):
     symbol,
     date: planDate,
     setup: e.setup,
-    levels: { entry: usd(e.entry), stop: usd(e.stop), target: usd(e.target) },
-    exit: { ...e.exit, price: usd(e.exit.price) },
+    levels: { entry: e.entry, stop: e.stop, target: e.target },
+    exit: { ...e.exit },
+    currency: planCcy,
     shares: e.shares,
     effective,
     notes: sanitizeNoteHtml(e.note ?? ''),
     // The plan as it stands, frozen — the same shape a bought lot's snapshot takes, so the one
-    // report renderer can show either. `currency` records what the levels were TYPED in, which
-    // is what makes the frozen copy readable next to the study's converted dollars.
+    // report renderer can show either. Its `currency` is the same one the study now carries, so
+    // the two halves of the document finally quote one price for one trade.
     plan: {
       symbol, savedAt: new Date().toISOString(), date: planDate, plan, grade, effective,
       levels: { entry: e.entry, stop: e.stop, target: e.target },
