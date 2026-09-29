@@ -4223,3 +4223,135 @@ Commit `ff865766`, 4 file, 102 them / 23 xoa.
 - README §5.8 ghi sai cach restart, va hang rao ```bash o 671-680 chua dong.
 - Con theo doi rac: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o goc ma
   khong co `package.json` nao o goc.
+
+## CHAT-35 — Nut luu case study noi bat, note thanh danh sach, va case study mang day du tieu chi
+
+Ba viec mot lan: "nut save case study should be highlighted", "phan note ... nen duoc structured
+dep hon (table hay mot gi do that dep)", va "case study nen giong trade plan mot chut chua tat ca
+cac criteria ..... de sau nay doc lai tot hon".
+
+### A. Nut luu case study
+
+Truoc: `class="btn ghost"`, tuc la trong y nhu cai nut ⚙ ngay ben canh o chon ly do thoat. Mot
+hanh dong CO GHI du lieu lai duoc ve nhu mot nut phu tro, nen nguoi dung phai tim no.
+
+Sau: nut chinh, mau tim cua so nhat ky. Khong dung mau xanh `--accent` cua app vi mot nut day mau
+xanh trong khung ke hoach se bi doc thanh mot nut Buy thu hai. Cach lam la KHONG viet lai mau:
+
+    .tp-case-btn { --accent: var(--violet); --accent-ink: #1b0a2a; padding: 8px 16px; font-weight: 700; }
+    html.light .tp-case-btn { --accent-ink: #fff; }
+
+`button.btn` lay mau nen, quang sang, hover va trang thai disabled tu `--accent` / `--accent-ink`,
+nen chi tro lai hai bien do la thua huong het moi quy tac. Muc `--accent-ink` phai doi theo theme
+vi `--violet` la #c084fc tren nen toi va #9333ea tren nen sang.
+
+### B. Note khong the la table — va tai sao
+
+Khoi nguoi dung dan ra ("Stop EUR167.19 (13.7% ...) · Target EUR251.43 (2.2R) / 4 sh / ...") la
+mot doan dac nam ngay tren phan tuong thuat setup — ma phan tuong thuat do da co `<h3>` va bullet
+san. Note trong nhu lam nua roi bo do theo dung tieu chuan cua chinh no.
+
+Nhung day KHONG phai HTML duoc render. Day la HTML duoc LUU vao mot note nguoi dung sua tay, va
+moi duong doc/ghi deu di qua `sanitizeNoteHtml`:
+
+- `ALLOWED_TAGS` = B, STRONG, I, EM, U, S, STRIKE, BR, P, DIV, SPAN, UL, OL, LI, H3, H4, A.
+  KHONG co TABLE. Mot cai table se bi "unwrap", vao note voi cai luoi thao ra — te hon doan van cu.
+- Moi thuoc tinh bi xoa tru inline `color` / `font-style` / `text-decoration` / `font-weight`. Nen
+  `class="muted"` trong note cu DA BI BO TU TRUOC — do chinh la ly do khoi do doc ra nhu mot khoi
+  chu phang khong co thu bac.
+
+Nen dap an la `<h3>` + `<ul>`, moi con so mot `<li>` co nhan dam — dung cai hinh dang ma nua sau
+cua chinh note nay da dung. Mot note, mot kieu trinh bay. Ly do khong dung table duoc viet ngay
+trong `planNoteHtml` de lan sau khong ai "sua lai cho dep".
+
+Lam nhat chi tiet phu thi dung CA HAI mot luc, khong phai cho chac:
+
+    <span class="muted" style="color:var(--subtext,#99a2b2)">
+
+class la cai stylesheet cua app biet; inline style la cai song qua duoc bo loc. Va phai la
+`var(--subtext,#99a2b2)` chu khong phai mot ma mau tran: `remapLegacyNoteColor` cho gia tri la
+nghi den, con mot `#ffb648` tran se bi doi am tham sang mau cua theme sang.
+
+`planWords.ts` gio tra ve `PlanRow[]` (`k` nhan, `v` gia tri HTML, `tone?: 'warn'`) va ba ham dung
+chung mot nguon: `planLines` (goi y truc tiep tren man hinh), `planNoteHtml` (note), va cac noi con
+lai. Chia dong: Stop va Target moi cai mot dong — truoc day chung chia nhau mot dong sau dau `·`,
+tuc la hai con so ma mot giao dich thuc su duoc lam tu do lai nam giua mot doan van. Risk cung
+tach ra khoi Shares vi do la hai cau hoi khac nhau: "vi the to bao nhieu" va "bao nhieu phan tram
+tai khoan dang bi dat cuoc".
+
+### C. Case study mang day du tieu chi
+
+Truoc: tai lieu xuat ra co ket qua, do thi, cac muc gia va ghi chu — nhung khong mot chu nao ve LY
+DO. Hang chi la mot chu cai tren tieu de, khong co gi dang sau. Tab Case Studies da co nut `#cs-plan`
+mo ke hoach day du tren man hinh, nen cac tieu chi CO tren app; cho thieu la CAI FILE.
+
+Gio them muc "Trade plan it was filed from": setup, trade date, hang kem diem, phan tram co duoc
+phep, xac nhan da doc (kem muc gia doi chieu, vi "da xac nhan" mot minh la khong the kiem chung khi
+gia da doi), bon o gia da dinh, toan bo bang tieu chi, va "Plan note, as filed" — chi khi note dong
+bang da khac `study.notes`. Planner copy note vao `notes` luc luu nen binh thuong in ca hai la in
+mot doan hai lan; cho nao chung khac nhau thi cai khac nhau do moi la thu dang doc.
+
+Toan bo muc nay co dieu kien: phan lon ho so viet tay trong tab nay, hoac luu tu truoc khi planner
+biet dong bang ke hoach. Mot tieu de "Trade plan" tren mot cai luoi rong doc ra nhu mat du lieu.
+
+`loadCase` CAST chu khong chuan hoa (khac `loadPlanSnapshot`), nen `study.plan` co the la bat ky
+hinh dang nao tu duong dong bo. Grade duoc kiem tung truong (`Array.isArray(outcomes)`,
+`typeof score === 'number'`) truoc khi `scorecardTableHtml` di qua no: mot so nhat ky nem loi khi
+mo la mot so nhat ky nguoi dung da mat. Co test rieng cho tinh huong do.
+
+Tai lieu nay van chi co tieng Anh (tab khong truyen `vi`) — dich mot nua thi te hon khong dich.
+
+### D. Mot noi ve bang tieu chi, mot noi ve bo loc note
+
+`apps/desktop/src/portfolio/scorecard.ts` (moi): `scorecardBarsHtml`, `scorecardTableHtml`,
+`scorecardWords`, `SCORECARD_CSS`. Hai tai lieu doc cung nhau — mot cai la "dinh mua gi", mot cai
+la "ket qua ra sao" — nen ve bang hai lan la cach mot trong hai thieu mot cot, hoac dao nguoc ✓ va
+✗, trong mot file luu tu nam truoc ma nguoi dung khong tao lai duoc. Ca hai deu la file doc lap
+khong co CSS ngoai, nen style di kem markup: ai goi cung phai nhung `${SCORECARD_CSS}`.
+
+`safeNoteHtml` chuyen tu ham private trong `planReport.ts` ra `ui/richNote.ts` va duoc dung cho ca
+hai. `sanitizeNoteHtml` can `DOMParser` that; test cua app chay `environment: 'node'` khong co jsdom
+nen `DOMParser` la undefined va sanitizer nem loi. Ngoai browser thi escape nguyen van: mat dinh
+dang, nhung khong bao gio phat ra markup chua duoc kiem. Tu viet mot bo loc bang regex thi te hon
+that su.
+
+### E. Test
+
+- `tests/planWords.test.ts` — test "leads with the two numbers" doi thanh kiem `planRows`: Stop,
+  Target, Shares theo dung thu tu, va moi dong deu co nhan tru cac dong canh bao (chung la cau,
+  khong can nhan). Them mot test cho `planNoteHtml`: co `<h3>`, co `<ul>`, mot `<li>` cho moi dong,
+  KHONG co `<table>`, va co mau inline `var(--subtext`.
+- `tests/caseReport.test.ts` (moi, 9 test) — bang tieu chi vao den file; muc ke hoach bien mat tron
+  khi khong co `plan`; noi ro "never graded" thay vi in bang rong; song sot voi mot `plan` nua voi
+  tu duong dong bo; "Plan note, as filed" chi hien khi da khac; muc gia EUR in ra EUR; van la mot
+  tai lieu doc lap.
+
+276 test o `apps/desktop` (truoc 266), 790 o `packages/core`, `tsc --noEmit` sach ca hai.
+
+### F. File
+
+- `apps/desktop/src/portfolio/scorecard.ts` — moi.
+- `apps/desktop/src/portfolio/planWords.ts` — `PlanRow`, `planRows`, `planNoteHtml`.
+- `apps/desktop/src/portfolio/planReport.ts` — dung `scorecard.ts` va `safeNoteHtml`.
+- `apps/desktop/src/caseStudies/report.ts` — muc ke hoach, `.ack`, `SCORECARD_CSS`.
+- `apps/desktop/src/portfolio/tradePlanner.ts` — note seed thanh danh sach, nut case study.
+- `apps/desktop/src/tabs/portfolioTab.ts` — `seedPlanNote` dung `planNoteHtml`.
+- `apps/desktop/src/ui/richNote.ts` — `safeNoteHtml`.
+- `apps/desktop/src/styles.css` — `.tp-case-btn`.
+
+Commit `82740c6c`, 10 file, 579 them / 135 xoa.
+
+### G. Con no
+
+- `CaseStudy` van khong co truong `currency` rieng, nen `caseStudies/report.ts` ve muc gia EUR cua
+  mot ho so da luu len nen USD. Muc ke hoach moi in dung tien cua no, do thi thi chua.
+- Commit `f0b6b0e9` ghi "22 tieu chi" trong khi la 26; sua phai force-push nen de nguyen o day.
+- Build Pages cua lux-lookthrough dang do: can `wrangler pages deploy dist --project-name
+  the-professional` tu `apps/desktop`, chay o may kia.
+- Scanner VM im tu 28/09/2026: doc thi duoc nen loi o phia VM, can SSH tu may kia.
+- Tro ly chua co web search; khoang trong la tin tuc va catalyst.
+- Nap stop `maxStopRef: 'deeper'` van la gia dinh cua toi, nguoi dung chua noi ro.
+- Ghi chu le cho tung muc trong sach Learn.
+- README §5.8 ghi sai cach restart, va hang rao ```bash o 671-680 chua dong.
+- Con theo doi rac: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o goc ma
+  khong co `package.json` nao o goc.
