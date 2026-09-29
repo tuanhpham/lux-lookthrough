@@ -24,4 +24,11 @@ export type {
 } from './researchPrompts.js';
 export { buildCaseStudyPrompt, caseContextBlock } from './caseStudyPrompt.js';
 export type { CaseStudyPromptContext } from './caseStudyPrompt.js';
+export { buildCriteriaPrompt, parseCriteriaAnswers, extractSummary } from './criteriaPrompt.js';
+export type {
+  CriteriaPromptContext,
+  CriterionAsk,
+  MeasuredNote,
+  ParsedCriteriaReply,
+} from './criteriaPrompt.js';
 export { NOTE_COLORS, remapLegacyNoteColor } from './noteColors.js';

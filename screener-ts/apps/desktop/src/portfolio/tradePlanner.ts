@@ -78,6 +78,8 @@ import {
   emptyPlan, loadStoredPlans, savePlan, type PlanAnswers, type SymbolPlan,
 } from './planStore.js';
 import { openPlanReport, printPlanReport, type PlanReportInput } from './planReport.js';
+// The five criteria nobody can read off a chart, put to ChatGPT as of the trade date.
+import { criteriaNoteHtml, openCriteriaAsk } from './criteriaAsk.js';
 // Buying from inside the plan goes down the same path as the Buy button and the assistant.
 import { savePlanSnapshot } from './planSnapshot.js';
 import { applyWrite, plannedPrice, type PlannedPrice, type Rating, type WritePlan } from './writes.js';
@@ -468,6 +470,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
         <div class="tp-note-head">
           <span class="tp-note-label">${t('wl.plan.note')}</span>
           <button type="button" class="note-btn has-note" data-tp-noteedit="${S}" title="${t('pf.note.edit')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" class="btn-outline mini-btn" data-tp-ask="${S}"
+            title="${t('wl.plan.asktitle')}">🤖 ${t('wl.plan.ask')}</button>
           <button type="button" class="btn-outline mini-btn" data-tp-view="${S}"
             title="${t('plan.viewtitle')}">👁 ${t('plan.view')}</button>
           <button type="button" class="btn-outline mini-btn" data-tp-print="${S}"
@@ -1346,6 +1350,74 @@ function paintGradePanel(
 }
 
 /**
+ * Ask ChatGPT the criteria the app cannot measure, then apply what comes back.
+ *
+ * ── WHY THE ANSWER IS WRITTEN IN AS IF THE USER HAD CLICKED ─────────────────
+ * The ticks this sets are the same `answers` the tri-state buttons set, saved through the same
+ * `persistPlan`, and they move the letter and therefore the share count. That is the point —
+ * the alternative is the user copying five verdicts across from another window by hand — but it
+ * is also why the evidence line for each one is written into the note in the same pass. A tick
+ * with no provenance cannot be audited later, and on a reconstructed date auditing it is the
+ * whole exercise.
+ *
+ * ── WHY THE CARD IS RE-READ AFTER THE DIALOG ────────────────────────────────
+ * The dialog is open across a trip to another browser tab, which can be minutes. Nothing here
+ * can assume the panel was not recomputed in the meantime, so the `PlanEdit` written to is
+ * looked up again rather than captured before the await.
+ */
+async function askCriteria(symbol: string, btn: HTMLElement): Promise<void> {
+  const before = planEdits.get(symbol);
+  if (!before) return;
+  const vi = getLang() === 'vi';
+  const grade = cardGrade(symbol);
+  const res = await openCriteriaAsk({
+    symbol,
+    // The cut-off. On a past date this is the entire value of the prompt: it is what stops the
+    // model explaining a 2024 setup with a 2025 move that had not happened yet.
+    date: planDate,
+    setupLabel: before.setup ? setupName(before.setup, vi) : null,
+    entry: before.entry,
+    stop: before.stop,
+    target: before.target,
+    cur: planSym(),
+    grade,
+    effective: before.gradeOverride ?? grade?.grade ?? null,
+    vi,
+  });
+  if (!res) return;
+
+  const e = planEdits.get(symbol);
+  if (!e) return;
+  let n = 0;
+  for (const [key, val] of Object.entries(res.reply.answers)) { e.answers[key] = val; n += 1; }
+  // UNKNOWN CLEARS an answer rather than failing it: "nothing could be established as of that
+  // date" is exactly the state the grader treats as unasked, and it must not be left as a
+  // standing yes beside an explanation saying nothing is known.
+  for (const key of res.reply.unknown) {
+    if (e.answers[key] !== undefined) { delete e.answers[key]; n += 1; }
+  }
+
+  const addition = criteriaNoteHtml(res.reply, res.asks, planDate, vi);
+  if (addition) {
+    e.note = sanitizeNoteHtml((e.note ?? '') + addition);
+    // Theirs from here. The research is the expensive thing on this card, and `recalcPlan`
+    // rewrites an unedited note on the very next keystroke — which would delete it.
+    e.noteEdited = true;
+    const box = document.querySelector<HTMLElement>(`[data-tp-note="${CSS.escape(symbol)}"]`);
+    if (box) box.innerHTML = e.note;
+  }
+
+  persistPlan(symbol);
+  recalcPlan(symbol);
+
+  // On the button itself, the way `copyToClipboard` reports: the grade above has just moved,
+  // and a silent change to a letter the user did not watch happen is one they will not trust.
+  const old = btn.textContent ?? '';
+  btn.textContent = t('wl.plan.ask.applied').replace('{n}', String(n));
+  setTimeout(() => { btn.textContent = old; }, 2200);
+}
+
+/**
  * One card as the report's input — for both ⎙ Print and 👁 View.
  *
  * Shared rather than duplicated because the two buttons must produce the SAME document: a
@@ -1619,6 +1691,16 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
         });
       }
     });
+  });
+
+  /**
+   * Put the remaining criteria to ChatGPT, and take the answer back in.
+   *
+   * The card is not re-rendered while the dialog is open, so `askCriteria` reads `planEdits`
+   * fresh when it resolves rather than closing over a `PlanEdit` that may have been replaced.
+   */
+  root.querySelectorAll<HTMLElement>('[data-tp-ask]').forEach((b) => {
+    b.addEventListener('click', () => void askCriteria(b.dataset.tpAsk!, b));
   });
 
   // Size chips: the playbook's own number, or a % of equity.

@@ -773,6 +773,21 @@ a.tkr:hover { text-decoration: underline; }
   margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border-soft);
 }
 
+/* ── "Ask ChatGPT the remaining criteria" dialog ──────────────────────────────
+   One dialog holding both halves of one errand: the ask, and the reply pasted back after a
+   trip to another tab. The question list is not decoration — it is what the pasted answer is
+   checked against, so it stays on screen while the user is away. See portfolio/criteriaAsk.ts. */
+.ask-crit-lead { margin: 0 0 8px; font-size: 12.5px; line-height: 1.6; color: var(--subtext); }
+.ask-crit-qs { margin: 0 0 4px; padding-left: 18px; font-size: 12.5px; line-height: 1.7; }
+.ask-crit-reply {
+  min-height: 150px; resize: vertical; font: 400 12.5px var(--font-mono, monospace);
+  line-height: 1.55;
+}
+/* The one place a bad paste is reported. Kept in the flow rather than as a popup: the text the
+   user pasted is still in the box above it, and they need to see both at once. */
+.ask-crit-msg { min-height: 16px; font-size: 12px; line-height: 1.5; }
+.ask-crit-msg.bad { color: var(--warn); }
+
 /* ── Rich-text note editor ───────────────────────────────────────────────── */
 .rn-dialog { width: min(560px, 94vw); }
 .rn-toolbar {

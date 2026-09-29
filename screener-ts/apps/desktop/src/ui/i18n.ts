@@ -331,6 +331,42 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: '⚠ không đọc được trạng thái thị trường ngày đó (dữ liệu SPY chưa đủ dài), nên hai tiêu chí về thị trường để trống',
   },
 
+  // ── Asking ChatGPT the criteria the app cannot measure ────────────────────
+  // Five of the twenty-six criteria need reading rather than measuring, and they are the ones
+  // that sit unanswered and cost the trade its letter. The button asks exactly those, as of the
+  // trade date, and takes the reply back in — see `portfolio/criteriaAsk.ts`.
+  'wl.plan.ask': { en: 'Ask ChatGPT', vi: 'Hỏi ChatGPT' },
+  'wl.plan.asktitle': {
+    en: 'Ask ChatGPT the checklist questions this app cannot measure — as of the trade date — then paste the answer back to tick them and file the summary in the note',
+    vi: 'Hỏi ChatGPT các tiêu chí mà ứng dụng không tự đo được — tính theo ngày giao dịch — rồi dán câu trả lời về để tự tích và lưu đoạn tóm tắt vào ghi chú',
+  },
+  'wl.plan.ask.ttl': {
+    en: 'The questions the app cannot measure',
+    vi: 'Những tiêu chí ứng dụng không tự đo được',
+  },
+  'wl.plan.ask.lead': {
+    en: 'ChatGPT is asked to research these using only what existed on or before <b>{date}</b>, answer each YES / NO / UNKNOWN with its evidence, and finish with a summary. Paste the reply below and the answers are ticked for you.',
+    vi: 'ChatGPT được yêu cầu chỉ dùng thông tin có trước hoặc trong ngày <b>{date}</b>, trả lời từng câu CÓ / KHÔNG / KHÔNG RÕ kèm bằng chứng, và kết bằng một đoạn tóm tắt. Dán câu trả lời xuống dưới là các ô được tự tích.',
+  },
+  'wl.plan.ask.paste': { en: 'Paste ChatGPT’s answer', vi: 'Dán câu trả lời của ChatGPT' },
+  'wl.plan.ask.pasteph': {
+    en: 'Paste the whole reply — the ANSWERS block, the explanations and the summary.',
+    vi: 'Dán toàn bộ câu trả lời — khối ANSWERS, phần giải thích và đoạn tóm tắt.',
+  },
+  'wl.plan.ask.apply': { en: 'Apply answers', vi: 'Áp dụng câu trả lời' },
+  'wl.plan.ask.cancel': { en: 'Cancel', vi: 'Hủy' },
+  // Refusing to close rather than swallowing the paste: see `openCriteriaAsk`.
+  'wl.plan.ask.none': {
+    en: 'Nothing recognised in that text. The reply needs a line per question, like: [epsGrowth]: YES — EPS +41% in the Feb quarter',
+    vi: 'Không đọc được gì trong đoạn đó. Câu trả lời cần mỗi câu hỏi một dòng, dạng: [epsGrowth]: YES — EPS +41% trong quý tháng 2',
+  },
+  'wl.plan.ask.applied': { en: '{n} answered ✓', vi: 'Đã nhận {n} câu ✓' },
+  // The heading written into the plan's note above the answers and the summary.
+  'wl.plan.ask.notehead': {
+    en: 'Criteria research — as of {date}',
+    vi: 'Nghiên cứu tiêu chí — tính theo ngày {date}',
+  },
+
   // Buying straight from the plan.
   'wl.plan.buy': { en: '✓ Buy this plan', vi: '✓ Mua theo kế hoạch' },
   'wl.plan.buyready': {
