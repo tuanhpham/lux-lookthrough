@@ -4882,3 +4882,156 @@ professional".
   — README muc 5.8 ghi sai cach restart, va mot khoi ```bash chua dong o dong
     671-680.
   — Cac file `package-lock.json` rac dang duoc theo doi trong git.
+
+## CHAT-39 — Chu cua scanner doc duoc, cac phan thu gon duoc, bang xep hang nganh de nhin hon
+
+Yeu cau: "ra soat lai tat ca cac trang xem co cho nao can improve nhu vay nua khong.
+2. In scanner page BO or something like that should be clearly stated like Breakout.
+3. in scanner page why rejected: reason part, tieng viet khong co dau, va tieng viet
+ngay ca khi de che do tieng anh. 4. Thiet ke cac phan co the expand and collapsible.
+5. Cac cai XLK, XLV ... sectors nen co explaination what they mean and which sector
+they are ... Rank history nen lam de nhin hon, chuyen nghiep hon".
+
+### A. `BO` la mot tieu de khong ai tra cuu duoc
+
+  — Trang scanner nhom ung vien theo ma hai chu cua scanner: `BO`, `EP`, `MR`. Khong
+    ai phai doan BREAKOUT la gi; ai cung phai doan BO la gi.
+  — `src/tabs/scannerVocab.ts` (moi): `setupLabel('BO')` -> "Breakout (BO)", kem
+    tooltip mot cau giai thich setup do la gi.
+  — GIU LAI ma trong ngoac chu khong thay hoan toan: log cua VM, tin nhan Telegram
+    va output cua scanner van noi `BO`. Bo ma di la cat duong day giua cai bang nay
+    va thu da sinh ra no.
+  — `VCP` khong in thanh "VCP (VCP)" — so sanh sau khi chuan hoa khoa.
+  — Ma khong biet thi di qua nguyen ven, KHONG tu dat ten cho mot setup ma app nay
+    chua tung nghe.
+
+### B. "Why rejected" khong phai loi dich — no chua bao gio duoc dich
+
+  — Cot ly do in ra dung khoa noi bo cua pipeline: tieng Viet khong dau, va no
+    khong doi theo che do ngon ngu vi no khong di qua i18n lan nao.
+  — `scannerVocab.ts` dich sang hai ngon ngu. `normKey()` ha chu thuong va gop moi
+    chuoi ky tu khong phai chu/so thanh mot `_`, nen `khong_du_thanh_khoan`,
+    `Khong du thanh khoan` va `KHONG-DU-THANH-KHOAN` deu vao MOT muc.
+  — CHO DOC KY: tu dien nay DUOC DOAN RA. Scanner la repo Python khac, chay tren
+    VM; trong repo nay khong co danh sach khoa ly do nao ca (da grep `by_setup`,
+    `qua_loc`, `cho_fund` khap repo va ca hai file error.txt — khong co gi).
+  — Vi vay tra khong thay KHONG bi coi la loi: `reasonLabel()` tra ve
+    `known: false`, mot nhan da bo dau gach duoi cho doc duoc, va khoa GOC nam
+    trong tooltip. `scannerTab` in dong do bang chu in nghieng (`.scan-raw`) — mot
+    dong chua dich phai TRONG NHU LA chua dich.
+  — Khi mot ly do la nhin thay in nghieng: them khoa do vao `REASONS`. Het. Khong
+    phai sua cho nao khac.
+  — `prettify('')` tra ve em dash chu khong tra ve chuoi rong: mot o trong doc nhu
+    loi render. Test da bat loi nay khi con dang viet.
+
+### C. Cac phan thu gon duoc
+
+  — `src/ui/collapse.ts` (moi). Luat quan trong nhat: mo hay dong duoc quyet dinh
+    NGAY KHI DUNG CHUOI HTML (`openAttr(id)`), khong sua sau khi mount. Trang
+    scanner ve lai moi lan poll; mot `<details open>` bi JavaScript dong o frame
+    sau la mot cai giat nhin thay duoc, moi lan.
+  — Trang thai nam trong MOT blob JSON `ui_collapsed` cua localStorage, khong phai
+    mot khoa cho moi phan: phan duoc doi ten kha thuong xuyen, don khoa mo coi se
+    thanh viec tay. `read()` bat luon ca `ReferenceError` cua Node, nen trong test
+    moi phan mac dinh la mo.
+  — Scanner: ca 10 phan thanh `<details>`, `<summary>` chinh la header cua phan do
+    (mot dich cho mot hanh dong, khong them nut rieng canh tieu de). Them nut thu
+    gon/mo tat ca tren thanh nhay. Link nhay goi `revealCollapse` truoc khi cuon,
+    vi nhay den mot phan dang dong thi doc nhu link vo.
+  — `foldBlock(id, head, body, caretTitle)` boc mot khoi `sectionHead()` lai thanh
+    `<details>`; calendar dung no cho 5 dai phan tich (rui ro cua toi, tuan toi,
+    top attention, VCP, mean reversion).
+  — Dong lai thi phan giai thich (`.sec-sub`) an di, nhung CAC CHIP O LAI — do la
+    ly do mot phan dong lai van con doc duoc: "3 ngay · 24.1% peak".
+  — Khong dat chip so luong len tieu de ma than la ban nhap trang tu ve lai (o
+    editor Case Studies): them mot dong la chip noi doi ngay.
+  — `wireCollapse(host)` phai goi sau MOI lan gan `innerHTML`: ve lai tai cho la
+    giet listener cu cung voi DOM cu.
+
+### D. XLK, XLV la nhung nganh nao
+
+  — `src/ui/sectorNames.ts` (moi): 11 quy nganh SPDR cua S&P (XLK Technology, XLV
+    Health Care, XLF, XLY, XLP, XLI, XLE, XLB, XLU, XLRE, XLC), khoang 25 quy nganh
+    hep (SMH, IGV, XBI, KRE, ITB, XRT, XME, XOP, GDX, PAVE, ICLN...) va cac chi so
+    (SPY, QQQ, IWM, DIA, MDY, RSP, GLD, TLT).
+  — `sectorTip('XLK')` -> "XLK — Technology · Apple, Microsoft, Nvidia". Hien o
+    bang nganh (them mot dong ten duoi ma), o chu giai cua rank chart, o tooltip
+    tung duong ke, va o bang "phong thu / tan cong".
+  — `isDefensive()` chi de dan nhan. Bang thong bao trang thai phong thu VAN doc
+    tap hop cua chinh payload, khong doc co nay — neu khong app se noi nguoc lai
+    voi VM da tinh ra regime do.
+  — `sectorName()` tra ve `null` (khong tra ve chinh ma) khi khong biet, de cho goi
+    BO QUA dong ten thay vi ve mot dong rong.
+
+### E. Rank history
+
+  — Dai dan dat: mot `<rect>` nhat mau accent tu hang 1 den hang `topN`, kem duong
+    ranh gioi net dut — doc mot phat ra "trong hay ngoai nhom dan dat", khong phai
+    dem tung hang.
+  — Luoi theo TUNG hang nhung chi ghi so o hang le: van doc duoc vi tri chinh xac
+    ma khong bien truc thanh mot cot so.
+  — Moc ngay day hon: so moc = `plotW/110`, co vach 3px, thay vi chi hai dau.
+  — Moi duong co vien mau `--bg` (day hon 2.4px) ve truoc: cho hai duong cat nhau
+    van tach ra duoc.
+  — Cuoi moi duong: mot diem tron va nhan ten ma 9.5px — khong phai doi mau voi
+    chu giai nua.
+  — `<title>` tren tung nhom `<g>`: hover ra "XLK — Technology · Apple, ...".
+
+### F. Ra soat cac trang con lai
+
+  — `grep section-title` roi doi nhung cho la tieu de THAT cua mot phan; khong doi
+    tieu de cua the/form (vach ke trong mot form la nhieu, khong phai thong tin).
+  — portfolio: "Vi the dang mo" (chip so vi the + chip canh bao so vi the chua co
+    cat lo, cau goi y thanh `sub`), "Lich su giao dich" (chip mo / chip dong, dem
+    dung nhu cach bang dung dong), "So sanh tai khoan" (chip so tai khoan, hint-chip
+    cu chuyen sang `right`).
+  — stock modal: Phan tich, Lich su gia, Xu huong co ban, Chi so co ban (chip ngay
+    khi dang xem theo moc thoi gian), Gioi thieu.
+  — case studies: Chat xuc tac (chip so moc thoi gian o che do doc), Ghi chu, Nho
+    ChatGPT phan tich. backtest: Duong von, Nhat ky lenh (chip so lenh).
+  — misc (cam nang): Dong luong, Surge, Boi canh & luan chuyen.
+  — HAI TIEU DE BI HARD-CODE TIENG ANH, tim ra khi ra soat: "Pending BUY_STOP Order"
+    (portfolioTab) va "Add <ma> to..." (stockModal). Da co khoa i18n; `{sym}` duoc
+    thay o cho goi vi trong tieng Viet ma nam giua cau.
+
+### G. Cai bug lang nhat cua chat truoc
+
+  — `#modal-body` la ANH EM cua `#main`, khong phai con. Nen `#main .section-title`
+    — luat lam nen tieu de sang len o CHAT-38 — khong ap vao trang chi tiet co
+    phieu, tuc la panel to nhat cua app. 5 tieu de o do van o kieu cu 11px `--faint`
+    trong khi moi trang khac da doi.
+  — `#main` o day dung de THANG DO UU TIEN (de hon luat `.section-title` goc), nen
+    khong the bo di. Phai viet ca hai nhanh:
+    `#main .section-title, .modal-body .section-title`, va ca hai nhanh cho moi
+    override ben trong khoi do (reset cua `.sec-head`, mau khi hover).
+  — Bai hoc: sua gi duoi `#main ...` trong styles.css thi mo mot co phieu tu
+    watchlist kiem tra lai o do nua.
+
+### H. Kiem tra
+
+  — `npx tsc -p tsconfig.json --noEmit`: sach.
+  — 358 test o apps/desktop (321 truoc CHAT-38 + 16 sectionHead + 11 scannerVocab
+    + 13 sectorNames + 13 rankChart/collapse... tat ca xanh), 792 test o
+    packages/core, tat ca xanh.
+  — Test moi deu KHONG CAN DOM (`environment: 'node'`, khong jsdom, khong them
+    devDependency): `scannerVocab.test.ts` chot phan FALLBACK chu khong chot tu
+    dien (tu dien se luon thieu); `sectorNames.test.ts` chot du 11 SPDR va khong
+    hai ma nao trung ten; `rankChart.test.ts` chot nhung dieu chart KHONG duoc lam
+    — khong noi lien qua mot phien thieu du lieu, khong ve hang 1 o duoi, khong ve
+    dai dan dat rong hon du lieu.
+  — styles.css: CRLF 4800 / LF 4800 / bare 0, `/*` 392 = `*/` 392, `{` 1468 =
+    `}` 1468.
+  — `git diff --stat`: 346 dong them, 100 dong bo, khong co dau hieu format lai.
+
+### I. Con no
+
+  — CAN NGUOI DUNG: danh sach khoa ly do that cua scanner (hoac mot anh chup cot
+    "Why rejected"). Tu dien hien tai la doan ra; dong nao in nghieng la dong chua
+    map. Co danh sach thi map het chinh xac trong mot lan.
+  — Scanner tren VM im tu 28/09/2026: doc thi duoc, day thi khong. Loi o phia VM,
+    can SSH tu may kia.
+  — Ban build Pages dang do: can `wrangler pages deploy dist --project-name
+    the-professional` tu `apps/desktop`.
+  — Commit `f0b6b0e9` ghi "22 tieu chi" (dung la 26).
+  — README muc 5.8 ghi sai cach restart, va mot khoi bash chua dong o dong 671-680.
+  — Cac file `package-lock.json` rac dang duoc theo doi trong git.
