@@ -300,3 +300,42 @@ describe('planReportHtml', () => {
     expect(html).not.toContain('0.00:1');
   });
 });
+
+describe('the plan report on a phone', () => {
+  /*
+   * The user's "khi ma click vao view plan xong xem trade plan, thi phan KPIs (entry, stop) cards
+   * cung vuot qua cai khung cua no, table cho cac score cards cung vay". This document is not laid
+   * out by the app's stylesheet — it ships its own, and it is opened on a phone, in a narrow
+   * srcdoc iframe and on paper. There is no DOM here to measure a width with, so what these tests
+   * hold onto is the three declarations without which the layout cannot react at all.
+   */
+  it('tells a phone that its viewport is the phone', () => {
+    // Without this a mobile browser lays the document out at 980px and scales it down, which is
+    // the one failure no amount of responsive CSS below can recover from.
+    expect(planReportHtml(input())).toContain('name="viewport"');
+  });
+
+  it('lets the stat tracks shrink below their widest figure', () => {
+    const html = planReportHtml(input());
+    // `1fr` is `minmax(auto, 1fr)`: the track could never go under `$12,345 (12.3%)`, so the grid
+    // overflowed instead of reflowing. The fallback order matters — 4 columns, then 2, then 1.
+    expect(html).toContain('grid-template-columns:repeat(4,minmax(0,1fr))');
+    expect(html).toContain('grid-template-columns:repeat(2,minmax(0,1fr))');
+    expect(html).toContain('@media (max-width: 430px)');
+  });
+
+  it('folds the scorecard’s two metadata columns into the criterion row, losing nothing', () => {
+    /*
+     * A table cannot reflow the way a grid can: every column keeps its widest cell. Rather than
+     * scroll six columns sideways on a 390px screen, the group and the source leave the table and
+     * reappear under the criterion's name — so both readings have to be in the markup, and the
+     * scroller has to be there as the backstop for a long `measured` string.
+     */
+    const html = planReportHtml(input());
+    expect(html).toContain('<div class="sc-wrap">');
+    expect(html).toContain('class="muted small sc-fold"');
+    expect(html).toContain('class="sc-meta muted small"');
+    // The fold is what hides the columns, and it only ever happens on a narrow screen.
+    expect(html).toContain('@media (max-width: 560px)');
+  });
+});

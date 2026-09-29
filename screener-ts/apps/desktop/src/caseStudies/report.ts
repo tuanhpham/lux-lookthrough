@@ -77,6 +77,24 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
   }`;
 
 /**
+ * Phone and narrow-iframe layout — the twin of the block in `portfolio/planReport.ts`, kept
+ * beside this file's own PRINT_CSS for the same reason that one is duplicated: each report is a
+ * standalone document that must stand up with no stylesheet but its own. A media query is the
+ * right tool here (and the wrong one in `styles.css`) because this document's viewport IS its
+ * container: the phone screen, or the `srcdoc` iframe it is previewed in.
+ */
+const NARROW_CSS = `  @media (max-width: 760px) {
+    .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    h1 { font-size:20px; }
+    .stat .v { font-size:15px; }
+    th,td { padding:6px; }
+    .cat-date { width:auto; }
+  }
+  @media (max-width: 430px) {
+    .grid { grid-template-columns:minmax(0,1fr); }
+  }`;
+
+/**
  * Render the full standalone HTML document for a case study.
  *
  * `earnings` are report dates for the chart's E flags — passed in rather than looked up, so this
@@ -189,11 +207,11 @@ export function caseStudyHtml(
     : '';
 
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>${esc(study.symbol)} — ${esc(study.title || 'Case Study')}</title>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(study.symbol)} — ${esc(study.title || 'Case Study')}</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { background:#07080b; color:#e9edf4; font:14px/1.6 'Hanken Grotesk',system-ui,sans-serif; margin:0; padding:32px; max-width:1040px; }
+  body { background:#07080b; color:#e9edf4; font:14px/1.6 'Hanken Grotesk',system-ui,sans-serif; margin:0; padding:clamp(14px,4vw,32px); max-width:1040px; }
   h1 { font-size:24px; letter-spacing:-.03em; margin:0 0 2px; }
   .sub { color:#99a2b2; margin:0 0 4px; font-size:14px; }
   .pill { display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:3px 10px; border-radius:999px; border:1px solid; }
@@ -201,10 +219,10 @@ export function caseStudyHtml(
   button { background:#18d89a; color:#04130d; border:0; border-radius:8px; padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
   .chart { background:#0c0e13; border:1px solid #1d222c; border-radius:12px; padding:10px; margin:16px 0; }
   .chart-note { font-size:11px; font-family:ui-monospace,monospace; margin-top:6px; }
-  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0; }
-  .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; }
+  .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0; }
+  .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; min-width:0; }
   .stat .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
-  .stat .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:16px; margin-top:3px; }
+  .stat .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:16px; margin-top:3px; overflow-wrap:anywhere; }
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#18d89a; margin:24px 0 8px; }
   table { width:100%; border-collapse:collapse; }
   th,td { text-align:left; padding:8px 10px; border-bottom:1px solid #1d222c; font-size:13px; vertical-align:top; }
@@ -219,6 +237,7 @@ ${SCORECARD_CSS}
   .why { background:#0c0e13; border:1px solid #1d222c; border-left:3px solid #e879f9; border-radius:10px; padding:12px 14px; margin:16px 0; }
   .why .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
   .ink { color:#5c6575; font-size:12px; margin-left:12px; cursor:pointer; user-select:none; }
+${NARROW_CSS}
 ${PRINT_CSS}
 </style></head>
 <body>

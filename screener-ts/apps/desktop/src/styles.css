@@ -694,6 +694,12 @@ a.tkr:hover { text-decoration: underline; }
 .stat {
   background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
   padding: 11px 13px; transition: border-color .15s ease, transform .12s ease;
+  /* A stat is almost always a grid or flex child, and its value is a number that cannot be
+     hyphenated. Without these it refuses to go below its widest line and the PARENT overflows
+     instead — the phone-width bug behind "the cards run past their frame". `break-word` and
+     not `anywhere`: money breaks at the space between `$12,345` and `(12.3%)`, never inside
+     the figure itself. */
+  min-width: 0; overflow-wrap: break-word;
 }
 .stat:hover { border-color: var(--border); transform: translateY(-1px); }
 .stat .k { color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
@@ -874,10 +880,20 @@ a.tkr:hover { text-decoration: underline; }
 }
 
 /* ── Trade planner editable card ─────────────────────────────────────────── */
-.tp-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+/* The four editable fields. `auto-fit` and not `repeat(4, 1fr)` plus a media query, because
+   the WINDOW is not this card’s container: the same card renders inside the stock modal and
+   inside the left half of Paper Trading’s two-up grid, so at 1000px of window it can be 470px
+   wide or 900px wide and a `@media` rule cannot tell those apart. `auto-fit` asks the card. */
+.tp-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px; margin-bottom: 10px;
+}
 /* Setup + grade: the two choices the other four fields are derived FROM, so they get
    their own wider row rather than a quarter each of .tp-fields. */
-.tp-playfields { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 10px; }
+.tp-playfields {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 8px; margin-bottom: 10px;
+}
 /* Holds a real lightweight-charts canvas, not an SVG figure: it needs a measurable
    width at draw time, and a min-height so the card does not jump as it mounts. */
 .tp-chart { margin-bottom: 10px; min-height: 260px; }
@@ -900,6 +916,18 @@ a.tkr:hover { text-decoration: underline; }
 .tp-earnhint { margin: -4px 0 8px; font-size: 11px; line-height: 1.5; color: #a855f7; }
 .tp-earnhint:empty { display: none; }
 .tp-derived { margin-bottom: 10px; }
+/* The derived figures (position value, risk, risk % of equity, R:R) and the exit row. A class
+   and not an inline `repeat(3, 1fr)`: `1fr` means `minmax(auto, 1fr)`, so a track is never
+   allowed to be narrower than its content — `$12,345 (12.3%)` in the 15px number face simply
+   widened the track and pushed the whole grid past the edge of the card, which is the user’s
+   "KPIs (entry, stop) cards cung vuot qua cai khung cua no". An explicit minimum caps the
+   track instead, and `auto-fit` drops to two columns, then one, as the card narrows. The
+   minimum is a variable so the exit row — five short cells like `1.2R` and `+8.4%` — can ask
+   for a smaller one inline without needing a second class. */
+.tp-statgrid {
+  --tp-col: 132px;
+  grid-template-columns: repeat(auto-fit, minmax(var(--tp-col), 1fr));
+}
 
 /* The grade's arithmetic under the stat grid: full size → percent → this size. */
 .tp-grade-math {
@@ -944,7 +972,7 @@ a.tkr:hover { text-decoration: underline; }
   color: var(--faint); margin-bottom: 3px;
 }
 .tp-crit-row {
-  display: grid; grid-template-columns: 16px 1fr auto auto; align-items: center;
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; align-items: center;
   gap: 8px; padding: 2.5px 0; font-size: 12px;
 }
 /* The measured rows are deliberately quieter than the ones the user can answer: nothing
@@ -963,7 +991,11 @@ a.tkr:hover { text-decoration: underline; }
 .tp-crit-btn.yes { border-color: var(--up); color: var(--up); font-weight: 700; }
 .tp-crit-btn.no { border-color: var(--danger); color: var(--danger); font-weight: 700; }
 .tp-crit-foot { font-size: 10.5px; line-height: 1.5; margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--border-soft); }
-.tp-note-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+/* The note label and its buttons (edit, Ask ChatGPT, View plan, Print plan) — shared with the
+   Buy form. It used to be a nowrap flex row, so on a phone the three buttons simply continued
+   past the right edge of the card: the user’s "buttons … vuot qua cai khung cua ca trang".
+   Wrapping is the whole fix; the row gap keeps the second line clear of the first. */
+.tp-note-head { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; margin-bottom: 6px; }
 .tp-note-label { font-size: 11px; font-weight: 600; color: var(--subtext); text-transform: uppercase; letter-spacing: .06em; }
 .tp-note {
   width: 100%; min-height: 60px; padding: 10px 12px;
@@ -1054,9 +1086,11 @@ html.light .tp-case-btn { --accent-ink: #fff; }
 .tp-note h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
 .tp-note ul, .tp-note ol { margin: 4px 0; padding-left: 20px; }
 .tp-note li { margin: 2px 0; }
+/* `.tp-fields` is not here any more: `auto-fit` above already reflows it, and doing it in two
+   places means the window can override what the card decided. Setup + grade stay a media
+   query — they are a deliberate 2:1 pair, not a run of equal cells. */
 @media (max-width: 640px) {
-  .tp-fields { grid-template-columns: repeat(2, 1fr); }
-  .tp-playfields { grid-template-columns: 1fr; }
+  .tp-playfields { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ── The Buy form's acknowledgement ──────────────────────────────────────────
@@ -3565,8 +3599,11 @@ html.light #app-menu {
   .modal-body .toolbar { gap: 8px 10px; }
   .modal-body .toolbar > .row[style*="margin-left"] { margin-left: 0 !important; flex-basis: 100%; }
   .modal-body .toolbar .range-btn { padding: 7px 12px; font-size: 12px; }
-  .modal-body .grid[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
-  #fund-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  /* `minmax(0, …)` and not a bare `1fr`: `1fr` is `minmax(auto, 1fr)`, so even a pair of
+     tracks could not shrink below the widest figure in them, and it was the grid rather than
+     the number that ran past the edge of the panel. */
+  .modal-body .grid[style*="repeat(4"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  #fund-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 
 /* ── Tight mobile: extra layout adjustments under 600px ── */
@@ -3621,6 +3658,18 @@ html.light #app-menu {
   .modal-head { padding: 12px 16px; }
   #modal-title { font-size: 15px; }
   .modal-body { padding: 14px 16px; }
+
+  /* A card head’s buttons — Reset, Playbook, Exit reasons on the Buy card — are some 310px
+     of button, and the group is deliberately `nowrap` so the pair never splits on a desktop.
+     Inside a 12px-padded card on a 360px phone that is exactly what hung them off the edge,
+     so here the group wraps instead, right-aligned under the title it belongs to. */
+  .card-head-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+  /* Stat tiles: an 18px figure in 16px of padding wants about 170px of card, and a two-up grid
+     on a 360px screen has less than that — the label then wrapped onto a second line and every
+     tile in the row grew to match it. Trim the padding and the figure together. */
+  #main .stat { padding: 11px 12px; }
+  #main .stat .v { font-size: 16px; margin-top: 4px; }
 }
 
 /* ── Stock detail analysis: keep text readable in every orientation ──────── */

@@ -1296,7 +1296,7 @@ function recalcPlan(symbol: string): void {
     : '';
 
   box.innerHTML = `
-    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
+    <div class="grid tp-statgrid" style="gap:8px">
       <div class="stat"><div class="k">${t('wl.plan.posval')}</div><div class="v"${overBy > 0 ? ' style="color:var(--danger)"' : ''}>${sym}${num(planConv(positionValue), 0)} <span class="muted" style="font-size:11px">(${num(positionPct, 1)}%)</span></div></div>
       <div class="stat"><div class="k">${t('wl.plan.riskpos')}</div><div class="v" style="color:var(--warn)">${sym}${num(planConv(riskAmount), 0)} <span class="muted" style="font-size:11px">(${num(riskPctOfPos, 1)}%)</span></div></div>
       <div class="stat"><div class="k">${t('wl.plan.riskeq')}</div><div class="v" style="color:var(--warn)">${num(riskPctOfEq, 2)}%</div></div>
@@ -1783,7 +1783,7 @@ function paintExitStats(symbol: string): void {
   const cell = (k: string, v: string, color?: string): string =>
     `<div class="stat"><div class="k">${k}</div><div class="v"${color ? ` style="color:${color}"` : ''}>${v}</div></div>`;
   box.innerHTML = `
-    <div class="grid" style="grid-template-columns:repeat(5,1fr);gap:8px">
+    <div class="grid tp-statgrid" style="--tp-col:98px;gap:8px">
       ${cell(t('wl.plan.exit.outcome'), t(`wl.plan.exit.out.${m.outcome}`), OUTCOME_VAR[m.outcome])}
       ${cell('R', m.rMultiple != null ? num(m.rMultiple, 2) + 'R' : '—', m.rMultiple != null ? sign(m.rMultiple) : undefined)}
       ${cell('%', m.pctGain != null ? (m.pctGain > 0 ? '+' : '') + num(m.pctGain, 2) + '%' : '—', m.pctGain != null ? sign(m.pctGain) : undefined)}

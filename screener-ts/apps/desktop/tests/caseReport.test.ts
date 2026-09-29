@@ -219,6 +219,21 @@ describe('caseStudyHtml', () => {
     expect(html).toMatch(/html:has\(#ink:checked\)\s*\{[^}]*background:#fff/);
   });
 
+  /*
+   * The twin of the same test on the plan report. These two documents share a stylesheet by
+   * COPY, not by import — each has to stand up with nothing but its own `<style>` — so the
+   * responsive half can go missing from one of them without anything failing to compile. What is
+   * asserted is only what cannot be recovered afterwards: the viewport, the reflow and the fold.
+   */
+  it('reflows on a phone, and says so in its own head', () => {
+    const html = caseStudyHtml(study({ plan: casePlan() }), bars);
+    expect(html).toContain('name="viewport"');
+    expect(html).toContain('grid-template-columns:repeat(4,minmax(0,1fr))');
+    expect(html).toContain('grid-template-columns:repeat(2,minmax(0,1fr))');
+    expect(html).toContain('<div class="sc-wrap">');
+    expect(html).toContain('class="sc-meta muted small"');
+  });
+
   it('is still a complete standalone document with the plan in it', () => {
     const html = caseStudyHtml(study({ plan: casePlan() }), bars);
     expect(html.startsWith('<!doctype html>')).toBe(true);

@@ -159,6 +159,24 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
     body:has(#ink:checked) .muted { color:#555; }
   }`;
 
+/**
+ * Phone and narrow-iframe layout. Plain media queries are correct HERE, unlike in the app's
+ * own stylesheet: this is a standalone document, so its viewport IS its container — either the
+ * phone's screen (hence the `<meta name="viewport">`, without which it would lay out at 980px
+ * and shrink to unreadable) or the width of the `srcdoc` iframe the app previews it in.
+ * Four stat cards of unbreakable mono money do not fit a 390px screen; two do, one always does.
+ * `caseStudies/report.ts` carries the same block, next to its own copy of PRINT_CSS.
+ */
+const NARROW_CSS = `  @media (max-width: 760px) {
+    .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    h1 { font-size:20px; }
+    .stat .v { font-size:15px; }
+    th,td { padding:6px; }
+  }
+  @media (max-width: 430px) {
+    .grid { grid-template-columns:minmax(0,1fr); }
+  }`;
+
 /** The full standalone document. */
 export function planReportHtml(i: PlanReportInput): string {
   const { plan, grade, levels, vi } = i;
@@ -320,11 +338,11 @@ export function planReportHtml(i: PlanReportInput): string {
   const setupWord = plan.setup ? setupName(plan.setup as SetupKey, vi) : '—';
 
   return `<!doctype html>
-<html lang="${vi ? 'vi' : 'en'}"><head><meta charset="utf-8"><title>${esc(plan.symbol)} — ${esc(L.plan)}</title>
+<html lang="${vi ? 'vi' : 'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(plan.symbol)} — ${esc(L.plan)}</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { background:#07080b; color:#e9edf4; font:14px/1.6 'Hanken Grotesk',system-ui,sans-serif; margin:0; padding:32px; max-width:1040px; }
+  body { background:#07080b; color:#e9edf4; font:14px/1.6 'Hanken Grotesk',system-ui,sans-serif; margin:0; padding:clamp(14px,4vw,32px); max-width:1040px; }
   h1 { font-size:24px; letter-spacing:-.03em; margin:0 0 2px; }
   .sub { color:#99a2b2; margin:0 0 4px; font-size:14px; }
   .pill { display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:3px 10px; border-radius:999px; border:1px solid; }
@@ -332,10 +350,10 @@ export function planReportHtml(i: PlanReportInput): string {
   button { background:#18d89a; color:#04130d; border:0; border-radius:8px; padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
   .chart { background:#0c0e13; border:1px solid #1d222c; border-radius:12px; padding:10px; margin:16px 0; }
   .chart-note { font-size:11px; font-family:ui-monospace,monospace; margin-top:6px; }
-  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0; }
-  .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; }
+  .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0; }
+  .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; min-width:0; }
   .stat .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
-  .stat .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:16px; margin-top:3px; }
+  .stat .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:16px; margin-top:3px; overflow-wrap:anywhere; }
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#18d89a; margin:24px 0 8px; }
   table { width:100%; border-collapse:collapse; }
   th,td { text-align:left; padding:6px 10px; border-bottom:1px solid #1d222c; font-size:13px; vertical-align:top; }
@@ -347,7 +365,7 @@ ${SCORECARD_CSS}
   .muted { color:#5c6575; }
   .foot { color:#5c6575; font-size:11px; margin-top:28px; border-top:1px solid #1d222c; padding-top:12px; }
   .ink { color:#5c6575; font-size:12px; margin-left:12px; cursor:pointer; user-select:none; }
-
+${NARROW_CSS}
 ${PRINT_CSS}
 </style></head>
 <body>

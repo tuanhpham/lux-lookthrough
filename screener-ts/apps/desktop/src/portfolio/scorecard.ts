@@ -33,15 +33,35 @@ export function scorecardWords(vi: boolean): ScorecardWords {
     : { title: 'Scorecard', weight: 'Weight', measured: 'Measured', manual: 'Answered by hand', per: 'Per' };
 }
 
-/** Styles for everything this module emits. Include once per document. */
+/**
+ * Styles for everything this module emits. Include once per document.
+ *
+ * ── SIX COLUMNS ON A PHONE ──────────────────────────────────────────────────
+ * The user's "table cho cac score cards cung vay, nhin khong hai hoa". A table cannot reflow the
+ * way a grid can: every column keeps its widest cell, so the 26-row checklist simply ran off the
+ * side of the screen. Two answers, in this order. The last two columns are metadata (which group
+ * the criterion belongs to, which source measured it) — under 560px they leave the table and
+ * reappear as a second line under the criterion's name, which is where a phone reader can
+ * actually use them. Nothing is dropped; `.sc-meta` carries the same words. The `.sc-wrap`
+ * scroller is the backstop for whatever is still too wide after that — a long `measured` string
+ * scrolls sideways instead of stretching the document past the viewport.
+ */
 export const SCORECARD_CSS = `  .mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
   .small { font-size:11px; }
   .mk { font-weight:700; }
   .gbar { display:flex; align-items:center; gap:10px; margin:4px 0; }
-  .gbar-k { width:200px; font-size:12px; color:#99a2b2; }
-  .gbar-track { flex:1; height:7px; background:#1d222c; border-radius:999px; overflow:hidden; }
+  .gbar-k { width:clamp(92px,30vw,200px); font-size:12px; color:#99a2b2; }
+  .gbar-track { flex:1; min-width:40px; height:7px; background:#1d222c; border-radius:999px; overflow:hidden; }
   .gbar-fill { display:block; height:100%; }
-  .gbar-n { width:60px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:11px; color:#99a2b2; }`;
+  .gbar-n { width:60px; flex:none; text-align:right; font-family:'JetBrains Mono',monospace; font-size:11px; color:#99a2b2; }
+  .sc-wrap { max-width:100%; overflow-x:auto; }
+  .sc-meta { display:none; }
+  @media (max-width: 560px) {
+    .sc-wrap table { font-size:12px; }
+    .sc-wrap th, .sc-wrap td { padding:5px 6px; }
+    .sc-fold { display:none; }
+    .sc-meta { display:block; margin-top:1px; }
+  }`;
 
 /** One bar per criterion group: how much of that group's weight was earned. */
 export function scorecardBarsHtml(grade: GradeResult, vi: boolean): string {
@@ -72,17 +92,19 @@ export function scorecardTableHtml(grade: GradeResult, vi: boolean): string {
       const mark = !c.known ? '<span class="mk muted">–</span>'
         : c.met ? '<span class="mk" style="color:#18d89a">✓</span>'
           : '<span class="mk" style="color:#ff5266">✗</span>';
+      const group = esc(groupLabel(c.group, vi));
+      const src = esc(criterionSource(c.key));
       return `<tr>
         <td>${mark}</td>
-        <td>${esc(criterionLabel(c.key, vi))}</td>
+        <td>${esc(criterionLabel(c.key, vi))}<span class="sc-meta muted small">${group} · ${W.per.toLowerCase()} ${src}</span></td>
         <td class="mono">${c.weight}</td>
         <td class="mono muted">${esc(c.measured ?? (c.source === 'auto' ? '' : W.manual))}</td>
-        <td class="muted small">${esc(groupLabel(c.group, vi))}</td>
-        <td class="muted small">${esc(criterionSource(c.key))}</td>
+        <td class="muted small sc-fold">${group}</td>
+        <td class="muted small sc-fold">${src}</td>
       </tr>`;
     })
     .join('');
-  return `<table><thead><tr>
-    <th></th><th>${esc(W.title)}</th><th>${esc(W.weight)}</th><th>${esc(W.measured)}</th><th></th><th>${esc(W.per)}</th>
-  </tr></thead><tbody>${rows}</tbody></table>`;
+  return `<div class="sc-wrap"><table><thead><tr>
+    <th></th><th>${esc(W.title)}</th><th>${esc(W.weight)}</th><th>${esc(W.measured)}</th><th class="sc-fold"></th><th class="sc-fold">${esc(W.per)}</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
