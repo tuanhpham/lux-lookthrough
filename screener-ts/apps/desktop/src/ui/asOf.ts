@@ -117,12 +117,29 @@ export function asOfLabel(scope: AsOfScope): string {
  * trend filter's EMA200 always has its 200+ prior bars. Live mode keeps 1y. */
 export function fetchPeriodFor(scope: AsOfScope, livePeriod: Period = '1y'): Period {
   const s = state[scope];
-  if (!s.date) return livePeriod;
+  return fetchPeriodForDate(s.date, s.yearsBack, livePeriod);
+}
+
+/**
+ * The same rule for a date that belongs to no scope.
+ *
+ * The stock modal's as-of date can now come from the trade planner mounted inside it, which has
+ * no `AsOfScope` and never will — it is one symbol on one page, not a screening surface. The
+ * arithmetic is the part worth sharing: a fixed '5y' looks fine and then quietly returns a page
+ * with no bars on it for a date six years back, because the slice cuts everything the fetch
+ * brought. This is the third place that formula was about to be written.
+ */
+export function fetchPeriodForDate(
+  date: string | null,
+  yearsBack: AsOfState['yearsBack'] = 2,
+  livePeriod: Period = '1y',
+): Period {
+  if (!date) return livePeriod;
   // Need history both BEFORE the date (yearsBack) and the gap from the date to
   // today. Pick the smallest standard range that covers both comfortably.
-  if (s.yearsBack === 'max') return 'max';
-  const gapYears = (Date.now() - new Date(s.date + 'T00:00:00').getTime()) / (365.25 * 864e5);
-  const need = s.yearsBack + gapYears + 0.5; // +0.5y headroom for EMA200 warmup
+  if (yearsBack === 'max') return 'max';
+  const gapYears = (Date.now() - new Date(date + 'T00:00:00').getTime()) / (365.25 * 864e5);
+  const need = yearsBack + gapYears + 0.5; // +0.5y headroom for EMA200 warmup
   if (need <= 2) return '2y';
   if (need <= 5) return '5y';
   return 'max';

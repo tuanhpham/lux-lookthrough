@@ -980,6 +980,13 @@ a.tkr:hover { text-decoration: underline; }
 /* The trade date, sitting in the control row next to the account picker. */
 .tp-date-input { height: 38px; min-width: 150px; padding-top: 0; padding-bottom: 0; line-height: 1.4; }
 
+/* ↺ back to today, welded to the right of the date box rather than parked with the other
+   buttons: it is about THAT field, and a "reset" three controls away reads as resetting the
+   panel. Greyed when already today — see `paintTodayBtn` for why it is not hidden. */
+.tp-date-row { display: flex; gap: 6px; align-items: center; }
+.tp-today-btn { height: 38px; width: 34px; padding: 0; font-size: 15px; line-height: 1; }
+.tp-today-btn:disabled { opacity: 0.35; cursor: default; }
+
 /* ── The "planning a past date" banner ───────────────────────────────────────
    Loud on purpose. Every number on the card below it has moved to another date, and the
    failure mode this guards against is a user reading a reconstructed 2024 plan as today's

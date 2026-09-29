@@ -310,8 +310,12 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // fill, the date the lot is booked under, and the date printed on the frozen report.
   'wl.plan.date': { en: 'Trade date', vi: 'Ngày giao dịch' },
   'wl.plan.datetitle': {
-    en: 'Leave as today, or pick a past day — the whole plan is then recomputed as it stood on that date (and the EUR/USD rate of that day is the one used).',
-    vi: 'Để nguyên ngày hôm nay, hoặc chọn một ngày trong quá khứ — cả kế hoạch sẽ được tính lại đúng như ngày đó (và tỷ giá EUR/USD của ngày đó được dùng).',
+    en: 'Leave as today, or pick a past day — the whole plan is then recomputed as it stood on that date (and the EUR/USD rate of that day is the one used). On a stock page the page itself follows the date too.',
+    vi: 'Để nguyên ngày hôm nay, hoặc chọn một ngày trong quá khứ — cả kế hoạch sẽ được tính lại đúng như ngày đó (và tỷ giá EUR/USD của ngày đó được dùng). Ở trang từng mã, cả trang cũng đi theo ngày đó.',
+  },
+  'wl.plan.todaytitle': {
+    en: 'Back to today — the plan, and the stock page around it, return to live data.',
+    vi: 'Trở về hôm nay — kế hoạch, và cả trang cổ phiếu quanh nó, trở lại dữ liệu hiện tại.',
   },
 
   // ── Planning a past date ──────────────────────────────────────────────────

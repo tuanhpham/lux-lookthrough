@@ -119,6 +119,32 @@ export interface PlannerMount {
   onOpenSymbol?: (symbol: string) => void;
   /** Called after the user closes the panel with ×, so a host can un-press its button. */
   onClose?: () => void;
+  /**
+   * The trade date moved: `null` means back to live, otherwise the past date now being planned.
+   *
+   * ── WHY THE PANEL HAS TO TELL ITS HOST AT ALL ───────────────────────────────
+   * Mounted inside the individual stock page, this panel is a time machine sitting in the middle
+   * of a page that is not one. The user's "tren cai trang individual stock ay, cai phan
+   * [narrative] la dua vao thoi diem hien tai, can duoc dieu chinh lai tai thoi diem chon trade
+   * date chu": once a past date is chosen, the quality score, the setup badge, the levels and the
+   * chart ABOVE the panel are all still today's, and there is nothing on screen to say so. Two
+   * numbers that disagree, both presented as fact, is worse than either alone.
+   *
+   * The host may re-render itself in response — the stock page does exactly that, as of the date.
+   * If it does, it MUST re-mount the panel, because re-rendering empties the host it lives in.
+   * `tradePlannerIsIn` is how a host knows the panel was open before it started.
+   */
+  onDateChange?: (date: string | null) => void;
+  /**
+   * What date the host is itself showing, used only when the panel opens on a NEW subject.
+   *
+   * The other direction of `onDateChange`. A stock page opened from a historical screener scan is
+   * already as of some past day, and a panel that defaulted to today there would plan live prices
+   * underneath a 2024 chart — the same two-numbers-disagreeing problem, mirrored. Ignored once the
+   * subject is unchanged, because then the date on screen is the user's own choice and outranks
+   * the page's.
+   */
+  initialDate?: string | null;
 }
 
 /** The one mounted panel, or none. See the header for why there is only ever one. */
@@ -152,9 +178,38 @@ export function closeTradePlanner(onlyInside?: HTMLElement): void {
  */
 export async function openTradePlanner(ctx: AppContext, mount: PlannerMount): Promise<void> {
   if (mounted && mounted.host !== mount.host) closeTradePlanner();
+  /*
+   * A different subject is a different session, so the trade date goes back to today.
+   *
+   * The user's "khi sang xem co phieu khac, moi thu nen duoc reset lai chu … toi ngay hien tai".
+   * `planDate` is module state that outlives the panel, so without this, planning MRVL as of
+   * March 2024 and then opening NVDA's plan silently sizes NVDA as of March 2024 too — with a
+   * date box the user has no reason to look at twice. A wrong plan that looks right.
+   *
+   * Keyed on the TITLE (the ticker, or the watchlist's name) and not the host element, because
+   * the host is a fresh node every time the stock page re-renders — and the page re-renders in
+   * response to this very date, so keying on the element would reset the date the user just
+   * chose, then reset the page again, forever.
+   */
+  if (mount.title !== lastMountTitle) {
+    lastMountTitle = mount.title;
+    // Today, unless the host is itself showing a past day — see `initialDate`.
+    const fresh = mount.initialDate || today();
+    if (planDate !== fresh) {
+      planDate = fresh;
+      // Every card is about to be seeded from the new date's bars. See `planDateMoved`.
+      planDateMoved = true;
+    }
+  }
   mounted = mount;
   await renderPlannerPanel(ctx);
 }
+
+/**
+ * What the last mounted panel was planning. Only ever compared with, never displayed — it exists
+ * so "is this the same subject as before" can be answered after the previous mount is gone.
+ */
+let lastMountTitle: string | null = null;
 
 /** Draw (or redraw) the panel's controls into the mounted host, then plan its symbols. */
 async function renderPlannerPanel(ctx: AppContext): Promise<void> {
@@ -200,7 +255,10 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
         </div>` : ''}
         <div class="tp-ctl">
           <label class="field-label">${t('wl.plan.date')}</label>
-          <input id="tp-date" class="field tp-date-input" type="date" value="${planDate}" title="${t('wl.plan.datetitle')}" />
+          <div class="tp-date-row">
+            <input id="tp-date" class="field tp-date-input" type="date" value="${planDate}" title="${t('wl.plan.datetitle')}" />
+            <button id="tp-today" type="button" class="btn-outline tp-today-btn" title="${t('wl.plan.todaytitle')}">↺</button>
+          </div>
         </div>
         <div class="tp-ctl">
           <label class="field-label">${t('wl.plan.equity')} (USD)</label>
@@ -242,21 +300,19 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
   const dateEl = document.getElementById('tp-date') as HTMLInputElement | null;
   dateEl?.addEventListener('change', () => {
     // An emptied box means "today" rather than nothing: a plan has to be dated to be sized.
-    const before = planRate();
-    const wasDate = planDate;
-    planDate = dateEl.value || today();
+    setPlanDate(ctx, dateEl.value || today());
     dateEl.value = planDate;
-    if (planDate !== wasDate) {
-      // A NEW QUESTION, not the same question re-dated. See `planDateMoved`.
-      planDateMoved = true;
-      // In euros the exit price the user typed is a USD fill seen through the date's rate, so a
-      // new date is a new euro figure for the same fill. The three planned levels are about to
-      // be re-derived from the new as-of bars, so only the carried exit needs this.
-      const after = planRate();
-      if (planCcy === 'EUR' && before > 0 && after > 0) rescaleLevels(before / after);
-    }
-    void computePlans(ctx);
   });
+
+  // Back to today. The user asked for it — "cung nen co mot nut reset de tro ve hien tai" — and
+  // it is not merely a convenience: typing a date is easy, un-typing one is not, and a panel
+  // stuck on a past date quietly sizes and prices every later plan on that date.
+  document.getElementById('tp-today')!.addEventListener('click', () => {
+    setPlanDate(ctx, today());
+    const box = document.getElementById('tp-date') as HTMLInputElement | null;
+    if (box) box.value = planDate;
+  });
+  paintTodayBtn();
 
   // The same dialog the Buy form opens. The planner needs it more, not less: this is the
   // screen where the user is comparing eight sized plans at once, so it is where a stop
@@ -657,6 +713,51 @@ const planAllBars = new Map<string, Bar[]>();
  */
 function isPastPlan(): boolean {
   return planDate < today();
+}
+
+/**
+ * Move the trade date: rescale what needs rescaling, tell the host, recompute every card.
+ *
+ * One function for the date box and the ↺ button, because "the date changed" has four
+ * consequences and three of them are easy to forget. Returns whether it actually moved.
+ *
+ * ── THE ORDER MATTERS, AND SO DOES THE RECOMPUTE THAT MAY NOT HAPPEN ────────
+ * `onDateChange` is announced BEFORE `computePlans`, and the host is allowed to re-render itself
+ * in response — which empties the panel's own host. When that happens `computePlans` finds no
+ * `#tp-results` and returns without doing anything, and the re-mount that follows the host's
+ * render is what plans the new date. That is one recompute rather than two, but it means this
+ * function cannot promise the cards were rebuilt; only that they will be.
+ */
+function setPlanDate(ctx: AppContext, next: string): boolean {
+  const before = planRate();
+  const wasDate = planDate;
+  planDate = next || today();
+  if (planDate === wasDate) return false;
+  // A NEW QUESTION, not the same question re-dated. See `planDateMoved`.
+  planDateMoved = true;
+  // In euros the exit price the user typed is a USD fill seen through the date's rate, so a
+  // new date is a new euro figure for the same fill. The three planned levels are about to
+  // be re-derived from the new as-of bars, so only the carried exit needs this.
+  const after = planRate();
+  if (planCcy === 'EUR' && before > 0 && after > 0) rescaleLevels(before / after);
+  paintTodayBtn();
+  // A future date is not time travel (see `isPastPlan`), so the page around the panel stays live.
+  mounted?.onDateChange?.(isPastPlan() ? planDate : null);
+  void computePlans(ctx);
+  return true;
+}
+
+/**
+ * Grey the ↺ button out when the date is already today.
+ *
+ * Hidden instead would be tidier and worse: a control that appears only once you are lost is a
+ * control nobody knows exists until they are lost. Greyed, it is visible from the start and
+ * readable as "this is how you get back".
+ */
+function paintTodayBtn(): void {
+  const btn = document.getElementById('tp-today') as HTMLButtonElement | null;
+  if (!btn) return;
+  btn.disabled = planDate === today();
 }
 
 /**

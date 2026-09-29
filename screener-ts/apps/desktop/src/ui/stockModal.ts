@@ -17,7 +17,7 @@ import { loadIndex, loadItems, saveItems, createList, listsContaining } from './
 import { infoIcon as info, attachTooltips } from './tooltip.js';
 import { loadGptUrl, renderPromptSection } from './promptSection.js';
 import { vnTradingViewSymbol } from '../adapters/universe.js';
-import { sliceBars, fundamentalsAsOf } from './asOf.js';
+import { sliceBars, fundamentalsAsOf, fetchPeriodForDate } from './asOf.js';
 import { listSnapshotDays, loadWindow } from '../tabs/catalystCache.js';
 import { fetchEarningsReports, type EarningsReport } from '../adapters/earningsDates.js';
 import { loadCalendarScan } from '../tabs/calendarScan.js';
@@ -90,14 +90,25 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
   modal.classList.remove('hidden');
   $('#modal-title')!.textContent = symbol;
   const body = $('#modal-body')!;
+  /*
+   * Was the trade planner open in the page we are about to replace?
+   *
+   * This is not idle curiosity. The planner's trade date re-opens this page as of that date (see
+   * `wirePlanButton`), and a user who sets a date only to have the panel they were working in
+   * vanish has been punished for using the feature. So the answer is read before the teardown
+   * and the panel is put back after the render.
+   */
+  const plannerWasOpen = tradePlannerIsIn(body);
   // Navigating to another stock (or reopening this one) replaces the body wholesale, so a
   // planner mounted in it has to be torn down first rather than left pointing at dead nodes.
   closeTradePlanner(body);
   body.innerHTML = `<div class="muted" style="text-align:center;padding:40px"><span class="spinner"></span> Loading ${symbol}…</div>`;
 
   // In as-of mode, fetch a longer window so EMA200 etc. have history before the
-  // date, then slice to that date so the chart/scan see it as "now".
-  let period: Period = asOf ? '5y' : '1y';
+  // date, then slice to that date so the chart/scan see it as "now". How much longer is
+  // `fetchPeriodForDate`'s job: a flat '5y' is enough for last spring and leaves a 2019 date
+  // with nothing at all, since the slice throws away everything the fetch reached forward for.
+  let period: Period = fetchPeriodForDate(asOf);
 
   try {
     const [fund, ohlcvRaw, fin] = await Promise.all([
@@ -169,7 +180,10 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
         period = btn.dataset.period as Period;
         body.querySelectorAll('[data-period]').forEach((b) => b.classList.toggle('active', b === btn));
         chartEl.innerHTML = `<div class="muted" style="text-align:center;padding:40px"><span class="spinner"></span></div>`;
-        const fetchPeriod = asOf && period !== '5y' ? '5y' : period;
+        // In as-of mode the button picks the range and the date picks the floor: the chart is
+        // drawn from the whole slice, so fetching less than the slice needs would shorten the
+        // history rather than the window the user asked for.
+        const fetchPeriod = asOf ? widerPeriod(fetchPeriodForDate(asOf), period) : period;
         const data = await ctx.data.getOHLCV(symbol, fetchPeriod).catch(() => ({ symbol, bars: [] }));
         const bars = asOf ? sliceBars(data.bars, asOf) : data.bars;
         const q2 = bars.length >= 60 ? scanQm(symbol, bars) : null;
@@ -223,7 +237,7 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
     window.addEventListener('orientationchange', resizeHandler);
 
     void wireWatchlistPicker(ctx, symbol);
-    wirePlanButton(ctx, symbol);
+    wirePlanButton(ctx, symbol, plannerWasOpen, asOf);
 
     // Research prompts. Rendered async because two of its inputs (the next dated
     // catalyst, the market regime) live in caches that must be read, and neither is
@@ -255,25 +269,59 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
  *
  * No `onOpenSymbol` — the only symbol on screen is the one this modal is already showing, and
  * a link that reopens the page you are on reads as a dead link.
+ *
+ * ── THE DATE GOES BOTH WAYS ─────────────────────────────────────────────────
+ * `onDateChange` re-opens this whole page as of the panel's trade date, which is the user's
+ * "cai phan [narrative] la dua vao thoi diem hien tai, can duoc dieu chinh lai tai thoi diem
+ * chon trade date chu". The modal has had a full as-of mode since the screener's historical
+ * tabs — sliced bars, latest-annual-before-date fundamentals, earnings filtered to the date, an
+ * "as of" flag in the title — so nothing new had to be computed; the panel simply had no way to
+ * ask for it. `reopen` puts the panel back afterwards, so the round trip is invisible except
+ * for the page catching up.
+ *
+ * `asOf` is the return leg: this page can ALSO be opened as of a past date from a historical
+ * screener scan, and a panel that started at today there would size a live plan under a 2024
+ * chart. Only honoured for a subject the panel has not seen — once the user has picked a date
+ * here, their pick outranks the page's. See `PlannerMount.initialDate`.
  */
-function wirePlanButton(ctx: AppContext, symbol: string): void {
+function wirePlanButton(
+  ctx: AppContext,
+  symbol: string,
+  reopen = false,
+  asOf: string | null = null,
+): void {
   const btn = $('#sm-plan');
   const host = $('#sm-plan-panel');
   if (!btn || !host) return;
+  const open = (): void => {
+    btn.classList.add('active');
+    void openTradePlanner(ctx, {
+      host,
+      symbols: () => [symbol],
+      title: symbol,
+      initialDate: asOf,
+      onClose: () => btn.classList.remove('active'),
+      // `openStock` tears the planner down and `reopen` brings it back — see the note above.
+      // Not guarded against re-entering: `openTradePlanner` never changes the date on a mount
+      // whose title it has seen before, and only a user gesture calls `setPlanDate`.
+      onDateChange: (date) => void openStock(ctx, symbol, date),
+    });
+  };
   btn.addEventListener('click', () => {
     if (tradePlannerIsIn(host)) {
       closeTradePlanner(host);
       btn.classList.remove('active');
       return;
     }
-    btn.classList.add('active');
-    void openTradePlanner(ctx, {
-      host,
-      symbols: () => [symbol],
-      title: symbol,
-      onClose: () => btn.classList.remove('active'),
-    });
+    open();
   });
+  if (reopen) open();
+}
+
+/** The longer of two fetch ranges. Yahoo's ranges are strings, so "longer" needs the order. */
+const PERIOD_ORDER: readonly Period[] = ['1mo', '3mo', '6mo', '1y', '2y', '5y', 'max'];
+function widerPeriod(a: Period, b: Period): Period {
+  return PERIOD_ORDER.indexOf(a) >= PERIOD_ORDER.indexOf(b) ? a : b;
 }
 
 function stat(k: string, v: string, tipKey?: string): string {
