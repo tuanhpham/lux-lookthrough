@@ -310,8 +310,25 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // fill, the date the lot is booked under, and the date printed on the frozen report.
   'wl.plan.date': { en: 'Trade date', vi: 'Ngày giao dịch' },
   'wl.plan.datetitle': {
-    en: 'Leave as today, or pick the day the trade was made — the EUR/USD rate of that day is the one used.',
-    vi: 'Để nguyên ngày hôm nay, hoặc chọn ngày đã giao dịch — tỷ giá EUR/USD của ngày đó sẽ được dùng.',
+    en: 'Leave as today, or pick a past day — the whole plan is then recomputed as it stood on that date (and the EUR/USD rate of that day is the one used).',
+    vi: 'Để nguyên ngày hôm nay, hoặc chọn một ngày trong quá khứ — cả kế hoạch sẽ được tính lại đúng như ngày đó (và tỷ giá EUR/USD của ngày đó được dùng).',
+  },
+
+  // ── Planning a past date ──────────────────────────────────────────────────
+  // What CAN be replayed is everything the bars decide; what CANNOT is the money, because
+  // there is no history of the account's equity to go back to. Both are said out loud.
+  'wl.plan.asof': { en: 'As of {date}', vi: 'Tính theo ngày {date}' },
+  'wl.plan.asofbars': {
+    en: 'setup, levels, grade and chart are computed from the bars up to that date — nothing after it is used',
+    vi: 'mẫu hình, mức giá, hạng và biểu đồ đều tính từ dữ liệu đến hết ngày đó — không dùng gì sau ngày đó',
+  },
+  'wl.plan.asofmoney': {
+    en: '⚠ money is TODAY’S: equity, cash, open risk and the position count come from the account as it stands now',
+    vi: '⚠ tiền là của HÔM NAY: vốn, tiền mặt, rủi ro đang mở và số vị thế lấy từ tài khoản hiện tại',
+  },
+  'wl.plan.asofnoregime': {
+    en: '⚠ no market read for that date (SPY history does not reach back far enough), so the two market criteria stay unanswered',
+    vi: '⚠ không đọc được trạng thái thị trường ngày đó (dữ liệu SPY chưa đủ dài), nên hai tiêu chí về thị trường để trống',
   },
 
   // Buying straight from the plan.

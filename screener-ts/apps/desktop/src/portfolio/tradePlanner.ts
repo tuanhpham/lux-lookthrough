@@ -65,7 +65,8 @@ import { num } from '../ui/dom.js';
 // One rule table, one set of words: the Buy form and this planner size and explain the
 // same trade, so they call the same two modules rather than each carrying a copy.
 import {
-  buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan,
+  buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, regimeAsOf,
+  type BuyPlan,
 } from './playbook.js';
 import { planLines, setupName } from './planWords.js';
 // The grade panel is shared with the Buy form: one checklist, rendered once, so the panel
@@ -76,7 +77,7 @@ import { gradePanelHtml } from './gradeView.js';
 import {
   emptyPlan, loadStoredPlans, savePlan, type PlanAnswers, type SymbolPlan,
 } from './planStore.js';
-import { printPlanReport } from './planReport.js';
+import { openPlanReport, printPlanReport, type PlanReportInput } from './planReport.js';
 // Buying from inside the plan goes down the same path as the Buy button and the assistant.
 import { savePlanSnapshot } from './planSnapshot.js';
 import { applyWrite, plannedPrice, type PlannedPrice, type Rating, type WritePlan } from './writes.js';
@@ -304,13 +305,30 @@ async function computePlans(ctx: AppContext): Promise<void> {
   const syms = [...new Set((await mount.symbols()).map((s) => s.trim().toUpperCase()).filter(Boolean))];
   if (!syms.length) { out.innerHTML = `<p class="muted">${t('wl.empty')}</p>`; return; }
 
-  const data = await fetchMany(ctx.data, syms, '1y', 6);
+  // Planning a past date needs the market as it was on that date too — the two heaviest
+  // criteria on the checklist are about the market. Cheap when the cache already reaches back
+  // (a filter over bars already in memory); a fetch only the first time a far-back date is
+  // asked for. See `ensureRegime`'s `asOf`.
+  if (isPastPlan()) await ensureRegime(ctx, { asOf: planDate }).catch(() => null);
+
+  const data = await fetchMany(ctx.data, syms, planPeriod(), 6);
   const scans: QmScanResult[] = [];
   planScans.clear();
   for (const sym of syms) {
     const d = data.get(sym);
-    if (d && d.bars.length >= 60) {
-      const scan = scanQm(sym, d.bars);
+    // EVERY bar fetched, kept separately from the as-of slice. The card is judged on the slice;
+    // this is what the chart may show beyond it once an exit has been recorded, which is the
+    // one place seeing the future is the point rather than a leak.
+    if (d?.bars.length) planAllBars.set(sym, d.bars);
+    // ── THE TIME MACHINE ─────────────────────────────────────────────────────
+    // This one line is the whole of it. `scanQm`, `buildTradePlan`, `suggestLevels` and the
+    // grader are pure functions of the bar array, so a scan of the bars up to a past date IS
+    // the scan as it stood on that date: the base, the contractions, the RS, the 52-week high,
+    // the pivot, the stop, the quality score. Nothing needed a second code path — what needed
+    // care is everything that is NOT bars, which is money (see `paintPlanStatus`).
+    const bars = asOfBars(d?.bars ?? []);
+    if (bars.length >= 60) {
+      const scan = scanQm(sym, bars);
       scans.push(scan);
       // Kept, not consumed: the conviction checklist reads fourteen of its measurements.
       planScans.set(sym, scan);
@@ -319,7 +337,7 @@ async function computePlans(ctx: AppContext): Promise<void> {
     // that needs the same history the scan used. Re-fetching per keystroke is not an
     // option, and a planner whose stop did not follow the entry would be a form that
     // quietly disagreed with itself.
-    if (d?.bars.length) planBars.set(sym, d.bars);
+    if (bars.length) planBars.set(sym, bars);
   }
 
   // `buildTradePlan` still answers "is the setup there": levels for the seed, a
@@ -450,6 +468,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
         <div class="tp-note-head">
           <span class="tp-note-label">${t('wl.plan.note')}</span>
           <button type="button" class="note-btn has-note" data-tp-noteedit="${S}" title="${t('pf.note.edit')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" class="btn-outline mini-btn" data-tp-view="${S}"
+            title="${t('plan.viewtitle')}">👁 ${t('plan.view')}</button>
           <button type="button" class="btn-outline mini-btn" data-tp-print="${S}"
             title="${t('plan.printtitle')}">⎙ ${t('plan.print')}</button>
         </div>
@@ -521,7 +541,59 @@ interface PlanEdit {
   explain: string;
 }
 const planEdits = new Map<string, PlanEdit>();
+/** The bars the card is planned on: everything up to and including the trade date. */
 const planBars = new Map<string, Bar[]>();
+/** Every bar fetched, including after the trade date. Only the chart may look at these. */
+const planAllBars = new Map<string, Bar[]>();
+
+// ── Time travel ─────────────────────────────────────────────────────────────
+/**
+ * Is the panel planning a date in the past?
+ *
+ * The user's "neu toi thay doi trade date vao mot ngay trong qua khu, thi lieu moi thu co the
+ * duoc cap nhat tinh cho toi thoi diem do khong? cac danh gia, tat ca moi thu, entry, stop,
+ * target and so on". The answer is yes for everything that comes off the bars, which is almost
+ * everything on the card — see `asOfBars`.
+ *
+ * A future date is NOT time travel: there are no bars after today, so the slice would be the
+ * whole history and the plan is simply today's, dated forward. That is what a user setting
+ * tomorrow's date means, and it is what they already had.
+ */
+function isPastPlan(): boolean {
+  return planDate < today();
+}
+
+/**
+ * The bars as they existed on the trade date.
+ *
+ * Inclusive of `planDate` itself: the decision being reconstructed is "I am looking at this
+ * chart after the close" — the same thing the panel shows on a live day, where today's bar is
+ * the last one there is.
+ *
+ * ── WHY THIS IS THE ENTIRE FEATURE ──────────────────────────────────────────
+ * Every judgement on the card is a function of this array. Cutting it is therefore not a
+ * simulation of the past, it IS the past: there is no way for a later bar to leak into the
+ * quality score, the contractions, the RS rank, the suggested stop or the grade, because none
+ * of them can see anything this function did not hand them.
+ */
+function asOfBars(bars: readonly Bar[]): Bar[] {
+  if (!isPastPlan()) return bars as Bar[];
+  return bars.filter((b) => b.date <= planDate);
+}
+
+/**
+ * How much history to fetch — enough that the as-of slice is still a full year.
+ *
+ * `scanQm` wants 60 bars minimum and reads a 52-week high, so a 1y fetch sliced to a date six
+ * months ago leaves half a year: the scan would run and be WRONG, reporting a 26-week high as
+ * the 52-week one. Widening the fetch is the fix, and it is why the period is derived from the
+ * date rather than fixed.
+ */
+function planPeriod(): '1y' | '2y' | '5y' | 'max' {
+  if (!isPastPlan()) return '1y';
+  const years = (Date.now() - new Date(planDate + 'T00:00:00').getTime()) / (365.25 * 864e5);
+  return years <= 0.8 ? '2y' : years <= 3.6 ? '5y' : 'max';
+}
 
 /**
  * The saved plan behind each card, and the context to write it back with.
@@ -798,7 +870,25 @@ function paintPlanStatus(): void {
   } else {
     bits.push(t('wl.plan.manualnote'));
   }
-  box.innerHTML = bits.join(' · ');
+
+  /*
+   * Time travel gets its own block above the usual line, not a bit inside it.
+   *
+   * Two things have to be unmissable, and a chip alone would only say the first: that the whole
+   * card has moved to another date, AND that the MONEY has not. Equity, cash, open risk and the
+   * position count are today's account — there is no history of them to replay — so a plan
+   * reconstructed for 2024 is sized by a 2026 portfolio. That is the one place this feature can
+   * mislead, so it is written out in full rather than left for the user to work out.
+   */
+  const asOf = isPastPlan()
+    ? `<div class="tp-asof-bar">
+        <span class="tp-asof">⏳ ${esc(t('wl.plan.asof').replace('{date}', planDate))}</span>
+        <span>${t('wl.plan.asofbars')}</span>
+        <span class="tp-asof-warn">${t('wl.plan.asofmoney')}</span>
+        ${planRegime() ? '' : `<span class="tp-asof-warn">${t('wl.plan.asofnoregime')}</span>`}
+      </div>`
+    : '';
+  box.innerHTML = asOf + bits.join(' · ');
 }
 
 /**
@@ -828,7 +918,15 @@ function cardPlan(symbol: string, rating: ConvictionRating | null): BuyPlan | nu
     // today's rate but recorded on the chosen date would be internally inconsistent.
     date: planDate,
     rating,
+    // Replaying a past date reads the market of that date. The money cannot be replayed — the
+    // account's equity, cash and open risk are today's, and `paintPlanStatus` says so.
+    ...(isPastPlan() ? { asOfRegime: true } : {}),
   });
+}
+
+/** The market read the card is graded and sized against: the trade date's, or today's. */
+function planRegime(): ReturnType<typeof currentRegime> {
+  return isPastPlan() ? regimeAsOf(planDate) : currentRegime();
 }
 
 /**
@@ -860,7 +958,9 @@ function cardGrade(symbol: string): GradeResult | null {
   return gradeTrade(
     qmGradeEvidence(scan, {
       setup: e.setup,
-      regime: currentRegime()?.regime ?? null,
+      // The market of the trade date when time-travelling: grading a 2024 breakout against
+      // today's tape would score the two heaviest criteria on the list from the wrong year.
+      regime: planRegime()?.regime ?? null,
       // null, not 0, when there is nothing to divide: the grader reads a missing number as
       // unmeasured and a zero as a failing measurement.
       rMultiple: riskPerShare > 0 && target != null && target > entry
@@ -1245,6 +1345,41 @@ function paintGradePanel(
   });
 }
 
+/**
+ * One card as the report's input — for both ⎙ Print and 👁 View.
+ *
+ * Shared rather than duplicated because the two buttons must produce the SAME document: a
+ * user who reads the plan on screen, likes it, and presses Print has to receive what they
+ * just read. Two copies of this object would be two chances for one of them to drift.
+ *
+ * Built from the card as it stands, not from storage — the generated note and the levels are
+ * never saved (see `cardSymbolPlan`), so the stored plan would be missing the numbers the
+ * user is looking at.
+ */
+function cardReportInput(symbol: string): PlanReportInput | null {
+  const e = planEdits.get(symbol);
+  const plan = cardSymbolPlan(symbol);
+  if (!e || !plan) return null;
+  const grade = cardGrade(symbol);
+  const rating = e.gradeOverride ?? grade?.grade ?? null;
+  return {
+    plan,
+    grade,
+    effective: rating,
+    levels: { entry: e.entry, stop: e.stop, target: e.target },
+    shares: e.shares,
+    // `planCcy`: the boxes and the report's money now agree, because the boxes are in the
+    // currency the user is buying in and the report derives its money from these prices.
+    currency: planCcy,
+    // Only the chart needs it, and only in euros — see `PlanReportInput.fxRate`.
+    ...(planRate() > 0 ? { fxRate: planRate() } : {}),
+    date: planDate,
+    bars: planBars.get(symbol) ?? [],
+    pctOfFull: rating ? ladderConfig().ratingPct[rating] : 100,
+    vi: getLang() === 'vi',
+  };
+}
+
 /** Write a planner field without stealing the caret from someone typing in it. */
 function setFieldValue(symbol: string, field: 'stop' | 'target' | 'shares', value: string): void {
   const el2 = document.querySelector<HTMLInputElement>(
@@ -1459,28 +1594,30 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
    */
   root.querySelectorAll<HTMLElement>('[data-tp-print]').forEach((b) => {
     b.addEventListener('click', () => {
-      const sym = b.dataset.tpPrint!;
-      const e = planEdits.get(sym);
-      const plan = cardSymbolPlan(sym);
-      if (!e || !plan) return;
-      const grade = cardGrade(sym);
-      const rating = e.gradeOverride ?? grade?.grade ?? null;
-      printPlanReport({
-        plan,
-        grade,
-        effective: rating,
-        levels: { entry: e.entry, stop: e.stop, target: e.target },
-        shares: e.shares,
-        // `planCcy`: the boxes and the report's money now agree, because the boxes are in the
-        // currency the user is buying in and the report derives its money from these prices.
-        currency: planCcy,
-        // Only the chart needs it, and only in euros — see `PlanReportInput.fxRate`.
-        ...(planRate() > 0 ? { fxRate: planRate() } : {}),
-        date: planDate,
-        bars: planBars.get(sym) ?? [],
-        pctOfFull: rating ? ladderConfig().ratingPct[rating] : 100,
-        vi: getLang() === 'vi',
-      });
+      const i = cardReportInput(b.dataset.tpPrint!);
+      if (i) printPlanReport(i);
+    });
+  });
+
+  /**
+   * The same document on screen — "trong cai trang trade plan thi nen co cai view plan chu
+   * hien tai chi co print plan la download cai file xuong".
+   *
+   * `openPlanReport` rather than a second layout, exactly as the Buy form and the Portfolio
+   * tab's ⎙ do: what is looked at is the file that would be saved, so nothing can drift
+   * between the screen and the paper. Download stays as its own button, because a plan the
+   * user wants to keep must not depend on this dialog being open.
+   */
+  root.querySelectorAll<HTMLElement>('[data-tp-view]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const i = cardReportInput(b.dataset.tpView!);
+      if (i) {
+        openPlanReport(i, {
+          title: `${i.plan.symbol} · ${t('plan.viewttl')}`,
+          print: t('pf.tx.planprint'),
+          close: t('pf.tx.planclose'),
+        });
+      }
     });
   });
 

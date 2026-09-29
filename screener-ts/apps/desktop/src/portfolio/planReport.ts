@@ -89,6 +89,46 @@ function planWindow(bars: readonly Bar[], date: string): Bar[] {
   return bars.filter((b) => b.date >= lo);
 }
 
+/**
+ * The print half of the stylesheet — kept out of the template so it can be explained.
+ *
+ * ── WHY THE PRINTED PAGE LOST ITS COLOURS ───────────────────────────────────
+ * The user's "khi ma print to PDF, toi thay khong giu duoc cai background color dep nhu o
+ * html". Two separate things were throwing them away, and fixing only one would have changed
+ * nothing:
+ *
+ *   1. Browsers drop background colours and images when printing, to save ink.
+ *      `print-color-adjust: exact` is the only way to ask for them back, and it has to sit on
+ *      the printed root. Chrome and Safari still want the `-webkit-` spelling, so both are
+ *      written; there is no way to feature-detect this from inside a static file.
+ *   2. This stylesheet USED TO ask for white itself — `@media print { body { background:#fff;
+ *      color:#000 } }`. That rule wins over any amount of colour-adjust, so the real fix was
+ *      deleting it. On white the muted greys (#5c6575 on #fff) came out almost invisible while
+ *      the grade pill, the ✓/✗ marks and the chart's inline colours stayed dark-theme — a
+ *      document that looked broken rather than thrifty.
+ *
+ * Ink is still a real cost, so the choice moves to the reader instead of to this file: one
+ * checkbox that restores the white document. It is done with `:has()` and NO script, because
+ * the on-screen viewer renders this same HTML in an iframe sandboxed without scripts (see
+ * `openPlanReport`) — a toggle that only worked in the downloaded copy would be a dead control
+ * on the very screen where the user first meets it. `display:none` on the toolbar does not
+ * stop `#ink:checked` matching, so the box keeps its state while being hidden from the page.
+ */
+const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { margin: 12mm; }
+  @media print {
+    body { padding:0; max-width:none; }
+    .toolbar { display:none; }
+    /* Never split a chart, a stat, the note or a criterion row across a page break. */
+    .chart,.stat,.notes,.ack,.gbar,tr { break-inside:avoid; }
+    /* Opt in, per print: the old white document, for when ink matters more. */
+    body:has(#ink:checked) { background:#fff; color:#000; }
+    body:has(#ink:checked) .chart,
+    body:has(#ink:checked) .stat,
+    body:has(#ink:checked) .notes { background:#fafafa; border-color:#ddd; }
+    body:has(#ink:checked) .muted { color:#555; }
+  }`;
+
 /** The full standalone document. */
 export function planReportHtml(i: PlanReportInput): string {
   const { plan, grade, levels, vi } = i;
@@ -115,6 +155,7 @@ export function planReportHtml(i: PlanReportInput): string {
       overridden: 'Người dùng ghi đè hạng (điểm cho {auto})',
       auto: 'Đo tự động', manual: 'Tự trả lời', weight: 'Trọng số', who: 'Theo',
       print: '🖨 In / Lưu PDF',
+      ink: 'In trên giấy trắng (tiết kiệm mực)',
       foot: 'Tạo lúc {when} · The Professional — kế hoạch giao dịch · Chỉ dùng để học. Không phải lời khuyên đầu tư.',
       staleack: 'Xác nhận lúc {when}, với giá vào {entry} / cắt lỗ {stop}.',
     }
@@ -129,6 +170,7 @@ export function planReportHtml(i: PlanReportInput): string {
       overridden: 'Grade overridden by hand (the score said {auto})',
       auto: 'Measured', manual: 'Answered by hand', weight: 'Weight', who: 'Per',
       print: '🖨 Print / Save as PDF',
+      ink: 'Print on white paper (save ink)',
       foot: 'Generated {when} · The Professional — trade plan · Educational use only. Not financial advice.',
       staleack: 'Acknowledged {when}, against entry {entry} / stop {stop}.',
     };
@@ -244,10 +286,12 @@ export function planReportHtml(i: PlanReportInput): string {
   .ack.bad { color:#ffb648; border-color:#ffb64844; background:#1a1509; }
   .muted { color:#5c6575; }
   .foot { color:#5c6575; font-size:11px; margin-top:28px; border-top:1px solid #1d222c; padding-top:12px; }
-  @media print { body { background:#fff; color:#000; padding:0; } .toolbar { display:none; } .chart,.stat,.notes { background:#fafafa; border-color:#ddd; } }
+  .ink { color:#5c6575; font-size:12px; margin-left:12px; cursor:pointer; user-select:none; }
+
+${PRINT_CSS}
 </style></head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">${esc(L.print)}</button></div>
+  <div class="toolbar"><button onclick="window.print()">${esc(L.print)}</button><label class="ink"><input type="checkbox" id="ink"> ${esc(L.ink)}</label></div>
 
   <h1>${esc(plan.symbol)}
     <span class="pill" style="color:${gradeHex};border-color:${gradeHex}">${esc(L.grade)} ${esc(i.effective ?? '—')}</span>

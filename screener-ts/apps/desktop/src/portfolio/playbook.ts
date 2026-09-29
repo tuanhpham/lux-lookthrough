@@ -196,18 +196,28 @@ export function currentRegime(): RegimeRead | null {
  */
 export async function ensureRegime(
   ctx: AppContext,
-  opts: { refresh?: boolean } = {},
+  opts: { refresh?: boolean; asOf?: string } = {},
 ): Promise<RegimeRead | null> {
   if (!spyBars.length) {
     spyBars = (await ctx.storage.get<Bar[]>(SPY_KEY).catch(() => null)) ?? [];
   }
   const last = spyBars[spyBars.length - 1]?.date ?? '';
   const stale = !last || last < isoDaysAgo(4);
-  if (opts.refresh && stale) {
-    // 2y: the regime needs 210 sessions and a 100-session ATR baseline on top.
-    const res = await ctx.data.getOHLCV(REGIME_SYMBOL, '2y').catch(() => null);
-    if (res?.bars?.length) {
+  // Planning a trade in the past needs SPY back to BEFORE that date, and by a year: the
+  // regime reads 210 sessions with a 100-session ATR baseline under it. The default 2y cache
+  // cannot answer for a date three years ago, and `regimeAsOf` would return null — which the
+  // grader reads as "market unknown", quietly dropping the heaviest criterion on the list.
+  const need = opts.asOf ? backADay(opts.asOf, 420) : '';
+  const tooShort = !!need && (spyBars[0]?.date ?? '9999') > need;
+  const period = tooShort ? longEnoughFor(need) : '2y';
+  if ((opts.refresh && stale) || tooShort) {
+    const res = await ctx.data.getOHLCV(REGIME_SYMBOL, period).catch(() => null);
+    // Only accept a fetch that is at least as long as what is held: a '2y' refresh must not
+    // truncate a 5y history fetched for a case study, or the next as-of read loses its answer.
+    if (res?.bars?.length && (res.bars.length >= spyBars.length || tooShort)) {
       spyBars = res.bars;
+      // Device-local (see SPY_KEY), so a longer history costs the sync nothing — which is why
+      // it is cached at all rather than re-fetched on every past date the user tries.
       await ctx.storage.set(SPY_KEY, spyBars).catch(() => {
         /* a full disk must not break the plan; the regime just stays uncached */
       });
@@ -217,10 +227,43 @@ export async function ensureRegime(
   return regime;
 }
 
+/**
+ * The regime as it stood on `date` — the market half of planning a trade in the past.
+ *
+ * ── WHY THIS CAN BE DONE AT ALL ─────────────────────────────────────────────
+ * `detectPlaybookRegime` is a pure function of a bar array, so the regime on a past date is
+ * the regime of the bars up to that date. Nothing else about it is remembered, which is the
+ * whole reason a historical plan can be honest about the market it was placed into: the
+ * alternative is scoring a 2024 breakout against today's tape, and the market criteria are the
+ * two heaviest on the checklist.
+ *
+ * Returns null when the cache does not reach back far enough — see `ensureRegime`'s `asOf`,
+ * which is what stops that being the normal answer. Null is not "no regime": the grader treats
+ * it as unmeasured, so the letter comes from the rest of the list rather than from a guess.
+ */
+export function regimeAsOf(date: string): RegimeRead | null {
+  if (!date) return regime;
+  const upTo = spyBars.filter((b) => b.date <= date);
+  return detectPlaybookRegime(upTo);
+}
+
 function isoDaysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().slice(0, 10);
+}
+
+/** `n` calendar days before an ISO date. Calendar, not sessions — this only sizes a fetch. */
+function backADay(iso: string, n: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** The shortest period that reaches back to `from`. */
+function longEnoughFor(from: string): '2y' | '5y' | 'max' {
+  const years = (Date.now() - new Date(from + 'T00:00:00').getTime()) / (365.25 * 864e5);
+  return years <= 1.8 ? '2y' : years <= 4.6 ? '5y' : 'max';
 }
 
 /** Whether the regime is old enough that the screen should say so. */
@@ -270,6 +313,14 @@ export interface BuyPlanInput {
   date: string;
   /** A–D conviction grade. Absent means ungraded, which is planned at full size. */
   rating?: ConvictionRating | null;
+  /**
+   * Read the market as it stood on `date` rather than today — for planning a past trade.
+   *
+   * Off by default, and deliberately not inferred from `date` being in the past: the Buy form
+   * backdates trades the user has ALREADY placed, and those were placed into today's market as
+   * far as the risk ladder is concerned. Only the planner in time-travel mode asks for this.
+   */
+  asOfRegime?: boolean;
 }
 
 export interface BuyPlan {
@@ -315,12 +366,15 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
 
   const equity = computeEquity(state, prices);
   const stage = riskStageOf(closedTradePnls(state), ladder);
+  // The market this plan is placed into. Today's, unless the caller is replaying a past date —
+  // see `asOfRegime`. Everything else on this line is account state, which has no past.
+  const rg = input.asOfRegime ? regimeAsOf(date) : regime;
   const budget = cfg.pinnedRiskPct === null
-    ? riskBudget(stage, { regime: regime?.regime ?? null, atrRatio: regime?.atrRatio ?? null }, ladder)
+    ? riskBudget(stage, { regime: rg?.regime ?? null, atrRatio: rg?.atrRatio ?? null }, ladder)
     // A pinned percent still respects "no new longs in a downtrend": that rule is
     // about whether to trade at all, not about how big, so pinning a size must not
     // quietly switch it off.
-    : pinnedBudget(cfg.pinnedRiskPct, stage, ladder);
+    : pinnedBudget(cfg.pinnedRiskPct, stage, ladder, rg);
 
   const size = suggestSize({
     equity,
@@ -346,7 +400,9 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
     levels,
     size,
     budget,
-    regime,
+    // The regime the size was actually decided by — as-of when the caller asked for it, so the
+    // explanation under the card names the market of the day it is planning.
+    regime: rg,
     equity,
     rating,
   };
@@ -364,8 +420,9 @@ function pinnedBudget(
   pct: number,
   stage: ReturnType<typeof riskStageOf>,
   ladder: RiskLadderConfig,
+  rg: RegimeRead | null,
 ): RiskBudget {
-  const auto = riskBudget(stage, { regime: regime?.regime ?? null, atrRatio: regime?.atrRatio ?? null }, ladder);
+  const auto = riskBudget(stage, { regime: rg?.regime ?? null, atrRatio: rg?.atrRatio ?? null }, ladder);
   if (auto.pct === 0) return auto; // a downtrend still means no new longs
   return { pct, maxPositions: stage.maxPositions, cuts: [], stage };
 }
