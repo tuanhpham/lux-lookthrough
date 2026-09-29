@@ -1828,6 +1828,9 @@ function cardReportInput(symbol: string): PlanReportInput | null {
     // The chart's bars, not the as-of slice: a plan with a recorded exit is a post-mortem, and
     // the same rule applies on paper as on the card — see `chartBars`.
     bars: chartBars(symbol),
+    // Already on screen, so the paper marks the same report dates the card does. Empty when the
+    // fetch has not landed yet, which simply draws no flags — the same as before.
+    earnings: (planEarnings.get(symbol) ?? []).map((r) => r.date),
     pctOfFull: rating ? ladderConfig().ratingPct[rating] : 100,
     vi: getLang() === 'vi',
     // Only when there is something to say. A plan printed before the trade must not carry a

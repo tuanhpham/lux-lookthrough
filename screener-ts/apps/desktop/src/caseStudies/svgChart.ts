@@ -34,6 +34,19 @@ export interface ChartSubject {
   /** Only picks the exit marker's colour — a plan with no exit is always 'open'. */
   outcome: CaseOutcome;
   catalysts: readonly Catalyst[];
+  /**
+   * Earnings report dates, `YYYY-MM-DD`. Dates only — the glyph carries no number.
+   *
+   * ── WHY NOT JUST FILE THEM AS CATALYSTS ─────────────────────────────────────
+   * A `Catalyst` is something the USER wrote down and it appears in the report's catalyst table.
+   * A report date is looked up from Nasdaq, is not a claim the user made, and belongs in no table
+   * — so mixing them would both put rows the user never typed into their own timeline and make
+   * "did I note the earnings risk" unanswerable. Separate field, separate glyph.
+   *
+   * Optional because `CaseStudy` satisfies this interface structurally and has no such field: a
+   * study rendered without them draws exactly what it drew before.
+   */
+  earnings?: readonly string[];
 }
 
 export interface CaseChartColors {
@@ -51,6 +64,9 @@ export interface CaseChartColors {
   stop: string;
   target: string;
   catalyst: string;
+  /** Earnings dots. Same purple as `EARN` in `ui/charts.ts`, so the printed report and the
+   *  interactive chart mark the same thing the same colour. */
+  earn: string;
   volAvg: string;
 }
 
@@ -71,6 +87,7 @@ export const DARK_CHART_COLORS: CaseChartColors = {
   stop: '#ff5266',
   target: '#18d89a',
   catalyst: '#c084fc',
+  earn: '#a855f7',
   volAvg: '#5c6575',
 };
 
@@ -288,6 +305,32 @@ export function caseSvgChart(
     parts.push(
       `<line x1="${cx.toFixed(1)}" y1="${padT}" x2="${cx.toFixed(1)}" y2="${(padT + 8).toFixed(1)}" stroke="${c.catalyst}" stroke-width="1.4"/>`,
       `<text x="${cx.toFixed(1)}" y="${(padT + 7).toFixed(1)}" text-anchor="middle" fill="${c.catalyst}" font-family="monospace" font-size="9">◆</text>`,
+    );
+  }
+
+  /*
+   * Earnings flags, one row BELOW the catalysts.
+   *
+   * ── WHY THE TOP BAND AND NOT UNDER THE CANDLE ───────────────────────────────
+   * The interactive chart puts its E below the bar, and copying that here would drop the glyph on
+   * top of the ENTRY ▲ (which sits at `low + 14`) whenever a report landed near the entry — which
+   * is precisely the case worth seeing. The top band is where this renderer already puts dated
+   * events, and a second row keeps a report date and a catalyst on the same day from overprinting
+   * each other.
+   *
+   * Only dates inside the window draw anything: `nearestIdx` snaps to the CLOSEST bar and would
+   * otherwise pin a report from six months outside the window onto the first or last candle, which
+   * reads as a fact rather than as a rounding error. Hence the range check first.
+   */
+  const earnTop = padT + 11;
+  for (const date of study.earnings ?? []) {
+    if (date < bars[0]!.date || date > bars[n - 1]!.date) continue;
+    const idx = nearestIdx(date);
+    if (idx < 0) continue;
+    const ex2 = x(idx);
+    parts.push(
+      `<line x1="${ex2.toFixed(1)}" y1="${earnTop}" x2="${ex2.toFixed(1)}" y2="${earnTop + 7}" stroke="${c.earn}" stroke-width="1.4"/>`,
+      `<text x="${ex2.toFixed(1)}" y="${earnTop + 16}" text-anchor="middle" fill="${c.earn}" font-family="monospace" font-size="9" font-weight="700">E</text>`,
     );
   }
 

@@ -52,6 +52,14 @@ export interface PlanReportInput {
   date: string;
   /** Daily bars for the chart. An empty array simply omits it. */
   bars: readonly Bar[];
+  /**
+   * Earnings report dates for the chart's E flags, `YYYY-MM-DD`. Omitted draws none.
+   *
+   * Passed in rather than fetched, for the same reason `fxRate` is: this module stays a pure
+   * function of its input so the report can be rendered in a test with no network. The caller has
+   * the dates already — the planner card has them on screen.
+   */
+  earnings?: readonly string[];
   /** Share of full size the effective letter allows, from the ladder. */
   pctOfFull: number;
   vi: boolean;
@@ -180,6 +188,7 @@ export function planReportHtml(i: PlanReportInput): string {
       out: { win: 'Thắng', loss: 'Thua', open: 'Đang mở', scratch: 'Hòa' } as Record<string, string>,
       foot: 'Tạo lúc {when} · The Professional — kế hoạch giao dịch · Chỉ dùng để học. Không phải lời khuyên đầu tư.',
       staleack: 'Xác nhận lúc {when}, với giá vào {entry} / cắt lỗ {stop}.',
+      earn: 'E = ngày công bố báo cáo (nguồn: Nasdaq, 4 quý gần nhất)',
     }
     : {
       plan: 'Trade plan', setup: 'Setup', date: 'Intended date',
@@ -199,6 +208,7 @@ export function planReportHtml(i: PlanReportInput): string {
       out: { win: 'Win', loss: 'Loss', open: 'Open', scratch: 'Scratch' } as Record<string, string>,
       foot: 'Generated {when} · The Professional — trade plan · Educational use only. Not financial advice.',
       staleack: 'Acknowledged {when}, against entry {entry} / stop {stop}.',
+      earn: 'E = earnings report date (source: Nasdaq, last 4 quarters)',
     };
 
   const gradeHex = i.effective ? (GRADE_HEX[i.effective] ?? '#99a2b2') : '#5c6575';
@@ -227,14 +237,25 @@ export function planReportHtml(i: PlanReportInput): string {
     exitDate: i.exit?.date ?? null,
     outcome: i.exit?.outcome ?? 'open',
     catalysts: [],
+    // Not catalysts: see `ChartSubject.earnings`. The plan's catalyst list stays empty because a
+    // plan has no user-written timeline on it — the case study it becomes is where that lives.
+    ...(i.earnings?.length ? { earnings: i.earnings } : {}),
   };
   const win = planWindow(i.bars, i.date);
   // No rate for euro levels means the lines cannot be placed against these candles at all.
   // A chart with the lines in the wrong place is worse than no chart, because it is the part
   // of this document a reader trusts without reading.
   const plottable = i.currency !== 'EUR' || fx > 0;
+  // The E flags need a caption for the same reason they do on the card: a purple letter under a
+  // candle explains nothing, and this document is read months later by somebody who may not
+  // remember what the app draws. Only shown when a flag actually landed in the window.
+  const earnInWin = (i.earnings ?? []).some(
+    (d) => win.length > 0 && d >= win[0]!.date && d <= win[win.length - 1]!.date,
+  );
   const chart = win.length >= 5 && plottable
-    ? `<div class="chart">${caseSvgChart(win, subject, { width: 980, height: 420 })}</div>`
+    ? `<div class="chart">${caseSvgChart(win, subject, { width: 980, height: 420 })}`
+      + (earnInWin ? `<div class="chart-note" style="color:#a855f7">${esc(L.earn)}</div>` : '')
+      + '</div>'
     : '';
 
   const bars = grade
@@ -322,6 +343,7 @@ export function planReportHtml(i: PlanReportInput): string {
   .toolbar { margin:16px 0; }
   button { background:#18d89a; color:#04130d; border:0; border-radius:8px; padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
   .chart { background:#0c0e13; border:1px solid #1d222c; border-radius:12px; padding:10px; margin:16px 0; }
+  .chart-note { font-size:11px; font-family:ui-monospace,monospace; margin-top:6px; }
   .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0; }
   .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; }
   .stat .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }

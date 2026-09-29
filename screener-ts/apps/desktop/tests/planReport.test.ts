@@ -218,6 +218,45 @@ describe('planReportHtml', () => {
     expect(planReportHtml(input({ fxRate: 1.2 }))).toContain('<svg');
   });
 
+  /*
+   * Earnings flags. The bars run 2026-01-01 → 2026-07-19 and the plan is dated 2026-07-15, so
+   * the chart's window is all of them (see `planWindow`).
+   *
+   * What is worth holding onto is the SNAPPING rule, not the glyph: the renderer puts a marker on
+   * the nearest trading day, which would silently pin a report from outside the window onto the
+   * first or last candle — a wrong date drawn as confidently as a right one. The caption matters
+   * for the same reason: an SVG "E" cannot be hovered, so if the document does not say what it
+   * means and where it came from, nothing does.
+   */
+  it('flags earnings dates inside the chart window, and captions them', () => {
+    const html = planReportHtml(input({ earnings: ['2026-05-20'] }));
+    expect(html).toContain('>E</text>');
+    expect(html).toContain('earnings report date');
+    expect(html).toContain('Nasdaq');
+  });
+
+  it('draws no flag for a report outside the window rather than snapping it to an edge', () => {
+    const html = planReportHtml(input({ earnings: ['2025-06-10', '2026-12-01'] }));
+    expect(html).not.toContain('>E</text>');
+    // No flags means no legend either: a caption explaining a glyph that is not there reads as
+    // a promise the chart did not keep.
+    expect(html).not.toContain('earnings report date');
+  });
+
+  it('is unchanged when no report dates are supplied', () => {
+    const html = planReportHtml(input());
+    expect(html).toContain('<svg');
+    expect(html).not.toContain('>E</text>');
+    // The class stays in the stylesheet either way; what must be absent is the element.
+    expect(html).not.toContain('<div class="chart-note"');
+  });
+
+  it('says it in Vietnamese too', () => {
+    const vi = planReportHtml(input({ earnings: ['2026-05-20'], vi: true }));
+    expect(vi).toContain('ngày công bố báo cáo');
+    expect(vi).not.toContain('earnings report date');
+  });
+
   it('prints a dash rather than a wrong number when a level is missing', () => {
     // Half-finished plans get printed too. A blank target must not become a 0:1 R:R.
     const html = planReportHtml(input({

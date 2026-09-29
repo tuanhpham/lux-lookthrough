@@ -44,6 +44,9 @@ import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
 import { planChartWindow } from '../portfolio/planExit.js';
 // Read at render time, not imported as a constant: the list includes the user's own rows.
 import { exitReasonKeyOfText, exitReasonList } from '../portfolio/exitReasons.js';
+// Report dates for the chart's E flags. Same source the planner card and the stock modal use, so
+// the three charts mark the same days — and it never throws, so a failed lookup just means no flags.
+import { fetchEarningsReports } from '../adapters/earningsDates.js';
 import { loadPlaybookConfig } from '../portfolio/playbook.js';
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
@@ -167,9 +170,17 @@ async function renderList(ctx: AppContext): Promise<void> {
 }
 
 // ── Detail view ─────────────────────────────────────────────────────────────────
+/**
+ * Which detail view is the current one. Bumped on every open so a late fetch that belongs to the
+ * study the user has already navigated away from stays out of the one now on screen — the element
+ * check alone cannot tell "my chart" from "somebody else's chart with my id's name on it".
+ */
+let detailToken = 0;
+
 async function openDetail(ctx: AppContext, id: string): Promise<void> {
   const root = $('#tab-casestudies')!;
   const vi = getLang() === 'vi';
+  const token = ++detailToken;
   const study = await loadCase(ctx, id);
   if (!study) return void renderList(ctx);
 
@@ -236,14 +247,40 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   // Fetch bars and draw the chart; window buttons redraw from the same bars.
   const bars = await fetchBars(ctx, study.symbol);
   let windowMonths = study.windowMonths;
+  /*
+   * Earnings report dates, filled in AFTER the first draw rather than awaited beside the bars.
+   * The chart is the reason this view exists, so it must not wait on a second network call to
+   * appear; when the dates land the chart is simply drawn again with them. Empty until then, and
+   * empty forever for a symbol Nasdaq has nothing on — either way the picture is the old one.
+   */
+  let earnDates: readonly string[] = [];
   const drawChart = () => {
     const win = windowBars(bars, study.keyDate, windowMonths);
     // `study` itself, not a spread with the live `windowMonths` folded in: the renderer takes
     // levels and dates only (see `ChartSubject`), and `windowBars` above has already applied
     // the window. The spread was copying a field the chart never read.
-    $('#cs-chart')!.innerHTML = caseSvgChart(win, study);
+    // The one field that IS spread in is `earnings`: report dates are not part of a stored study
+    // (see `ChartSubject.earnings` for why they are not catalysts), they are looked up per view.
+    const svg = caseSvgChart(win, { ...study, earnings: earnDates });
+    // Caption, because an SVG glyph cannot be hovered: it says what E means, where it came from,
+    // and — when nothing falls inside the window — why, since Nasdaq's four quarters cannot reach
+    // a study from two years ago and a silently flagless chart reads as a broken feature.
+    const lo = win[0]?.date ?? '';
+    const hi = win[win.length - 1]?.date ?? '';
+    const note = !earnDates.length || !win.length
+      ? ''
+      : earnDates.some((d) => d >= lo && d <= hi)
+        ? `<div class="tp-earnhint">${t('wl.plan.earn')} <span class="muted">· ${t('wl.plan.earnsrc')}</span></div>`
+        : `<div class="tp-earnhint"><span class="muted">${t('wl.plan.earnnone')}</span></div>`;
+    $('#cs-chart')!.innerHTML = svg + note;
   };
   drawChart();
+  void fetchEarningsReports(study.symbol).then((rows) => {
+    if (token !== detailToken) return;
+    earnDates = rows.map((r) => r.date);
+    // The view may also have gone back to the list, which leaves the token alone.
+    if (earnDates.length && $('#cs-chart')) drawChart();
+  });
   root.querySelectorAll<HTMLElement>('[data-win]').forEach((b) =>
     b.addEventListener('click', async () => {
       windowMonths = Number(b.dataset.win);
@@ -258,7 +295,9 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   );
 
   $('#cs-download')!.addEventListener('click', () => {
-    const html = caseStudyHtml({ ...study, windowMonths }, bars);
+    // Whatever the chart on screen is marking, the downloaded file marks too — including nothing,
+    // if the lookup found nothing or has not landed yet.
+    const html = caseStudyHtml({ ...study, windowMonths }, bars, earnDates);
     downloadHtml(html, `case-study-${study.symbol}-${study.keyDate}`);
   });
 
@@ -294,6 +333,10 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
         // filter written twice, because a post-mortem that framed the chart differently from the
         // card it was filed from would be a second opinion nobody asked for.
         bars: planChartWindow(bars, p.date, study.exitDate),
+        // Report dates are looked up now, not frozen into the plan when it was filed: a stored
+        // plan records what the app DECIDED, and where the earnings fell is a fact about the
+        // market that no amount of re-reading changes.
+        earnings: earnDates,
         pctOfFull: p.pctOfFull,
         vi,
         exit: {

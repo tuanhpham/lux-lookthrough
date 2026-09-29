@@ -96,6 +96,9 @@ import {
 import { gradePanelHtml } from '../portfolio/gradeView.js';
 import { ackLabel, buyGate, gateWords } from '../portfolio/buyGate.js';
 import { openPlanReport, printPlanReport, type PlanReportInput } from '../portfolio/planReport.js';
+// The E flags on that report's chart. Cached for 3 days and never throws, so calling it beside
+// the bars costs nothing a plan evaluation was not already paying.
+import { fetchEarningsReports } from '../adapters/earningsDates.js';
 // A buy freezes its plan under its own key, so opening a trade months later shows the plan it
 // was made on and not the one the symbol has now. See `planSnapshot.ts`.
 import {
@@ -288,6 +291,12 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   let noteSeed = '';
   /** The bars behind the panel, kept so the printable report has a chart to draw. */
   let lastBars: readonly Bar[] = [];
+  /**
+   * Report dates for that chart's E flags, loaded beside the bars in `run`. Kept next to
+   * `lastBars` and cleared with them, because a chart drawn from one symbol's bars with another
+   * symbol's earnings on it would be a statement about a trade nobody is making.
+   */
+  let lastEarn: readonly string[] = [];
 
   const symNow = (): string => tickerEl.value.trim().toUpperCase();
   const setupNow = (): SetupKey | '' => (isSetupKey(setupEl.value) ? setupEl.value : '');
@@ -488,6 +497,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
       if (me !== token) return;
       plan = loaded;
       lastBars = [];
+      lastEarn = [];
       grade = null;
       critOpen = false;
       // What the user chose for this symbol last time wins over whatever the previous
@@ -521,11 +531,15 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     // Anything that throws in here used to become an unhandled rejection, which on
     // screen is indistinguishable from the feature not existing. Say it instead.
     try {
-      const [bars] = await Promise.all([
+      const [bars, , earn] = await Promise.all([
         barsFor(ctx, sym),
         // First Setup of the session is also the first time the regime matters. Asking
         // for it here means the size ladder is not silently running without one.
         currentRegime() ? Promise.resolve(null) : ensureRegime(ctx, { refresh: true }).catch(() => null),
+        // Report dates for the printable plan's chart. Beside the bars rather than at print time
+        // so pressing 🖨 opens a document instead of starting a download — and it never throws,
+        // so a symbol Nasdaq has nothing on simply gets no flags.
+        fetchEarningsReports(sym),
       ]);
       if (me !== token) return;
       if (!bars.length) {
@@ -559,6 +573,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
       }
 
       lastBars = bars;
+      lastEarn = earn.map((r) => r.date);
       // Score the checklist. `scanQm` wants enough history to measure a base; below that it
       // would be reporting noise, so the trade stays ungraded and the gate says so.
       const scan = bars.length >= 60 ? scanQm(sym, bars) : null;
@@ -717,6 +732,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     critOpen = false;
     noteSeed = '';
     lastBars = [];
+    lastEarn = [];
     filled = { stop: '', target: '', shares: '' };
     for (const box of [tickerEl, priceEl, sharesEl, stopEl, targetEl]) box.value = '';
     setupEl.value = '';
@@ -785,6 +801,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
       ...(ccy === 'EUR' && hasEurUsd() ? { fxRate: eurUsdForDate(date) } : {}),
       date,
       bars: lastBars,
+      earnings: lastEarn,
       pctOfFull: effective() ? ladderConfig().ratingPct[effective()!] : 100,
       vi,
     };
@@ -1762,8 +1779,13 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const snap = await loadPlanSnapshot(ctx, b.dataset.planLot!);
         if (!snap) return;
         // Bars are fetched now rather than stored: by the time anyone opens this, the chart
-        // shows what the stock actually did next to the stop that was planned for it.
-        const bars = await barsFor(ctx, snap.symbol).catch(() => []);
+        // shows what the stock actually did next to the stop that was planned for it. The report
+        // dates come along for the same reason — where the earnings fell is a fact about the
+        // market, so re-reading it is not re-deciding anything.
+        const [bars, earn] = await Promise.all([
+          barsFor(ctx, snap.symbol).catch(() => []),
+          fetchEarningsReports(snap.symbol),
+        ]);
         openPlanReport(
           {
             plan: snap.plan,
@@ -1778,6 +1800,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
             ...(snap.currency === 'EUR' && hasEurUsd() ? { fxRate: eurUsdForDate(snap.date) } : {}),
             date: snap.date,
             bars,
+            earnings: earn.map((r) => r.date),
             pctOfFull: snap.pctOfFull,
             vi: getLang() === 'vi',
           },

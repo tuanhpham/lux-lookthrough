@@ -57,10 +57,26 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
     body:has(#ink:checked) .muted { color:#555; }
   }`;
 
-/** Render the full standalone HTML document for a case study. */
-export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
+/**
+ * Render the full standalone HTML document for a case study.
+ *
+ * `earnings` are report dates for the chart's E flags — passed in rather than looked up, so this
+ * stays a pure function of its input and can be rendered with no network. They are deliberately
+ * NOT merged into `study.catalysts`: see `ChartSubject.earnings`.
+ */
+export function caseStudyHtml(
+  study: CaseStudy,
+  bars: readonly Bar[],
+  earnings: readonly string[] = [],
+): string {
   const win = windowBars(bars, study.keyDate, study.windowMonths);
-  const svg = caseSvgChart(win, study, { width: 980, height: 420 });
+  const svg = caseSvgChart(win, { ...study, earnings }, { width: 980, height: 420 });
+  const earnInWin = earnings.some(
+    (d) => win.length > 0 && d >= win[0]!.date && d <= win[win.length - 1]!.date,
+  );
+  const earnNote = earnInWin
+    ? '<div class="chart-note" style="color:#a855f7">E = earnings report date (source: Nasdaq, last 4 quarters)</div>'
+    : '';
 
   const stat = (k: string, v: string, color?: string): string =>
     `<div class="stat"><div class="k">${esc(k)}</div><div class="v"${color ? ` style="color:${color}"` : ''}>${v}</div></div>`;
@@ -94,6 +110,7 @@ export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
   .toolbar { margin:16px 0; }
   button { background:#18d89a; color:#04130d; border:0; border-radius:8px; padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
   .chart { background:#0c0e13; border:1px solid #1d222c; border-radius:12px; padding:10px; margin:16px 0; }
+  .chart-note { font-size:11px; font-family:ui-monospace,monospace; margin-top:6px; }
   .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0; }
   .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; }
   .stat .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
@@ -117,7 +134,7 @@ ${PRINT_CSS}
   <p class="sub">${esc(study.title || '')}</p>
   <p class="sub">${esc(study.setupType)} · key date <b>${esc(study.keyDate)}</b> · ±${study.windowMonths} month window</p>
 
-  <div class="chart">${svg}</div>
+  <div class="chart">${svg}${earnNote}</div>
 
   <div class="grid">
     ${stat('Entry', money(study.entry), '#5b8cff')}
