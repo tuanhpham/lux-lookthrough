@@ -4136,3 +4136,90 @@ Commit `4f7b7521`, 5 file, 209 them / 32 xoa.
 - README §5.8 ghi sai cach restart, va hang rao ```bash o 671-680 chua dong.
 - Con theo doi rac: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o goc ma
   khong co `package.json` nao o goc.
+
+## CHAT-34 — Do thi ke hoach ve theo tien cua cac o gia, va panel khong bi dong khi doi ngay
+
+### A. Hai bao loi
+
+Nguyen van: "gio toi lai thay cac figures khac nhau o cac inputs (entry, target, stop) so voi cac so
+lieu tren do thi trong trade plan. 2. khi ma chuyen trade date hay click refresh, the trade plan just
+close, that's not good".
+
+### B. Loi 1 — do thi va cac o gia noi hai con so khac nhau
+
+Cac o Entry / Stop / Target chay theo `planCcy`, va `planCcy` tu chuyen sang EUR khi chon mot tai
+khoan EUR. Bars thi la gia dong USD nguyen ban. Code cu xu ly bang cach doi NGUOC: nhan muc gia len
+ty gia (`levelToUsd` tren the, `chartPx` trong ban in) de ve duong len nen USD.
+
+Duong nam DUNG CHO — 100 euro thuc su la 117 do — nhung nhan nhan mot con so ma cai form ngay ben
+canh khong he noi, va truc gia cung the. Mot the noi hai gia khac nhau cho cung mot muc la mot the
+khong ai kiem tra duoc. Do la dung cai nguoi dung nhin thay.
+
+Sua: doi CA CUA SO BARS sang tien cua cac o (`planExit.inCurrency(bars, rate)`), muc gia di vao do
+thi nguyen ban. Duong va o nhap luon doc ra cung mot so.
+
+Mot ty gia cho ca cua so, la ty gia CUA NGAY GIAO DICH, khong phai ty gia rieng cua tung ngay. Ket
+qua la hinh dang USD nhan mot hang so: y nguyen cay nen, y nguyen EMA, y nguyen cac doan co lai, chi
+doi nhan tren truc. Neu doi theo ty gia tung ngay thi se "dung hon" ve mat mot chuoi tien te va SAI
+ve mat mot do thi — price action ma setup duoc cham diem tren do se chua ca nhung buoc chan cua dong
+euro, va mot cai nen co the that lai hay vo chi vi ty gia. Phan con lai cua the von da nam trong khung
+ty gia cua ngay giao dich (`usdToLevel`, `plannedPrice`).
+
+Ap dung cho ca hai do thi: do thi tren the (`paintPlanChart`) va do thi trong ban ke hoach in ra
+(`planReport`). Khoa dung lai cache cua `paintPlanChart` co them `planCcy` va ty gia, vi doi tien hay
+doi ngay giao dich lam moi gia tren truc thay doi — phai ve lai chu khong phai chi day cac duong.
+
+Giu nguyen mot quy tac cu: EUR ma khong co ty gia thi KHONG ve do thi. Mot do thi voi cac duong sai
+cho te hon la khong co do thi, vi do la phan nguoi doc tin ma khong kiem tra.
+
+### C. Loi 2 — panel bi dong khi doi ngay hoac nhan ↺
+
+`tradePlannerIsIn` so bang `===`, con `closeTradePlanner(onlyInside)` dung `contains`. Hai ham nay
+luon duoc dung thanh mot doi (`if (tradePlannerIsIn(x)) closeTradePlanner(x)`) nen chung phai hieu
+cung mot nghia cho cung mot doi so — va chung da noi khac nhau.
+
+Trang co phieu hoi ve `#modal-body`, con panel nam trong `#sm-plan-panel` BEN TRONG do. Ham tra ve
+"khong co panel o day", `plannerWasOpen` luon la false, trang van go panel di (qua `contains`), roi
+khong biet la phai gan no tro lai. Nen doi Trade Date, hoac nhan ↺, lam mat cai panel dang lam viec.
+
+Day la loi cua chinh CHAT-33: co che gan lai panel da viet dung nhung duoc hoi bang mot cau hoi luon
+tra ve false. Sua bang cach cho `tradePlannerIsIn` dung `contains` nhu ham kia.
+
+### D. Test
+
+Trong `tests/planReport.test.ts`:
+- Test moi: ban ke hoach EUR voi ty gia 1.17 thi do thi ghi `ENT 100.00`, `STP 95.00`, `TGT 130.00`,
+  va KHONG duoc co `ENT 117.00`; bang so lieu van la €100.00.
+- Test cu "puts euro levels back into dollars for the chart" doi ten thanh "needs a rate before it
+  will draw a euro plan at all". Ten va chu thich cu MO TA CHINH CAI LOI vua sua — no van xanh vi chi
+  kiem tra co `<svg>` hay khong, nhung de nguyen thi lan sau doc lai se tuong hanh vi cu la dung. Gop
+  luon them mot khang dinh: EUR khong ty gia thi khong co do thi nhung phan con lai cua ke hoach van
+  in.
+
+`tsc --noEmit` sach, 266 + 790 test xanh (266 chu khong phai 267 vi gop hai test lam mot).
+
+### E. Cac file
+
+- `apps/desktop/src/portfolio/planExit.ts` — them `inCurrency`.
+- `apps/desktop/src/portfolio/planReport.ts` — bars doi tien, muc gia nguyen ban.
+- `apps/desktop/src/portfolio/tradePlanner.ts` — `paintPlanChart` doi tien bars + khoa cache co tien
+  va ty gia; `tradePlannerIsIn` dung `contains`.
+- `apps/desktop/tests/planReport.test.ts` — 2 test moi.
+
+Commit `ff865766`, 4 file, 102 them / 23 xoa.
+
+### F. Con no
+
+- `CaseStudy` khong co truong `currency` rieng (chi co `study.plan?.currency`), nen
+  `caseStudies/report.ts` ve muc gia EUR cua mot ho so da luu len nen USD — cung loai loi, can tra
+  ty gia theo `keyDate`. Chua sua.
+- Commit `f0b6b0e9` ghi "22 tieu chi" trong khi la 26; sua phai force-push nen de nguyen o day.
+- Build Pages cua lux-lookthrough dang do: can `wrangler pages deploy dist --project-name
+  the-professional` tu `apps/desktop`, chay o may kia.
+- Scanner VM im tu 28/09/2026: doc thi duoc nen loi o phia VM, can SSH tu may kia.
+- Tro ly chua co web search; khoang trong la tin tuc va catalyst.
+- Nap stop `maxStopRef: 'deeper'` van la gia dinh cua toi, nguoi dung chua noi ro.
+- Ghi chu le cho tung muc trong sach Learn.
+- README §5.8 ghi sai cach restart, va hang rao ```bash o 671-680 chua dong.
+- Con theo doi rac: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o goc ma
+  khong co `package.json` nao o goc.
