@@ -3437,3 +3437,154 @@ can do tim.
   --project-name the-professional` tu apps/desktop tren may co dang nhap Cloudflare.
 - Web search cho assistant: chua lam.
 - Tran cat lo van dang mac dinh min ('deeper') theo gia dinh cua toi, chua co xac nhan.
+
+## CHAT-29 — Ke hoach giao dich tinh theo mot ngay trong qua khu, hoi ChatGPT cac tieu chi con lai, gia/ly do thoat, va luu thanh case study
+
+Commit: 300aad7b, 1ed5199e, 56960ab9, 364105d7, 1579c7be, 3323b042.
+
+### A. Yeu cau
+
+Nguyen van cua user, gom bay phan:
+
+1. Doi ngay giao dich ve mot ngay trong qua khu thi MOI THU phai tinh lai theo dung thoi
+   diem do — cac danh gia, entry, stop, target, tat ca.
+2. Luu duoc thanh case study, va "innovate cai case study saving luon".
+3. Mot nut "Ask ChatGPT" chay mot prompt cho tat ca cac tieu chi con lai (loai yes/no) de
+   user tu nghien cuu tai thoi diem do, ChatGPT giai thich va viet mot doan summary de copy
+   vao ghi chu.
+4. Do thi trong trade plan nen co them GIA THOAT de user dien khi muon luu thanh case study
+   — con neu chi de MUA thi khong can.
+5. Phan thoat nen co mot cho de bo LY DO vao.
+6. Trang trade plan nen co nut XEM ke hoach, chu hien tai chi co in/tai file xuong.
+7. Khi print to PDF thi khong giu duoc mau nen dep nhu tren HTML — phai giu duoc.
+
+### B. Du lich thoi gian lam bang cach cat nen, khong phai tinh lai cong thuc
+
+Diem then chot: khong co cong thuc nao bi sua. Chi co mot viec duy nhat — cat bo nhung nen
+sau ngay da chon, roi cho toan bo may cham diem chay tren phan con lai.
+
+- `asOfBars()` giu lai cac nen co `date <= planDate`.
+- `planBars` giu phan da cat (day la thu duy nhat viec cham diem duoc nhin thay).
+- `planAllBars` giu toan bo nen da tai ve.
+- `planPeriod()` noi rong khoang tai ve, vi mot ngay cach day hai nam van can 8 thang nen
+  phia truoc no de ve duoc cai nen gia.
+
+Nhung gi KHONG the tinh lai, va da noi ro tren man hinh bang mot dong mau ho phach
+(`.tp-asof-bar`): so tien trong tai khoan, so co dang giu, va cac muc cat lo dang cho o
+scanner. Day la so du that o thoi diem HIEN TAI, khong phai o thoi diem trong qua khu; app
+khong luu lai lich su so du theo tung ngay nen khong the dung giao dich do de tinh co vi the
+"dang duoc phep mua bao nhieu" vao thang 5 nam ngoai. Noi ro thay vi doan la vi mot con so
+co vi the sai se dan den mot ket luan sai ve ky luat cua chinh minh.
+
+### C. Nut Hoi ChatGPT cho cac tieu chi con lai
+
+- Chi gui nhung tieu chi con LAI: nhung cau yes/no ma may khong tu do duoc (tin tuc, cau
+  chuyen, chat luong loi nhuan...). Nhung cai da do tu nen gia thi khong hoi, vi hoi lai la
+  moi ChatGPT doan mot con so app da biet chac.
+- Prompt mang theo ngay giao dich va yeu cau ChatGPT tra loi NHU THE dang dung o ngay do,
+  khong duoc dung thong tin sau ngay do. Day la yeu cau kho nhat va cung la cai de sai
+  nhat — nen prompt noi thang ra, khong an y.
+- Tra ve: tung tieu chi mot dong yes/no kem giai thich ngan, cong mot doan summary cuoi de
+  copy thang vao ghi chu ke hoach.
+- Khong tu dong tick ho vao bang tieu chi. User doc, roi tu quyet dinh — mot cau tra loi cua
+  may tu tick vao so tay se thanh "bang chung" trong ban post-mortem sau nay.
+
+### D. Gia thoat va ly do thoat
+
+- Khung "Ket thuc giao dich" tren the ke hoach: ngay thoat, gia thoat, ly do (chon tu danh
+  sach 10 muc san), va mot o de viet ro bang loi cua minh.
+- Tat ca KHONG bat buoc, va khong bao gio nam trong `buyBlocker`. Dat ngay hom nay thi khung
+  gap lai san va co chu "khong bat buoc"; dat ngay trong qua khu thi mo ra san. Dung y
+  "con neu ma buy thi khong can nhe".
+- Vi sao co CA danh sach CO SAN va CA o tu viet: cau viet tay moi mang bai hoc, nhung mot so
+  tay chi dang giu neu doc lai duoc theo nhom — cau hoi "nhung lan minh ban vi so thi ket
+  qua the nao" khong the tra loi duoc tu muoi cau viet khac nhau.
+- Tinh ngay tai cho: ket qua R, lai/lo phan tram, lai/lo tien, so ngay giu, ket luan.
+  - R tinh theo CAT LO DA LEN KE HOACH, khong phai theo cho thuc su ban ra. Ban o 96 voi cat
+    lo 90 thi do la mot lan thua 0.4R — vi R la so sanh ket qua voi phan minh CO Y dat ra de
+    mat.
+  - Hoa (`scratch`) khi chenh duoi 0.25%. Mot so tay ma moi lan +0.1% cung ghi la thang se
+    bao mot ty le thang thuc chat la ty le tung xu.
+  - So ngay giu KHONG bi chan duoi 0: thoat truoc ngay vao la user nhap sai, va hien -5 ngay
+    la cach de thay.
+- Du lieu thoat nam trong `PlanEdit` (tam thoi), KHONG ghi vao `SymbolPlan`. Vi `plan:NVDA`
+  la ke hoach cho lan mua NVDA TIEP THEO; mot lan thoat ghi o do se con nam tren the do den
+  sang nam, dinh kem cac muc gia da duoc tinh lai, ke ve mot giao dich dong cua ca nam
+  truoc. Gia phai tra — dong panel truoc khi luu thi mat phan vua nhap — duoc chap nhan, vi
+  nut Luu nam ngay canh cac o do.
+
+### E. Luu thanh case study, va nut Xem ke hoach trong tab Case Studies
+
+- Khong lam so tay thu hai. Mo rong chinh `CaseStudy` dang co, them hai truong tuy chon:
+  `exitReason` (mot dong, ly do dong vi the) va `plan` (ban ke hoach dong bang).
+- `CasePlan = Omit<PlanSnapshot,'lotId'>`: dung lai dung hinh dang cua ban dong bang theo lo
+  mua, nen chi co MOT bo ma ve ban ke hoach trong ca app. Bo `lotId` vi mot case study co
+  the duoc dung lai cho mot giao dich chua tung duoc ghi vao tai khoan nao — do chinh la ly
+  do cho phep dat ngay giao dich vao qua khu.
+- Doi cac muc gia sang USD khi luu: `CaseStudy` khong co truong tien te nao ca, va do thi cua
+  no ve cac so nay nhu duong gia tren nen gia tho (tuc la dong do). Mot muc 198 EUR luu vao
+  do se in ra "$198.00" ben canh mot cay nen 232 do.
+- Trong tab Case Studies, ho so nao co `plan` thi co nut "Xem ke hoach": doc lai hang, bang
+  tieu chi va cac muc gia dung nhu luc quyet dinh. KHONG tinh lai `pctOfFull` theo bang
+  ladder hom nay — luu san chinh la de mot giao dich cu khong bi ke lai theo luat moi.
+- Gia thoat doi nguoc ve tien te cua ke hoach bang ty gia cua NGAY LEN KE HOACH, khong phai
+  ngay thoat: mot ket qua R ghep tu mot gia vao o ty gia nay va mot gia ra o ty gia khac thi
+  mot phan cua no la bien dong ty gia. Neu khong biet ty gia nao ca thi de dau gach ngang,
+  khong in con so do voi dau euro.
+- Do thi chi duoc chay qua ngay giao dich khi da co ngay thoat, va dung dung TAI ngay do.
+  Phan cham diem khong bao gio thay nhung nen nay. `planChartSpan` buoc ve lai ca do thi khi
+  khoang ngay doi, vi `setOverlay` doi duoc duong ke chu khong them duoc nen.
+
+### F. Nut Xem ke hoach, va giu mau khi in ra PDF
+
+- Nut "Xem ke hoach" mo ban HTML ngay trong app bang mot iframe `sandbox` KHONG co
+  `allow-scripts` — ban do la mot tai lieu, khong duoc chay bat ky thu gi. Do do moi dieu
+  khien ben trong tai lieu phai lam bang CSS thuan.
+- Mau nen bi mat khi in la do HAI thu, sua mot cai thi khong doi gi:
+  1. Trinh duyet tu dong bo mau nen khi in de tiet kiem muc. `print-color-adjust: exact`
+     (va ban `-webkit-`) la cach duy nhat xin lai.
+  2. Chinh bang CSS cua ban in DANG tu doi trang: `@media print { body { background:#fff;
+     color:#000 } }`. Dong nay thang moi thu, nen sua that la XOA no di.
+- Muc in van la chi phi that, nen lua chon duoc chuyen cho nguoi doc: mot o tich "In tren
+  giay trang (tiet kiem muc)", lam bang `:has()` va khong mot dong script. `display:none` o
+  thanh cong cu khong ngan `#ink:checked` khop, nen o tich giu duoc trang thai trong khi bi
+  an khoi trang giay.
+- Ap dung y nguyen cho ban HTML cua case study (`caseStudies/report.ts`) — no van con dung
+  dong bat trang cu.
+
+### G. Da chay
+
+- packages/core: build sach, 790/790 test pass (50 tep). Khong doi gi ben core ngoai
+  `SETUP_KEYS`.
+- apps/desktop: tsc sach, 220/220 test pass (16 tep) — tang 24 test, tat ca trong
+  `tests/planExit.test.ts`.
+- package-lock.json khong doi.
+- Toan bo phan tinh toan co the sai duoc day vao `portfolio/planExit.ts`, vi vitest ben app
+  chay environment node (khong co jsdom) nen chi ham thuan moi kiem tra duoc.
+
+### H. Phai tan mat xem lai
+
+- Doi ngay giao dich ve mot ngay trong qua khu: hang, diem, bang tieu chi va cac muc gia
+  deu doi, va do thi dung lai o dung ngay do.
+- Dong mau ho phach noi ro cai gi khong tinh lai duoc — phai thay no khi dat ngay qua khu,
+  va khong thay khi dat ngay hom nay.
+- Nut Mua van bam duoc khi chua dien gi vao khung thoat.
+- Dien gia thoat: nam o thong ke hien ra, va duong thoat mau tim hien tren do thi.
+- Dien ngay thoat sau ngay giao dich: do thi dai ra tan ngay do va KHONG di xa hon.
+- Nut Luu thanh case study: hoi tieu de, luu xong mo tab Case Studies thay dung ho so.
+- Trong ho so do: nut "Xem ke hoach" hien ra, bang tieu chi dung nhu luc luu.
+- In ban ke hoach va ban case study ra PDF: mau nen con nguyen. Tich o tiet kiem muc thi ra
+  ban trang, va chu mo van doc duoc.
+- Doi ngon ngu sang tieng Viet: khung thoat, danh sach ly do va ban in deu doi theo.
+
+### I. Con no (giu nguyen tu CHAT-28)
+
+- Loi nhan f0b6b0e9 viet "22 tieu chi" (dung la 26) — sua phai force-push, de nguyen.
+- Ban build Pages cua lux-lookthrough van do: chay `wrangler pages deploy dist
+  --project-name the-professional` tu apps/desktop tren may co dang nhap Cloudflare.
+- Scanner khong day tin ke tu 28-09-2026: doc van duoc nen loi nam o phia VM, can SSH tu may
+  kia.
+- Web search cho assistant: chua lam.
+- Tran cat lo van dang mac dinh min ('deeper') theo gia dinh cua toi, chua co xac nhan.
+- Ghi chu le ben canh tung muc cho sach Learn: chua lam.
+- README muc 5.8 ghi sai cach restart, va con mot khoi ```bash chua dong o dong 671-680.
