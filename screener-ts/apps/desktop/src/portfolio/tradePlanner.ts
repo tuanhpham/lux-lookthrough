@@ -242,12 +242,18 @@ async function renderPlannerPanel(ctx: AppContext): Promise<void> {
   dateEl?.addEventListener('change', () => {
     // An emptied box means "today" rather than nothing: a plan has to be dated to be sized.
     const before = planRate();
+    const wasDate = planDate;
     planDate = dateEl.value || today();
     dateEl.value = planDate;
-    // In euros the boxes are a USD level seen through the date's rate, so a new date is a new
-    // euro figure for the same trade. Without this the lines would slide against the candles.
-    const after = planRate();
-    if (planCcy === 'EUR' && before > 0 && after > 0) rescaleLevels(before / after);
+    if (planDate !== wasDate) {
+      // A NEW QUESTION, not the same question re-dated. See `planDateMoved`.
+      planDateMoved = true;
+      // In euros the exit price the user typed is a USD fill seen through the date's rate, so a
+      // new date is a new euro figure for the same fill. The three planned levels are about to
+      // be re-derived from the new as-of bars, so only the carried exit needs this.
+      const after = planRate();
+      if (planCcy === 'EUR' && before > 0 && after > 0) rescaleLevels(before / after);
+    }
     void computePlans(ctx);
   });
 
@@ -374,8 +380,10 @@ async function computePlans(ctx: AppContext): Promise<void> {
   const vi = getLang() === 'vi';
   const lang = getLang();
   const rows = plans.map(({ scan, plan }) => {
-    // Seed the editable state once per symbol; keep any prior user edits.
-    const prev = planEdits.get(plan.symbol);
+    // Seed the editable state once per symbol; keep any prior user edits — unless the trade date
+    // has moved, in which case every derived field belongs to the old date. See `planDateMoved`.
+    const carried = planEdits.get(plan.symbol);
+    const prev = planDateMoved ? undefined : carried;
     const saved = stored.get(plan.symbol);
     const edit: PlanEdit = prev ?? {
       // `buildTradePlan` reads the bars, so its seed is USD; the boxes are in `planCcy`.
@@ -411,10 +419,11 @@ async function computePlans(ctx: AppContext): Promise<void> {
       // Nothing to seed it from: an exit is a fact about a trade that happened, and the app has
       // no way to know whether one did. Deriving it from a lot in the account was considered and
       // rejected — the sells there are one account's bookkeeping, while a case study is often
-      // reconstructed for a trade this app never held.
-      exit: emptyExit(),
-      exitPxSuggested: null,
-      exitOpen: isPastPlan(),
+      // reconstructed for a trade this app never held. Carried across a date move, though: the
+      // date the plan is dated changed, the fill the user typed off a statement did not.
+      exit: carried?.exit ?? emptyExit(),
+      exitPxSuggested: carried?.exitPxSuggested ?? null,
+      exitOpen: carried?.exitOpen ?? isPastPlan(),
     };
     planEdits.set(plan.symbol, edit);
 
@@ -498,6 +507,10 @@ async function computePlans(ctx: AppContext): Promise<void> {
         <div class="tp-note note-html" data-tp-note="${S}">${edit.note ?? ''}</div>
       </div>`;
   });
+
+  // Every card has now been rebuilt against the new date, so the next recompute — ↻ Run, a
+  // playbook change, a new equity figure — is once again allowed to keep what the user typed.
+  planDateMoved = false;
 
   out.innerHTML = rows.join('');
   paintPlanStatus();
@@ -594,6 +607,32 @@ interface PlanEdit {
   exitOpen: boolean;
 }
 const planEdits = new Map<string, PlanEdit>();
+
+/**
+ * Has the trade date moved since the cards were seeded?
+ *
+ * ── WHY A RECOMPUTE WAS NOT ENOUGH ──────────────────────────────────────────
+ * The user's "khi ma chon Trade Date, the entry price, target, stop co ve nhu khong thay doi va
+ * van lay theo ngay hien tai … khi chon trade date thi moi thu phai duoc refresh". They were
+ * right, and `computePlans` was not the bug — it already re-scans the as-of slice. The bug was one
+ * line further on: the seed read `planEdits.get(sym) ?? {…}`, and "keep any prior user edits" also
+ * kept the three levels derived from the PREVIOUS date. So the score, the contractions and the RS
+ * all moved to 2024 while the entry, stop and target stayed at today's price — and because the
+ * reward-to-risk and stop-distance criteria are computed FROM those levels, two of the graded
+ * criteria were being judged on numbers from the wrong year.
+ *
+ * So a date move re-seeds the card from the new bars. What the user OWNS is not lost: the setup,
+ * the criteria answers, the grade override and an edited note all live in the stored plan and come
+ * straight back through `stored`, exactly as they do when the panel is opened fresh. The exit is
+ * carried across by hand because it is the one thing on the card that is not persisted anywhere
+ * (see `PlanEdit.exit`) — and because an exit is a fact about a real trade, which re-dating the
+ * plan does not undo.
+ *
+ * Not a "levels are stale" flag on each card: the whole point is that EVERY derived field is
+ * stale, including the explain narrative and the screener's setup guess.
+ */
+let planDateMoved = false;
+
 /** The bars the card is planned on: everything up to and including the trade date. */
 const planBars = new Map<string, Bar[]>();
 /** Every bar fetched, including after the trade date. Only the chart may look at these. */
@@ -859,11 +898,19 @@ function levelToUsd(v: number): number {
   return planCcy === 'EUR' && r > 0 ? v * r : v;
 }
 
-/** The other direction, for seeding a box from a number that came off the bars. */
+/**
+ * The other direction, for seeding a box from a number that came off the bars.
+ *
+ * Two decimals in BOTH directions, not just after a conversion. The user's "exit price thi nen
+ * rounded toi 2 decimal thoi": a raw close out of the cache is a float like 198.44000244140625, and
+ * put straight into a number input that is what the user is asked to accept as their fill — and
+ * what the R multiple is then computed from. A price is quoted in cents; anything past them is the
+ * storage format leaking into the form.
+ */
 function usdToLevel(v: number | null | undefined): number | null {
   if (v === null || v === undefined || !Number.isFinite(v)) return null;
   const r = planRate();
-  return planCcy === 'EUR' && r > 0 ? round2(v / r) : v;
+  return round2(planCcy === 'EUR' && r > 0 ? v / r : v);
 }
 
 /** A level out of the boxes → account-currency money, for the position and risk figures. */
