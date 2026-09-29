@@ -4425,3 +4425,207 @@ html.light .chat-shell::before {
   #chat-fab { right: 14px; bottom: 14px; width: 44px; height: 44px; }
   #chat-fab .yy { width: 27px; height: 27px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ⚙ PLAYBOOK SETTINGS  (ui/playbookSettings.ts + ui/playbookHelp.ts)
+   ══════════════════════════════════════════════════════════════════════════
+   The one dialog in the app that is mostly PROSE with boxes in it, rather than
+   boxes with labels. That is deliberate: the report it answers was "I do not
+   know what Stop anchor, N sessions or Pad are, and I do not know what that
+   first line of SPY numbers is or where it comes from". None of that is fixable
+   by moving inputs around, so the dialog explains itself and the styles here
+   exist to keep eleven columns of explanation readable.
+
+   ── THE ONE IDEA WORTH KNOWING ──
+   Three colours carry meaning and they carry it everywhere: --danger is the
+   stop (where the idea is wrong), --accent is the target (where it is right),
+   --violet is the runner (how the rest is managed). A column header, its legend
+   card and its step in the worked example are the same colour, which is what
+   lets the eye connect "Pad %" in the table to the paragraph explaining it.
+   Every element that takes part reads `--pb-tone`, set inline by the renderer;
+   nothing here hard-codes one of the three, so the same rules serve all three
+   groups and the regime card's four states. */
+
+/* Wider than the default modal: the rules table is 11 columns and the legend
+   reads as three columns of prose. Still `vw`-bounded, so a phone gets one. */
+.pb-modal { width: min(1120px, 96vw); }
+
+/* ── the regime card ──
+   A left stripe rather than a full tint: the card holds five numbers and a
+   sentence, and a tinted panel behind small text is where legibility goes. */
+.pb-hero {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pb-tone, var(--border));
+  border-radius: var(--radius);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--pb-tone, var(--border)) 8%, transparent), transparent 42%),
+    var(--surface);
+  padding: 13px 15px;
+}
+.pb-hero-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pb-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 999px;
+  font: 700 13px/1.2 var(--font-ui); letter-spacing: -.01em;
+  color: var(--pb-tone, var(--text));
+  background: color-mix(in srgb, var(--pb-tone, var(--border)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pb-tone, var(--border)) 40%, transparent);
+}
+/* The size consequence, said next to the label that causes it. */
+.pb-pill-note { font-size: 12px; color: var(--subtext); }
+.pb-pill-note b { color: var(--pb-tone, var(--text)); }
+.pb-why { margin: 9px 0 0; font-size: 12px; line-height: 1.6; color: var(--subtext); }
+.pb-why b { color: var(--text); font-weight: 600; }
+
+/* ── the five SPY numbers ──
+   `auto-fit` and not a fixed five: on a phone this becomes two columns rather
+   than five 60px slivers, and the note under each value stays readable. */
+.pb-stats {
+  display: grid; gap: 7px; margin-top: 11px;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+}
+.pb-stat {
+  background: var(--card); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); padding: 8px 10px;
+}
+.pb-stat-k {
+  font: 700 9.5px var(--font-ui); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--faint);
+}
+.pb-stat-v {
+  font: 600 15px var(--font-mono); margin-top: 2px; letter-spacing: -.02em;
+  display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
+}
+/* "above" / "below" / "rising" — the comparison the number exists to make. */
+.pb-rel { font: 700 10px var(--font-ui); letter-spacing: .02em; }
+.pb-stat-n { font-size: 10.5px; line-height: 1.45; color: var(--faint); margin-top: 4px; }
+
+/* ── the risk chain ──
+   Base percent, then one chip per cut, then the answer. Written as a row of
+   chips because the cuts MULTIPLY, and a bulleted list would not say that. */
+.pb-chain { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+.pb-chain-arrow { color: var(--faint); font-size: 13px; }
+.pb-cut {
+  padding: 2px 9px; border-radius: 999px; font: 600 11px var(--font-ui);
+  color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+}
+.pb-final {
+  font: 700 17px var(--font-mono); letter-spacing: -.03em;
+  color: var(--pb-tone, var(--accent));
+}
+
+/* ── a coloured section heading ──
+   The group's colour appears here first, so the table header and the legend
+   below it are already explained by the time they are read. */
+.pb-sec {
+  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+  margin: 18px 0 7px; padding-left: 9px;
+  border-left: 3px solid var(--pb-tone, var(--accent));
+}
+.pb-sec-t {
+  font: 700 11.5px var(--font-ui); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--pb-tone, var(--text));
+}
+.pb-sec-s { font-size: 11.5px; color: var(--faint); }
+
+/* ── the legend ──
+   One card per column, in table order, tinted by group. `min(100%, 290px)`
+   because these hold long unbroken Vietnamese words that would otherwise
+   widen the grid past the panel. */
+.pb-legend { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); }
+.pb-legend-card {
+  background: var(--card); border: 1px solid var(--border-soft);
+  border-left: 2px solid color-mix(in srgb, var(--pb-tone, var(--border)) 60%, transparent);
+  border-radius: var(--radius-sm); padding: 9px 11px; min-width: 0;
+}
+.pb-legend-h {
+  font: 700 12px var(--font-ui); color: var(--pb-tone, var(--text));
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+}
+/* The column's position in the table, so "the third one along" is findable. */
+.pb-legend-n {
+  flex: none; width: 16px; height: 16px; border-radius: 4px;
+  display: grid; place-items: center;
+  font: 700 9.5px var(--font-mono); color: var(--pb-tone, var(--text));
+  background: color-mix(in srgb, var(--pb-tone, var(--border)) 16%, transparent);
+}
+.pb-legend-w { font-size: 11.5px; line-height: 1.55; color: var(--text); }
+.pb-legend-y { font-size: 11.5px; line-height: 1.55; color: var(--subtext); margin-top: 5px; }
+.pb-legend-y b, .pb-legend-w b { color: var(--text); font-weight: 600; }
+
+/* ── the rules table ──
+   `--pb-tone` is set per cell by the renderer, so a column's tint comes from the
+   same table that produced its header and its legend card. */
+.pb-tbl { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 900px; }
+.pb-tbl th, .pb-tbl td { border-bottom: 1px solid var(--border-soft); }
+/* A band naming the three groups, above the column names. */
+.pb-tbl .pb-gh {
+  padding: 4px 7px; text-align: center; border-bottom: 0; position: static;
+  font: 700 9.5px var(--font-ui); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--pb-tone, var(--faint));
+  background: color-mix(in srgb, var(--pb-tone, var(--border)) 11%, transparent);
+}
+.pb-tbl .pb-ch {
+  padding: 5px 7px; text-align: right; white-space: nowrap; position: static;
+  font: 600 10.5px var(--font-ui); letter-spacing: .02em; text-transform: none;
+  color: var(--pb-tone, var(--faint));
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--pb-tone, var(--border)) 5%, transparent);
+}
+.pb-tbl td { padding: 3px 7px; background: color-mix(in srgb, var(--pb-tone, transparent) 4%, transparent); }
+/* Rows here are not clickable, so they must not offer the hover a table row
+   normally does — there is nothing behind them to open. */
+.pb-tbl tbody tr { cursor: default; }
+.pb-tbl tbody tr:hover { background: transparent; }
+.pb-tbl .pb-name { padding: 5px 7px; white-space: nowrap; color: var(--text); }
+/* A hairline where one group ends and the next begins — cheaper than a gap, and
+   it survives horizontal scrolling. */
+.pb-tbl .pb-gstart { border-left: 1px solid var(--border); }
+
+/* ── the worked example ──
+   Chart on the left, arithmetic on the right; stacked on a narrow panel. */
+.pb-eg { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 860px) { .pb-eg { grid-template-columns: 1fr; } }
+.pb-eg-fig {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); padding: 6px 8px 2px;
+}
+.pb-eg-cap { font-size: 10.5px; line-height: 1.5; color: var(--faint); padding: 0 2px 6px; }
+.pb-steps { display: flex; flex-direction: column; gap: 4px; }
+.pb-step {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline;
+  padding: 6px 9px; border-radius: var(--radius-xs);
+  border-left: 2px solid color-mix(in srgb, var(--pb-tone, var(--border)) 65%, transparent);
+  background: color-mix(in srgb, var(--pb-tone, var(--border)) 6%, transparent);
+}
+.pb-step-l { font: 700 11px var(--font-ui); color: var(--pb-tone, var(--text)); }
+.pb-step-d { font-size: 11px; line-height: 1.5; color: var(--subtext); grid-column: 1; }
+.pb-step-d b { color: var(--text); font-weight: 600; }
+.pb-step-v {
+  grid-row: 1 / span 2; align-self: center;
+  font: 700 14px var(--font-mono); letter-spacing: -.02em; color: var(--pb-tone, var(--text));
+}
+/* The result rows (the stop, the R:R) have no group colour, so they get the text
+   colour and a plain rule — they are conclusions, not settings. */
+.pb-step--result { border-left-color: var(--border); background: var(--cardhover); }
+.pb-step--result .pb-step-l, .pb-step--result .pb-step-v { color: var(--text); }
+
+/* A plain explanatory box. Not `.notice` — that one is amber and means "watch
+   out", and most of what this dialog has to say is not a warning.
+   The left edge picks up `--pb-tone` when the renderer sets one, so the paragraph
+   introducing a group of columns is visibly part of that group. Without a tone it
+   falls back to the hairline every other box has. */
+.pb-note {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-left: 2px solid color-mix(in srgb, var(--pb-tone, var(--border-soft)) 65%, transparent);
+  border-radius: var(--radius-sm); padding: 9px 12px;
+  font-size: 11.5px; line-height: 1.6; color: var(--subtext);
+}
+.pb-note b { color: var(--text); font-weight: 600; }
+.pb-warn { color: var(--warn); font-size: 11.5px; line-height: 1.55; }
+
+@media (max-width: 720px) {
+  .pb-stats { grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
+  .pb-final { font-size: 15px; }
+}
