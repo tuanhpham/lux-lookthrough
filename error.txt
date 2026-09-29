@@ -3588,3 +3588,159 @@ co vi the sai se dan den mot ket luan sai ve ky luat cua chinh minh.
 - Tran cat lo van dang mac dinh min ('deeper') theo gia dinh cua toi, chua co xac nhan.
 - Ghi chu le ben canh tung muc cho sach Learn: chua lam.
 - README muc 5.8 ghi sai cach restart, va con mot khoi ```bash chua dong o dong 671-680.
+
+## CHAT-30 — Chart 6 thang quanh ngay giao dich, gia thoat goi y, va bang ly do thoat tu them duoc
+
+Commit: b16b5438.
+
+### A. Yeu cau
+
+Nguyen van cua user, gom bon phan:
+
+1. Trong trade plan, neu user chon mot ngay trong qua khu thi chart khong nen chi show den
+   ngay hom do, ma nen show 6 thang around ngay hom do (vi du 4 thang truoc, 2 thang sau neu
+   du du lieu). Neu ngay do rat gan day, chua du 2 thang, thi show toan bo 6 thang cho toi
+   ngay gan nhat, around cai diem entry do. Neu nam giu lau hon thi can khoang thoi gian
+   lau hon.
+2. Khi chon exit date thi exit price co the duoc goi y dua vao gia dong cua ngay hom do neu
+   ngay do trong qua khu — tuong tu gia goi y buy trong buy form.
+3. Danh sach "Why you got out" can them nhieu ly do: Price falls and touches EMA10, touches
+   EMA21, Bearish Reversal Candlestick Pattern (thuat ngu chung) voi cac mo hinh cu the
+   Bearish Engulfing, Shooting Star, Evening Star, Hanging Man, va climax top voi khoi luong
+   lon. Cho nhung ly do do vao mot configurable table de user chon hoac tu tao them ly do
+   moi, roi ly do moi xuat hien trong dropdown exit.
+4. Nhung ly do nay integrate luon vao phan Sell trong Portfolio.
+
+### B. Cai da lam — chart la BUC ANH, khong phai la PHAN XET
+
+Cho toi CHAT-29, may thoi gian lam bang cach cat thanh nen: `asOfBars()` giu `date <=
+planDate`, `planBars` la phan cat theo ngay, `planAllBars` la tat ca thanh nen tai ve. Loi
+truoc day la gop hai thu khac nhau vao mot: chart cung bi cat tai ngay giao dich.
+
+Cai phai bao ve la PHAN XET: diem chat luong, cac contraction, xep hang RS, stop goi y, va
+hang chu. Tat ca nhung thu do van tinh tu `planBars` va CHAT-30 khong noi rong ra mot chut
+nao. Chart la BUC ANH, va mot buc anh bi cat dung tai thanh nen vao lenh la buc anh duy nhat
+khong tra loi duoc cau hoi ma case study sinh ra de hoi: cai nay co an khong.
+
+`planChartWindow(bars, planDate, exitDate)` trong `portfolio/planExit.ts`:
+
+- Bien phai = (ngay thoat neu no sau ngay giao dich, nguoc lai la ngay giao dich) + 2 thang.
+- Bien trai = 4 thang truoc ngay giao dich; neu bien phai phai dung lai o thanh nen cuoi
+  cung dang co thi bien trai lui them de cua so luon rong 6 thang.
+- Mot chinh sach chung cho ca ba truong hop user neu: ngay xa trong qua khu ra 4+2; ngay gan
+  day ra 6 thang ket thuc o thanh nen moi nhat; giu lau hon thi cua so rong ra theo ngay
+  thoat.
+
+Ham nam trong `planExit.ts` chu khong trong planner, vi tab Case Studies phai ap dung dung
+cua so do cho dung ban ke hoach — hai ban sao cua phep tinh nay som muon gi cung se khong
+dong y voi nhau ve chart cua mot ho so da luu.
+
+Dieu nay THAY THE muc H cua CHAT-29 ("do thi dai ra tan ngay do va KHONG di xa hon").
+
+### C. Gia thoat goi y
+
+`closeOnOrBefore(bars, date)` tra ve gia dong cua phien do, hoac cua phien gan nhat truoc do.
+Di LUI vi user chon ngay tren lich ma thi truong dong cua cuoi tuan: tra dung ngay se im lang
+khong goi y gi cho moi ngay thu Bay va trong nhu app bi hong. Toi da 7 ngay cach, du cho cuoi
+tuan va ngay le dai nhat; xa hon thi tra null chu khong lay gia cua thang khac ra goi y — mot
+dau gach user tu dien la so con thieu, con mot gia cu nam trong o thoat la so SAI duoc luu.
+
+`suggestExitPrice` chi ghi khi o gia con trong hoac dang bang chinh so app goi y lan truoc
+(`PlanEdit.exitPxSuggested`), nen khong bao gio de len so user tu danh. Doi USD sang tien
+hien thi bang ty gia cua NGAY GIAO DICH, khong phai ngay thoat, de nam cung mot khung voi moi
+muc gia khac tren the.
+
+### D. Bang ly do thoat
+
+`portfolio/exitReasons.ts`: 30 ly do co san chia 7 nhom — plan (stop/target/trail/scaled),
+ma (EMA10/21/50, mat chuoi MA), candle (nen dao chieu chung, engulfing, shooting star,
+evening star, hanging man, dark cloud, gravestone, three crows, harami), volume (climax top,
+churn, phan phoi, gap that bai), context (luan diem, thi truong, bao cao, tin, co hang tot
+hon), discipline (het thoi gian, ban vi so, pha luat, khac). Dung het nhung ly do user ke ten.
+
+`portfolio/exitReasonsDialog.ts` la bang cau hinh. Bon quyet dinh:
+
+- `ExitReasonKey` la `string`, khong phai union, vi danh sach lon len luc chay.
+  `exitReasonLabel` tra ve chinh cai ma khi khong tim thay, nen mot ly do bi xoa khong bao
+  gio lam trong ly do cua lenh da luu.
+- Ly do co san chi XEM, khong sua khong xoa: moi ly do la mot MA da nam tren cac lenh cu, doi
+  ten "Stop hit" khong phai la them mot ly do, ma la viet lai am tham xem ca mot nam ghi chep
+  noi rang da xay ra chuyen gi. Ly do user tu them mang tien to `my:`, bao dam khong bao gio
+  trung voi mot ly do app phat hanh sau nay; `exitReasonsFrom` BO mot dong tu them neu ma cua
+  no trung ma co san.
+- Luu ca MA va ca CAU CHU. `CaseStudy.exitReason` / `SellRecord.note` giu cau chu nguoi doc,
+  `exitReasonKey` la phan dem duoc. Khong can migration, va dem khong con phu thuoc vao app
+  dang o ngon ngu nao.
+- Ly do tu them nam trong `pf_playbook_cfg.exitReasons`, khoa da dong bo va da co mot ham nap
+  ma moi noi dung deu goi — khong sinh them mot khoa nua de quen nap.
+
+Hop thoai la modal tu viet chu khong phai `formDialog`, vi day la mot bang lon len trong khi
+dang mo; dong moi vao mot mang cuc bo va chi ghi khi bam Luu, nen Huy la mot lenh hoan tac
+that. Vao duoc tu hai cho: nut banh xe canh dropdown trong Trade Planner, va nut nhan trong
+goc the Buy o tab Portfolio.
+
+### E. Noi vao phan Ban cua Portfolio
+
+Dung hop thoai Ban tren tung dong (duong user that su dong lenh), them mot o chon "Ly do ban
+(khong bat buoc)". `ui/forms.ts` duoc mo rong de `Field.options` co `group`, roi render thanh
+`<optgroup>` — gom nhom chu khong trai phang 30 ly do ra mot danh sach khong doc duoc. Moi ban
+ghi ban duoc gan `exitReasonKey`, va bang giao dich hien mot vien thuoc tim trong o Ngay ban
+chu khong them cot thu 16 (dong tien mat dang `colspan="4"` nen doi cot rat de vo).
+
+Tab Case Studies van la o nhap tay tu do; `exitReasonKeyOfText` doi chieu cau chu ve lai ma,
+hieu ca dang "Nhan — ghi chu" ma planner ghi ra, va doi chieu duoc ca hai ngon ngu.
+
+### F. Loi da mac trong phien nay
+
+- `exitReasons` da bi XOA am tham moi lan user bam Luu hoac Reset trong hop thoai Playbook,
+  vi hop thoai do dung mot `PlaybookConfig` moi. Sua ca hai cho: mang `cfg.exitReasons ?? []`
+  qua, kem ghi chu rang mot ly do user tu danh khong co gia tri mac dinh de tro ve.
+- `shiftMonths` sai mui gio: `new Date(iso + 'T00:00:00')` la nua dem GIO DIA PHUONG con
+  `toISOString()` bao theo UTC, nen o phia dong Greenwich mot phep dich 0 thang tra ve som
+  mot ngay. Sua sang UTC ca hai dau (`'T00:00:00Z'`, `setUTCMonth`). Vo hai o mep mot chart,
+  va sai o moi cho khac — dung loai loi bi copy sang noi no co y nghia.
+- Tai lieu cua `closeOnOrBefore` ban dau noi nguoc voi code (bao tra null khi qua du lieu,
+  thuc te tra gia cuoi cung). Them `MAX_STALE_DAYS = 7` va viet lai cho khop.
+- `tests/planExit.test.ts` con import `exitReasonLabel` tu `planExit.js` sau khi bo tu vung
+  chuyen di — sua lai danh sach import va viet lai phep kiem tieng Viet qua `exitReasonText`.
+- `.pill` khong ton tai trong `styles.css`. Doi sang `.badge` cong mau inline.
+
+### G. Kiem tra
+
+- `npm run -w @screener/core build` sach; `npx tsc --noEmit` sach o apps/desktop.
+- apps/desktop: 261/261 phep kiem trong 17 tep. packages/core: 790/790 trong 50 tep.
+- 29 phep kiem moi trong `tests/exitReasons.test.ts` (ma duy nhat, khong de dong tu them de
+  len ma co san, mot nhan ra dung mot ma, ma bi xoa khong lam trong ban ghi, doi chieu cau
+  chu ve ma, escape nhan user danh).
+- 7 phep kiem `planChartWindow` va 5 phep kiem `closeOnOrBefore` trong `tests/planExit.test.ts`.
+- package-lock.json khong doi.
+
+### H. Phai tan mat xem lai
+
+- Dat ngay giao dich ve mot ngay cach day mot nam: chart hien khoang 6 thang QUANH ngay do,
+  khong dung lai o ngay do. Diem va hang chu khong doi so nao so voi truoc.
+- Dat ngay giao dich la hom nay: chart hien 6 thang cuoi cung, khong bi hut ngan.
+- Dien ngay thoat cach ngay giao dich 8 thang: chart rong ra theo, phu ca ngay thoat.
+- Chon ngay thoat la mot ngay thu Bay: o gia thoat duoc dien bang gia dong thu Sau.
+- Tu sua o gia thoat roi doi ngay thoat: so cua user KHONG bi ghi de.
+- Bam banh xe canh o ly do: them mot ly do rieng, bam Luu, ly do do co ngay trong dropdown.
+- Bam Huy trong bang do sau khi them va xoa vai dong: khong co gi bi luu.
+- Vao Portfolio, bam Ban mot dong: o "Ly do ban" co day du cac nhom; ban xong thay vien
+  thuoc tim trong o Ngay ban.
+- Mo hop thoai Playbook, bam Luu: ly do tu them VAN CON (day la loi da sua o muc F).
+- Doi ngon ngu sang tieng Viet: ca bang ly do, dropdown, va o Ban deu doi theo.
+
+### I. Con no (giu nguyen tu CHAT-29)
+
+- Loi nhan f0b6b0e9 viet "22 tieu chi" (dung la 26) — sua phai force-push, de nguyen.
+- Ban build Pages cua lux-lookthrough van do: chay `wrangler pages deploy dist
+  --project-name the-professional` tu apps/desktop tren may co dang nhap Cloudflare.
+- Scanner khong day tin ke tu 28-09-2026: doc van duoc nen loi nam o phia VM, can SSH tu may
+  kia.
+- Web search cho assistant: chua lam.
+- Tran cat lo van dang mac dinh min ('deeper') theo gia dinh cua toi, chua co xac nhan.
+- Ghi chu le ben canh tung muc cho sach Learn: chua lam.
+- README muc 5.8 ghi sai cach restart, va con mot khoi ```bash chua dong o dong 671-680.
+- Rac con theo doi: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o
+  goc ma khong co `package.json` nao o goc.
+
