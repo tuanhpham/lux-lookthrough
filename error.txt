@@ -4000,3 +4000,139 @@ Nguoi dung nen tu kiem:
 - README muc 5.8 ghi sai cach restart, va con mot khoi ```bash chua dong o dong 671-680.
 - Rac con theo doi: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o
   goc ma khong co `package.json` nao o goc.
+
+## CHAT-33 — Trang co phieu di theo Trade Date, nut ↺ ve hom nay, va reset khi doi ma
+
+### A. Yeu cau
+
+Nguyen van: "1 thu co the tiep tuc improve la tren cai trang invididual stock ay, cai phan MRVL:
+no actionable setup, quality 62/100. / In a confirmed uptrend ... / No complete VCP yet (1
+contraction(s), base 5 bars). la dua vao thoi diem hien tai, can duoc dieu chinh lai tai thoi diem
+chon trade date chu. 2. Khi ma lam xong (chon State Date xong, nhan buy hoac save case study ay thi
+khi sang xem co phieu khac, moi thu nen duoc reset lai chu .... toi ngay hien tai) va cung nen co
+mot nut reset de tro ve hien tai nhu vay ...."
+
+Hai viec: (1) phan danh gia tren trang tung ma phai tinh lai theo Trade Date; (2) doi sang ma khac
+thi moi thu ve hom nay, va them mot nut reset.
+
+### B. Cai narrative KHONG phai la loi
+
+Doan chu "no actionable setup, quality 62/100 ..." do `explainPlan`
+(`packages/core/src/planning/narrative.ts`) sinh ra, duoc `explainHtml` trong `tradePlanner.ts` ve
+vao `PlanEdit.explain` roi thanh ghi chu cua the. Cho nay da dung as-of tu truoc: `computePlans`
+quet `asOfBars(...)`, va `planDateMoved` cua CHAT-31 da buoc seed lai moi the khi ngay doi.
+
+Cai cu la MOI THU QUANH panel: trang individual stock (`ui/stockModal.ts`) van dung so cua hom nay
+— quality score, setup badge, cac muc gia, do thi, stat grid. Panel di ve qua khu con trang thi
+khong, tuc la hai con so trai nhau ma ca hai deu trinh bay nhu su that. Do la loi thuc su.
+
+May man la `openStock(ctx, symbol, asOf)` da co san che do as-of day du tu hoi lam cac tab lich su
+cua screener: `sliceBars`, `fundamentalsAsOf`, earnings loc theo `r.date <= asOf`, co nhan "as of"
+tren tieu de, khong chay `patchWhenEnriched`, loc ca chuoi fundamentals-trend. Khong phai tinh
+them gi ca — panel chi thieu duong de YEU CAU.
+
+### C. Duong di hai chieu
+
+Panel -> trang: `PlannerMount.onDateChange?: (date: string | null) => void`. Modal tra loi bang
+`openStock(ctx, symbol, date)`. Ngay tuong lai KHONG phai du hanh thoi gian (`isPastPlan()` la
+`planDate < today()`), nen truong hop do gui `null` va trang o lai voi du lieu hien tai.
+
+Trang -> panel: `PlannerMount.initialDate?: string | null`, chi duoc dung khi panel mo tren mot chu
+the MOI. Chieu nay khong nam trong yeu cau nhung la cung mot loi soi guong: mo mot ma tu lan quet
+lich su 2024 thi trang la 2024, con panel bat dau o hom nay, tuc la tinh ke hoach gia song duoi mot
+do thi 2024. Khi chu the khong doi thi bo qua `initialDate`, vi luc do ngay tren man hinh la ngay
+nguoi dung tu chon va no lon hon ngay cua trang.
+
+Giu lai viec dang lam: `plannerWasOpen = tradePlannerIsIn(body)` doc TRUOC khi go panel, roi
+`wirePlanButton(ctx, symbol, plannerWasOpen, asOf)` gan panel tro lai sau khi ve xong. Khong co no
+thi ai chon ngay cung bi mat cai panel minh dang lam viec trong do — bi phat vi da dung tinh nang.
+
+### D. Nut ↺ ve hom nay
+
+O ngay gio nam trong `.tp-date-row` cung mot nut `#tp-today` han ngay ben phai, khong dat chung voi
+cac nut khac: no noi ve DUNG cai o do, mot nut "reset" cach ba o khac doc ra thanh reset ca panel.
+
+Mo di (disabled) khi ngay dang la hom nay, chu khong an di. An thi gon hon nhung te hon: mot nut
+chi hien ra khi ban da di lac la mot nut khong ai biet la co cho den luc di lac. Mo san thi nhin
+thay tu dau va doc ra duoc la "duong ve day".
+
+Ly do co nut nay khong chi la tien tay: danh mot ngay thi de, xoa mot ngay thi khong, va mot panel
+ket o ngay qua khu se am tham tinh gia va size cho moi ke hoach ve sau theo ngay do.
+
+### E. `setPlanDate` — mot cho cho ca hai loi vao
+
+Truoc day logic doi ngay nam inline trong handler cua o ngay. Gio gop thanh `setPlanDate(ctx,
+next)` vi "ngay da doi" co bon hau qua va ba trong so do de quen: dat `planDateMoved`, quy doi lai
+gia exit theo ty gia moi (chi rieng exit, vi ba muc gia kia sap duoc dan xuat lai tu bars moi),
+to lai nut ↺, bao cho host, roi `computePlans`.
+
+Thu tu quan trong: `onDateChange` duoc bao TRUOC `computePlans`, va host duoc phep ve lai chinh no
+— viec nay lam rong cai host cua panel. Khi do `computePlans` khong tim thay `#tp-results` va tra
+ve ngay, va lan mount lai sau khi host ve xong moi la lan tinh ke hoach cho ngay moi. Tuc la mot
+lan tinh chu khong phai hai, nhung cung co nghia `setPlanDate` khong the hua la cac the DA duoc
+dung lai; chi hua la SE.
+
+### F. Reset khi doi ma — va tai sao khoa theo tieu de
+
+`planDate` la state cua module, song lau hon panel. Truoc sua nay: len ke hoach MRVL theo thang
+3/2024 roi mo plan cua NVDA thi NVDA cung duoc size theo thang 3/2024, voi mot o ngay ma nguoi dung
+khong co ly do gi de doc lai. Mot ke hoach sai ma trong nhu dung.
+
+`openTradePlanner` gio so `mount.title` voi `lastMountTitle`; khac thi ngay ve `mount.initialDate ||
+today()`.
+
+Khoa theo TIEU DE (ma co phieu, hoac ten watchlist), KHONG theo phan tu host. Host la mot node moi
+moi lan trang co phieu ve lai, va trang ve lai chinh vi cai ngay nay — khoa theo phan tu thi se
+reset dung cai ngay nguoi dung vua chon, roi reset trang lai, mai mai.
+
+### G. Doc "nhan buy hoac save case study" nhu the nao
+
+Doc dung chu: reset xay ra o luc SANG XEM MA KHAC, khong phai o luc nhan Buy. Reset ngay tai luc
+Buy se xoa mat dong "✓ bought into <account>" va lam panel nhay ve dau (cho do co tinh dung
+`recalcPlan` chu khong ve lai ca panel). Neu y nguoi dung la reset ngay sau khi Buy thi doi mot
+dong trong handler cua Buy.
+
+### H. Sua them mot loi tiem an
+
+`openStock` truoc day fetch `asOf ? '5y' : '1y'`. Con so '5y' phang nay la mot trang trong dang cho:
+slice cat het phan ma fetch voi ve phia truoc, nen mot ngay 2019 khong con bar nao. Rut cong thuc
+trong `fetchPeriodFor` ra thanh `fetchPeriodForDate(date, yearsBack, livePeriod)` trong `asOf.ts` —
+do la cho thu ba cong thuc nay sap duoc viet lai. Nut doi khoang thoi gian cung dung
+`widerPeriod(fetchPeriodForDate(asOf), period)` lam san, vi do thi ve tu ca cai slice.
+
+### I. Mot sai buoc trong luc lam, ghi lai de khong lap
+
+Da chay `npx prettier --write` len nam file. Repo nay KHONG co `.prettierrc` o dau ca va cung khong
+duoc format bang prettier, nen prettier lay mac dinh cua no va viet lai toan bo: diff tu 185 dong
+bien thanh 9537 them / 4003 xoa, rieng `styles.css` la 8350 dong. Cach chua duy nhat sach se la
+`git checkout --` ca nam file roi lam lai tung sua bang tay. Da lam vay, `tsc --noEmit` sach,
+265 + 790 test xanh, diff cuoi cung 209 them / 32 xoa.
+
+`npx eslint` cung vo ich o day: khong co `eslint.config.*`. Cong thuc that su la `npx tsc --noEmit`
+va `npx vitest run`, chay o ca `apps/desktop` va `packages/core`.
+
+### J. Cac file
+
+- `apps/desktop/src/portfolio/tradePlanner.ts` — `PlannerMount.onDateChange`, `initialDate`,
+  `lastMountTitle` + reset trong `openTradePlanner`, `setPlanDate`, `paintTodayBtn`, markup
+  `.tp-date-row` + `#tp-today`.
+- `apps/desktop/src/ui/stockModal.ts` — `plannerWasOpen`, `wirePlanButton(ctx, symbol, reopen,
+  asOf)` voi `open()` ben trong, `fetchPeriodForDate(asOf)`, `PERIOD_ORDER` / `widerPeriod`.
+- `apps/desktop/src/ui/asOf.ts` — `fetchPeriodForDate` xuat ra, `fetchPeriodFor` goi lai no.
+- `apps/desktop/src/ui/i18n.ts` — `wl.plan.datetitle` noi dai, them `wl.plan.todaytitle`.
+- `apps/desktop/src/styles.css` — `.tp-date-row`, `.tp-today-btn`, `.tp-today-btn:disabled`.
+
+Commit `4f7b7521`, 5 file, 209 them / 32 xoa.
+
+### K. Con no
+
+- Commit `f0b6b0e9` ghi "22 tieu chi" trong khi la 26; sua phai force-push nen de nguyen o day.
+- Build Pages cua lux-lookthrough dang do: can `wrangler pages deploy dist --project-name
+  the-professional` tu `apps/desktop`, chay o may kia.
+- Scanner VM im tu 28/09/2026: doc thi duoc nen loi o phia VM, can SSH tu may kia.
+- Tro ly chua co web search; khoang trong la tin tuc va catalyst.
+- Nap stop `maxStopRef: 'deeper'` van la gia dinh cua toi, nguoi dung chua noi ro.
+- Ghi chu le cho tung muc trong sach Learn.
+- README §5.8 ghi sai cach restart, va hang rao ```bash o 671-680 chua dong.
+- Con theo doi rac: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o goc ma
+  khong co `package.json` nao o goc.
