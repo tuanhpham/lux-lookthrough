@@ -23,6 +23,9 @@ import { rankChartSvg, rankChartColor, type RankHistory } from './scannerRankCha
 import {
   chipHtml, countChip, rangeChip, sectionHead, type Chip, type ChipInput,
 } from '../ui/sectionHead.js';
+import { sectorName, sectorTip } from '../ui/sectorNames.js';
+import { caretHtml, openAttr, revealCollapse, setAllCollapsed, wireCollapse } from '../ui/collapse.js';
+import { reasonLabel, setupLabel } from './scannerVocab.js';
 
 const KEY_STATUS = 'scanner:status';
 const KEY_CANDIDATES = 'scanner:candidates';
@@ -413,6 +416,23 @@ const cell = (v: string, color?: string): string =>
 const tkr = (sym: string | undefined): string =>
   sym ? `<span class="tkr">${esc(sym)}</span>` : '—';
 
+/**
+ * A setup group's heading: `Breakout (BO)`, not `BO`.
+ *
+ * The scanner keys its payload by two-letter codes, and those codes were the whole
+ * heading. `BO` is a thing you either already know or cannot look up — and the
+ * candidates under it are the part of this page a reader acts on. The code stays in
+ * brackets because the VM's logs and Telegram messages still speak in codes.
+ *
+ * Returns HTML, because `sectionHead`'s label is HTML — hence the `esc` here.
+ */
+const setupHead = (code: string): string => {
+  const l = setupLabel(code);
+  return l.tip
+    ? `<span title="${esc(l.tip)}">${esc(l.text)}</span>`
+    : esc(l.text);
+};
+
 // ── health ───────────────────────────────────────────────────────────────────
 
 /**
@@ -614,10 +634,15 @@ function renderSectors(snap: SectorsSnap | null, topN: number): string {
   // classifier cannot see — SPY can still be above both averages while the money
   // inside it has already moved to staples and utilities — so it is a banner, not
   // a table cell.
+  // Named, not just tickered: "XLP, XLU" is the finding, but "Consumer Staples,
+  // Utilities" is what makes it a sentence about where the money went.
   const def = snap?.defensive ?? [];
   const banner = def.length
     ? `<div class="notice" style="margin-bottom:8px">`
-      + `${t('scan.sectors.defensive')} <b>${esc(def.join(', '))}</b></div>`
+      + `${t('scan.sectors.defensive')} <b>${def.map((s) => {
+        const name = sectorName(s);
+        return `<span title="${esc(sectorTip(s))}">${esc(s)}${name ? ` (${esc(name)})` : ''}</span>`;
+      }).join(', ')}</b></div>`
     : '';
 
   const cols: { key: SectorSortKey; label: string }[] = [
@@ -660,7 +685,8 @@ function renderSectors(snap: SectorsSnap | null, topN: number): string {
     // where stock picking happens at all.
     return `<tr${top ? ' style="background:color-mix(in srgb, var(--accent) 9%, transparent)"' : ''}>`
       + `<td${top ? ' style="color:var(--accent);font-weight:700"' : ''}>${r.rank ?? '—'}</td>`
-      + `<td${top ? ' style="font-weight:700"' : ''}>${tkr(r.sym)}</td>`
+      + `<td${top ? ' style="font-weight:700"' : ''} title="${esc(sectorTip(r.sym))}">${tkr(r.sym)}`
+      + `${sectorName(r.sym) ? `<div class="scan-secname">${esc(sectorName(r.sym)!)}</div>` : ''}</td>`
       + cell(num(r.composite, 1))
       + cell(signedFrac(r.ret21), (r.ret21 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
       + cell(signedFrac(r.ret63), (r.ret63 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
@@ -708,18 +734,27 @@ function renderRankChart(snap: SectorsSnap | null, topN: number): string {
     .filter((r) => (r.rank ?? 99) <= topN)
     .map((r) => r.sym ?? ''));
 
+  // The legend is also the glossary: the sector's NAME rides next to its ticker, so
+  // "which line is leading" and "what is XLRE" are answered by the same glance. The
+  // name is the quiet half — this is a legend for a chart, not a table of funds.
   const chips = order.map((sym) => {
     const off = chartOff.has(sym);
     const c = rankChartColor(order, sym);
-    return `<button class="tag" data-chart-sym="${esc(sym)}"`
+    const name = sectorName(sym);
+    const rank = (snap?.rows ?? []).find((r) => r.sym === sym)?.rank ?? null;
+    return `<button class="tag scan-legend" data-chart-sym="${esc(sym)}"`
+      + ` title="${esc(sectorTip(sym))}"`
       + ` style="cursor:pointer;border:1px solid ${off ? 'var(--border)' : c};`
       + `background:transparent;color:${off ? 'var(--faint)' : c};`
-      + `${off ? 'text-decoration:line-through;' : ''}font-weight:600">${esc(sym)}</button>`;
+      + `${off ? 'text-decoration:line-through;' : ''}font-weight:600">`
+      + `<i class="scan-legend-dash" style="background:${off ? 'var(--border)' : c}"></i>`
+      + `${rank != null ? `<b>${rank}</b>` : ''}${esc(sym)}`
+      + `${name ? `<span class="scan-legend-name">${esc(name)}</span>` : ''}</button>`;
   }).join('');
 
   return `${title}
     <div class="card">
-      ${rankChartSvg(hist, { order, hidden: chartOff, emphasis })}
+      ${rankChartSvg(hist, { order, hidden: chartOff, emphasis, label: sectorTip, bandTo: topN })}
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px">${chips}</div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">${t('scan.chart.note')}</p>
     </div>`;
@@ -1216,7 +1251,7 @@ function renderCandidates(snap: CandidatesSnap | null): string {
     // closest in the market" when it is only the closest among the top N by quality.
     const head = candHead().map((h) => `<th>${esc(h)}</th>`).join('');
     return `
-      ${sectionHead(esc(s), [countChip(rows.length, total)])}
+      ${sectionHead(setupHead(s), [countChip(rows.length, total)])}
       <div class="card" style="padding:0;overflow-x:auto">
         <table><thead><tr>${head}</tr></thead>
         <tbody>${rows.map(candRow).join('')}</tbody></table>
@@ -1245,13 +1280,16 @@ function renderRejects(snap: RejectsSnap | null): string {
     const total = reasons.reduce((n, [, v]) => n + v, 0) + passed;
     const rows = reasons.map(([reason, n]) => {
       const share = total ? (n / total) * 100 : 0;
-      return `<tr><td>${esc(reason)}</td>`
+      // An unmapped reason is shown in italics with its raw key in the tooltip, so
+      // the gap is visible and fixable instead of silently reading as a translation.
+      const r = reasonLabel(reason);
+      return `<tr><td title="${esc(r.tip)}"${r.known ? '' : ' class="scan-raw"'}>${esc(r.text)}</td>`
         + `<td>${n}</td>`
         + `<td><span class="scorebar"><span style="width:${share.toFixed(1)}%"></span></span>`
         + ` <span class="muted">${share.toFixed(1)}%</span></td></tr>`;
     });
     return `
-      ${sectionHead(esc(s), [
+      ${sectionHead(setupHead(s), [
         { n: passed, text: t('scan.rej.passed'), kind: 'count' },
         cutoff ? { n: cutoff, text: t('scan.rej.cut'), kind: 'warn' } : null,
       ])}
@@ -1346,15 +1384,20 @@ const SECS = [
 const sec = (id: string, html: string): string => {
   const i = SECS.findIndex((x) => x.id === id);
   const s = SECS[i]!;
-  return `<section class="scan-sec" id="scan-sec-${id}">
-    <header class="scan-head">
+  // `<details>`, so the ten stages fold. The header IS the summary: a separate
+  // toggle button beside a heading gives the reader two things to aim at for one
+  // action. Open state is baked into the string here, never patched after mount —
+  // this page re-renders on a poll and a post-mount close would flinch every time.
+  return `<details class="scan-sec" id="scan-sec-${id}" data-collapse="scan:${id}"${openAttr(`scan:${id}`)}>
+    <summary class="scan-head">
       <span class="scan-head-n">${String(i + 1).padStart(2, '0')}</span>
       <div class="scan-head-txt">
         <h2>${t(s.key)}</h2>
         <p>${t(s.lead)}</p>
       </div>
-    </header>
-    ${html}</section>`;
+      ${caretHtml(t('sec.fold'))}
+    </summary>
+    <div class="scan-sec-body">${html}</div></details>`;
 };
 
 /**
@@ -1442,8 +1485,11 @@ function wireJump(root: HTMLElement): void {
     p.addEventListener('click', () => {
       // `scroll-margin-top` on .scan-sec clears both the fixed nav and this bar, so
       // the target heading never lands underneath the thing that sent you to it.
-      root.querySelector(`#scan-sec-${p.dataset.jump}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const target = root.querySelector(`#scan-sec-${p.dataset.jump}`);
+      // Unfold first: a jump that lands on a folded section reads as a dead link —
+      // the page moves and the thing you asked for is not there.
+      revealCollapse(target);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
   root.querySelector('#scan-top')?.addEventListener('click', () => {
@@ -1556,6 +1602,8 @@ function draw(ctx: AppContext): void {
         ${SECS.map((x, i) => `<button class="scan-pill" data-jump="${x.id}">`
           + `<span class="scan-pill-n">${String(i + 1).padStart(2, '0')}</span>${t(x.key)}</button>`).join('')}
       </div>
+      <button class="scan-jump-up" id="scan-fold" title="${t('sec.foldall')}"
+        aria-label="${t('sec.foldall')}">⤡</button>
       <button class="scan-jump-up" id="scan-top" title="${t('scan.top')}" aria-label="${t('scan.top')}">↑</button>
     </nav>
     ${sec('today', renderToday(get<RegimeSnap>(KEY_REGIME)))}
@@ -1582,6 +1630,15 @@ function draw(ctx: AppContext): void {
   });
 
   wireJump(root);
+  wireCollapse(root);
+
+  // One button, two jobs: it folds everything, and once everything is folded it
+  // unfolds everything. Two buttons for a binary state is one button too many.
+  root.querySelector('#scan-fold')?.addEventListener('click', () => {
+    const open = Array.from(root.querySelectorAll<HTMLDetailsElement>('.scan-sec'))
+      .some((d) => d.open);
+    setAllCollapsed(root, open);
+  });
 
   // Sector table sort. Client-side only: the 11 rows are already in hand, so
   // sorting must not cost a D1 read.

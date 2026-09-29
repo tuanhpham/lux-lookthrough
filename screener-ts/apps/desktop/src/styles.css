@@ -2603,10 +2603,36 @@ html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c);
   margin-top: 38px; padding-top: 30px; border-top: 1px solid var(--border-soft);
 }
 
+/* The header is the fold's handle. A separate toggle button beside a heading gives
+   the reader two targets for one action, so the whole header is the target and the
+   caret is only a signpost. `list-style: none` twice: Safari still wants the
+   `::-webkit-details-marker` form, and the native marker cannot be baseline-aligned
+   with a flex row. */
 .scan-head {
   display: flex; align-items: baseline; gap: 14px;
   margin: 0 0 16px;
+  cursor: pointer; list-style: none;
+  border-radius: var(--radius-sm);
+  transition: background .18s ease;
 }
+.scan-head::-webkit-details-marker { display: none; }
+.scan-head:hover .scan-head-txt h2 { color: var(--accent); }
+.collapse-caret {
+  flex: none; margin-left: auto; align-self: center;
+  color: var(--faint); font-size: 11px; line-height: 1;
+  padding: 5px 7px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card);
+  transition: transform .18s ease, color .18s ease, border-color .18s ease;
+}
+details[open] > .scan-head .collapse-caret,
+details[open] > .fold-sum .collapse-caret { transform: rotate(0deg); }
+details:not([open]) > .scan-head .collapse-caret,
+details:not([open]) > .fold-sum .collapse-caret { transform: rotate(-90deg); }
+.scan-head:hover .collapse-caret { color: var(--accent); border-color: var(--accent-line); }
+/* Folded, the lead line goes too: a closed section should cost one line, not four.
+   The stage number and the title stay, because that is the index. */
+.scan-sec:not([open]) > .scan-head { margin-bottom: 0; }
+.scan-sec:not([open]) > .scan-head .scan-head-txt p { display: none; }
 /* The stage number. Monospace and hollow: it is a landmark, not a datum, so it
    must not read louder than the figures in the tables underneath. */
 .scan-head-n {
@@ -2630,6 +2656,32 @@ html.light #nav-ripple { background: color-mix(in srgb, var(--bg) 88%, #6b5f4c);
 
 /* Date / row-count chips, which used to crowd in beside the title. */
 .scan-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+
+/* The sector's name under its ticker. `XLK` is only obvious once you already know
+   it, and "which sector is leading" is what the reader came here NOT knowing. */
+.scan-secname {
+  font-size: 10.5px; line-height: 1.3; color: var(--faint);
+  font-weight: 400; letter-spacing: 0; text-transform: none;
+  margin-top: 1px; max-width: 16ch;
+}
+
+/* A rank-chart legend chip: a dash in the line's colour, the live rank, the ticker,
+   then the sector name. The dash is what ties the chip to a line in the plot — the
+   border colour alone is too thin a cue at 11 lines. */
+.scan-legend { gap: 6px; }
+.scan-legend-dash {
+  width: 12px; height: 2.5px; border-radius: 2px; flex: none;
+  display: inline-block;
+}
+.scan-legend-name {
+  color: var(--faint); font-weight: 400; font-size: 10.5px;
+  max-width: 15ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* A reject reason the dictionary in `scannerVocab.ts` has no entry for. Shown as it
+   arrived, in italics, with the raw key in the tooltip — the point is that an
+   untranslated row LOOKS untranslated instead of passing as a translation. */
+.scan-raw { font-style: italic; color: var(--subtext); }
 
 /* The fold over the threshold dump. The section header already names it, so the
    summary only has to say which way the fold goes. */
@@ -3625,8 +3677,12 @@ html.light #app-menu {
 /* ── Section labels: tiny all-caps dividers ──
    `--subtext` and not `--faint`: this is a HEADING. The palette's quietest colour
    was being used for the one line on screen whose job is to tell you where you
-   are, which is why it was reported as not standing out. */
-#main .section-title {
+   are, which is why it was reported as not standing out.
+
+   `.modal-body` as well as `#main`: the stock detail modal is a sibling of `#main`,
+   not a child, so an `#main`-only rule left every heading in the biggest panel of the
+   app — Analysis, Price History, Fundamentals, About — at the old quiet 11px. */
+#main .section-title, .modal-body .section-title {
   font-size: 10px;
   letter-spacing: .14em;
   color: var(--subtext);
@@ -3662,7 +3718,8 @@ html.light #app-menu {
 .card > .sec-head:first-child, .modal-body > .sec-head:first-child { margin-top: 0; }
 /* The title inside a sub-head owns none of the spacing or the rule — the block
    does. `#main` in the selector to outrank `#main .section-title` above. */
-#main .sec-head .section-title, .sec-head .section-title {
+#main .sec-head .section-title, .modal-body .sec-head .section-title,
+.sec-head .section-title {
   margin: 0; padding: 0; border-bottom: 0;
 }
 #main .sec-head .section-title-row, .sec-head .section-title-row {
@@ -3681,6 +3738,33 @@ html.light #app-menu {
   color: var(--faint); max-width: 74ch;
 }
 .sec-sub b { color: var(--subtext); font-weight: 600; }
+
+/* ── A `sectionHead()` that folds ──
+   Emitted by `foldBlock()` in `ui/collapse.ts`. The head is the whole hit target, so
+   the caret is a signpost and not a second control — same decision as `.scan-head`.
+
+   `sectionHead()` closes its own flex row before the sub-line, so the caret arrives as
+   a SIBLING of the heading block rather than a cell in its row. It is therefore placed
+   absolutely, and the row reserves the width — which also means a heading with four
+   chips wraps them under itself instead of pushing the caret off the card. */
+.fold-sum { position: relative; cursor: pointer; list-style: none; }
+.fold-sum::-webkit-details-marker { display: none; }
+.fold-sum .sec-head { margin-top: 0; }
+/* `#main` again, for the same reason as everywhere else in this block: without it
+   `#main .section-title` (1,1,0) outranks a plain descendant selector and the heading
+   never lights up on hover. */
+#main .fold-sum:hover .section-title, .fold-sum:hover .section-title { color: var(--text); }
+.fold-sum:hover .collapse-caret { color: var(--accent); border-color: var(--accent-line); }
+/* Folded, a section costs its heading and its chips — nothing else. The rule stays
+   (it is the heading's underline, not a divider) but the explanation line goes: a
+   closed section that still spends three lines explaining itself has not closed. */
+.fold-block:not([open]) > .fold-sum .sec-head { margin-bottom: 0; padding-bottom: 6px; }
+.fold-block:not([open]) > .fold-sum .sec-sub { display: none; }
+.fold-sum > .collapse-caret { position: absolute; right: 0; top: 0; margin-left: 0; }
+.fold-sum > .sec-head .section-title-row { padding-right: 34px; }
+/* `.fold-body` has no rules on purpose: it exists so the disclosed content is one
+   element the fold can own, and whatever is inside it — a card, a table, a chart
+   host — keeps the spacing it had before it could fold. */
 
 /* ── Cards: more air, softer border ── */
 #main .card {

@@ -46,6 +46,17 @@ export interface RankChartOpts {
   emphasis?: Set<string>;
   /** Shown when there is nothing to draw. */
   emptyText?: string;
+  /**
+   * `XLK` → `XLK — Technology`, for the hover title on each line. Injected rather
+   * than looked up here: this module stays free of i18n so it can be unit-tested
+   * and reused, and the caller already knows the language.
+   */
+  label?: (sym: string) => string;
+  /**
+   * Ranks 1..`bandTo` get a tinted band — the baskets stock picking is allowed to
+   * look inside. Pass 0 for no band.
+   */
+  bandTo?: number;
 }
 
 /**
@@ -126,10 +137,10 @@ export function rankChartSvg(
     );
   }
 
-  const padL = 24; // rank labels
-  const padR = 42; // end-of-line symbol labels
-  const padT = 10;
-  const padB = 18; // date ticks
+  const padL = 26; // rank labels
+  const padR = 52; // end-of-line rank + symbol labels
+  const padT = 12;
+  const padB = 20; // date ticks
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
@@ -149,27 +160,55 @@ export function rankChartSvg(
 
   const parts: string[] = [];
 
-  // Rank gridlines, every other rank so 11 sectors do not produce 11 grey lines.
-  for (let r = 1; r <= worst; r += 2) {
-    const yy = y(r);
+  // The leadership band: ranks 1..3 are the only baskets Stage 3 is allowed to pick
+  // stocks inside, so the chart says where that boundary is instead of leaving the
+  // reader to count gridlines. A line LEAVING this band is the event worth seeing.
+  const bandTo = Math.min(opts.bandTo ?? 3, worst);
+  if (bandTo >= 1) {
+    const top = y(1) - 6;
+    const bot = y(bandTo) + 6;
     parts.push(
-      `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${(W - padR).toFixed(1)}"`
-      + ` y2="${yy.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.7"/>`,
-      `<text x="${padL - 5}" y="${(yy + 3).toFixed(1)}" text-anchor="end"`
-      + ` fill="var(--faint)" font-family="monospace" font-size="9">${r}</text>`,
+      `<rect x="${padL}" y="${top.toFixed(1)}" width="${plotW.toFixed(1)}"`
+      + ` height="${(bot - top).toFixed(1)}" rx="3"`
+      + ` fill="color-mix(in srgb, var(--accent) 8%, transparent)"/>`,
+      `<line x1="${padL}" y1="${bot.toFixed(1)}" x2="${(W - padR).toFixed(1)}"`
+      + ` y2="${bot.toFixed(1)}" stroke="var(--accent)" stroke-width="1"`
+      + ` stroke-dasharray="3 3" opacity="0.5"/>`,
     );
   }
 
-  // Date ticks: first, middle, last. More would collide at this width on a phone.
-  const dateTick = (i: number, anchor: 'start' | 'middle' | 'end'): void => {
+  // Gridline on EVERY rank, but only every other one is labelled: the lines are what
+  // let you read a rank off a crossing point, the labels are what would crowd.
+  for (let r = 1; r <= worst; r++) {
+    const yy = y(r);
     parts.push(
+      `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${(W - padR).toFixed(1)}"`
+      + ` y2="${yy.toFixed(1)}" stroke="var(--border)" stroke-width="1"`
+      + ` opacity="${r % 2 ? 0.7 : 0.35}"/>`,
+    );
+    if (r % 2) {
+      parts.push(
+        `<text x="${padL - 6}" y="${(yy + 3).toFixed(1)}" text-anchor="end"`
+        + ` fill="var(--faint)" font-family="monospace" font-size="9">${r}</text>`,
+      );
+    }
+  }
+
+  // Date ticks. One every ~110px of plot width rather than a fixed three: over 60
+  // sessions, "first / middle / last" leaves the reader estimating where March was.
+  const want = Math.max(2, Math.min(n, Math.floor(plotW / 110) + 1));
+  const step = (n - 1) / (want - 1);
+  const ticks = new Set<number>();
+  for (let k = 0; k < want; k++) ticks.add(Math.round(k * step));
+  for (const i of [...ticks].sort((a, b) => a - b)) {
+    const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+    parts.push(
+      `<line x1="${x(i).toFixed(1)}" y1="${(H - padB).toFixed(1)}" x2="${x(i).toFixed(1)}"`
+      + ` y2="${(H - padB + 3).toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`,
       `<text x="${x(i).toFixed(1)}" y="${(H - 5).toFixed(1)}" text-anchor="${anchor}"`
       + ` fill="var(--faint)" font-family="monospace" font-size="9">${esc(tick(days[i]!))}</text>`,
     );
-  };
-  dateTick(0, 'start');
-  if (n > 8) dateTick(Math.floor((n - 1) / 2), 'middle');
-  dateTick(n - 1, 'end');
+  }
 
   // Lines. Emphasised symbols are pushed last so they sit ON TOP of the rest —
   // with 11 lines in a 260px box, being underneath is the same as being invisible.
@@ -180,12 +219,29 @@ export function rankChartSvg(
     const on = emph.has(sym);
     const c = hue(i);
     const li = lastIdx(vals);
-    const label = li < 0 ? '' :
-      `<text x="${(W - padR + 4).toFixed(1)}" y="${(y(vals[li]!) + 3).toFixed(1)}"`
-      + ` fill="${c}" font-family="monospace" font-size="9"`
+    const w = on ? 2.4 : 1.4;
+
+    // The end of the line is where the reader looks first — that is today. A dot
+    // plus the rank means the last value can be read without tracing back to the
+    // axis, and the axis is on the other side of eleven crossing lines.
+    const end = li < 0 ? '' :
+      `<circle cx="${x(li).toFixed(1)}" cy="${y(vals[li]!).toFixed(1)}" r="${on ? 3 : 2.2}"`
+      + ` fill="${c}"/>`
+      + `<text x="${(W - padR + 5).toFixed(1)}" y="${(y(vals[li]!) + 3.2).toFixed(1)}"`
+      + ` fill="${c}" font-family="monospace" font-size="9.5"`
       + `${on ? ' font-weight="700"' : ''}>${esc(sym)}</text>`;
-    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${on ? 2.2 : 1.3}"`
-      + ` stroke-linejoin="round" opacity="${on ? 1 : 0.75}"/>${label}`;
+
+    // A halo in the page background behind each stroke: where two sectors cross, the
+    // upper line reads as continuous instead of the pair reading as an X of one hue.
+    const halo = `<path d="${d}" fill="none" stroke="var(--bg)" stroke-width="${w + 2.4}"`
+      + ` stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>`;
+
+    // `<title>` is the native tooltip — no JS, works on the exported SVG too.
+    const tip = opts.label ? opts.label(sym) : sym;
+    return `<g><title>${esc(tip)}</title>${halo}`
+      + `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}"`
+      + ` stroke-linejoin="round" stroke-linecap="round" opacity="${on ? 1 : 0.8}"/>`
+      + `${end}</g>`;
   };
 
   const plain: string[] = [];

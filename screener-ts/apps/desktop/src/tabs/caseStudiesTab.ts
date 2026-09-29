@@ -21,6 +21,7 @@ import {
   type Catalyst,
 } from '../caseStudies/store.js';
 import { caseSvgChart, windowBars } from '../caseStudies/svgChart.js';
+import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { caseStudyHtml } from '../caseStudies/report.js';
 import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import {
@@ -240,9 +241,9 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
           <div>${escapeAttr(study.exitReason)}</div>
         </div>`
       : ''}
-    <div class="section-title">${vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news'}</div>
+    ${sectionHead(vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news', [countChip(study.catalysts.length, undefined, vi ? 'mốc' : 'dated')])}
     <div class="card" style="margin-bottom:14px">${catalystListHtml(study, vi)}</div>
-    <div class="section-title">${vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons'}</div>
+    ${sectionHead(vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons')}
     <div class="card note-html" style="line-height:1.7">${!isNoteEmpty(study.notes) ? sanitizeNoteHtml(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>
     <div id="cs-ask" style="margin-top:14px"></div>`;
 
@@ -452,7 +453,7 @@ async function renderAskSection(
 
   const paint = (): void => {
     host.innerHTML = `
-      <div class="section-title">${vi ? '🤖 Nhờ ChatGPT phân tích' : '🤖 Have ChatGPT analyse this'}</div>
+      ${sectionHead(vi ? '🤖 Nhờ ChatGPT phân tích' : '🤖 Have ChatGPT analyse this')}
       <div class="card" style="padding:12px">
         <p class="muted" style="margin:0 0 10px;font-size:12px;line-height:1.55">${
           vi
@@ -546,7 +547,10 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       </div>
     </div>
 
-    <div class="section-title">${vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news'}</div>
+    <!-- No count chip on this one, unlike the read view: the editor's list is a DRAFT that
+         renderCatRows() repaints on its own, so a number baked into the heading would go
+         stale the moment a row is added or deleted. -->
+    ${sectionHead(vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news')}
     <div class="card" style="margin-bottom:14px">
       <div id="cs-cat-rows"></div>
       <div class="row" style="margin-top:8px;gap:8px;align-items:flex-start">
@@ -556,7 +560,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       </div>
     </div>
 
-    <div class="section-title">${vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons'}</div>
+    ${sectionHead(vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons')}
     <div class="card" style="margin-bottom:14px">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
         <span class="muted" style="font-size:12px">${vi ? 'Hỗ trợ định dạng (đậm, danh sách, màu…)' : 'Rich text (bold, lists, color…)'}</span>

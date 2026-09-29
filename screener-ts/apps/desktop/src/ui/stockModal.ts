@@ -13,6 +13,7 @@ import { $, num, fmtBig, money, fmtPrice, isVnSymbol, scoreColor } from './dom.j
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
 import { setupBadge, classBadge } from './badges.js';
 import { t, getLang } from './i18n.js';
+import { sectionHead } from './sectionHead.js';
 import { loadIndex, loadItems, saveItems, createList, listsContaining } from './watchlists.js';
 import { infoIcon as info, attachTooltips } from './tooltip.js';
 import { loadGptUrl, renderPromptSection } from './promptSection.js';
@@ -370,7 +371,7 @@ function renderDetail(
         ${stat('Trend', q.trend.passed ? '✓ pass' : '✗ fail', 'trend_gate')}
       </div>` : ''}
       <div class="card analysis-card" style="margin-top:12px">
-        <div class="section-title" style="margin-top:0">${t('detail.analysis')}</div>
+        ${sectionHead(t('detail.analysis'))}
         ${analysisHtml(q, mom)}
       </div>`;
   }
@@ -391,12 +392,9 @@ function renderDetail(
     <div id="sm-plan-panel"></div>
     ${patternBlock}
     <div class="card" style="margin-top:14px;padding:8px">
-      <div class="toolbar" style="margin:4px 6px">
-        <span class="section-title" style="margin:0">${t('detail.pricehistory')}</span>
-        <div class="row" style="margin-left:auto">
-          ${RANGES.map((r) => `<button class="range-btn ${r.period === '1y' ? 'active' : ''}" data-period="${r.period}">${r.label}</button>`).join('')}
-        </div>
-      </div>
+      <div style="margin:4px 6px">${sectionHead(t('detail.pricehistory'), [], {
+        right: `<div class="row" style="gap:4px;flex-wrap:wrap">${RANGES.map((r) => `<button class="range-btn ${r.period === '1y' ? 'active' : ''}" data-period="${r.period}">${r.label}</button>`).join('')}</div>`,
+      })}</div>
       <div class="row" style="margin:0 6px 6px">
         ${EMA_CONFIG.map(
           // `emaState`, not `e.on`: the toggles persist across opens, so the
@@ -409,31 +407,31 @@ function renderDetail(
       <div id="detail-earn" class="muted" style="font-size:10.5px;margin:6px 6px 2px"></div>
     </div>
     <div class="card" style="margin-top:14px;padding:8px">
-      <div class="toolbar" style="margin:4px 6px">
-        <span class="section-title" style="margin:0">${t('detail.fundtrend')}</span>
-        <div class="row" style="margin-left:auto;gap:10px">
-          <div class="row">
+      <div style="margin:4px 6px">${sectionHead(t('detail.fundtrend'), [], {
+        right: `<div class="row" style="gap:10px;flex-wrap:wrap">
+          <div class="row" style="gap:4px">
             <button class="range-btn active" data-fund="revenue">Revenue</button>
             <button class="range-btn" data-fund="netIncome">Net Income</button>
             <button class="range-btn" data-fund="eps">EPS</button>
           </div>
-          <div class="row">
+          <div class="row" style="gap:4px">
             <button class="range-btn active" data-freq="annual">Annual</button>
             <button class="range-btn" data-freq="quarterly">Quarterly</button>
           </div>
-        </div>
-      </div>
+        </div>`,
+      })}</div>
       <div id="fund-chart" class="chart" style="height:160px"></div>
       <p class="muted" style="font-size:10px;margin:4px 6px 0">${vi ? 'Biểu đồ: giá trị từng kỳ báo cáo (năm tài chính hoặc quý). Lưới chỉ số bên dưới dùng số liệu TTM (12 tháng gần nhất) nên có thể khác.' : 'Chart: per-period reported values (fiscal year or quarter). The stat grid below uses trailing twelve-month (TTM) figures and will typically differ.'}</p>
     </div>
-    <div class="section-title">${t('detail.fundamentals')}${
-      asOf
-        ? ` <span class="muted" style="font-size:11px;font-weight:400">— ${vi ? 'năm gần nhất trước ' : 'latest annual before '}${asOf}</span>`
-        : ''
-    }</div>
+    ${sectionHead(t('detail.fundamentals'),
+      // As-of mode: the grid is reading a report filed before that date, and which
+      // date decides which report — so the date goes beside the heading as data, and
+      // the sentence that says what it means goes under it.
+      [asOf ? { n: asOf, kind: 'date' as const } : null],
+      asOf ? { sub: vi ? 'Báo cáo năm gần nhất trước ngày này.' : 'The latest annual report filed before this date.' } : {})}
     <div id="fund-grid" class="grid" style="grid-template-columns:repeat(3,1fr)">${fundGridHtml(f, symbol, asOf)}</div>
     <div id="prompt-block"></div>
-    <div class="section-title">${t('detail.about')}</div>
+    ${sectionHead(t('detail.about'))}
     <div id="about-block">${aboutHtml(symbol, f, true)}</div>
     <div class="muted" style="font-size:11px;margin-top:14px">${t('foot.disclaimer')}${money(0).slice(0, 0)}</div>
   `;
@@ -730,7 +728,7 @@ async function wireWatchlistPicker(ctx: AppContext, symbol: string): Promise<voi
     const idx = await loadIndex(ctx);
     const inLists = await listsContaining(ctx, symbol);
     picker.innerHTML = `
-      <div class="section-title" style="margin-top:0">Add ${symbol} to…</div>
+      <div class="section-title" style="margin-top:0">${t('wl.addto').replace('{sym}', symbol)}</div>
       <div class="row" style="flex-wrap:wrap">
         ${idx
           .map(

@@ -74,6 +74,9 @@ import { onAgentWrite, snapshotNow } from '../portfolio/writes.js';
 import { isHydrated } from '../adapters/storage.js';
 import { $, num, money, pct } from '../ui/dom.js';
 import { drawLine, drawCandles } from '../ui/charts.js';
+// One heading builder for every page — see `ui/sectionHead.ts` for why the rule
+// belongs to the block and why a chip's number is set in mono.
+import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { formDialog } from '../ui/forms.js';
 import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { attachCombobox } from '../ui/combobox.js';
@@ -1303,7 +1306,14 @@ function draw(ctx: AppContext): void {
 
     ${m.openPositionsWithoutStop > 0 ? `<div class="notice" style="margin-bottom:12px">${m.openPositionsWithoutStop} open position(s) have no stop set — risk is excluded until you add one.</div>` : ''}
 
-    <div class="section-title">${t('pf.sec.openpos')} <span class="muted" style="text-transform:none;font-weight:400">— ${t('pf.sec.openpos.hint')}</span></div>
+    ${sectionHead(t('pf.sec.openpos'), [
+      countChip(positions.length, undefined, t('pf.unit.positions')),
+      // The notice above says what a missing stop COSTS; this says how many, on the
+      // heading of the table you would go looking in.
+      m.openPositionsWithoutStop > 0
+        ? { n: m.openPositionsWithoutStop, text: t('pf.unit.nostop'), kind: 'warn' as const }
+        : null,
+    ], { sub: t('pf.sec.openpos.hint') })}
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       <table style="white-space:nowrap"><thead><tr>
         <th>${t('pf.col.ticker')}${infoIcon('pf_ticker')}</th>
@@ -1355,7 +1365,11 @@ function draw(ctx: AppContext): void {
       Set or edit either anytime with the buttons above; risk recalculates. Clearing the stop removes it.
     </p>
 
-    <div class="section-title">${t('pf.sec.txhistory')}</div>
+    ${sectionHead(t('pf.sec.txhistory'), [
+      // Exactly the rows the table builds: one per still-open lot, one per sell.
+      countChip(st.lots.filter((l) => l.remainingShares > 0).length, undefined, t('pf.col.open')),
+      countChip(st.sells.length, undefined, t('pf.col.closed')),
+    ])}
     <div class="card" style="overflow-x:auto;margin-bottom:4px">${transactionHistoryHtml(st)}</div>
     <div id="row-chart-panel" style="display:none;margin-bottom:14px">
       <div class="card" style="padding:8px">
@@ -1466,7 +1480,7 @@ function draw(ctx: AppContext): void {
         <div id="b-planhint" class="price-hint" style="margin-top:4px;line-height:1.6"></div>
       </div>
       <div class="card">
-        <div class="section-title" style="margin-top:0">Pending BUY_STOP Order</div>
+        <div class="section-title" style="margin-top:0">${t('pf.sec.pendingorder')}</div>
         <div class="row"><input id="o-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
           <input id="o-thresh" class="field" type="number" step="any" placeholder="Trigger ≥" style="width:100px" />
           <input id="o-shares" class="field" type="number" placeholder="Shares" style="width:90px" />
@@ -3295,12 +3309,15 @@ function buildOverviewHtml(): string {
       </div>
     </div>
 
-    <div class="section-title-row">
-      <span class="section-title" style="margin:0">${t('pf.overview.compare')}</span>
-      ${accounts.length < 2
-        ? `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>${t('pf.addacct.hint')}</span>`
-        : `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2l3.5 11 1.8-4.4L12.7 7 3 2z" fill="currentColor"/></svg>${t('pf.clickacct')}</span>`}
-    </div>
+    ${sectionHead(t('pf.overview.compare'),
+      [countChip(compareRows.length, undefined, t('pf.unit.accounts'))],
+      {
+        // The hint keeps its own pill shape: it is an instruction, not a figure, and
+        // the chips beside the heading are all figures.
+        right: accounts.length < 2
+          ? `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>${t('pf.addacct.hint')}</span>`
+          : `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2l3.5 11 1.8-4.4L12.7 7 3 2z" fill="currentColor"/></svg>${t('pf.clickacct')}</span>`,
+      })}
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       <table><thead><tr><th>${t('pf.col.account')}</th><th>${t('pf.col.return')}</th><th>${t('pf.col.twr')}</th><th>${t('pf.col.equity2')}</th><th>${t('pf.col.winrate')}</th><th>${t('pf.stat.expectancy')}</th><th>${t('pf.col.avgr')}</th><th>${t('pf.col.maxdd')}</th><th>${t('pf.col.openrisk')}</th><th>${t('pf.col.open')}</th><th>${t('pf.col.closed')}</th></tr></thead>
       <tbody>${compareRows

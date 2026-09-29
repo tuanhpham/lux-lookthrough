@@ -9,6 +9,7 @@ import { $, el } from '../ui/dom.js';
 import { closeTradePlanner, openTradePlanner } from '../portfolio/tradePlanner.js';
 import { openStock } from '../ui/stockModal.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
+import { sectionHead } from '../ui/sectionHead.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
@@ -418,15 +419,15 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
       </table>
     </div>
 
-    <div class="section-title">${vi ? '🚀 Động lượng (Momentum)' : '🚀 Momentum'}</div>
+    ${sectionHead(vi ? '🚀 Động lượng (Momentum)' : '🚀 Momentum')}
     <p class="muted" style="line-height:1.65;margin:0">${momIntro}</p>
 
-    <div class="section-title">${vi ? '⚡ Surge (bứt tốc)' : '⚡ Surge'}</div>
+    ${sectionHead(vi ? '⚡ Surge (bứt tốc)' : '⚡ Surge')}
     <p class="muted" style="line-height:1.65;margin:0 0 8px">${surgeIntro}</p>
     <ul class="analysis-list" style="margin:0 0 8px">${surgeConditions.map((c) => `<li>${c}</li>`).join('')}</ul>
     <p class="muted" style="line-height:1.65;margin:0;font-size:12px">${surgeWhen}</p>
 
-    <div class="section-title">${vi ? '🧭 Bối cảnh & luân chuyển' : '🧭 Regime & rotation'}</div>
+    ${sectionHead(vi ? '🧭 Bối cảnh & luân chuyển' : '🧭 Regime & rotation')}
     <ul class="analysis-list">${layers.map((i) => `<li>${i}</li>`).join('')}</ul>
 
     <div class="muted" style="font-size:11px;margin-top:14px">${

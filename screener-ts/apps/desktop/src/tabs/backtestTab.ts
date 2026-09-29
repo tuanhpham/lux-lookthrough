@@ -17,6 +17,7 @@ import {
 import type { AppContext } from '../context.js';
 import { $, el, num } from '../ui/dom.js';
 import { drawLine } from '../ui/charts.js';
+import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { downloadCsv, downloadHtml } from '../ui/exportFile.js';
 import { openStock } from '../ui/stockModal.js';
 import { t } from '../ui/i18n.js';
@@ -234,10 +235,10 @@ function renderResults(ctx: AppContext, res: BacktestResult, s: BacktestStats, s
       ${statCard(t('backtest.avghold'), num(s.avgHoldBars, 0) + 'd')}
     </div>
     <div class="card" style="margin-bottom:14px;padding:10px">
-      <div class="section-title" style="margin:4px 6px">${t('backtest.equity')}</div>
+      <div style="margin:4px 6px">${sectionHead(t('backtest.equity'))}</div>
       <div id="bt-equity" class="chart" style="height:260px"></div>
     </div>
-    <div class="section-title">${t('backtest.tradelog')}</div>
+    ${sectionHead(t('backtest.tradelog'), [countChip(s.trades, undefined, t('backtest.trades'))])}
     <div id="bt-trades"></div>`;
 
   drawLine(

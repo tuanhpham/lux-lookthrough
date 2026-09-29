@@ -513,6 +513,12 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'pf.sec.txhistory': { en: 'Transaction History', vi: 'Lịch sử giao dịch' },
   'pf.sec.orders': { en: 'Pending Orders', vi: 'Lệnh chờ' },
   'pf.sec.buy': { en: 'Buy / Sell', vi: 'Mua / Bán' },
+  // `BUY_STOP` stays in both languages: it is the order type the broker takes, not a
+  // word. This heading was hard-coded English until the section-heading pass.
+  'pf.sec.pendingorder': { en: 'Pending BUY_STOP Order', vi: 'Lệnh chờ BUY_STOP' },
+  'pf.unit.positions': { en: 'positions', vi: 'vị thế' },
+  'pf.unit.nostop': { en: 'no stop', vi: 'chưa có cắt lỗ' },
+  'pf.unit.accounts': { en: 'accounts', vi: 'tài khoản' },
   'pf.col.ticker': { en: 'Ticker', vi: 'Mã' },
   'pf.col.shares': { en: 'Shares', vi: 'Số CP' },
   'pf.col.avgcost': { en: 'Avg cost', vi: 'Giá TB' },
@@ -630,6 +636,9 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'detail.fundtrend': { en: 'Fundamentals Trend', vi: 'Xu hướng cơ bản' },
   'detail.fundamentals': { en: 'Fundamentals', vi: 'Chỉ số cơ bản' },
   'detail.about': { en: 'About', vi: 'Giới thiệu' },
+  // `{sym}` sits mid-sentence in Vietnamese, so the ticker is substituted by the
+  // caller rather than concatenated onto either end.
+  'wl.addto': { en: 'Add {sym} to…', vi: 'Thêm {sym} vào…' },
 
   // Backtest
   'backtest.title': { en: 'Backtest', vi: 'Backtest' },
@@ -1514,6 +1523,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   },
   'scan.th.none': { en: 'The VM has not pushed its thresholds yet.', vi: 'VM chưa đẩy bảng ngưỡng lên.' },
   'scan.th.show': { en: 'Show thresholds', vi: 'Xem bảng ngưỡng' },
+  // Folding. Generic keys, not `scan.*`: the same caret is reused by any page that
+  // grows long enough to need it.
+  'sec.fold': { en: 'Fold / unfold this section', vi: 'Thu gọn / mở rộng phần này' },
+  'sec.foldall': { en: 'Fold or unfold every section', vi: 'Thu gọn hoặc mở rộng tất cả' },
   'scan.rej.passed': { en: 'passed', vi: 'qua lọc' },
   'scan.rej.cut': { en: 'over ceiling', vi: 'bị cắt trần' },
   'scan.rej.fund': { en: 'awaiting fundamentals', vi: 'chờ điểm cơ bản' },

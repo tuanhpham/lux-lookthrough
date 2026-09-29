@@ -44,6 +44,9 @@ import { openStock } from '../ui/stockModal.js';
 import { formDialog } from '../ui/forms.js';
 import { loadIndex, loadItems } from '../ui/watchlists.js';
 import { countChip, rangeChip, sectionHead, type ChipInput } from '../ui/sectionHead.js';
+// The five analytical strips fold, and the chips on their headings are what make a
+// folded one still worth reading. Same storage as the scanner's ten sections.
+import { foldBlock, wireCollapse } from '../ui/collapse.js';
 import { fetchCatalystWindow, todayLocal } from '../adapters/CatalystProvider.js';
 import {
   listSnapshotDays,
@@ -501,18 +504,22 @@ function renderRisk(): void {
 
   const hottest = peak >= 0.2;
   host.innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      ${sectionHead(t('cal.myrisk'), [
+    <div class="card" style="margin-bottom:14px">${foldBlock('cal:risk',
+      sectionHead(t('cal.myrisk'), [
         countChip(shown, risks.length, t('cal.unit.days')),
         { n: `${(peak * 100).toFixed(1)}%`, text: t('cal.risk.peak'),
           kind: hottest ? 'danger' : 'plain', title: t('cal.ofcapital') },
-      ], { tone: hottest ? 'var(--danger)' : undefined })}
-      <table><thead><tr>
+      ], { tone: hottest ? 'var(--danger)' : undefined }),
+      // Folded, the chips still say how many days and how hot the worst one is — which
+      // is the whole reason this section can be folded without losing the warning.
+      `<table><thead><tr>
         <th>${t('cal.event.date')}</th><th>${t('cal.holdings')}</th>
         <th style="text-align:right">${t('cal.ofcapital')}</th>
       </tr></thead><tbody>${rows}</tbody></table>
-      <p class="muted" style="margin:8px 0 0;font-size:11px">${basis}${fxNote}</p>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">${basis}${fxNote}</p>`,
+      t('sec.fold'))}
     </div>`;
+  wireCollapse(host);
 
   host.querySelectorAll<HTMLElement>('[data-goto]').forEach((tr) =>
     tr.addEventListener('click', () => {
@@ -541,13 +548,15 @@ function renderUpcoming(): void {
   }
   // "Next 7 days" is a promise about a window; the range chip is what makes it
   // checkable, and the count says whether the strip is complete or the top 12.
-  host.innerHTML = `
-    ${sectionHead(t('cal.upcoming'), [
+  host.innerHTML = foldBlock('cal:upcoming',
+    sectionHead(t('cal.upcoming'), [
       countChip(soon.length, inWindow.length, t('cal.unit.events')),
       rangeChip(current.from, cutoff),
-    ])}
-    <div class="cal-strip">${soon.map(eventCardHtml).join('')}</div>`;
+    ]),
+    `<div class="cal-strip">${soon.map(eventCardHtml).join('')}</div>`,
+    t('sec.fold'));
   wireSymbolClicks(host);
+  wireCollapse(host);
 }
 
 function timingBadge(e: CatalystEvent): string {
@@ -888,14 +897,16 @@ function renderTopAttention(): void {
 
   const rows = rankAttention(inputs, today, 7);
   host.innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      ${sectionHead(t('cal.top.title'), [
+    <div class="card" style="margin-bottom:14px">${foldBlock('cal:top',
+      sectionHead(t('cal.top.title'), [
         { n: rows.length, text: t('cal.unit.names'), kind: rows.length ? 'count' : 'warn',
           title: `${pool.size} ${t('picks.scanned')}` },
-      ], { sub: t('cal.top.sub') })}
-      ${rows.length ? topTableHtml(rows) : `<p class="muted" style="margin:0">${t('cal.top.none')}</p>`}
+      ], { sub: t('cal.top.sub') }),
+      rows.length ? topTableHtml(rows) : `<p class="muted" style="margin:0">${t('cal.top.none')}</p>`,
+      t('sec.fold'))}
     </div>`;
   wireSymbolClicks(host);
+  wireCollapse(host);
 }
 
 function topTableHtml(rows: AttentionRow[]): string {
@@ -976,12 +987,12 @@ function renderVcpSection(rows: VcpWatchRow[]): void {
   }).join('');
 
   host.innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      ${sectionHead(t('cal.vcp.title'), [
+    <div class="card" style="margin-bottom:14px">${foldBlock('cal:vcp',
+      sectionHead(t('cal.vcp.title'), [
         top.length ? countChip(top.length, rows.length, t('cal.unit.names'))
           : { n: 0, text: t('cal.unit.names'), kind: 'warn' },
-      ], { sub: t('cal.vcp.sub') })}
-      ${top.length ? `<div style="overflow-x:auto"><table><thead><tr>
+      ], { sub: t('cal.vcp.sub') }),
+      top.length ? `<div style="overflow-x:auto"><table><thead><tr>
         <th>${t('col.symbol')}</th>
         <th style="text-align:right">${t('col.price')}</th>
         <th style="text-align:right">${t('cal.vcp.advance')}</th>
@@ -992,9 +1003,11 @@ function renderVcpSection(rows: VcpWatchRow[]): void {
         <th style="text-align:right">${t('detail.quality')}</th>
         <th></th>
       </tr></thead><tbody>${body}</tbody></table></div>`
-      : `<p class="muted" style="margin:0">${t('cal.vcp.none')}</p>`}
+      : `<p class="muted" style="margin:0">${t('cal.vcp.none')}</p>`,
+      t('sec.fold'))}
     </div>`;
   wireSymbolClicks(host);
+  wireCollapse(host);
 }
 
 function renderMeanReversionSection(rows: MeanReversionRow[]): void {
@@ -1024,12 +1037,12 @@ function renderMeanReversionSection(rows: MeanReversionRow[]): void {
   }).join('');
 
   host.innerHTML = `
-    <div class="card" style="margin-bottom:14px">
-      ${sectionHead(t('cal.mr.title'), [
+    <div class="card" style="margin-bottom:14px">${foldBlock('cal:mr',
+      sectionHead(t('cal.mr.title'), [
         top.length ? countChip(top.length, rows.length, t('cal.unit.names'))
           : { n: 0, text: t('cal.unit.names'), kind: 'warn' },
-      ], { sub: t('cal.mr.sub') })}
-      ${top.length ? `<div style="overflow-x:auto"><table><thead><tr>
+      ], { sub: t('cal.mr.sub') }),
+      top.length ? `<div style="overflow-x:auto"><table><thead><tr>
         <th>${t('col.symbol')}</th>
         <th style="text-align:right">${t('col.price')}</th>
         <th style="text-align:right">${t('cal.mr.stretch')}</th>
@@ -1041,9 +1054,11 @@ function renderMeanReversionSection(rows: MeanReversionRow[]): void {
         <th></th>
       </tr></thead><tbody>${body}</tbody></table></div>
       <p class="muted" style="margin:8px 0 0;font-size:11px">${t('cal.mr.falling.tip')}</p>`
-      : `<p class="muted" style="margin:0">${t('cal.mr.none')}</p>`}
+      : `<p class="muted" style="margin:0">${t('cal.mr.none')}</p>`,
+      t('sec.fold'))}
     </div>`;
   wireSymbolClicks(host);
+  wireCollapse(host);
 }
 
 /** Ticker buttons open the existing stock detail modal. */
