@@ -25,7 +25,7 @@ import {
 } from '../ui/sectionHead.js';
 import { sectorName, sectorTip } from '../ui/sectorNames.js';
 import { caretHtml, openAttr, revealCollapse, setAllCollapsed, wireCollapse } from '../ui/collapse.js';
-import { reasonLabel, setupLabel } from './scannerVocab.js';
+import { reasonLabel, setupLabel, setupWord } from './scannerVocab.js';
 
 const KEY_STATUS = 'scanner:status';
 const KEY_CANDIDATES = 'scanner:candidates';
@@ -433,6 +433,22 @@ const setupHead = (code: string): string => {
     : esc(l.text);
 };
 
+/**
+ * `setups.py` computes BO → RV → LEAD, and every block on this page is keyed by
+ * those codes. Sorting the keys alphabetically would read BO, LEAD, RV — an order
+ * nothing else in the system uses. Anything new the scanner adds sorts in after the
+ * three known ones.
+ */
+const SETUP_ORDER = ['BO', 'RV', 'LEAD'];
+
+const bySetupOrder = (a: string, b: string): number => {
+  const rank = (s: string): number => {
+    const i = SETUP_ORDER.indexOf(s.trim().toUpperCase());
+    return i < 0 ? SETUP_ORDER.length : i;
+  };
+  return rank(a) - rank(b) || a.localeCompare(b);
+};
+
 // ── health ───────────────────────────────────────────────────────────────────
 
 /**
@@ -551,12 +567,17 @@ function renderToday(snap: RegimeSnap | null): string {
   if (!r) return `<p class="muted">${t('scan.today.none')}</p>`;
 
   const pb = snap?.playbook ?? {};
-  const setups = pb.setups?.length ? pb.setups.join(' · ') : t('scan.today.nosetup');
+  // The words, not the codes — this tile answers "what am I allowed to trade today".
+  // The raw codes stay in the tooltip: they are what the VM's log and Telegram say.
+  const setups = pb.setups?.length
+    ? `<span title="${esc(pb.setups.join(' · '))}">`
+      + esc(pb.setups.map((k) => setupWord(k).text).join(' · ')) + '</span>'
+    : esc(t('scan.today.nosetup'));
 
   const tiles = [
     stat(t('scan.today.trend'), enumLabel('trend', r.trend), trendColor(r.trend)),
     stat(t('scan.today.vol'), enumLabel('vol', r.vol), volColor(r.vol)),
-    stat(t('scan.today.setups'), esc(setups),
+    stat(t('scan.today.setups'), setups,
       pb.setups?.length ? undefined : 'var(--danger)'),
     stat(t('scan.today.size'), sizeText(pb.size)),
   ].join('');
@@ -1187,10 +1208,15 @@ function renderStatus(status: Status | null, pushedAt: number | null): string {
   };
 
   const bySetup = status.candidates?.by_setup ?? {};
+  // Words here too, with the code line in the tooltip: this is the health panel, so
+  // it has to stay comparable with the VM's log, but it is still read by a human.
   const setupLine = Object.keys(bySetup).length
-    ? Object.entries(bySetup)
-        .map(([k, n]) => `${esc(k)} ${n}`)
-        .join(' · ')
+    ? `<span title="${esc(Object.entries(bySetup).map(([k, n]) => `${k} ${n}`).join(' · '))}">`
+      + Object.entries(bySetup)
+          .sort((a, b) => bySetupOrder(a[0], b[0]))
+          .map(([k, n]) => `${esc(setupWord(k).text)} ${n}`)
+          .join(' · ')
+      + '</span>'
     : String(status.candidates?.rows ?? 0);
 
   const tables = [
@@ -1238,7 +1264,7 @@ function candRow(c: Candidate): string {
 
 function renderCandidates(snap: CandidatesSnap | null): string {
   const by = snap?.by_setup ?? {};
-  const setups = Object.keys(by).filter((k) => Array.isArray(by[k])).sort();
+  const setups = Object.keys(by).filter((k) => Array.isArray(by[k])).sort(bySetupOrder);
   if (!setups.length) {
     return `<p class="muted">${t('scan.nocand')}</p>`;
   }
@@ -1263,7 +1289,7 @@ function renderCandidates(snap: CandidatesSnap | null): string {
 
 function renderRejects(snap: RejectsSnap | null): string {
   const by = snap?.by_setup ?? {};
-  const setups = Object.keys(by).sort();
+  const setups = Object.keys(by).sort(bySetupOrder);
   if (!setups.length) {
     return `<p class="muted">${t('scan.norej')}</p>`;
   }
@@ -1277,6 +1303,10 @@ function renderRejects(snap: RejectsSnap | null): string {
       .sort((a, b) => b[1] - a[1]);
     const passed = raw['_qua_loc'] ?? 0;
     const cutoff = raw['_bi_cat_tran'] ?? 0;
+    // LEAD only: how many cleared the quality floor BEFORE the per-sector and total
+    // caps were applied. Without it, `12 passed` hides which of the two did the
+    // cutting — a floor too strict and a cap too tight need opposite fixes.
+    const floor = raw['_qua_san'];
     const total = reasons.reduce((n, [, v]) => n + v, 0) + passed;
     const rows = reasons.map(([reason, n]) => {
       const share = total ? (n / total) * 100 : 0;
@@ -1291,6 +1321,8 @@ function renderRejects(snap: RejectsSnap | null): string {
     return `
       ${sectionHead(setupHead(s), [
         { n: passed, text: t('scan.rej.passed'), kind: 'count' },
+        floor != null && floor !== passed
+          ? { n: floor, text: t('scan.rej.floor'), kind: 'count' as const } : null,
         cutoff ? { n: cutoff, text: t('scan.rej.cut'), kind: 'warn' } : null,
       ])}
       <div class="card" style="padding:0;overflow-x:auto">

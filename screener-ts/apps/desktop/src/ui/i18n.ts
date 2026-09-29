@@ -1529,10 +1529,15 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'sec.foldall': { en: 'Fold or unfold every section', vi: 'Thu gọn hoặc mở rộng tất cả' },
   'scan.rej.passed': { en: 'passed', vi: 'qua lọc' },
   'scan.rej.cut': { en: 'over ceiling', vi: 'bị cắt trần' },
+  // LEAD only, and only when it differs from `passed`: cleared the quality floor
+  // before the per-sector and total caps.
+  'scan.rej.floor': { en: 'cleared the floor', vi: 'qua sàn chất lượng' },
   'scan.rej.fund': { en: 'awaiting fundamentals', vi: 'chờ điểm cơ bản' },
+  // The two example reasons are quoted with the labels the table now prints, not the
+  // scanner's raw keys, so a reader can actually find the row being talked about.
   'scan.rej.note': {
-    en: 'Recomputed against the thresholds in force right now, not stored when the list was built. "no consolidation base" dominating is normal — most of the market is not in a base. "still far from pivot" dominating means the market just fell, and the setup should be quiet.',
-    vi: 'Tính lại theo đúng ngưỡng đang có hiệu lực, không phải bảng lưu lúc dựng danh sách. "khong co nen tich luy" chiếm gần hết là bình thường — phần lớn thị trường không ở nền. "con xa pivot" chiếm gần hết nghĩa là thị trường vừa rơi, và setup đúng ra nên im lặng.',
+    en: 'Recomputed against the thresholds in force right now, not stored when the list was built. "No base yet" dominating is normal — most of the market is not in a base. "Still far below the pivot" dominating means the market just fell, and the setup should be quiet.',
+    vi: 'Tính lại theo đúng ngưỡng đang có hiệu lực, không phải bảng lưu lúc dựng danh sách. "Chưa có nền tích lũy" chiếm gần hết là bình thường — phần lớn thị trường không ở nền. "Còn xa pivot" chiếm gần hết nghĩa là thị trường vừa rơi, và setup đúng ra nên im lặng.',
   },
 
   // Health warnings — every one of these is a state that produces SILENCE, not an
