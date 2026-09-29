@@ -83,10 +83,20 @@ export interface PlaybookConfig {
    * eventually disagree with them on their own recorded evidence.
    */
   gradeThresholds: Partial<GradeThresholds>;
+  /**
+   * Exit reasons the user added to the shipped vocabulary. Empty = the shipped list only.
+   *
+   * Here rather than under its own key for the same reason the rest of this blob is: it is rules
+   * the user typed, it has to sync (a dropdown that differs between the laptop and the phone
+   * would make the journal uncountable and say nothing about why), and every screen that needs
+   * it already calls `loadPlaybookConfig`. Typed loosely — `portfolio/exitReasons.ts` owns the
+   * shape and validates on the way out, because this blob is synced and hand-editable.
+   */
+  exitReasons?: { key: string; label: string; group: string }[];
 }
 
 export const EMPTY_PLAYBOOK_CONFIG: PlaybookConfig = {
-  setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {},
+  setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {}, exitReasons: [],
 };
 
 let cfg: PlaybookConfig = EMPTY_PLAYBOOK_CONFIG;
@@ -133,6 +143,11 @@ export async function loadPlaybookConfig(ctx: AppContext): Promise<PlaybookConfi
     ladder: stored?.ladder ?? {},
     pinnedRiskPct: typeof stored?.pinnedRiskPct === 'number' ? stored.pinnedRiskPct : null,
     gradeThresholds: stored?.gradeThresholds ?? {},
+    // Filtered here rather than trusted: this blob syncs and can be hand-edited, and a row with
+    // no key would render an option the user can pick and that nothing can look up afterwards.
+    exitReasons: (Array.isArray(stored?.exitReasons) ? stored.exitReasons : [])
+      .filter((r) => r && typeof r.key === 'string' && r.key !== '' && typeof r.label === 'string')
+      .map((r) => ({ key: r.key, label: r.label, group: typeof r.group === 'string' ? r.group : 'mine' })),
   };
   cfgLoaded = true;
   return cfg;

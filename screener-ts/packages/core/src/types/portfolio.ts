@@ -47,6 +47,20 @@ export interface SellRecord {
   fxRateAtSell?: number; // EURUSD rate at time of sale
   /** Free-form rich-text (HTML) note about this sale. */
   note?: string;
+  /**
+   * WHY the position was closed, as a key from the app's exit-reason vocabulary.
+   *
+   * ── WHY A KEY AND NOT JUST THE NOTE ─────────────────────────────────────────
+   * `note` already takes the words, and the words are where the lesson is. But a year of notes
+   * cannot answer "how did the trades I sold out of fear do" or "does getting out on the first
+   * touch of the 10-EMA save me money" — those need one spelling per reason, which is what a key
+   * is. Optional, and absent on every sell recorded before this existed, so nothing may assume it.
+   *
+   * Deliberately a bare `string` in core: the vocabulary is the USER's to extend (see the app's
+   * `portfolio/exitReasons.ts`), so a union here would be a promise core cannot keep — and core
+   * must not own a list the app lets people add rows to.
+   */
+  exitReasonKey?: string;
 }
 
 export type OrderType = 'BUY_STOP' | 'STOP_LOSS' | 'TAKE_PROFIT';

@@ -23,13 +23,15 @@ import type { GradeResult } from '@screener/core';
 import {
   autoCaseTitle,
   caseStudyFromPlan,
+  closeOnOrBefore,
   emptyExit,
   exitMath,
-  exitReasonLabel,
   exitReasonText,
   hasExit,
+  planChartWindow,
   type PlanExit,
 } from '../src/portfolio/planExit.js';
+import type { Bar } from '@screener/core';
 import type { CasePlan } from '../src/caseStudies/store.js';
 import { emptyPlan } from '../src/portfolio/planStore.js';
 
@@ -140,8 +142,9 @@ describe('hasExit / exitReasonText', () => {
   });
 
   it('speaks Vietnamese when asked', () => {
-    expect(exitReasonLabel('panic', true)).toBe('Bán vì sợ — không theo kế hoạch');
-    expect(exitReasonLabel('', true)).toBe('');
+    expect(exitReasonText(exit({ reason: 'panic' }), true)).toBe('Bán vì sợ — không theo kế hoạch');
+    expect(exitReasonText(exit({ reason: 'panic', note: 'tại tôi' }), true))
+      .toBe('Bán vì sợ — không theo kế hoạch — tại tôi');
   });
 });
 
@@ -239,5 +242,129 @@ describe('caseStudyFromPlan', () => {
     // Catalysts are dated events the user enters in the journal's own editor. Deriving them from
     // a criteria summary would put made-up dates on a timeline that is read as fact.
     expect(caseStudyFromPlan(base).catalysts).toEqual([]);
+  });
+});
+
+
+// ── The chart window, and the seeded exit price ───────────────────────────
+/**
+ * Weekday bars from `from` to `to` inclusive, close = 100 + the index.
+ *
+ * Weekdays only, because the two things under test both turn on the gap between a calendar date
+ * the user picked and the sessions that actually exist: a Saturday exit date, and a window edge
+ * that lands on a weekend.
+ */
+function daily(from: string, to: string): Bar[] {
+  const out: Bar[] = [];
+  const d = new Date(from + 'T00:00:00Z');
+  const end = new Date(to + 'T00:00:00Z');
+  let i = 0;
+  while (d.getTime() <= end.getTime()) {
+    const day = d.getUTCDay();
+    if (day !== 0 && day !== 6) {
+      const iso = d.toISOString().slice(0, 10);
+      const close = 100 + i;
+      out.push({ date: iso, open: close, high: close, low: close, close, volume: 1000 });
+      i++;
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+const first = (b: readonly Bar[]): string => b[0]!.date;
+const last = (b: readonly Bar[]): string => b[b.length - 1]!.date;
+
+describe('planChartWindow', () => {
+  // Two years of bars, so every window below is comfortably inside the data.
+  const bars = daily('2023-01-02', '2024-12-31');
+
+  it('frames a past trade date with four months before and two after', () => {
+    const w = planChartWindow(bars, '2024-05-20', null);
+    expect(first(w) >= '2024-01-19').toBe(true);   // 2024-05-20 minus 4 months, to the day
+    expect(first(w) <= '2024-01-23').toBe(true);   // and not a week earlier than that
+    expect(last(w) <= '2024-07-20').toBe(true);
+    expect(last(w) >= '2024-07-16').toBe(true);
+  });
+
+  it('keeps the window six months wide when there are no future bars to show', () => {
+    // The trade date is the last bar there is — the "rat gan day" case. The right edge cannot
+    // move, so the LEFT edge goes back six months rather than four, or a plan plotted today
+    // would draw a four-month sliver.
+    const w = planChartWindow(bars, '2024-12-31', null);
+    expect(last(w)).toBe('2024-12-31');
+    expect(first(w) <= '2024-07-01').toBe(true);
+    expect(first(w) >= '2024-06-27').toBe(true);
+  });
+
+  it('grows with the hold, following the exit rather than the entry', () => {
+    const w = planChartWindow(bars, '2024-02-01', '2024-09-30');
+    // Still four months of base before the entry — the setup must not scroll off the left.
+    expect(first(w) <= '2023-10-02').toBe(true);
+    // And two months past the exit, which is eight months after the trade date.
+    expect(last(w) <= '2024-11-30').toBe(true);
+    expect(last(w) >= '2024-11-26').toBe(true);
+    // The whole point: longer hold, wider window.
+    expect(w.length).toBeGreaterThan(planChartWindow(bars, '2024-02-01', null).length);
+  });
+
+  it('ignores an exit date at or before the trade date', () => {
+    const a = planChartWindow(bars, '2024-05-20', '2024-05-20');
+    const b = planChartWindow(bars, '2024-05-20', '2024-04-01');
+    const plain = planChartWindow(bars, '2024-05-20', null);
+    expect(a.map((x) => x.date)).toEqual(plain.map((x) => x.date));
+    expect(b.map((x) => x.date)).toEqual(plain.map((x) => x.date));
+  });
+
+  it('shows the newest six months for a date after the data ends', () => {
+    // A plan dated today against a cache that stops last month: the window cannot centre on the
+    // date, so it lands on the newest bars there are rather than returning nothing.
+    const w = planChartWindow(bars, '2026-09-29', null);
+    expect(last(w)).toBe('2024-12-31');
+    expect(first(w) <= '2024-07-01').toBe(true);
+  });
+
+  it('draws something rather than nothing for a date before the data starts', () => {
+    // An empty array would blank the chart with no explanation. One bar is a picture that is
+    // obviously not the trade, which is the honest failure.
+    expect(planChartWindow(bars, '2019-01-02', null)).toHaveLength(1);
+  });
+
+  it('hands back what it was given when there is nothing to window', () => {
+    expect(planChartWindow([], '2024-05-20', null)).toEqual([]);
+    expect(planChartWindow(bars, '', null)).toHaveLength(bars.length);
+  });
+});
+
+describe('closeOnOrBefore', () => {
+  const bars = daily('2024-05-01', '2024-06-28');
+
+  it('returns the close of the day when the day is a session', () => {
+    // 2024-05-01 is the first bar, close 100; 2024-05-02 is the second.
+    expect(closeOnOrBefore(bars, '2024-05-01')).toBe(100);
+    expect(closeOnOrBefore(bars, '2024-05-02')).toBe(101);
+  });
+
+  it('walks back over a weekend rather than offering nothing', () => {
+    // 2024-05-11 is a Saturday; the honest answer is Friday's close.
+    const friday = closeOnOrBefore(bars, '2024-05-10');
+    expect(closeOnOrBefore(bars, '2024-05-11')).toBe(friday);
+    expect(closeOnOrBefore(bars, '2024-05-12')).toBe(friday);
+  });
+
+  it('offers nothing before the data starts', () => {
+    expect(closeOnOrBefore(bars, '2024-04-30')).toBe(null);
+  });
+
+  it('offers nothing when the date is more than a week past the last bar', () => {
+    // A few days past the end is a stale cache over a holiday, and Friday's close is the best
+    // there is. A month past the end is another market entirely.
+    expect(closeOnOrBefore(bars, '2024-07-01')).toBe(last(bars) ? 100 + bars.length - 1 : null);
+    expect(closeOnOrBefore(bars, '2024-08-01')).toBe(null);
+  });
+
+  it('has nothing to say without bars or without a date', () => {
+    expect(closeOnOrBefore([], '2024-05-02')).toBe(null);
+    expect(closeOnOrBefore(bars, '')).toBe(null);
   });
 });

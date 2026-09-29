@@ -39,7 +39,12 @@ import { openPlanReport } from '../portfolio/planReport.js';
 // currency, usually euros. Reading one document in two currencies needs the rate — see
 // `planReportInputFor`.
 import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
-import { EXIT_REASONS } from '../portfolio/planExit.js';
+// One window rule for a plan's chart, shared with the planner so a filed study draws the same
+// picture the card it came from drew.
+import { planChartWindow } from '../portfolio/planExit.js';
+// Read at render time, not imported as a constant: the list includes the user's own rows.
+import { exitReasonKeyOfText, exitReasonList } from '../portfolio/exitReasons.js';
+import { loadPlaybookConfig } from '../portfolio/playbook.js';
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
@@ -112,6 +117,11 @@ export function renderCaseStudies(ctx: AppContext): void {
 async function renderList(ctx: AppContext): Promise<void> {
   const root = $('#tab-casestudies')!;
   const vi = getLang() === 'vi';
+  // The exit-reason datalist in the editor includes the user's own rows, which live in the
+  // playbook config. Loaded once when the tab opens rather than in the editor, because it is a
+  // read of already-synced storage and a dropdown that silently drops the custom half of the list
+  // on a cold start is the kind of bug nobody reports.
+  await loadPlaybookConfig(ctx).catch(() => null);
   const idx = await loadCaseIndex(ctx);
 
   root.innerHTML = `
@@ -279,10 +289,11 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
         currency: p.currency,
         ...(rate > 0 ? { fxRate: rate } : {}),
         date: p.date,
-        // Clipped on the right, exactly as the planner card clips it: the plan was graded on
-        // what was visible on `p.date`, so the candles stop there — and are allowed to run on
-        // to the exit only because that is the trade this document is now a post-mortem of.
-        bars: bars.filter((b) => b.date <= (study.exitDate && study.exitDate > p.date ? study.exitDate : p.date)),
+        // The same window the planner card drew — four months of the base before the trade date,
+        // two after it (or past the exit on a longer hold). One shared function rather than a
+        // filter written twice, because a post-mortem that framed the chart differently from the
+        // card it was filed from would be a second opinion nobody asked for.
+        bars: planChartWindow(bars, p.date, study.exitDate),
         pctOfFull: p.pctOfFull,
         vi,
         exit: {
@@ -437,10 +448,12 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
             vi ? 'VD: Chạm cắt lỗ — nhảy gap qua luôn sau tin lợi nhuận' : 'e.g. Stop hit — gapped straight through it on earnings'
           }" />
           <datalist id="f-exitreason-list">${
-            // The same fixed vocabulary the planner offers, as suggestions rather than a
-            // dropdown: a free-text field is what carries the lesson, and the list is what
-            // makes the journal countable later. See `portfolio/planExit.ts`.
-            EXIT_REASONS.map((r) => `<option value="${escapeAttr(vi ? r.vi : r.en)}"></option>`).join('')
+            // The same vocabulary the planner offers — shipped rows plus the user's own — as
+            // suggestions rather than a dropdown: a free-text field is what carries the lesson,
+            // and the list is what makes the journal countable later. Called rather than imported
+            // as a constant, because the user's rows can change while the app is open. See
+            // `portfolio/exitReasons.ts`.
+            exitReasonList().map((r) => `<option value="${escapeAttr(vi ? r.vi : r.en)}"></option>`).join('')
           }</datalist></div>
       </div>
     </div>
@@ -560,6 +573,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         : entry != null && stop != null && exitPrice != null && entry !== stop
           ? parseFloat(((exitPrice - entry) / (entry - stop)).toFixed(2))
           : null;
+    const exitReasonTyped = ($('#f-exitreason') as HTMLInputElement).value.trim();
     const keyDate = ($('#f-keydate') as HTMLInputElement).value || todayIso();
     const setupType = ($('#f-setup') as HTMLSelectElement).value.trim() || 'Setup';
     const title = ($('#f-title') as HTMLInputElement).value.trim() || autoTitle(symbol, keyDate, setupType);
@@ -577,7 +591,13 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       exitDate: ($('#f-exitdate') as HTMLInputElement).value || null,
       exitPrice,
       rMultiple,
-      exitReason: ($('#f-exitreason') as HTMLInputElement).value.trim(),
+      exitReason: exitReasonTyped,
+      // Countable when the words happen to BE one of the list's labels — which is what picking
+      // from the datalist produces. Matched rather than asked for: the field is free text on
+      // purpose, and a study whose reason is the user's own sentence simply has no key. Set on
+      // every save, including to undefined, because this object spreads `study`: a key left over
+      // from a previous edit would go on claiming a reason the sentence no longer says.
+      exitReasonKey: exitReasonKeyOfText(exitReasonTyped),
       catalysts,
       notes: sanitizeNoteHtml(notesHtml),
       updatedAt: todayIso(),

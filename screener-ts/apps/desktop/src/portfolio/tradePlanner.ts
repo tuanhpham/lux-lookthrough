@@ -82,9 +82,12 @@ import { openPlanReport, printPlanReport, type PlanReportInput } from './planRep
 import { criteriaNoteHtml, openCriteriaAsk } from './criteriaAsk.js';
 // The exit half of the card, and the journal entry a finished plan becomes.
 import {
-  EXIT_REASONS, autoCaseTitle, caseStudyFromPlan, emptyExit, exitMath, exitReasonText,
-  type ExitReasonKey, type PlanExit,
+  autoCaseTitle, caseStudyFromPlan, closeOnOrBefore, emptyExit, exitMath, exitReasonText,
+  planChartWindow, type PlanExit,
 } from './planExit.js';
+// The reason vocabulary is the user's to extend, so it is its own module with its own editor.
+import { exitReasonOptgroupsHtml, type ExitReasonKey } from './exitReasons.js';
+import { openExitReasonsDialog } from './exitReasonsDialog.js';
 import { saveCase } from '../caseStudies/store.js';
 // Buying from inside the plan goes down the same path as the Buy button and the assistant.
 import { savePlanSnapshot } from './planSnapshot.js';
@@ -410,6 +413,7 @@ async function computePlans(ctx: AppContext): Promise<void> {
       // rejected — the sells there are one account's bookkeeping, while a case study is often
       // reconstructed for a trade this app never held.
       exit: emptyExit(),
+      exitPxSuggested: null,
       exitOpen: isPastPlan(),
     };
     planEdits.set(plan.symbol, edit);
@@ -570,6 +574,15 @@ interface PlanEdit {
    * typed and moves to the case study when it is filed, which is the record that owns it.
    */
   exit: PlanExit;
+  /**
+   * The last exit price this card SUGGESTED, in `planCcy` — not what the user typed.
+   *
+   * Kept so the suggestion can be replaced when the exit date moves and left alone once the user
+   * has corrected it. Without it there is no way to tell "198.40 because I offered it" from
+   * "198.40 because that was my fill", and either the app overwrites a real number or it stops
+   * suggesting after the first date. null = nothing has been offered yet.
+   */
+  exitPxSuggested: number | null;
   /**
    * Whether the exit row is unfolded.
    *
@@ -1476,9 +1489,6 @@ async function askCriteria(symbol: string, btn: HTMLElement): Promise<void> {
  */
 function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
   const x = edit.exit;
-  const reasonOpts = EXIT_REASONS.map(
-    (r) => `<option value="${r.key}"${r.key === x.reason ? ' selected' : ''}>${esc(vi ? r.vi : r.en)}</option>`,
-  ).join('');
   return `
     <div class="tp-exit">
       <button type="button" class="tp-exit-head" data-tp-exittoggle="${S}">
@@ -1494,10 +1504,14 @@ function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
           <label class="tp-field"><span class="tp-exit-px">${t('wl.plan.exit.price')} (${planSym()})</span>
             <input class="field" type="number" step="any" inputmode="decimal" data-tp-exit="price" data-sym="${S}" value="${x.price ?? ''}" /></label>
           <label class="tp-field" style="grid-column:span 2"><span>${t('wl.plan.exit.reason')}</span>
-            <select class="field" data-tp-exit="reason" data-sym="${S}">
-              <option value="">${t('wl.plan.exit.noreason')}</option>
-              ${reasonOpts}
-            </select></label>
+            <span class="tp-exit-reasonrow">
+              <select class="field" data-tp-exit="reason" data-sym="${S}">
+                <option value="">${t('wl.plan.exit.noreason')}</option>
+                ${exitReasonOptgroupsHtml(x.reason, vi, esc)}
+              </select>
+              <button type="button" class="btn-outline mini-btn" data-tp-reasoncfg="${S}"
+                title="${t('wl.plan.exit.cfg.title')}">⚙</button>
+            </span></label>
           <label class="tp-field tp-exit-note"><span>${t('wl.plan.exit.note')}</span>
             <input class="field" type="text" data-tp-exit="note" data-sym="${S}"
               value="${esc(x.note)}" placeholder="${t('wl.plan.exit.noteph')}" /></label>
@@ -1510,6 +1524,43 @@ function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
         </div>
       </div>
     </div>`;
+}
+
+/**
+ * Offer the close of the chosen exit date as the exit price.
+ *
+ * ── WHY IT IS OFFERED AND NOT IMPOSED ───────────────────────────────────────
+ * The user's "khi nguoi ta chon exit date, thi exit price co the duoc goi y dua vao gia dong cua
+ * ngay hom do … tuong tu nhu gia goi y buy o trong buy form". Reconstructing a trade from last
+ * year, nobody remembers the fill, and the close is both the honest default and the number they
+ * would otherwise go and look up in another window.
+ *
+ * It fills an EMPTY box, or one still holding the last number this function put there. Once the
+ * user has typed a real fill over it, moving the date must never silently overwrite it — that is
+ * what `exitPxSuggested` is for, and it is why the comparison is against the remembered
+ * suggestion rather than against "is this box non-empty".
+ *
+ * Converted with `usdToLevel`, i.e. at the TRADE date's rate rather than the exit date's — every
+ * other level on this card is in that same frame (`levelToUsd` draws them back onto the candles
+ * with it), and one box converted at a different rate would be a silent inconsistency exactly the
+ * size of the move in EURUSD over the holding period.
+ */
+function suggestExitPrice(symbol: string): void {
+  const e = planEdits.get(symbol);
+  if (!e) return;
+  const when = e.exit.date;
+  if (!when) return;
+  const all = planAllBars.get(symbol) ?? planBars.get(symbol) ?? [];
+  const px = usdToLevel(closeOnOrBefore(all, when));
+  if (px === null) return;
+  const untouched = e.exit.price === null || e.exit.price === e.exitPxSuggested;
+  if (!untouched) return;
+  e.exit.price = px;
+  e.exitPxSuggested = px;
+  const box = document.querySelector<HTMLInputElement>(
+    `[data-tp-exit="price"][data-sym="${CSS.escape(symbol)}"]`,
+  );
+  if (box) box.value = String(px);
 }
 
 /** What the recorded exit makes of the card: R, percent, money, days, verdict. */
@@ -1779,24 +1830,23 @@ function destroyPlanCharts(): void {
 }
 
 /**
- * The bars the CHART may show — the as-of slice, extended to a recorded exit.
+ * The bars the CHART may show — a window AROUND the trade date, not a cut at it.
  *
  * ── WHY THE FUTURE IS ALLOWED IN HERE, AND ONLY HERE ────────────────────────
  * Everything else on the card is a function of `planBars`, which stops at the trade date; that
  * cut IS the time machine (see `asOfBars`) and nothing may widen it, or the grade would be scored
- * on bars the decision could not have seen. The chart is the one exception, and only once the
- * user has recorded an exit date: at that point they have themselves declared how the trade
- * ended, so hiding the bars between the entry and their own exit would be withholding the
- * picture the case study is about. The window stops AT the exit — not a day past it — so the
- * card never volunteers what happened after the trade was over.
+ * on bars the decision could not have seen. The chart is the one exception, because it is a
+ * picture rather than a judgement — the user's "chart khong nen chi show den ngay hom do, ma nen
+ * show 6 thang around ngay hom do". A setup cut off at its own entry bar is the one view that
+ * cannot answer the question a back-dated plan is being written to ask: did this work.
+ *
+ * The arithmetic is in `planChartWindow` rather than here because the Case Studies viewer has to
+ * draw the identical window for a filed plan, and two copies of it would drift.
  */
 function chartBars(symbol: string): Bar[] {
-  const asOf = planBars.get(symbol) ?? [];
-  const when = planEdits.get(symbol)?.exit.date;
-  if (!when || when <= planDate) return asOf;
   const all = planAllBars.get(symbol);
-  if (!all?.length) return asOf;
-  return all.filter((b) => b.date <= when);
+  const bars = all?.length ? all : (planBars.get(symbol) ?? []);
+  return planChartWindow(bars, planDate, planEdits.get(symbol)?.exit.date ?? null);
 }
 
 /**
@@ -1844,11 +1894,10 @@ function paintPlanChart(symbol: string): void {
   // the ones a swing entry is actually judged against: 10 and 21 for the trigger, 50 for
   // the trend the setup lives in, 200 for whether it should be a long at all.
   const emaState = { 5: false, 10: true, 21: true, 50: true, 150: false, 200: true };
-  // 160 bars plus however many the exit added: the base the entry came out of has to stay on
-  // screen next to the exit, and a fixed 160-bar tail on a trade held six months would have
-  // scrolled the setup itself off the left-hand edge.
-  const held = Math.max(0, bars.length - (planBars.get(symbol)?.length ?? bars.length));
-  planCharts.set(symbol, drawCandles(box, bars.slice(-(160 + held)), overlay, emaState, { height: 260 }));
+  // No tail slice: `chartBars` already decided the range, and a second trim here would silently
+  // cut the left edge off the window it just widened — the trade date would drift towards the
+  // middle of the chart on a short hold and off the left of it on a long one.
+  planCharts.set(symbol, drawCandles(box, bars, overlay, emaState, { height: 260 }));
 }
 
 /**
@@ -2066,7 +2115,10 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
       if (!e) return;
       const raw = (el2 as HTMLInputElement).value;
       switch ((el2 as HTMLInputElement).dataset.tpExit) {
-        case 'date': e.exit.date = raw || null; break;
+        case 'date':
+          e.exit.date = raw || null;
+          suggestExitPrice(sym);
+          break;
         case 'price': e.exit.price = raw.trim() === '' ? null : Number(raw.trim().replace(',', '.')); break;
         case 'reason': e.exit.reason = raw as ExitReasonKey | ''; break;
         case 'note': e.exit.note = raw; break;
@@ -2077,6 +2129,30 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
     // `input` alone misses the native date picker in some browsers, and `change` alone would
     // leave the derived R sitting stale while a price is typed.
     el2.addEventListener('change', handler);
+  });
+
+  /**
+   * Manage the reason vocabulary from the field that uses it.
+   *
+   * The dropdown is rebuilt in place afterwards rather than by redrawing the card: a redraw would
+   * rebuild the chart and throw away the zoom the user set to read the base — the same reason the
+   * exit caret is flipped by hand above. The selected key is carried across, so adding a reason
+   * cannot silently clear one already chosen.
+   */
+  root.querySelectorAll<HTMLElement>('[data-tp-reasoncfg]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const sym = b.dataset.tpReasoncfg!;
+      void openExitReasonsDialog(ctx).then((changed) => {
+        if (!changed) return;
+        const sel = root.querySelector<HTMLSelectElement>(
+          `[data-tp-exit="reason"][data-sym="${CSS.escape(sym)}"]`,
+        );
+        const e = planEdits.get(sym);
+        if (!sel || !e) return;
+        sel.innerHTML = `<option value="">${t('wl.plan.exit.noreason')}</option>`
+          + exitReasonOptgroupsHtml(e.exit.reason, getLang() === 'vi', esc);
+      });
+    });
   });
 
   // File the card in the Case Studies journal.

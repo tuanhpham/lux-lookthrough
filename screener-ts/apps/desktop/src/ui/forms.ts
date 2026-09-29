@@ -10,7 +10,38 @@ export interface Field {
   type?: 'text' | 'number' | 'date' | 'select' | 'info';
   value?: string;
   placeholder?: string;
-  options?: { value: string; label: string }[];
+  /**
+   * Choices for a 'select'.
+   *
+   * `group` is optional and, when present, wraps consecutive same-group options in an
+   * `<optgroup>` — added for the exit-reason vocabulary, which is thirty-odd rows in seven
+   * groups and unreadable as one flat list. Rows with no `group` render at the top level, so
+   * every existing caller is unaffected and a "— none —" row can sit above the groups.
+   */
+  options?: { value: string; label: string; group?: string }[];
+}
+
+/** Option labels are user text (custom exit reasons), so they are escaped rather than trusted. */
+function escOpt(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function optionsHtml(f: Field): string {
+  const one = (o: { value: string; label: string }): string =>
+    `<option value="${escOpt(o.value)}"${o.value === f.value ? ' selected' : ''}>${escOpt(o.label)}</option>`;
+  let html = '';
+  let open = '';
+  for (const o of f.options ?? []) {
+    const g = o.group ?? '';
+    if (g !== open) {
+      if (open) html += '</optgroup>';
+      if (g) html += `<optgroup label="${escOpt(g)}">`;
+      open = g;
+    }
+    html += one(o);
+  }
+  if (open) html += '</optgroup>';
+  return html;
 }
 
 export interface FormDialogOptions {
@@ -33,11 +64,8 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
             .map(
               (f) => {
                 if (f.type === 'select' && f.options) {
-                  const optHtml = f.options.map((o) =>
-                    `<option value="${o.value}"${o.value === f.value ? ' selected' : ''}>${o.label}</option>`
-                  ).join('');
                   return `<label class="field-label">${f.label}</label>
-                    <select class="field dialog-field" data-key="${f.key}">${optHtml}</select>`;
+                    <select class="field dialog-field" data-key="${f.key}">${optionsHtml(f)}</select>`;
                 }
                 if (f.type === 'info') {
                   return `${f.label ? `<label class="field-label">${f.label}</label>` : ''}

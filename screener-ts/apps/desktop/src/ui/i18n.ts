@@ -384,6 +384,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'wl.plan.exit.price': { en: 'Exit price', vi: 'Giá thoát' },
   'wl.plan.exit.reason': { en: 'Why you got out', vi: 'Lý do thoát' },
   'wl.plan.exit.noreason': { en: '— pick a reason', vi: '— chọn lý do' },
+  'wl.plan.exit.cfg.title': {
+    en: 'Manage the reason list — add your own, and they show up here and in Sell',
+    vi: 'Quản lý danh sách lý do — tự thêm lý do, sẽ hiện ở đây và ở phần Bán',
+  },
   'wl.plan.exit.note': { en: 'In your own words', vi: 'Ghi bằng lời của bạn' },
   'wl.plan.exit.noteph': {
     en: 'e.g. gapped through the stop on earnings; I sold the open rather than wait',

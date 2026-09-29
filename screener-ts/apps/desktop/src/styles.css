@@ -842,6 +842,14 @@ a.tkr:hover { text-decoration: underline; }
   font-size: 12px; color: var(--subtext);
 }
 .tx-note-preview * { display: inline; font-size: inherit; margin: 0; }
+/* Why the position was closed, beside the sell date. Truncated rather than wrapped — the reasons
+   run to six words and this table is already scrolling sideways; the full text is the tooltip. */
+.tx-why {
+  display: inline-block; max-width: 150px; vertical-align: middle;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 1px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
+  background: color-mix(in srgb, var(--violet) 15%, transparent); color: var(--violet);
+}
 
 /* Read-only rendered note (table cell / detail) */
 .note-html { text-align: left; line-height: 1.5; }
@@ -1015,6 +1023,11 @@ a.tkr:hover { text-decoration: underline; }
 /* The free-text reason gets the whole row: it is the field that carries the lesson, and a
    quarter-width box teaches the user to write four words in it. */
 .tp-exit-note { grid-column: 1 / -1; }
+/* The reason dropdown and the ⚙ that manages the list, on one line: the button belongs beside
+   the field it changes, not in a settings screen the user would have to go and find. */
+.tp-exit-reasonrow { display: flex; gap: 6px; align-items: stretch; }
+.tp-exit-reasonrow select { flex: 1 1 auto; min-width: 0; }
+.tp-exit-reasonrow .mini-btn { flex: 0 0 auto; padding: 0 8px; }
 .tp-exit-stats { margin-bottom: 9px; }
 .tp-exit-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .tp-exit-msg { font-size: 11.5px; line-height: 1.4; color: var(--up); font-weight: 600; }

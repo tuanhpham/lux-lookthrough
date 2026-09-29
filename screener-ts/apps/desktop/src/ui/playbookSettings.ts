@@ -373,13 +373,23 @@ export async function openPlaybookSettings(
   );
 
   host.querySelector('#pb-reset-all')!.addEventListener('click', async () => {
-    await savePlaybookConfig(ctx, EMPTY_PLAYBOOK_CONFIG);
+    // The user's own exit reasons survive "reset everything". Everything else in this blob is an
+    // override of a number this app shipped, so resetting it restores a default; a reason the
+    // user typed has no default to restore to, and dropping it here would be a silent delete of
+    // their writing from a button that says it is putting things back the way they were.
+    await savePlaybookConfig(ctx, { ...EMPTY_PLAYBOOK_CONFIG, exitReasons: cfg.exitReasons ?? [] });
     onSaved?.();
     close();
   });
 
   host.querySelector('#pb-save')!.addEventListener('click', async () => {
-    const next: PlaybookConfig = { setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {} };
+    // `exitReasons` is carried over rather than rebuilt: this dialog does not edit it (that is
+    // the ⚙ beside the exit-reason dropdown), and a config written without it would delete the
+    // user's own vocabulary every time they touched a risk number here.
+    const next: PlaybookConfig = {
+      setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {},
+      exitReasons: cfg.exitReasons ?? [],
+    };
 
     // Ladder: keep only what differs from the default, and reject nonsense rather
     // than storing it — a blank or negative risk floor would come back as a plan.

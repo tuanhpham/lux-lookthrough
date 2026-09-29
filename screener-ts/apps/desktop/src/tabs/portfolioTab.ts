@@ -82,6 +82,11 @@ import {
   loadPlaybookConfig, regimeStale, takePlaybookSettingsRequest, type BuyPlan,
 } from '../portfolio/playbook.js';
 import { planLines } from '../portfolio/planWords.js';
+// The same exit vocabulary the Trade Planner records a case study with — the user's
+// "nhung cai ly do nay co the integrate also to phan Sell trong Portfolio nua nhe". A sell here
+// and a plan filed there are the same event described twice, so they must be countable together.
+import { exitReasonFieldOptions, exitReasonLabel } from '../portfolio/exitReasons.js';
+import { openExitReasonsDialog } from '../portfolio/exitReasonsDialog.js';
 // The trade plan the Buy form has to go through, and the panel that shows it. Both are
 // shared with the Trade Planner: one plan per symbol, one checklist, one set of words.
 import {
@@ -1362,6 +1367,14 @@ function draw(ctx: AppContext): void {
               ? 'Đổi các con số mặc định của cẩm nang: cắt lỗ, mục tiêu, cỡ vị thế theo từng thiết lập'
               : 'Change the playbook’s default numbers: stops, targets and size per setup'}"
           >${getLang() === 'vi' ? '⚙ Cẩm nang' : '⚙ Playbook'}</button>
+          <!-- Beside the playbook rather than inside the Sell dialog: formDialog is a fixed list
+               of fields with nowhere to put a button, and a settings corner is where a user looks
+               for a list they can edit. The reasons themselves are picked in the Sell dialog. -->
+          <button id="b-exitreasons" class="btn-outline mini-btn"
+            title="${getLang() === 'vi'
+              ? 'Quản lý danh sách lý do bán — tự thêm lý do, sẽ hiện trong ô lý do khi bán và trong Trade Planner'
+              : 'Manage the exit-reason list — add your own, and they show up when you sell and in the Trade Planner'}"
+          >${getLang() === 'vi' ? '🏷 Lý do bán' : '🏷 Exit reasons'}</button>
           </div>
         </div>
         <div class="row"><input id="b-ticker" class="field" autocomplete="off" placeholder="Ticker" style="width:110px" />
@@ -1821,6 +1834,12 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       void openPlaybookSettings(ctx, active(), () => draw(ctx));
     });
 
+    // No redraw on save: nothing already on screen changes, and the Sell dialog reads the list
+    // fresh each time it opens. Redrawing the tab would throw away a half-filled Buy form.
+    $('#b-exitreasons')?.addEventListener('click', () => {
+      void openExitReasonsDialog(ctx);
+    });
+
     // Buy note — always-visible inline rich editor (wired before the buy click).
     const buyNoteGet = wireRichEditor(root, 'buy-note');
 
@@ -1980,12 +1999,23 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           const host = document.querySelector('.dialog-host');
           if (host) noteRef.get = wireRichEditor(host, 'sell-note');
         });
+        // The vocabulary is in the synced playbook config, which this tab may not have read yet
+        // on a cold open. Loaded before the dialog is built rather than after, because the
+        // options are baked into the HTML.
+        await loadPlaybookConfig(ctx).catch(() => null);
+        const svi = getLang() === 'vi';
         const res = await formDialog(`Sell ${t}`, [
           { key: 'ccy', label: 'Currency', type: 'select', value: initCcy,
             options: [{ value: 'USD', label: '$ USD' }, { value: 'EUR', label: '€ EUR' }] },
           { key: 'shares', label: 'Shares to sell', type: 'number', value: openShares > 0 ? String(openShares) : '' },
           { key: 'price', label: 'Sell price', type: 'number', value: initPrice },
           { key: 'date', label: 'Date', type: 'date', value: today() },
+          // Grouped and optional. A required reason would get the first option picked to get past
+          // it, and a journal of thirty "Stop hit"s that were nothing of the kind is worse than
+          // one with blanks in it.
+          { key: 'why', label: svi ? 'Lý do bán (không bắt buộc)' : 'Why you got out (optional)',
+            type: 'select', value: '',
+            options: exitReasonFieldOptions(svi, svi ? '— chọn lý do' : '— pick a reason') },
           { key: '_note', label: 'Note (optional)', type: 'info', value: richEditorHtml('sell-note', '', { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 }) },
         ], {
           onChange: (vals) => {
@@ -2025,7 +2055,14 @@ function wire(ctx: AppContext, root: HTMLElement): void {
             ? priceEntered / fxAtSell : priceEntered;
           const sellNote = isNoteEmpty(sellNoteHtml) ? '' : sellNoteHtml;
           const recs = sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: normSellPrice, shares }, uuid);
-          for (const r of recs) { r.priceCurrency = res.ccy as 'EUR' | 'USD'; r.fxRateAtSell = fxAtSell; if (sellNote) r.note = sellNote; }
+          // One sell can close several lots, and they were all closed for the same reason — it is
+          // a fact about the decision, not about the bookkeeping, so it goes on every record.
+          for (const r of recs) {
+            r.priceCurrency = res.ccy as 'EUR' | 'USD';
+            r.fxRateAtSell = fxAtSell;
+            if (sellNote) r.note = sellNote;
+            if (res.why) r.exitReasonKey = res.why;
+          }
           seedPrice(active().account.id, t, normSellPrice);
           snapshotNow(active());
           await save(ctx);
@@ -2354,6 +2391,8 @@ function transactionHistoryHtml(st: AccountState): string {
     noteKind?: 'lot' | 'sell'; noteId?: string;
     /** Setup type + rating from the underlying buy lot (for display + editing). */
     setupType?: string; rating?: string; lotId?: string;
+    /** CLOSED rows only: the exit-reason key recorded on the sell. */
+    exitReasonKey?: string;
   }
   const sellsByLot = new Map<string, typeof st.sells>();
   for (const s of st.sells) {
@@ -2374,6 +2413,7 @@ function transactionHistoryHtml(st: AccountState): string {
         sortDate: s.sellDate, delKind: 'sell', delId: s.id,
         note: s.note, noteKind: 'sell', noteId: s.id,
         setupType: l.setupType, rating: l.rating, lotId: l.id,
+        exitReasonKey: s.exitReasonKey,
       });
     }
     if (l.remainingShares > 0) {
@@ -2436,6 +2476,21 @@ function transactionHistoryHtml(st: AccountState): string {
     return `<td style="white-space:nowrap">${label} ${ratingBadgeHtml(r.rating)}
       <button class="note-btn${r.setupType || r.rating ? ' has-note' : ''}" data-setup-lot="${r.lotId}" title="${vi ? 'Sửa thiết lập & xếp hạng' : 'Edit setup & rating'}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></td>`;
   };
+  /**
+   * The exit reason, inside the Sell-date cell.
+   *
+   * ── WHY NOT ITS OWN COLUMN ──────────────────────────────────────────────────
+   * The table is already fifteen columns wide and scrolls sideways on every screen; a sixteenth
+   * would cost every row legibility to serve the rows that have a reason. The cash row's
+   * `colspan="4"` also means adding a column is an edit in two places that fails silently in one.
+   * So it rides along with the date it belongs to — the reason and the day you got out are one
+   * fact — truncated by CSS with the full label in the tooltip.
+   */
+  const whyPill = (key: string | undefined): string => {
+    if (!key) return '';
+    const label = exitReasonLabel(key, vi);
+    return ` <span class="tx-why" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+  };
   // Note cell: a preview of the rich note (if any) + a pencil to open the editor.
   const noteCell = (kind: 'lot' | 'sell', id: string, html: string | undefined): string => {
     const has = !isNoteEmpty(html);
@@ -2497,7 +2552,7 @@ function transactionHistoryHtml(st: AccountState): string {
         <td>${dispSymbol()}${num(toDisplay(r.buyPrice, r.buyDate))}</td>
         <td>${r.sellPrice != null ? dispSymbol() + num(toDisplay(r.sellPrice, r.sellDate ?? r.buyDate)) : '—'}</td>
         <td>${r.buyDate}</td>
-        <td>${r.sellDate ?? '—'}</td>
+        <td>${r.sellDate ?? '—'}${whyPill(r.exitReasonKey)}</td>
         <td>${heldDays}d</td>
         <td>${pnl}</td>
         <td>${pnlPctCost}</td>

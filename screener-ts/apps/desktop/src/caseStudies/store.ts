@@ -63,6 +63,16 @@ export interface CaseStudy {
    * been folded into a paragraph.
    */
   exitReason?: string;
+  /**
+   * The same reason as a vocabulary key (see `portfolio/exitReasons.ts`), when it came from the
+   * list rather than being typed freehand.
+   *
+   * Separate from `exitReason` because that field holds the line the user reads — "Stop hit —
+   * gapped straight through it" — in whichever language the app was in when it was filed. Only a
+   * key can be counted, which was the entire reason for having a list. Absent on a reason the
+   * user simply wrote out, and on everything filed before this existed.
+   */
+  exitReasonKey?: string;
   catalysts: Catalyst[];
   /** Free-form markdown-ish notes / lessons learned. */
   notes: string;
