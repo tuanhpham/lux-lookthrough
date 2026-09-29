@@ -206,14 +206,16 @@ describe('planReportHtml', () => {
     expect(eur).not.toContain('$100.00');
   });
 
-  it('puts euro levels back into dollars for the chart, and drops it with no rate', () => {
-    // The bars are raw USD closes, so a €-denominated stop has to be converted before it can
-    // be drawn against them — and if the rate is unknown, a chart with the lines in the wrong
-    // place is worse than none.
+  it('needs a rate before it will draw a euro plan at all', () => {
+    // The bars are raw USD closes and the levels are euros, so the two cannot share an axis
+    // until the rate is known. With no rate, no chart: lines in the wrong place are worse than
+    // none, because a chart is the part of the document a reader trusts without checking.
     const withRate = planReportHtml(input({ currency: 'EUR', fxRate: 1.2 }));
     expect(withRate).toContain('<svg');
     expect(withRate).toContain('€100.00');          // the money is still in euros
-    expect(planReportHtml(input({ currency: 'EUR' }))).not.toContain('<svg');
+    const noRate = planReportHtml(input({ currency: 'EUR' }));
+    expect(noRate).not.toContain('<svg');
+    expect(noRate).toContain('€100.00');            // and the rest of the plan still prints
     // A dollar plan is unaffected by a rate being present.
     expect(planReportHtml(input({ fxRate: 1.2 }))).toContain('<svg');
   });
@@ -271,14 +273,6 @@ describe('planReportHtml', () => {
     // The dollar reading of the same levels must not appear anywhere on the chart.
     expect(html).not.toContain('ENT 117.00');
     // And the stat grid is in euros, as it always was.
-    expect(html).toContain('€100.00');
-  });
-
-  it('still refuses to draw euro levels with no rate to place them by', () => {
-    // A chart with the lines in the wrong place is worse than no chart: it is the part of the
-    // document a reader trusts without checking.
-    const html = planReportHtml(input({ currency: 'EUR' }));
-    expect(html).not.toContain('<svg');
     expect(html).toContain('€100.00');
   });
 
