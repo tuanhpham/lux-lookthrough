@@ -5035,3 +5035,99 @@ they are ... Rank history nen lam de nhin hon, chuyen nghiep hon".
   — Commit `f0b6b0e9` ghi "22 tieu chi" (dung la 26).
   — README muc 5.8 ghi sai cach restart, va mot khoi bash chua dong o dong 671-680.
   — Cac file `package-lock.json` rac dang duoc theo doi trong git.
+
+## CHAT-40 — Tu dien cua scanner viet lai tu chinh source, khong doan nua
+
+Yeu cau: "2. phan why rejected phan reason ban co the tra trong scanner repo ma".
+
+### A. CHAT-39 muc B noi mot cau sai
+
+  — CHAT-39 muc B viet: "tu dien nay DUOC DOAN RA. Scanner la repo Python khac,
+    chay tren VM; trong repo nay khong co danh sach khoa ly do nao ca". Cau do SAI.
+  — Repo scanner nam ngay canh repo nay: `Github/scanner`, cung thu muc cha voi
+    `lux-lookthrough`. Moi khoa ly do la mot tham so `_rej(rej, "...")` trong
+    `setups.py`, tim ra bang mot lenh grep.
+  — Bai hoc: truoc khi dich, dat ten hay giai thich bat cu thu gi den tu VM, doc
+    repo scanner truoc. Gia phai tra cho viec doan la gan nhu ca tu dien phai bo di.
+  — Ba file dang de xem nhat: `setups.py` (cac cua ai va chuoi ly do),
+    `config.py` (cac con so nguong, moi so kem mot cau giai thich VI SAO la so do),
+    `push.py` (hinh dang chinh xac cua tung blob KV ma app doc).
+
+### B. Source noi gi, va khac ban doan cho nao
+
+  — Setup chi co BA cai: `BO`, `RV`, `LEAD` (`setups.py`: `rej = {"BO": {},
+    "RV": {}, "LEAD": {}}`). Ban doan co 15 cai (EP, MR, VCP, PB, FLAG, HTF, CWH,
+    IPO, SURGE, PARA, GAP, SQ, RS, 52W) — toan bo la setup noi tieng cua truong phai
+    Qullamaggie nhung scanner NAY khong co. Bo het.
+  — `RV` = ma da roi sau, dang cho MOT phien bat manh; trigger chi mo khi co ban dat.
+  — `LEAD` = KHONG phai mot hinh mau ky thuat ma la mot BO SAN chat luong: ma du
+    thanh khoan thuoc top 3 sector, manh hon SPY va con gan dinh. Day la cai de bi doc
+    sai nhat tu chinh cai ten cua no, nen tooltip noi thang ra dieu do.
+  — Khoa ly do KHONG phai dinh danh gach duoi ma la CUM TU tieng Viet khong dau,
+    cach nhau bang dau cach: `kem thanh khoan`, `khong co nen tich luy`, `duoi sma50`,
+    `sma50 dang di xuong`, `con xa pivot`, `da vuot pivot qua xa`, `day 52 tuan qua cu`,
+    `chua giam du 3 thang`, `da bat len qua nhieu`, `co ban khong dat`,
+    `khong biet sector`, `khong do duoc bien do`, `yeu hon SPY trong 21 phien`,
+    `yeu hon SPY trong 63 phien`, `khong co so lieu RS (thieu ma chuan?)`,
+    `khong co danh sach sector`.
+  — `bien do khong co lai` nghia la bien do KHONG CO LAI
+    (`atr_contract > max_atr_contract`). Doc nguyen van de hieu nguoc han, nen nhan
+    tieng Anh la "Volatility did not contract" va tooltip noi ro: nen cang ve cuoi
+    cang phai lang di, nen nay van rong nhu luc dau.
+  — Mot so khoa co NGUONG noi thang vao trong chuoi: `gia < $10.0`, `rvol < 1.5`,
+    `nen rong hon 25%`, `cach dinh 52 tuan > 15%`, `chua roi du 30%`,
+    `thanh khoan < $20M/phien`, `bien do < 2% (khong du dong)`,
+    `bien do > 6% (stop qua rong)`, `da du 2 ma cua XLK`, `qua tran 12 ma tong`,
+    `tang < 5%`. Mot bang tra khop chinh xac KHONG BAO GIO khop duoc nhung khoa nay.
+  — Ly do cua trigger trong phien (`chua vuot pivot`, `chua lay lai sma20`,
+    `dang o nua duoi bien do ngay`...) co that trong `setups.py` nhung KHONG nam trong
+    payload `scanner:rejects` (`push.py:rejects_payload()` chi chay lai `setups.scan`).
+    Van dich san, vi khong ton gi va de payload sau nay co doi thi cung khong tro thanh
+    mot dong chu in nghieng.
+
+### C. Hai bang tra, va cai bay dau `$`
+
+  — `REASONS`: khop chinh xac, qua `normKey()` (ha chu thuong, gop moi chuoi ky tu
+    khong phai chu/so thanh mot `_`), nen `kem thanh khoan` va `KEM-THANH-KHOAN` vao
+    cung mot muc.
+  — `PATTERNS`: danh sach co thu tu, moi muc mot regex bat lay con so roi dat no vao
+    ban dich (`{1}`, `{2}`). Con so CHINH LA thong tin cua dong do: "RVOL too low"
+    khong noi gi, "RVOL below 1.5" noi ro nguong nam o dau.
+  — Thay the bang MOT HAM, khong phai bang chuoi `$1`: doan bat duoc thuong chua `$`
+    (`gia < $10.0`), va trong chuoi thay the thi `$` la ky tu dieu khien — `String.replace`
+    se an mat no.
+  — `da du 2 ma cua XLK`: ten sector di vao TOOLTIP qua `sectorTip()`, khong vao o
+    bang. O bang la mot cot cua mot bang hep, va ca trang con lai goi no la `XLK`.
+  — Tra khong thay van KHONG bi coi la loi: `known: false`, nhan da bo gach duoi,
+    khoa GOC trong tooltip, in nghieng (`.scan-raw`).
+
+### D. Nhung cho khac tren trang scanner van noi tieng may
+
+  — Tile "Setups" cua bang Hom nay in `BO`, `RV`. Gio in "Breakout", "Reversal";
+    ma goc nam trong tooltip.
+  — Dong `by_setup` trong bang suc khoe: `BO 12` thanh "Breakout 12", ma goc trong
+    tooltip — bang nay phai so sanh duoc voi log cua VM.
+  — Thu tu cac khoi: `Object.keys().sort()` cho ra BO, LEAD, RV — mot thu tu khong
+    ton tai o bat cu dau khac trong he thong. `bySetupOrder` xep BO, RV, LEAD dung nhu
+    `setups.py` tinh; ma la khong biet thi xep sau cung.
+  — Chu thich duoi bang "Why rejected" trich hai ly do lam vi du. Truoc day trich
+    khoa goc; gio trich dung nhan ma bang in ra, de nguoi doc tim duoc dong dang noi den.
+
+### E. `_qua_san`: con so thu hai cua LEAD
+
+  — Rieng LEAD co `_qua_san` = so ma qua het cac tieu chi chat luong TRUOC khi ap
+    tran theo sector va tran tong.
+  — Chi thay "12 passed" thi khong biet la bo tieu chi qua chat hay tran qua chat
+    — hai truong hop nay phai sua theo hai huong nguoc nhau. Nen khi `_qua_san` khac
+    `_qua_loc`, tieu de LEAD co them mot chip nua.
+  — Cac khoa `_` con lai (`_qua_loc`, `_bi_cat_tran`, `_cho_fund`,
+    `_khong_lap_duoc_ke_hoach`) la DEM, khong phai ly do: bang loc chung ra khoi cot ly
+    do va in thanh chip.
+
+### F. Kiem tra
+
+  — `npx tsc -p tsconfig.json --noEmit`: sach.
+  — `npx vitest run`: 24 file / 362 test, xanh het.
+  — `tests/scannerVocab.test.ts` viet lai: 15 test, moi khoa trong do COPY tu
+    `setups.py`. Co test noi ro `setupLabel('EP').known === false`, va test kiem tra
+    con so khong bi mat khi dich (`gia < $10.0` ra "Price below $10.0").
