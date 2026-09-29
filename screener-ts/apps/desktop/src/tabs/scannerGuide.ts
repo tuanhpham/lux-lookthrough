@@ -1422,6 +1422,25 @@ export const G: Record<string, Bi> = {
   planHow: { vi: 'Bốn con số của kế hoạch được tính thế nào', en: 'How the plan’s four numbers are derived' },
   measured: { vi: 'Đo được', en: 'Measured' },
   required: { vi: 'Phải đạt', en: 'Required' },
+
+  /* Column headers for the explanation TABLES. A list of sentences reads as an
+     undifferentiated wall; the same content in a table with named columns tells the
+     reader before they start reading that there is a rule on the left and a reason it
+     is that number on the right. */
+  thNo: { vi: '#', en: '#' },
+  thCrit: { vi: 'Điều kiện và ngưỡng', en: 'Criterion and threshold' },
+  thWhy: { vi: 'Vì sao lại là con số đó', en: 'Why that number' },
+  thCol: { vi: 'Cột', en: 'Column' },
+  thWhat: { vi: 'Nghĩa là gì', en: 'What it is' },
+  thVs: { vi: 'So với ngưỡng nào', en: 'Compared against' },
+  thStep: { vi: 'Con số', en: 'Figure' },
+  thHow: { vi: 'Tính thế nào', en: 'How it is derived' },
+  thTerm: { vi: 'Từ trong bảng', en: 'Term' },
+  thMeaning: { vi: 'Nghĩa chính xác', en: 'What it means exactly' },
+  thCheck: { vi: 'Điều kiện', en: 'Check' },
+  thNote: { vi: 'Ghi chú', en: 'Note' },
+  thKey: { vi: 'Thông số', en: 'Setting' },
+  thVal: { vi: 'Đang dùng', en: 'In use' },
   mirror: {
     vi: 'Các ngưỡng của setup này được <b>chép tay</b> từ <code>setups.py</code>: VM không đẩy '
       + 'chúng lên, nên chúng có thể lệch với ngưỡng thật. Các ngưỡng còn lại trên trang này đọc '

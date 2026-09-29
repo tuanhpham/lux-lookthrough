@@ -33,7 +33,8 @@ import {
 import {
   CFG_DOC, CFG_SCALAR, G, METRICS, PLAN_STEPS, REJ_INTRO, REJ_LEGEND, REJ_TOTAL,
   SETUP_DOC, WATCH_WHY,
-  cfgNote, cfgNum, gateText, planStepText, say, thrText, watchChecks, type Cfg,
+  cfgNote, cfgNum, gateText, planStepText, say, thrText, watchChecks,
+  type Cfg, type Gate,
 } from './scannerGuide.js';
 
 const KEY_STATUS = 'scanner:status';
@@ -822,14 +823,21 @@ const tvLink = (sym: string): string =>
  * "so sanh voi cai gi" applies to the plan as much as to the KPIs.
  */
 function watchDocHtml(cfg: Cfg, topN: number, watchTop: number | null): string {
-  const steps = WATCH_WHY.map((w) =>
-    `${docH(say(w.h))}<p>${say(w.p)
-      .replace('{top}', `<b>${topN}</b>`)
-      .replace('{n}', `<b>${watchTop == null ? '—' : watchTop}</b>`)}</p>`).join('');
+  // Numbered, because these four are a sequence: each one only looks at what the one
+  // before it left. The number is part of the heading rather than a separate marker so
+  // it survives the two-column grid.
+  const steps = WATCH_WHY.map((w, i) =>
+    docSec(`<span class="scan-doc-i">${i + 1}</span>${say(w.h)}`,
+      `<p>${say(w.p)
+        .replace('{top}', `<b>${topN}</b>`)
+        .replace('{n}', `<b>${watchTop == null ? '—' : watchTop}</b>`)}</p>`)).join('');
   const plan = PLAN_STEPS.map((s) =>
-    `<li><span class="scan-gate-t"><b>${say(s.k)}</b> — ${planStepText(s.v, cfg)}</span></li>`)
-    .join('');
-  return `${steps}${docH(say(G.planHow!))}<ol class="scan-gates">${plan}</ol>`;
+    `<tr><td class="scan-gt-k">${say(s.k)}</td>`
+    + `<td class="scan-gt-c" colspan="2">${planStepText(s.v, cfg)}</td></tr>`).join('');
+  return steps + docSec(say(G.planHow!),
+    `<div class="scan-doc-tw"><table class="scan-gt scan-mt"><thead><tr>`
+    + `<th>${say(G.thStep!)}</th><th colspan="2">${say(G.thHow!)}</th>`
+    + `</tr></thead><tbody>${plan}</tbody></table></div>`);
 }
 
 const WATCH_COLS = ['trigger', 'togo', 'stop', 'target', 'size_pct', 'quality', 'ref_close',
@@ -863,8 +871,13 @@ function watchWhyHtml(r: WatchRow, cfg: Cfg, top: readonly string[], span: numbe
   return `<tr class="wl-why" data-why-for="${esc(r.sym ?? '')}" hidden>`
     + `<td colspan="${span}">`
     + `<div class="wl-why-h">${say(G.why!)} — <b>${esc(r.sym ?? '')}</b></div>`
-    + `<table class="wl-chk"><tbody>${lines}</tbody></table>`
-    + `<div class="wl-why-f">${say(G.measured!)} / ${say(G.required!)}</div>`
+    // Real column headers instead of a footnote under the block. "Measured / required"
+    // printed at the bottom left the reader to work out which of two mono numbers on a
+    // line was which — and that pairing is the entire content of the table.
+    + `<table class="wl-chk"><thead><tr><th class="wl-chk-m"></th>`
+    + `<th>${say(G.thCheck!)}</th><th>${say(G.measured!)}</th>`
+    + `<th>${say(G.required!)}</th><th>${say(G.thNote!)}</th></tr></thead>`
+    + `<tbody>${lines}</tbody></table>`
     + `</td></tr>`;
 }
 
@@ -1272,7 +1285,9 @@ function renderThresholds(snap: ThresholdsSnap | null): string {
       return `${sectionHead(label, [countChip(Object.keys(val as object).length)],
         doc ? { sub: say(doc.lead) } : undefined)}
         <div class="card" style="padding:0;overflow-x:auto">
-        <table class="scan-cfg"><tbody>${rows}</tbody></table></div>`;
+        <table class="scan-cfg"><thead><tr><th>${say(G.thKey!)}</th>
+        <th>${say(G.thVal!)}</th><th>${say(G.thWhy!)}</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
     }
     const sd = CFG_SCALAR[group];
     return `<div class="stat"${sd ? ` title="${esc(say(sd.note).replace(/<[^>]+>/g, ''))}"` : ''}>`
@@ -1401,57 +1416,92 @@ function candRow(c: Candidate): string {
  */
 const docFold = (id: string, label: string, body: string): string =>
   `<details class="scan-th scan-doc" data-collapse="${esc(id)}"${openAttrShut(id)}>`
-  + `<summary>${label}</summary>${body}</details>`;
+  + `<summary>${label}</summary><div class="scan-doc-in">${body}</div></details>`;
 
 /** A sub-heading inside a doc fold. Not `sectionHead`: that one numbers the page's spine. */
 const docH = (label: string): string => `<h4 class="scan-doc-h">${label}</h4>`;
+
+/**
+ * One titled block of explanation: the heading on the left, its content on the right.
+ *
+ * The user's report was that an opened fold is "text but cover only 1/3 of the page" with
+ * the headings "bi che lap di boi qua nhieu text". Both come from the same shape — a
+ * measure-capped column of prose under small grey headings, stacked. A two-column grid
+ * fixes both at once: the heading can never be buried because it is in its own column,
+ * and the content is free to use the width it was given.
+ */
+const docSec = (label: string, body: string): string =>
+  `<section class="scan-doc-sec">${docH(label)}<div class="scan-doc-b">${body}</div></section>`;
+
+/**
+ * The gates as a TABLE rather than a list of sentences.
+ *
+ * The order is still the information — `setups.py` records the first failing gate and
+ * stops — so the `#` column stays. What the table adds is a second column with a heading:
+ * the reason the threshold is that number, which is the half of `config.py` that explains
+ * the other half, and which in a bullet list was just more sentence.
+ */
+function gateTable(gates: readonly Gate[], cfg: Cfg): string {
+  const rows = gates.map((g, i) =>
+    `<tr><td class="scan-gt-n">${i + 1}</td>`
+    + `<td class="scan-gt-c">${gateText(g, cfg)}</td>`
+    + `<td class="scan-gt-w">${g.note ? say(g.note) : ''}</td></tr>`).join('');
+  return `<div class="scan-doc-tw"><table class="scan-gt"><thead><tr>`
+    + `<th class="scan-gt-n">${say(G.thNo!)}</th><th>${say(G.thCrit!)}</th>`
+    + `<th>${say(G.thWhy!)}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
 
 /**
  * One setup, explained: what it is, the universe, every gate in test order with its live
  * or mirrored threshold, the caps, what `quality` means, and what still has to happen
  * intraday.
  *
- * The gate LIST is the answer to "cho minh mot kieu summary vi du nhu phai dat moc nao do
+ * The gate TABLE is the answer to "cho minh mot kieu summary vi du nhu phai dat moc nao do
  * cua cac criteria thi moi" — a criterion without its threshold beside it is not a
  * criterion, it is a topic.
  */
 function setupDocHtml(code: string, cfg: Cfg): string {
   const doc = SETUP_DOC[code.trim().toUpperCase()];
   if (!doc) return '';
-  const gate = (g: typeof doc.gates[number], i: number): string =>
-    `<li><span class="scan-gate-t">${gateText(g, cfg)}</span>`
-    + (g.note ? `<span class="scan-gate-n">${say(g.note)}</span>` : '')
-    + `</li>`;
+  // The opening claim is not a titled section: it is what the reader opened the fold to
+  // find out, so it leads, in a lighter frame and one size up from the rest.
   const parts = [
-    `<p>${say(doc.what)}</p>`,
+    `<p class="scan-doc-lead">${say(doc.what)}</p>`,
     doc.universe
-      ? docH(say(G.universe!))
-        + `<p>${say(doc.universe).replace(
-          '{v}', `<b>${thrText(cfgNum(cfg, 'sectors.top_n'), 'int')}</b>`)}</p>`
+      ? docSec(say(G.universe!), `<p>${say(doc.universe).replace(
+        '{v}', `<b>${thrText(cfgNum(cfg, 'sectors.top_n'), 'int')}</b>`)}</p>`)
       : '',
-    docH(say(G.gates!)),
-    `<p class="scan-doc-note">${say(doc.mirrored ? G.mirror! : G.live!)}`
-      + `${cfg ? '' : ` ${say(G.noCfg!)}`}</p>`,
-    `<ol class="scan-gates">${doc.gates.map(gate).join('')}</ol>`,
-    doc.caps?.length
-      ? docH(say(G.caps!)) + `<ol class="scan-gates">${doc.caps.map(gate).join('')}</ol>`
-      : '',
-    docH(say(G.quality!)), `<p>${say(doc.quality)}</p>`,
-    doc.trigger ? docH(say(G.trigger!)) + `<p>${say(doc.trigger)}</p>` : '',
+    docSec(say(G.gates!),
+      `<p class="scan-doc-note">${say(doc.mirrored ? G.mirror! : G.live!)}`
+      + `${cfg ? '' : ` ${say(G.noCfg!)}`}</p>`
+      + gateTable(doc.gates, cfg)),
+    doc.caps?.length ? docSec(say(G.caps!), gateTable(doc.caps, cfg)) : '',
+    docSec(say(G.quality!), `<p>${say(doc.quality)}</p>`),
+    doc.trigger ? docSec(say(G.trigger!), `<p>${say(doc.trigger)}</p>`) : '',
   ];
   return parts.join('');
 }
 
-/** The measurement columns of a table, defined, with what each is compared against. */
+/**
+ * The measurement columns of a table, defined, with what each is compared against.
+ *
+ * Three columns, because there are three different kinds of fact here and the reader is
+ * usually after one of them: which column, what it measures, and the threshold it had to
+ * clear. Run together in a sentence they had to be read in full to find out which.
+ */
 function metricDocHtml(keys: readonly string[]): string {
   const rows = keys.map((k) => {
     const m = METRICS[k];
     if (!m) return '';
-    return `<li><span class="scan-gate-t"><b>${say(m.label)}</b> — ${say(m.what)}</span>`
-      + (m.vs ? `<span class="scan-gate-n">${say(m.vs)}</span>` : '')
-      + `</li>`;
+    return `<tr><td class="scan-gt-k">${say(m.label)}</td>`
+      + `<td class="scan-gt-c">${say(m.what)}</td>`
+      + `<td class="scan-gt-w">${m.vs ? say(m.vs) : ''}</td></tr>`;
   }).filter(Boolean).join('');
-  return rows ? `<ul class="scan-gates scan-gloss">${rows}</ul>` : '';
+  return rows
+    ? `<div class="scan-doc-tw"><table class="scan-gt scan-mt"><thead><tr>`
+      + `<th>${say(G.thCol!)}</th><th>${say(G.thWhat!)}</th><th>${say(G.thVs!)}</th>`
+      + `</tr></thead><tbody>${rows}</tbody></table></div>`
+    : '';
 }
 
 const CAND_COLS = ['quality', 'ref_close', 'pivot', 'dist_pivot', 'base_len', 'base_depth',
@@ -1510,10 +1560,13 @@ function renderCandidates(snap: CandidatesSnap | null, cfg: Cfg): string {
  * immediately readable as "this one gate is deciding everything".
  */
 const rejLegendHtml = (): string =>
-  `<p>${say(REJ_INTRO)}</p><ul class="scan-gates scan-gloss">`
+  `<p class="scan-doc-lead">${say(REJ_INTRO)}</p>`
+  + `<div class="scan-doc-tw"><table class="scan-gt scan-mt"><thead><tr>`
+  + `<th>${say(G.thTerm!)}</th><th colspan="2">${say(G.thMeaning!)}</th></tr></thead><tbody>`
   + REJ_LEGEND.map((r) =>
-    `<li><span class="scan-gate-t"><b>${say(r.term)}</b> — ${say(r.def)}</span></li>`).join('')
-  + `</ul>`;
+    `<tr><td class="scan-gt-k">${say(r.term)}</td>`
+    + `<td class="scan-gt-c" colspan="2">${say(r.def)}</td></tr>`).join('')
+  + `</tbody></table></div>`;
 
 function renderRejects(snap: RejectsSnap | null, cfg: Cfg): string {
   const by = snap?.by_setup ?? {};

@@ -4864,13 +4864,32 @@ html.light .chat-shell::before {
    (--subtext, 11.5–12.5px) but never hidden, because a tooltip needs a mouse and this app
    is read on a phone. Same argument as `.pb-*` in the playbook dialog. */
 
-/* A fold of explanation beside data. Reuses `.scan-th`'s pill summary; this only adds the
-   type scale for the prose inside, since `<p>` in a card would otherwise inherit the
-   page's body size and compete with the table. */
+/* ── a fold of explanation ──
+   Structure, because the first version was a stack of paragraphs under small grey
+   headings and read exactly as reported: "text but cover only 1/3 of the page", with
+   the headings "bi che lap di boi qua nhieu text". Two separate mistakes:
+
+     1. The prose was capped at `max-width: 78ch`. On a phone that is a measure; on a
+        1500px desktop it is a third of the page with two thirds of emptiness beside
+        it, which reads as a layout bug rather than as typography. The width is not
+        fixed by widening the paragraph — a 200-character line is unreadable — but by
+        giving the content COLUMNS: a heading column, and tables that use the space.
+     2. A heading set in 11px grey above a paragraph of 12.5px grey is not a heading,
+        it is a slightly shorter line. It now has a fill, an accent rule and, on a wide
+        screen, a column of its own, so it cannot be swallowed by the text it names.
+
+   `#main` is in front of every cell selector below. `#main td` and `#main th` are
+   ID-specific, so a plain `table.scan-gt td` rule loses to them on padding, font size
+   and borders — which is why the first version's cells silently rendered at the page's
+   13px table size. The bare selector stays beside it for any host outside `#main`. */
 .scan-doc > summary { font-size: 11.5px; }
+.scan-doc > .scan-doc-in {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 4px;
+}
 .scan-doc p {
   margin: 0 0 8px; font-size: 12.5px; line-height: 1.7; color: var(--subtext);
-  max-width: 78ch;
+  max-width: 96ch;
 }
 .scan-doc p:last-child { margin-bottom: 0; }
 .scan-doc b { color: var(--text); font-weight: 600; }
@@ -4879,55 +4898,118 @@ html.light .chat-shell::before {
   background: var(--cardhover); border: 1px solid var(--border-soft);
   border-radius: 4px; padding: 0 3px;
 }
-/* A sub-heading inside a fold. NOT `sectionHead()`: that one is numbered and belongs to
-   the page's spine, and nesting a second numbered heading inside a section would imply a
-   stage of the pipeline that does not exist. */
-.scan-doc-h {
-  margin: 14px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--accent);
-}
-.scan-doc > summary + .scan-doc-h, .scan-doc-h:first-child { margin-top: 4px; }
-/* "These numbers are live" / "these numbers are mirrored by hand". It qualifies every
-   threshold below it, so it sits above them and in the warning-adjacent quiet tone. */
-.scan-doc-note {
-  margin: 0 0 8px !important; font-size: 11.5px !important; color: var(--faint) !important;
-  border-left: 2px solid var(--border); padding-left: 9px;
+
+/* The answer to the question the fold's own title asked. It leads, in the page's body
+   size and full ink, inside its own frame — everything after it is detail. */
+.scan-doc-lead {
+  margin: 0 0 12px !important; padding: 12px 14px; max-width: none !important;
+  background: var(--card); border: 1px solid var(--border);
+  border-left: 2px solid var(--accent-line); border-radius: var(--radius-xs);
+  font-size: 13px !important; line-height: 1.65 !important; color: var(--text) !important;
 }
 
-/* The gate list: an ordered list where the ORDER is the information — `setups.py` records
-   the first failing gate and stops, so gate 2 is only ever tested on what survived gate 1.
-   Hence real numbers, and a rule between items so a long list stays countable. */
-.scan-gates { margin: 0; padding: 0 0 0 1.6em; }
-.scan-gates > li {
-  padding: 6px 0; border-top: 1px solid var(--border-soft);
-  font-size: 12.5px; line-height: 1.6; color: var(--subtext);
+/* One titled block: heading in its own column on a wide screen, above on a narrow one.
+   The rule between blocks does the work a heading margin used to do badly. */
+.scan-doc-sec {
+  display: grid; gap: 4px 22px; grid-template-columns: minmax(0, 1fr);
+  padding: 14px 0 4px; border-top: 1px solid var(--border-soft);
 }
-.scan-gates > li:first-child { border-top: none; }
-.scan-gates > li::marker { color: var(--faint); font-size: 11px; font-weight: 600; }
-.scan-gate-t { display: block; color: var(--text); }
-.scan-gate-t b {
+.scan-doc-sec:first-child, .scan-doc-lead + .scan-doc-sec { border-top: none; padding-top: 0; }
+.scan-doc-sec:last-child { padding-bottom: 0; }
+@media (min-width: 900px) {
+  .scan-doc-sec { grid-template-columns: minmax(160px, 216px) minmax(0, 1fr); }
+}
+.scan-doc-b > :first-child { margin-top: 0; }
+
+/* The heading. NOT `sectionHead()`: that one is numbered and belongs to the page's
+   spine, and a second numbered heading inside a section would imply a stage of the
+   pipeline that does not exist. */
+.scan-doc-h {
+  display: flex; align-items: baseline; gap: 8px; height: fit-content;
+  margin: 0 0 6px; padding: 6px 11px;
+  background: var(--accent-wash); border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; line-height: 1.45;
+  text-transform: uppercase; color: var(--accent);
+}
+/* The step number of a sequence, when the order is part of the claim. */
+.scan-doc-i {
+  flex: none; display: inline-grid; place-items: center;
+  width: 17px; height: 17px; border-radius: 4px;
+  background: var(--accent); color: var(--accent-ink);
+  font: 700 10px var(--font-mono, monospace); letter-spacing: 0;
+}
+/* "These numbers are live" / "these are mirrored by hand". It qualifies every threshold
+   in the table under it, so it sits above them, and dashed — a caveat, not a datum. */
+.scan-doc-note {
+  margin: 0 0 9px !important; padding: 8px 11px; max-width: none !important;
+  font-size: 11.5px !important; line-height: 1.6 !important; color: var(--subtext) !important;
+  background: var(--cardhover); border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+}
+
+/* ── the explanation tables ──
+   Gates, column glossaries, plan steps and legends were all bullet lists of sentences,
+   which is the shape that buried the headings: every line looked like every other line.
+   As a table with named columns the reader knows before reading that the rule is on the
+   left and the reason it is that number is on the right, and can stop at whichever one
+   they came for. */
+.scan-doc-tw {
+  overflow-x: auto; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius-xs);
+}
+#main table.scan-gt, table.scan-gt { width: 100%; border-collapse: collapse; }
+#main table.scan-gt th, table.scan-gt th {
+  /* Static, not the page's sticky `th`: these tables do not scroll vertically, and a
+     sticky row with `#main`'s transparent background would smear over the data. */
+  position: static; padding: 7px 12px 6px; vertical-align: bottom;
+  background: var(--cardhover); border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui); font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); white-space: nowrap;
+}
+#main table.scan-gt td, table.scan-gt td {
+  padding: 9px 12px; vertical-align: top; border: none;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12.5px; line-height: 1.6; color: var(--subtext); font-weight: 400;
+}
+#main table.scan-gt tbody tr:first-child td, table.scan-gt tbody tr:first-child td {
+  border-top: none;
+}
+/* Not clickable, so not `cursor: pointer` — the page's table default assumes rows open
+   something, and one that does not should not pretend. */
+#main table.scan-gt tbody tr, table.scan-gt tbody tr { cursor: default; }
+#main table.scan-gt tbody tr:hover, table.scan-gt tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+}
+/* The order IS the information: `setups.py` records the first failing gate and stops,
+   so gate 2 is only ever tested on what survived gate 1. */
+#main .scan-gt-n, .scan-gt-n {
+  width: 1%; text-align: right; white-space: nowrap;
+  font: 700 11px var(--font-mono, monospace); color: var(--faint);
+}
+#main .scan-gt-c, .scan-gt-c { width: 46%; color: var(--text); font-weight: 400; }
+.scan-gt-c b {
   font-family: var(--font-mono, monospace); font-weight: 700; color: var(--accent);
   font-size: 12px;
 }
-/* Why the threshold is where it is — the comment beside the value in `config.py`. A second
-   line rather than a tooltip: it is the half that answers "so why 20%", and the reader who
-   needs it is the reader who would never think to hover. */
-.scan-gate-n {
-  display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.55;
-  color: var(--faint);
+/* Why the threshold is where it is — the comment beside the value in `config.py`. A
+   column rather than a tooltip: it is the half that answers "so why 20%", and the
+   reader who needs it is the reader who would never think to hover. */
+#main .scan-gt-w, .scan-gt-w { color: var(--faint); font-size: 11.5px; }
+/* The glossary variant: a name instead of a number in the first column. */
+#main .scan-gt-k, .scan-gt-k {
+  width: 1%; white-space: nowrap; color: var(--text); font-weight: 600;
 }
-/* The column glossary is the same list without the ordering claim: columns have no order. */
-.scan-gloss { padding-left: 0; list-style: none; }
-.scan-gloss > li { padding: 7px 0; }
+#main .scan-mt .scan-gt-c, .scan-mt .scan-gt-c { width: 50%; }
 
 /* ── why rejected ──
-   The reason cell now carries its explanation as a visible second line. `vertical-align:
+   The reason cell carries its explanation as a visible second line. `vertical-align:
    top` on the whole table because that cell is two lines tall and the count beside it is
    one: baseline-aligning them would float the number in the middle of the sentence. */
-table.scan-rej td { vertical-align: top; }
+#main table.scan-rej td, table.scan-rej td { vertical-align: top; }
 .scan-rej-why {
   margin-top: 3px; font-size: 11.5px; line-height: 1.55; color: var(--faint);
-  max-width: 62ch;
+  max-width: 72ch;
 }
 
 /* ── the watch list's per-row "why" ──
@@ -4939,75 +5021,97 @@ table.scan-rej td { vertical-align: top; }
   font-size: 12px; line-height: 1; color: var(--faint); cursor: pointer;
   transition: color .14s ease;
 }
-.wl-why-b:hover { color: var(--accent); }
-.wl-why-b.on { color: var(--accent); }
+.wl-why-b:hover, .wl-why-b.on { color: var(--accent); }
 /* The expanded row. Inset on the left so it reads as belonging to the row above rather
    than as a row of its own. */
-tr.wl-why > td {
+#main tr.wl-why > td, tr.wl-why > td {
   background: var(--surface); border-left: 2px solid var(--accent-line);
-  padding: 11px 14px 12px;
+  padding: 12px 14px 13px;
 }
 .wl-why-h {
   font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--subtext); margin-bottom: 7px;
+  color: var(--subtext); margin-bottom: 8px;
 }
 .wl-why-h b { color: var(--text); font-family: var(--font-mono, monospace); }
-.wl-why-f { margin-top: 7px; font-size: 10.5px; color: var(--faint); }
 
-/* The checklist itself: mark, what was measured, the value, what it had to clear, and why
-   that threshold exists. The value and the threshold are both mono and adjacent, because
-   comparing them by eye is the entire purpose of the block. */
-table.wl-chk { width: auto; border-collapse: collapse; }
-table.wl-chk td {
-  border: none; border-top: 1px solid var(--border-soft);
-  padding: 5px 12px 5px 0; font-size: 12px; line-height: 1.5; vertical-align: top;
+/* The checklist: mark, what was measured, the value, what it had to clear, and why that
+   threshold exists. The value and the threshold are adjacent and both mono, because
+   comparing them by eye is the entire purpose of the block — and they are now under
+   named column headers, since "measured / required" as a footnote left the reader to
+   work out which of two numbers on a line was which. */
+#main table.wl-chk, table.wl-chk { width: 100%; border-collapse: collapse; }
+#main table.wl-chk th, table.wl-chk th {
+  position: static; padding: 0 12px 5px 0; vertical-align: bottom;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui); font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); white-space: nowrap;
 }
-table.wl-chk tr:first-child td { border-top: none; }
-.wl-chk-m { width: 16px; font-weight: 700; padding-right: 8px !important; }
-.wl-chk-k { color: var(--text); white-space: nowrap; }
-.wl-chk-v {
+#main table.wl-chk td, table.wl-chk td {
+  border: none; border-top: 1px solid var(--border-soft);
+  padding: 6px 12px 6px 0; font-size: 12px; line-height: 1.5; vertical-align: top;
+  color: var(--subtext); font-weight: 400;
+}
+#main table.wl-chk tbody tr, table.wl-chk tbody tr { cursor: default; background: none; }
+#main table.wl-chk tbody tr:hover, table.wl-chk tbody tr:hover { background: none; }
+#main .wl-chk-m, .wl-chk-m {
+  width: 16px; font-weight: 700; text-align: center; padding-right: 8px;
+}
+#main .wl-chk-k, .wl-chk-k { color: var(--text); white-space: nowrap; }
+#main .wl-chk-v, .wl-chk-v {
   font-family: var(--font-mono, monospace); font-weight: 700; color: var(--text);
   white-space: nowrap;
 }
-.wl-chk-t {
+#main .wl-chk-t, .wl-chk-t {
   font-family: var(--font-mono, monospace); color: var(--accent); white-space: nowrap;
 }
-.wl-chk-n { color: var(--faint); font-size: 11.5px; max-width: 54ch; }
+#main .wl-chk-n, .wl-chk-n { color: var(--faint); font-size: 11.5px; }
 
 /* ── the config dump ──
    Was `min_dollar_vol | 20000000.0`: a schema name and a number, in the one section whose
    job is to explain the numbers everywhere else. The name in words leads, the raw key
    stays underneath it (the VM's log still says `min_dollar_vol`), and the comment from
-   `config.py` — the only reason any of these values is readable — gets its own column. */
-table.scan-cfg td { vertical-align: top; }
-.scan-cfg-k { min-width: 12ch; }
-.scan-cfg-k > div:first-child { color: var(--text); font-weight: 600; }
+   `config.py` — the only reason any of these values is readable — gets its own column
+   with a header over it. */
+#main table.scan-cfg td, table.scan-cfg td { vertical-align: top; }
+#main .scan-cfg-k, .scan-cfg-k { min-width: 12ch; }
+.scan-cfg-k > div:first-child { color: var(--text); font-weight: 600; font-size: 12.5px; }
 .scan-cfg-raw {
   font: 500 10.5px var(--font-mono, monospace); color: var(--faint); margin-top: 1px;
 }
-.scan-cfg-v {
+#main .scan-cfg-v, .scan-cfg-v {
   font-family: var(--font-mono, monospace); font-weight: 700; color: var(--accent);
   white-space: nowrap;
 }
-.scan-cfg-n {
-  font-size: 11.5px; line-height: 1.55; color: var(--subtext); max-width: 64ch;
+#main .scan-cfg-n, .scan-cfg-n {
+  font-size: 11.5px; line-height: 1.55; color: var(--subtext); max-width: 80ch;
 }
 .scan-cfg-n b { color: var(--text); font-family: var(--font-mono, monospace); }
 
 @media (max-width: 720px) {
+  .scan-doc > .scan-doc-in { padding: 12px; }
+  .scan-doc-lead { padding: 10px 12px; font-size: 12.5px !important; }
   /* A table cannot reflow — every column keeps its widest cell — so the checklist stops
      being a table on a narrow screen and becomes a stack: mark on the left, then the
      label, the two numbers on one line, and the note. Same technique as `.sc-fold` in
-     SCORECARD_CSS, and for the same reason. */
-  table.wl-chk tr {
+     SCORECARD_CSS, and for the same reason. The header row goes with it: column labels
+     over a grid are labels over nothing. */
+  table.wl-chk thead { display: none; }
+  #main table.wl-chk tbody tr, table.wl-chk tbody tr {
     display: grid; grid-template-columns: 18px minmax(0, 1fr);
     padding: 7px 0; border-top: 1px solid var(--border-soft);
   }
-  table.wl-chk tr:first-child { border-top: none; }
-  table.wl-chk td { display: block; border: none; padding: 0; }
-  .wl-chk-m { grid-row: 1 / span 4; }
-  .wl-chk-v { display: inline-block !important; margin-right: 8px; }
-  .wl-chk-t { display: inline-block !important; }
-  .wl-chk-n { max-width: none; margin-top: 2px; }
-  .scan-doc p, .scan-rej-why, .scan-cfg-n { max-width: none; }
+  #main table.wl-chk tbody tr:first-child, table.wl-chk tbody tr:first-child {
+    border-top: none;
+  }
+  #main table.wl-chk td, table.wl-chk td { display: block; border: none; padding: 0; }
+  #main .wl-chk-m, .wl-chk-m { grid-row: 1 / span 4; }
+  #main .wl-chk-v, .wl-chk-v { display: inline-block; margin-right: 8px; }
+  #main .wl-chk-t, .wl-chk-t { display: inline-block; }
+  #main .wl-chk-n, .wl-chk-n { margin-top: 2px; }
+  /* The explanation tables keep their columns but lose the padding, and the "why"
+     column drops to the size it deserves on a 380px screen. */
+  #main table.scan-gt td, table.scan-gt td { padding: 8px 9px; font-size: 12px; }
+  #main table.scan-gt th, table.scan-gt th { padding: 6px 9px 5px; }
+  #main .scan-gt-w, .scan-gt-w { font-size: 11px; }
+  .scan-doc p, .scan-rej-why, #main .scan-cfg-n, .scan-cfg-n { max-width: none; }
 }
