@@ -7,7 +7,13 @@
 import type { Bar } from '@screener/core';
 import type { CaseStudy } from './store.js';
 import { caseSvgChart, windowBars } from './svgChart.js';
-import { sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
+// `safeNoteHtml`, not `sanitizeNoteHtml`: this document is also built where there is no
+// `DOMParser` to sanitise with. See its comment in `ui/richNote.ts`.
+import { safeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
+import {
+  scorecardBarsHtml, scorecardTableHtml, scorecardWords, SCORECARD_CSS,
+} from '../portfolio/scorecard.js';
+import { setupName } from '../portfolio/planWords.js';
 
 function esc(s: string): string {
   return s
@@ -48,11 +54,12 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
   @media print {
     body { padding:0; max-width:none; }
     .toolbar { display:none; }
-    .chart,.stat,.notes,.why,tr { break-inside:avoid; }
+    .chart,.stat,.notes,.why,.ack,.gbar,tr { break-inside:avoid; }
     body:has(#ink:checked) { background:#fff; color:#000; }
     body:has(#ink:checked) .chart,
     body:has(#ink:checked) .stat,
     body:has(#ink:checked) .why,
+    body:has(#ink:checked) .ack,
     body:has(#ink:checked) .notes { background:#fafafa; border-color:#ddd; }
     body:has(#ink:checked) .muted { color:#555; }
   }`;
@@ -90,13 +97,67 @@ export function caseStudyHtml(
     ? study.catalysts
         .slice()
         .sort((a, b) => (a.date < b.date ? -1 : 1))
-        .map((c) => `<tr><td class="cat-date">${esc(c.date)}</td><td>${sanitizeNoteHtml(c.text)}</td></tr>`)
+        .map((c) => `<tr><td class="cat-date">${esc(c.date)}</td><td>${safeNoteHtml(c.text)}</td></tr>`)
         .join('')
     : `<tr><td colspan="2" class="muted">No catalysts recorded.</td></tr>`;
 
   const notesHtml = !isNoteEmpty(study.notes)
-    ? sanitizeNoteHtml(study.notes)
+    ? safeNoteHtml(study.notes)
     : '<span class="muted">No notes.</span>';
+
+  /*
+   * ── THE PLAN THE STUDY WAS FILED FROM ───────────────────────────────────────
+   * The user's "case study nen giong trade plan mot chut, chua tat ca cac criteria … de sau nay
+   * doc lai tot hon". Until now this document held the outcome and the chart but not one word of
+   * the reasoning: the grade was a letter in the title with nothing behind it. A journal read
+   * back a year later has to answer "what did I think I was buying", and the only place that
+   * answer exists is the frozen checklist — so it goes in the file, not just in the app.
+   *
+   * Absent on every study written by hand in the Case Studies tab, and on everything filed
+   * before the planner could freeze a plan, so the whole section is conditional. The grade is
+   * checked field by field rather than trusted: this blob syncs, it is among the oldest data in
+   * the app, and `scorecardTableHtml` walks `outcomes`.
+   */
+  const p = study.plan;
+  const pg = p?.grade && Array.isArray(p.grade.outcomes) && typeof p.grade.score === 'number'
+    ? p.grade : null;
+  const pc = p?.currency === 'EUR' ? '€' : '$';
+  const pmoney = (v: number | null | undefined): string =>
+    v == null ? '—' : pc + (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(2));
+  // The acknowledgement, with the levels it was given against — unfalsifiable without them,
+  // exactly as in the printed plan.
+  const ack = p?.plan?.reviewedAt && p.plan.levels
+    ? `<div class="ack ok">✓ Plan acknowledged ${esc(p.plan.reviewedAt.slice(0, 16).replace('T', ' '))}`
+      + ` — against entry ${pmoney(p.plan.levels.entry)} / stop ${pmoney(p.plan.levels.stop)}</div>`
+    : '<div class="ack bad">⚠ NOT acknowledged — the plan was never confirmed as read</div>';
+  // The note as it was FILED, and only when it has since diverged. The planner copies the plan
+  // note into `notes` at filing, so printing both would normally be the same paragraph twice —
+  // but `notes` stays editable afterwards and the frozen copy does not, and where they disagree
+  // the difference is the most interesting thing on the page.
+  const filedNote = p?.plan?.note && !isNoteEmpty(p.plan.note)
+    && safeNoteHtml(p.plan.note) !== safeNoteHtml(study.notes)
+    ? `<h2>Plan note, as filed</h2><div class="notes">${safeNoteHtml(p.plan.note)}</div>`
+    : '';
+  const planBlock = p
+    ? `<h2>Trade plan it was filed from</h2>
+  <p class="sub">${esc(p.plan?.setup ? setupName(p.plan.setup, false) : study.setupType)}
+    · trade date <b>${esc(p.date || study.keyDate)}</b>
+    · grade <b>${esc(p.effective ?? '—')}</b>${pg ? ` (score ${pg.score.toFixed(0)}/100)` : ''}
+    · size allowed <b>${p.pctOfFull}%</b> of full
+    · levels as typed, in ${pc === '€' ? 'EUR' : 'USD'}</p>
+  ${ack}
+  <div class="grid">
+    ${stat('Entry (planned)', pmoney(p.levels?.entry), '#5b8cff')}
+    ${stat('Stop (planned)', pmoney(p.levels?.stop), '#ff5266')}
+    ${stat('Target (planned)', pmoney(p.levels?.target), '#18d89a')}
+    ${stat('Shares', p.shares > 0 ? String(p.shares) : '—')}
+  </div>
+  ${pg ? `<h2>${esc(scorecardWords(false).title)}</h2>${scorecardBarsHtml(pg, false)}
+  ${scorecardTableHtml(pg, false)}`
+      : '<p class="sub" style="color:#ffb648">This trade was never graded — no setup was chosen, '
+        + 'or the price history was too short.</p>'}
+  ${filedNote}`
+    : '';
 
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${esc(study.symbol)} — ${esc(study.title || 'Case Study')}</title>
@@ -120,6 +181,10 @@ export function caseStudyHtml(
   th,td { text-align:left; padding:8px 10px; border-bottom:1px solid #1d222c; font-size:13px; vertical-align:top; }
   .cat-date { font-family:'JetBrains Mono',monospace; color:#c084fc; white-space:nowrap; width:120px; }
   .notes { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:14px 16px; line-height:1.7; }
+  .ack { border-radius:10px; padding:10px 14px; margin:16px 0; font-size:13px; border:1px solid; }
+  .ack.ok { color:#18d89a; border-color:#18d89a44; background:#0d1a14; }
+  .ack.bad { color:#ffb648; border-color:#ffb64844; background:#1a1509; }
+${SCORECARD_CSS}
   .muted { color:#5c6575; }
   .foot { color:#5c6575; font-size:11px; margin-top:28px; border-top:1px solid #1d222c; padding-top:12px; }
   .why { background:#0c0e13; border:1px solid #1d222c; border-left:3px solid #e879f9; border-radius:10px; padding:12px 14px; margin:16px 0; }
@@ -148,6 +213,8 @@ ${PRINT_CSS}
     ${stat('Rating', study.rating || '—', study.rating ? (RATING_COLOR[study.rating] ?? undefined) : undefined)}
   </div>
   ${study.exitReason ? `<div class="why"><div class="k">Why it was closed</div><div>${esc(study.exitReason)}</div></div>` : ''}
+
+  ${planBlock}
 
   <h2>Catalysts &amp; news</h2>
   <table><tbody>${catalystRows}</tbody></table>

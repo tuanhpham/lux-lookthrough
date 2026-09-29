@@ -119,6 +119,23 @@ export function sanitizeNoteHtml(html: string): string {
   return doc.body.innerHTML.trim();
 }
 
+/**
+ * `sanitizeNoteHtml` for the exported documents, which are built where there may be no DOM.
+ *
+ * The sanitizer needs a real `DOMParser`. Hand-rolling a regex substitute would be a genuinely
+ * worse sanitiser, so with no DOM we do not try to clean the markup — we escape it whole and the
+ * note prints as literal text. That loses the formatting and only ever happens outside a browser
+ * (which in practice means the test suite), but it can never emit markup we failed to inspect.
+ *
+ * It lives here rather than in either report because both reports need it and they are read as a
+ * pair: one copy would be the one that eventually forgets the guard.
+ */
+export function safeNoteHtml(html: string): string {
+  return typeof DOMParser === 'undefined'
+    ? html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    : sanitizeNoteHtml(html);
+}
+
 /** True when the HTML has no visible content (empty / whitespace / bare <br>). */
 export function isNoteEmpty(html: string | undefined | null): boolean {
   if (!html) return true;

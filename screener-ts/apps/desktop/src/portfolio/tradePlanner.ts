@@ -68,7 +68,7 @@ import {
   buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, regimeAsOf,
   type BuyPlan,
 } from './playbook.js';
-import { planLines, setupName } from './planWords.js';
+import { planNoteHtml, setupName } from './planWords.js';
 // The grade panel is shared with the Buy form: one checklist, rendered once, so the panel
 // the user reads in the planner is the same one that sizes the trade they place.
 import { gradePanelHtml } from './gradeView.js';
@@ -1297,7 +1297,12 @@ function recalcPlan(symbol: string): void {
     const head = plan
       // One symbol for both now: `buildBuyPlan` returned its levels in `planCcy` because
       // that is the currency it was handed the entry in.
-      ? `<p>${planLines(plan, { vi, levelSym: sym, moneySym: sym, money: true }).join('<br>')}</p>`
+      //
+      // A titled list rather than the old `<br>`-joined paragraph: see `planNoteHtml`. The block
+      // the user was reading here — "Stop €167.19 (13.7% …) · Target €251.43 (2.2R)" and four
+      // more lines of it — was one dense paragraph sitting directly above the setup narrative's
+      // own heading and bullets, so the note looked half-finished by its own standard.
+      ? planNoteHtml(plan, { vi, levelSym: sym, moneySym: sym, money: true })
       : `<p class="muted">${e.setup ? t('wl.plan.nolevels') : t('wl.plan.picksetup')}</p>`;
     e.note = sanitizeNoteHtml(head + e.explain);
     const noteBox = document.querySelector<HTMLElement>(`[data-tp-note="${CSS.escape(symbol)}"]`);
@@ -1682,7 +1687,12 @@ function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
         </div>
         <div class="tp-exit-stats" data-tp-exitstats="${S}"></div>
         <div class="tp-exit-actions">
-          <button type="button" class="btn-outline mini-btn" data-tp-case="${S}"
+          <!-- Filled, not outlined: this is the button the whole fold-out exists for. It used to
+               look exactly like the ⚙ beside the reason dropdown, so the one action that WRITES
+               something here was styled as a utility. Violet rather than the accent green so it
+               does not read as a second Buy — it is the journal's colour, the same one the exit
+               price and the case-study dates already use. -->
+          <button type="button" class="btn tp-case-btn" data-tp-case="${S}"
             title="${t('wl.plan.case.title')}">🗂 ${t('wl.plan.case')}</button>
           <span class="tp-exit-msg" data-tp-casemsg="${S}"></span>
         </div>

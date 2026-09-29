@@ -81,7 +81,7 @@ import {
   barsFor, buildBuyPlan, currentRegime, ensureRegime, ladderConfig,
   loadPlaybookConfig, regimeStale, takePlaybookSettingsRequest, type BuyPlan,
 } from '../portfolio/playbook.js';
-import { planLines } from '../portfolio/planWords.js';
+import { planLines, planNoteHtml } from '../portfolio/planWords.js';
 // The same exit vocabulary the Trade Planner records a case study with — the user's
 // "nhung cai ly do nay co the integrate also to phan Sell trong Portfolio nua nhe". A sell here
 // and a plan filed there are the same event described twice, so they must be countable together.
@@ -626,9 +626,9 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     const cur = sanitizeNoteHtml(noteEl.innerHTML);
     if (!isNoteEmpty(cur) && cur !== noteSeed) { plan.noteEdited = true; store(); return; }
     const sym = (ccyEl?.value ?? 'USD') === 'EUR' ? '€' : '$';
-    plan.note = sanitizeNoteHtml(
-      `<p>${planLines(built, { vi, levelSym: sym, moneySym: sym }).join('<br>')}</p>`,
-    );
+    // The same titled list the planner's note gets — one shape for one document, and the
+    // reason it is not a table is in `planNoteHtml`.
+    plan.note = sanitizeNoteHtml(planNoteHtml(built, { vi, levelSym: sym, moneySym: sym }));
     noteSeed = plan.note;
     noteEl.innerHTML = plan.note;
     buyNoteDraft = plan.note;

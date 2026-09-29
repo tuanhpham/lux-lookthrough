@@ -12,11 +12,12 @@
  * which is the rule. Same argument that put the rule table in core; this is its
  * other half.
  *
- * ── WHY THE EXPLANATION IS A LIST OF STRINGS, NOT HTML FOR ONE LAYOUT ───────
- * The Buy form prints these as `<br>`-joined lines under the fields; the planner
- * seeds them into a rich-text note the user then edits by hand. Returning lines lets
- * each wrap them its own way, and keeps the note free of markup the editor would have
- * to sanitize back out.
+ * ── WHY THE EXPLANATION IS ROWS, NOT HTML FOR ONE LAYOUT ────────────────────
+ * `planRows` is the content: one labelled fact per row. Two renderers sit on top of it
+ * because the same facts are read in two different places — `planLines` for the live
+ * hint under the Buy form's fields, `planNoteHtml` for the rich-text note the user then
+ * edits by hand. Keeping the content separate from the markup is what stops the note
+ * and the form drifting into two different explanations of one number.
  */
 import type { SetupKey } from '@screener/core';
 import type { BuyPlan } from './playbook.js';
@@ -150,15 +151,61 @@ export interface PlanWordOpts {
 }
 
 /**
- * The plan, explained — one string per line, safe to drop into HTML.
+ * One labelled fact about the plan.
  *
- * Order is the order the decision was made in: where the stop goes, therefore how many
- * shares, therefore why that many, and only then the market and the warnings. A reader
- * who stops after two lines has still read the two numbers they are about to trade.
+ * `k` empty means the row stands on its own — a warning, or a note about the book. Those
+ * have no label because inventing one ("Warning: ⚠ …") would add a word and no information.
  */
-export function planLines(plan: BuyPlan, opts: PlanWordOpts): string[] {
+export interface PlanRow {
+  /** The label, already in the reader's language. Plain text. */
+  k: string;
+  /** The value. HTML, and may carry `<b>` and muted spans. */
+  v: string;
+  /** `warn` paints the whole row in the warning colour. */
+  tone?: 'warn';
+}
+
+/**
+ * Labels for the rows. The words were already in this file, inline in the old one-line-per-
+ * fact strings; pulling them into a table is what let the same fact be rendered two ways.
+ */
+const ROW_LABEL: Record<string, [string, string]> = {
+  stop: ['Cắt lỗ', 'Stop'],
+  target: ['Mục tiêu', 'Target'],
+  shares: ['Số cổ', 'Shares'],
+  risk: ['Rủi ro', 'Risk'],
+  grade: ['Xếp hạng', 'Grade'],
+  cuts: ['Cỡ bị giảm vì', 'Size cut by'],
+  market: ['Thị trường', 'Market'],
+};
+
+/**
+ * Secondary detail, muted BOTH ways at once — and that is deliberate, not belt and braces.
+ *
+ * The class is what the app's own stylesheet knows about; the inline colour is what survives
+ * `sanitizeNoteHtml`, which strips every attribute except a few inline styles. The note is the
+ * one place these rows are stored rather than rendered, so without the inline copy the whole
+ * explanation arrives in the note as one flat wall of same-coloured text — which is exactly
+ * what the user was looking at when they asked for this to be "structured dep hon".
+ */
+function mu(s: string): string {
+  return `<span class="muted" style="color:var(--subtext,#99a2b2)">${s}</span>`;
+}
+
+const WARN_STYLE = 'color:var(--warn,#ffb648)';
+
+/**
+ * The plan, explained — one labelled row per fact.
+ *
+ * Order is the order the decision was made in: where the stop goes, then what it is aiming at,
+ * therefore how many shares, therefore how much money is on the table, and only then the grade,
+ * the market and the warnings. A reader who stops after three rows has still read the stop, the
+ * target and the share count.
+ */
+export function planRows(plan: BuyPlan, opts: PlanWordOpts): PlanRow[] {
   const { vi, levelSym, moneySym } = opts;
-  const lines: string[] = [];
+  const L = (k: string): string => (vi ? ROW_LABEL[k]![0] : ROW_LABEL[k]![1]);
+  const rows: PlanRow[] = [];
 
   // What the stop is hanging on — the anchor, UNLESS the cap overrode it. Naming the
   // anchor for a capped stop would describe a level the plan does not contain: the whole
@@ -171,14 +218,19 @@ export function planLines(plan: BuyPlan, opts: PlanWordOpts): string[] {
   const stopWhy = capped
     ? (vi ? 'đã kéo lên mức chặn tối đa (EMA / ATR)' : 'pulled up to the maximum stop (EMA / ATR)')
     : (vi ? anchor![0] : anchor![1]);
-  lines.push(
-    `<b>${vi ? 'Cắt lỗ' : 'Stop'}</b> ${levelSym}${num(plan.stop)} ` +
-    `<span class="muted">(${plan.stopPct.toFixed(1)}% — ${stopWhy})</span>` +
-    (plan.target !== null
-      ? ` · <b>${vi ? 'Mục tiêu' : 'Target'}</b> ${levelSym}${num(plan.target)}` +
-        (plan.rMultiple !== null ? ` <span class="muted">(${plan.rMultiple.toFixed(1)}R)</span>` : '')
-      : ''),
-  );
+  rows.push({
+    k: L('stop'),
+    v: `<b>${levelSym}${num(plan.stop)}</b> ${mu(`${plan.stopPct.toFixed(1)}% — ${stopWhy}`)}`,
+  });
+  // Its own row now. It used to share the stop's line behind a `·`, which is how the two
+  // numbers a trade is actually made of ended up as the middle of a paragraph.
+  if (plan.target !== null) {
+    rows.push({
+      k: L('target'),
+      v: `<b>${levelSym}${num(plan.target)}</b>` +
+        (plan.rMultiple !== null ? ` ${mu(`${plan.rMultiple.toFixed(1)}R`)}` : ''),
+    });
+  }
 
   const limit = plan.size.limitedBy ? SIZE_LIMIT[plan.size.limitedBy] : null;
   // The risk that is ACTUALLY on the table, not the budget it was drawn from. Those are
@@ -188,21 +240,28 @@ export function planLines(plan: BuyPlan, opts: PlanWordOpts): string[] {
   const realRisk = plan.size.riskPctOfEquity;
   const budgeted = plan.budget.pct;
   const differs = Math.abs(realRisk - budgeted) >= 0.01 && plan.shares > 0;
-  lines.push(
-    `<b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}` +
-    (limit ? ` <span class="muted">· ${vi ? 'cỡ đầy bị chặn bởi' : 'full size bound by'} ${vi ? limit[0] : limit[1]}</span>` : '') +
-    ` · ${vi ? 'rủi ro' : 'risk'} <b>${differs ? realRisk : budgeted}%</b>` +
-    (opts.money && plan.size.riskAmount > 0
-      ? ` <span class="muted">(${moneySym}${num(plan.size.riskAmount, 0)})</span>`
-      : '') +
-    (differs ? ` <span class="muted">${vi ? 'trên hạn mức' : 'of a'} ${budgeted}% ${vi ? '' : 'budget'}</span>` : '') +
-    ` <span class="muted">(${vi ? 'bậc' : 'rung'} ${plan.budget.stage.stage}, ` +
-    `${plan.budget.stage.closedTrades} ${vi ? 'lệnh đã đóng' : 'closed trades'})</span>` +
-    ` · ${vi ? 'tổng rủi ro mở sau lệnh' : 'open risk after'} <b>${plan.size.heatPctAfter}%</b>`,
-  );
+  rows.push({
+    k: L('shares'),
+    v: `<b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}` +
+      (limit ? ` ${mu(`· ${vi ? 'cỡ đầy bị chặn bởi' : 'full size bound by'} ${vi ? limit[0] : limit[1]}`)}` : ''),
+  });
+  // Split off the share count, because it answers a different question: not "how big is this
+  // position" but "how much of the account is at stake if the stop is hit". The two used to run
+  // together into one line nobody read to the end of.
+  rows.push({
+    k: L('risk'),
+    v: `<b>${differs ? realRisk : budgeted}%</b>` +
+      (opts.money && plan.size.riskAmount > 0
+        ? ` ${mu(`(${moneySym}${num(plan.size.riskAmount, 0)})`)}`
+        : '') +
+      (differs ? ` ${mu(`${vi ? 'trên hạn mức' : 'of a'} ${budgeted}% ${vi ? '' : 'budget'}`)}` : '') +
+      ` ${mu(`(${vi ? 'bậc' : 'rung'} ${plan.budget.stage.stage}, ` +
+        `${plan.budget.stage.closedTrades} ${vi ? 'lệnh đã đóng' : 'closed trades'})`)}` +
+      ` · ${mu(vi ? 'tổng rủi ro mở sau lệnh' : 'open risk after')} <b>${plan.size.heatPctAfter}%</b>`,
+  });
 
   // ── THE GRADE, WITH THE SUBTRACTION SHOWN ─────────────────────────────────
-  // Its own line, not a parenthesis, because it is the one input the app cannot check:
+  // Its own row, not a parenthesis, because it is the one input the app cannot check:
   // if the size looks wrong, this is the line to argue with. And it shows BOTH counts —
   // full size and what the grade left — because "18 shares" alone gives the user no way
   // to tell whether the dropdown did anything. That was the actual complaint that led
@@ -210,53 +269,84 @@ export function planLines(plan: BuyPlan, opts: PlanWordOpts): string[] {
   if (plan.rating) {
     const means = RATING_MEANS[plan.rating];
     const { fullShares, gradeScale, fullPositionValue, positionValue } = plan.size;
-    const money = (v: number): string => (opts.money ? ` <span class="muted">(${moneySym}${num(v, 0)})</span>` : '');
+    const money = (v: number): string => (opts.money ? ` ${mu(`(${moneySym}${num(v, 0)})`)}` : '');
     const scaled = gradeScale !== 1 && fullShares > 0;
-    lines.push(
-      `<span class="muted">${vi ? 'Xếp hạng' : 'Grade'} <b>${plan.rating}</b>` +
-      (means ? ` — ${vi ? means[0] : means[1]}` : '') +
-      (scaled
-        ? ` · ${vi ? 'cỡ đầy' : 'full size'} ${fullShares} ${vi ? 'cổ' : 'sh'}${money(fullPositionValue)}` +
-          ` → ${Math.round(gradeScale * 100)}% → <b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}${money(positionValue)}`
-        : ` <span class="muted">(${vi ? 'không giảm cỡ' : 'no size cut'})</span>`) +
-      '</span>',
-    );
+    rows.push({
+      k: L('grade'),
+      v: `<b>${plan.rating}</b>` +
+        (means ? ` — ${mu(vi ? means[0] : means[1])}` : '') +
+        (scaled
+          ? ` · ${mu(vi ? 'cỡ đầy' : 'full size')} ${fullShares} ${vi ? 'cổ' : 'sh'}${money(fullPositionValue)}` +
+            ` → ${Math.round(gradeScale * 100)}% → <b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}${money(positionValue)}`
+          : ` ${mu(`(${vi ? 'không giảm cỡ' : 'no size cut'})`)}`),
+    });
   }
 
   const cuts = plan.budget.cuts.map((c) => {
     const w = CUT_SHORT[c];
     return w ? (vi ? w[0] : w[1]) : c;
   });
-  if (cuts.length) {
-    lines.push(`<span class="muted">${vi ? 'Cỡ bị giảm vì' : 'Size cut by'}: ${cuts.join(' · ')}</span>`);
-  }
+  if (cuts.length) rows.push({ k: L('cuts'), v: mu(cuts.join(' · ')) });
 
   const r = plan.regime;
-  lines.push(
-    `<span class="muted">${vi ? 'Thị trường' : 'Market'}: ` +
-    (r
-      ? `${vi ? REGIME_SHORT[r.regime]![0] : REGIME_SHORT[r.regime]![1]} (SPY ${r.asOf}` +
-        `${regimeStale() ? (vi ? ', đã cũ' : ', stale') : ''})` +
-        (r.atrRatio !== null ? ` · ATR ${r.atrRatio}×` : '')
-      : (vi ? 'chưa xác định được — bấm ↻ Cập nhật' : 'not established yet — press ↻ Update')) +
-    '</span>',
-  );
+  rows.push({
+    k: L('market'),
+    v: mu(
+      r
+        ? `${vi ? REGIME_SHORT[r.regime]![0] : REGIME_SHORT[r.regime]![1]} (SPY ${r.asOf}` +
+          `${regimeStale() ? (vi ? ', đã cũ' : ', stale') : ''})` +
+          (r.atrRatio !== null ? ` · ATR ${r.atrRatio}×` : '')
+        : (vi ? 'chưa xác định được — bấm ↻ Cập nhật' : 'not established yet — press ↻ Update'),
+    ),
+  });
 
   for (const w of plan.levels.warnings) {
     const m = LEVEL_WARN[w];
-    if (m) lines.push(`<span style="color:var(--warn,#ffb648)">⚠ ${vi ? m[0] : m[1]}</span>`);
+    if (m) rows.push({ k: '', v: `⚠ ${vi ? m[0] : m[1]}`, tone: 'warn' });
   }
   for (const w of plan.size.warnings) {
     const m = SIZE_WARN[w];
-    if (m) lines.push(`<span style="color:var(--warn,#ffb648)">⚠ ${vi ? m[0] : m[1]}</span>`);
+    if (m) rows.push({ k: '', v: `⚠ ${vi ? m[0] : m[1]}`, tone: 'warn' });
   }
   if (plan.levels.rule.source === 'derived') {
-    lines.push(
-      `<span class="muted">${vi
+    rows.push({
+      k: '',
+      v: mu(vi
         ? 'Cẩm nang không có dòng cho thiết lập này — các con số là suy ra, nên xem lại.'
-        : 'The book has no row for this setup — these numbers are extrapolated, worth a look.'}</span>`,
-    );
+        : 'The book has no row for this setup — these numbers are extrapolated, worth a look.'),
+    });
   }
 
-  return lines;
+  return rows;
+}
+
+/**
+ * The rows as one string each — for the live hint under the Buy form's fields, which the
+ * caller joins with `<br>`.
+ */
+export function planLines(plan: BuyPlan, opts: PlanWordOpts): string[] {
+  return planRows(plan, opts).map((r) => {
+    const body = r.k ? `<b>${r.k}</b> ${r.v}` : r.v;
+    return r.tone === 'warn' ? `<span style="${WARN_STYLE}">${body}</span>` : body;
+  });
+}
+
+/**
+ * The rows as a titled list, for the rich-text note.
+ *
+ * ── WHY A HEADING AND A LIST AND NOT A TABLE ────────────────────────────────
+ * The user asked for this block to be "structured dep hon (table hay mot gi do that dep)", and a
+ * two-column table is the obvious answer — but this HTML is not rendered, it is STORED, in a
+ * note the user then edits by hand. `sanitizeNoteHtml` keeps a deliberately small subset of tags
+ * and `TABLE` is not in it, so a table would arrive in the note as its own text with the grid
+ * unwrapped: worse than what it replaced. A heading plus `<ul>` with a bold label per row does
+ * survive, aligns the eye down the labels, and matches the shape the second half of this very
+ * note is already in (`explainHtml` writes an `<h3>` and a list). One note, one layout.
+ */
+export function planNoteHtml(plan: BuyPlan, opts: PlanWordOpts): string {
+  const items = planRows(plan, opts).map((r) => {
+    const body = r.k ? `<b>${r.k}</b> — ${r.v}` : r.v;
+    return `<li>${r.tone === 'warn' ? `<span style="${WARN_STYLE}">${body}</span>` : body}</li>`;
+  }).join('');
+  return `<h3>${opts.vi ? 'Các con số' : 'The numbers'}</h3><ul>${items}</ul>`;
 }

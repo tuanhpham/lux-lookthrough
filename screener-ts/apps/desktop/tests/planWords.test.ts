@@ -82,17 +82,47 @@ describe('planLines', () => {
     }
   });
 
-  it('leads with the two numbers the user is about to trade', async () => {
+  it('leads with the numbers the user is about to trade, one fact per row', async () => {
     const { pb, words } = await load();
     const plan = pb.buildBuyPlan({
       state: account(), prices: {}, bars: BARS,
       entry: 95, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25',
     })!;
-    const lines = words.planLines(plan, OPTS);
-    // A reader who stops after two lines has still read the stop and the share count.
-    expect(lines[0]).toContain('Stop');
-    expect(lines[0]).toContain(String(plan.stop));
-    expect(lines[1]).toContain(`<b>${plan.shares}</b>`);
+    const rows = words.planRows(plan, OPTS);
+    // A reader who stops after three rows has still read the stop, the target and the size.
+    // They used to be two rows — stop-and-target on one line, shares-and-risk on the next —
+    // which is how the four numbers a trade is made of ended up mid-paragraph.
+    expect(rows[0]!.k).toBe('Stop');
+    expect(rows[0]!.v).toContain(String(plan.stop));
+    expect(rows[1]!.k).toBe('Target');
+    expect(rows[2]!.k).toBe('Shares');
+    expect(rows[2]!.v).toContain(`<b>${plan.shares}</b>`);
+    // Every row carries a label except the warnings, which are sentences and do not need one.
+    for (const r of rows) expect(r.k === '' ? r.v : r.k, r.v).toBeTruthy();
+  });
+
+  it('gives the note a heading and a list, because a stored note cannot hold a table', async () => {
+    /*
+     * The user's "phan note … nen duoc structured dep hon (table hay mot gi do that dep)". The
+     * honest answer is not a table: `sanitizeNoteHtml` keeps a small subset of tags, `TABLE` is
+     * not in it, and this HTML is STORED in an editable note rather than rendered. A table would
+     * arrive with its grid unwrapped — worse than the paragraph it replaced.
+     */
+    const { pb, words } = await load();
+    const plan = pb.buildBuyPlan({
+      state: account(), prices: {}, bars: BARS,
+      entry: 95, entryCurrency: 'USD', setup: 'Pullback', date: '2026-09-25', rating: 'B',
+    })!;
+    const html = words.planNoteHtml(plan, OPTS);
+    expect(html).toMatch(/^<h3>/);
+    expect(html).toContain('<ul>');
+    expect(html).toContain('<li><b>Stop</b>');
+    expect(html).not.toContain('<table');
+    // One <li> per row, so nothing is lost on the way into the note.
+    expect(html.match(/<li>/g)).toHaveLength(words.planRows(plan, OPTS).length);
+    // Muted detail carries an INLINE colour as well as the class: the class is what the app's
+    // stylesheet knows and the style is what survives the sanitizer, and the note needs both.
+    expect(html).toContain('color:var(--subtext');
   });
 
   it('shows the grade’s subtraction, not just its answer', async () => {

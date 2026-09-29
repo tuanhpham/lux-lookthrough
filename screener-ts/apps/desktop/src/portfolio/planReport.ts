@@ -19,14 +19,12 @@
  * is the only way anything in this app's vitest can be tested.
  */
 import {
-  gradeByGroup,
   type Bar, type ConvictionRating, type GradeResult, type SetupKey,
 } from '@screener/core';
 import { caseSvgChart, type ChartSubject } from '../caseStudies/svgChart.js';
-import { criterionLabel, groupLabel } from './gradeWords.js';
 import { setupName } from './planWords.js';
-import { criterionSource } from './gradeView.js';
-import { sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
+import { scorecardBarsHtml, scorecardTableHtml, scorecardWords, SCORECARD_CSS } from './scorecard.js';
+import { safeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { downloadHtml } from '../ui/exportFile.js';
 import { inCurrency } from './planExit.js';
 import type { PlanLevels, SymbolPlan } from './planStore.js';
@@ -96,17 +94,10 @@ const GRADE_HEX: Record<string, string> = { A: '#18d89a', B: '#5b8cff', C: '#ffb
  * The stored note has already been through `sanitizeNoteHtml` on every write path, so this is
  * defence in depth — but it is the kind worth having, because a plan can arrive from the sync
  * having been written by another device on an older version of this code, and what we are
- * building here is a file the user will later open directly in a browser.
- *
- * `sanitizeNoteHtml` needs a real `DOMParser`; hand-rolling a regex substitute would be a
- * genuinely worse sanitiser, so with no DOM we do not try to clean the markup — we escape it
- * whole and print the note as literal text. That loses the formatting and only ever happens
- * outside a browser (which in practice means this suite), but it can never emit markup we
- * failed to inspect.
+ * building here is a file the user will later open directly in a browser. The DOM-less fallback
+ * is `safeNoteHtml`, shared with the case-study report.
  */
-function safeNote(html: string): string {
-  return typeof DOMParser === 'undefined' ? esc(html) : sanitizeNoteHtml(html);
-}
+const safeNote = safeNoteHtml;
 
 /** Bars either side of the trade date, so the chart shows the base and not just the pivot. */
 function planWindow(bars: readonly Bar[], date: string): Bar[] {
@@ -176,11 +167,11 @@ export function planReportHtml(i: PlanReportInput): string {
       entry: 'Giá vào', stop: 'Cắt lỗ', target: 'Mục tiêu', shares: 'Số cổ',
       posval: 'Giá trị vị thế', risk: 'Rủi ro', riskps: 'Rủi ro/cổ', rr: 'Lợi nhuận:Rủi ro',
       grade: 'Hạng', score: 'Điểm', size: 'Cỡ vị thế cho phép',
-      crit: 'Bảng tiêu chí', note: 'Ghi chú kế hoạch', nonote: 'Chưa có ghi chú.',
+      note: 'Ghi chú kế hoạch', nonote: 'Chưa có ghi chú.',
       ack: 'Đã xem kế hoạch', noack: 'CHƯA xác nhận đã xem kế hoạch',
       ungraded: 'Kế hoạch này chưa được chấm điểm — không có thiết lập nào được chọn, hoặc dữ liệu giá quá ngắn.',
       overridden: 'Người dùng ghi đè hạng (điểm cho {auto})',
-      auto: 'Đo tự động', manual: 'Tự trả lời', weight: 'Trọng số', who: 'Theo',
+      // The scorecard's own words live in `scorecard.ts`, with the table that uses them.
       print: '🖨 In / Lưu PDF',
       ink: 'In trên giấy trắng (tiết kiệm mực)',
       exit: 'Kết thúc giao dịch', exitdate: 'Ngày thoát', exitpx: 'Giá thoát',
@@ -196,11 +187,11 @@ export function planReportHtml(i: PlanReportInput): string {
       entry: 'Entry', stop: 'Stop', target: 'Target', shares: 'Shares',
       posval: 'Position value', risk: 'Risk', riskps: 'Risk/share', rr: 'Reward:Risk',
       grade: 'Grade', score: 'Score', size: 'Size allowed',
-      crit: 'Scorecard', note: 'Plan note', nonote: 'No note yet.',
+      note: 'Plan note', nonote: 'No note yet.',
       ack: 'Plan acknowledged', noack: 'NOT acknowledged — the plan was never confirmed as read',
       ungraded: 'This plan was never graded — no setup was chosen, or the price history was too short.',
       overridden: 'Grade overridden by hand (the score said {auto})',
-      auto: 'Measured', manual: 'Answered by hand', weight: 'Weight', who: 'Per',
+      // See above: `scorecardWords`.
       print: '🖨 Print / Save as PDF',
       ink: 'Print on white paper (save ink)',
       exit: 'How it ended', exitdate: 'Exit date', exitpx: 'Exit price',
@@ -265,33 +256,11 @@ export function planReportHtml(i: PlanReportInput): string {
       + '</div>'
     : '';
 
-  const bars = grade
-    ? gradeByGroup(grade).filter((g) => g.possible > 0).map((g) => {
-      const share = (g.earned / g.possible) * 100;
-      const col = share >= 80 ? '#18d89a' : share >= 50 ? '#ffb648' : '#ff5266';
-      return `<div class="gbar"><span class="gbar-k">${esc(groupLabel(g.group, vi))}</span>
-        <span class="gbar-track"><span class="gbar-fill" style="width:${share.toFixed(0)}%;background:${col}"></span></span>
-        <span class="gbar-n">${g.earned}/${g.possible}</span></div>`;
-    }).join('')
-    : '';
-
-  // Unasked automatic criteria are dropped, for the same reason the on-screen panel drops
-  // them: a plan printed with five greyed-out gap questions under a VCP teaches the reader
-  // that the checklist is mostly blanks.
-  const critRows = grade
-    ? grade.outcomes.filter((c) => c.known || c.source !== 'auto').map((c) => {
-      const mark = !c.known ? '<span class="mk muted">–</span>'
-        : c.met ? '<span class="mk" style="color:#18d89a">✓</span>'
-          : '<span class="mk" style="color:#ff5266">✗</span>';
-      return `<tr>
-        <td>${mark}</td>
-        <td>${esc(criterionLabel(c.key, vi))}</td>
-        <td class="mono">${c.weight}</td>
-        <td class="mono muted">${esc(c.measured ?? (c.source === 'auto' ? '' : L.manual))}</td>
-        <td class="muted small">${esc(groupLabel(c.group, vi))}</td>
-        <td class="muted small">${esc(criterionSource(c.key))}</td>
-      </tr>`;
-    }).join('')
+  // The bars and the table both come from `scorecard.ts`, which the case-study report also
+  // renders — the two documents are read as a pair and must show the same checklist.
+  const scorecard = grade
+    ? `<h2>${esc(scorecardWords(vi).title)}</h2>${scorecardBarsHtml(grade, vi)}
+  ${scorecardTableHtml(grade, vi)}`
     : '';
 
   const ackLine = plan.reviewedAt && plan.levels
@@ -358,14 +327,7 @@ export function planReportHtml(i: PlanReportInput): string {
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#18d89a; margin:24px 0 8px; }
   table { width:100%; border-collapse:collapse; }
   th,td { text-align:left; padding:6px 10px; border-bottom:1px solid #1d222c; font-size:13px; vertical-align:top; }
-  .mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
-  .small { font-size:11px; }
-  .mk { font-weight:700; }
-  .gbar { display:flex; align-items:center; gap:10px; margin:4px 0; }
-  .gbar-k { width:200px; font-size:12px; color:#99a2b2; }
-  .gbar-track { flex:1; height:7px; background:#1d222c; border-radius:999px; overflow:hidden; }
-  .gbar-fill { display:block; height:100%; }
-  .gbar-n { width:60px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:11px; color:#99a2b2; }
+${SCORECARD_CSS}
   .notes { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:14px 16px; line-height:1.7; }
   .ack { border-radius:10px; padding:10px 14px; margin:16px 0; font-size:13px; border:1px solid; }
   .ack.ok { color:#18d89a; border-color:#18d89a44; background:#0d1a14; }
@@ -403,10 +365,7 @@ ${PRINT_CSS}
     ${stat(L.risk, money(riskAmount), '#ffb648')}
   </div>
 
-  ${grade ? `<h2>${esc(L.crit)}</h2>${bars}
-  <table><thead><tr>
-    <th></th><th>${esc(L.crit)}</th><th>${esc(L.weight)}</th><th>${esc(L.auto)}</th><th></th><th>${esc(L.who)}</th>
-  </tr></thead><tbody>${critRows}</tbody></table>` : ''}
+  ${scorecard}
 
   ${exitBlock}
 
