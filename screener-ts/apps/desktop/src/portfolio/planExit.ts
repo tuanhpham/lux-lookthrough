@@ -186,6 +186,36 @@ export function planChartWindow(
 }
 
 /**
+ * The same bars priced in the currency the plan is written in. `rate` 0 (or USD) means no change.
+ *
+ * ── WHY THE CHART MOVES AND NOT THE LEVELS ──────────────────────────────────
+ * The price boxes are in `planCcy`, usually euros, and the bars are raw dollar closes. Converting
+ * the LEVELS onto the dollar candles is what both charts used to do, and it is what the user saw:
+ * "cac figures khac nhau o cac inputs (entry, target, stop) so voi cac so lieu tren do thi". The
+ * lines were in the right PLACE — a €198 entry really is $232 — but they carried a number the form
+ * beside them never mentioned, and the axis carried it too. A card that states two different
+ * prices for the same level is a card nobody can check.
+ *
+ * ── WHY ONE RATE FOR THE WHOLE WINDOW ───────────────────────────────────────
+ * Every bar is divided by the TRADE DATE's rate, not by its own day's rate. The result is the
+ * dollar shape scaled by a constant: identical candles, identical EMAs, identical contractions,
+ * a relabelled axis. Per-day rates would be more "correct" as a currency series and wrong as a
+ * chart — the price action a setup is judged on would then include moves that were the euro's,
+ * and a base could tighten or break on FX alone. The rest of the card is already in the trade
+ * date's frame (`usdToLevel`, `plannedPrice`), so this keeps one frame for the whole document.
+ */
+export function inCurrency(bars: readonly Bar[], rate: number): Bar[] {
+  if (!(rate > 0)) return bars as Bar[];
+  return bars.map((b) => ({
+    ...b,
+    open: b.open / rate,
+    high: b.high / rate,
+    low: b.low / rate,
+    close: b.close / rate,
+  }));
+}
+
+/**
  * The close on a date, or on the last session before it — the number an exit box is seeded with.
  *
  * ── WHY THE EXIT PRICE IS SUGGESTED AT ALL ──────────────────────────────────

@@ -28,6 +28,7 @@ import { setupName } from './planWords.js';
 import { criterionSource } from './gradeView.js';
 import { sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { downloadHtml } from '../ui/exportFile.js';
+import { inCurrency } from './planExit.js';
 import type { PlanLevels, SymbolPlan } from './planStore.js';
 
 export interface PlanReportInput {
@@ -220,19 +221,25 @@ export function planReportHtml(i: PlanReportInput): string {
   // The chart, drawn at the levels the plan is actually placing — the same renderer the case
   // studies use, so the exported plan and the exported post-mortem look like one document.
   //
-  // The LEVELS go back to dollars first. The bars are raw closes and the boxes may have been
-  // filled in euros (which is the common case for this user), and a €198 line on a $232 chart
-  // is not a wrong label, it is a line off the bottom of the axis. The money elsewhere in the
-  // document stays in `i.currency`: that is the currency the trade is being placed in.
+  // ── THE CANDLES COME INTO THE PLAN'S CURRENCY, NOT THE LEVELS INTO DOLLARS ──
+  // This used to convert the other way, and the user's "cac figures khac nhau o cac inputs
+  // (entry, target, stop) so voi cac so lieu tren do thi" is what that looks like from the
+  // outside: the boxes are usually in euros, the bars are raw dollar closes, so a €198 entry was
+  // drawn correctly at $232 — a right line carrying a number the form never mentioned. One
+  // document, one currency. Divide the window instead, and the lines land on exactly the figures
+  // the plan states.
+  //
+  // Every bar at the TRADE DATE's rate, deliberately: the shape is then the dollar shape scaled
+  // by a constant, so no euro move is smuggled into the price action the plan is judged on.
+  // Per-day rates would draw candles that moved because of the currency.
   const fx = i.currency === 'EUR' && i.fxRate && i.fxRate > 0 ? i.fxRate : 0;
-  const chartPx = (v: number | null): number | null => (v === null ? v : fx > 0 ? v * fx : v);
   const subject: ChartSubject = {
-    entry: chartPx(levels.entry),
-    stop: chartPx(levels.stop),
-    target: chartPx(levels.target),
+    entry: levels.entry,
+    stop: levels.stop,
+    target: levels.target,
     // The renderer already draws an ✕ at the exit and a line at its price — it was built for the
     // case studies, which is what a plan with an exit on it has become.
-    exitPrice: chartPx(i.exit?.price ?? null),
+    exitPrice: i.exit?.price ?? null,
     keyDate: i.date,
     exitDate: i.exit?.date ?? null,
     outcome: i.exit?.outcome ?? 'open',
@@ -241,7 +248,7 @@ export function planReportHtml(i: PlanReportInput): string {
     // plan has no user-written timeline on it — the case study it becomes is where that lives.
     ...(i.earnings?.length ? { earnings: i.earnings } : {}),
   };
-  const win = planWindow(i.bars, i.date);
+  const win = inCurrency(planWindow(i.bars, i.date), fx);
   // No rate for euro levels means the lines cannot be placed against these candles at all.
   // A chart with the lines in the wrong place is worse than no chart, because it is the part
   // of this document a reader trusts without reading.

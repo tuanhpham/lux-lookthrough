@@ -257,6 +257,31 @@ describe('planReportHtml', () => {
     expect(vi).not.toContain('earnings report date');
   });
 
+  it('draws the chart in the currency the levels were typed in', () => {
+    /*
+     * The user's "cac figures khac nhau o cac inputs (entry, target, stop) so voi cac so lieu tren
+     * do thi". This used to multiply the LEVELS by the rate so euro lines would sit correctly on
+     * dollar candles — right place, wrong number, printed two inches from a stat grid that said
+     * something else. The bars come into euros instead, so the line label and the stat agree.
+     */
+    const html = planReportHtml(input({ currency: 'EUR', fxRate: 1.17 }));
+    expect(html).toContain('ENT 100.00');
+    expect(html).toContain('STP 95.00');
+    expect(html).toContain('TGT 130.00');
+    // The dollar reading of the same levels must not appear anywhere on the chart.
+    expect(html).not.toContain('ENT 117.00');
+    // And the stat grid is in euros, as it always was.
+    expect(html).toContain('€100.00');
+  });
+
+  it('still refuses to draw euro levels with no rate to place them by', () => {
+    // A chart with the lines in the wrong place is worse than no chart: it is the part of the
+    // document a reader trusts without checking.
+    const html = planReportHtml(input({ currency: 'EUR' }));
+    expect(html).not.toContain('<svg');
+    expect(html).toContain('€100.00');
+  });
+
   it('prints a dash rather than a wrong number when a level is missing', () => {
     // Half-finished plans get printed too. A blank target must not become a 0:1 R:R.
     const html = planReportHtml(input({

@@ -83,7 +83,7 @@ import { criteriaNoteHtml, openCriteriaAsk } from './criteriaAsk.js';
 // The exit half of the card, and the journal entry a finished plan becomes.
 import {
   autoCaseTitle, caseStudyFromPlan, closeOnOrBefore, emptyExit, exitMath, exitReasonText,
-  planChartWindow, type PlanExit,
+  planChartWindow, inCurrency, type PlanExit,
 } from './planExit.js';
 // The reason vocabulary is the user's to extend, so it is its own module with its own editor.
 import { exitReasonOptgroupsHtml, type ExitReasonKey } from './exitReasons.js';
@@ -150,9 +150,21 @@ export interface PlannerMount {
 /** The one mounted panel, or none. See the header for why there is only ever one. */
 let mounted: PlannerMount | null = null;
 
-/** Is a panel open in this host? Lets a button toggle rather than re-mount. */
-export function tradePlannerIsIn(host: HTMLElement): boolean {
-  return mounted?.host === host;
+/**
+ * Is a panel open in this element, or anywhere inside it? Lets a button toggle rather than
+ * re-mount, and lets a container about to replace its children find out whether it is about to
+ * destroy one.
+ *
+ * ── WHY `contains` AND NOT `===` ────────────────────────────────────────────
+ * This is the question `closeTradePlanner(onlyInside)` answers, so it has to mean the same thing
+ * by the same argument — the two are used as a pair, and the pair was lying. The stock page asks
+ * about `#modal-body` and the panel lives in `#sm-plan-panel` INSIDE it, so the strict check said
+ * "no panel here", the page then tore one down anyway, and the caller did not know to put it
+ * back. Changing the trade date, or pressing ↺, made the panel the user was working in disappear.
+ */
+export function tradePlannerIsIn(el: HTMLElement): boolean {
+  if (!mounted) return false;
+  return mounted.host === el || el.contains(mounted.host);
 }
 
 /**
@@ -2101,22 +2113,27 @@ function chartBars(symbol: string): Bar[] {
 function paintPlanChart(symbol: string): void {
   const box = document.querySelector<HTMLElement>(`[data-tp-chart="${CSS.escape(symbol)}"]`);
   const e = planEdits.get(symbol);
-  const bars = chartBars(symbol);
+  // The candles come into the boxes' currency — NOT the levels into the candles'. See
+  // `inCurrency` for why that direction, and why one rate for the whole window.
+  const fx = planCcy === 'EUR' ? planRate() : 0;
+  const bars = inCurrency(chartBars(symbol), fx);
   if (!box || !e) return;
   if (!bars.length) { box.innerHTML = ''; return; }
 
-  // Back to USD: these lines are drawn against the candles, and the candles are raw closes.
-  // A €198 line on a $232 chart would be off the bottom of the axis.
+  // Straight out of the boxes, unconverted: the chart is now in the same currency they are, so
+  // the line and the field it came from show the same figure — which is the whole point.
   const overlay: TradeOverlay = {
-    entry: e.entry === null ? null : levelToUsd(e.entry),
-    stop: e.stop === null ? null : levelToUsd(e.stop),
-    target: e.target === null ? null : levelToUsd(e.target),
-    exit: e.exit.price === null ? null : levelToUsd(e.exit.price),
+    entry: e.entry,
+    stop: e.stop,
+    target: e.target,
+    exit: e.exit.price,
   };
 
   // Already drawn on the same candles: move the lines and leave the zoom and the scroll
-  // position exactly where the user put them.
-  const span = `${bars.length}:${bars[bars.length - 1]!.date}`;
+  // position exactly where the user put them. The FRAME is part of "the same candles" — flip the
+  // currency or move the trade date (a different day's rate) and every price on the axis changes,
+  // so the chart has to be rebuilt rather than have its lines nudged.
+  const span = `${bars.length}:${bars[bars.length - 1]!.date}:${planCcy}:${fx.toFixed(4)}`;
   const existing = planCharts.get(symbol);
   if (existing && box.firstChild && planChartSpan.get(symbol) === span) {
     existing.setOverlay(overlay);
