@@ -4743,3 +4743,142 @@ du) da xoa.
     671-680.
   — Cac file `package-lock.json` rac dang duoc theo doi trong git.
 
+
+## CHAT-38 — Tieu de trong trang scanner va calendar noi len duoc: mot ham dung chung, chip co so lieu dat bang font mono
+
+Yeu cau: "nhung tieu de nhu Rank history / 2 sessions / 2026-09-25 -> 2026-09-28
+trong trang scanner hay o trang calendar should also be highlighted and more
+professional".
+
+### A. Ba cai sai, doc dung theo thu tu nguoi dung nhin thay
+
+  — Chu tieu de dung `--faint`, mau NHAT NHAT trong ca bang mau, cho dong duy
+    nhat tren man hinh co nhiem vu noi "ban dang o dau".
+  — Duong gach chan nam tren `.section-title`, tuc la duoi CHU. Khi co chip ben
+    canh thi duong gach dut giua tieu de, ca nhom doc ra nhu UI con sot lai.
+  — Chip la `<span class="tag">` xam tren xam, chu so dung font thuong (khong
+    mono), nen "2 sessions" va "2026-09-25 -> 2026-09-28" nhin giong nhau. Mot
+    cai la SO LUONG, mot cai la KHOANG THOI GIAN; nguoi doc muon biet "co bao
+    nhieu lich su o day" phai doc ca hai moi biet cai nao la cai nao.
+  — Va vi khong co gi dung chung: scanner co ham `tags()` rieng, calendar viet
+    tay tai cho, hai ben lech nhau.
+
+### B. Ham dung chung: `src/ui/sectionHead.ts` (moi, 120 dong)
+
+  — `sectionHead(label, chips, {tone, sub, right, id})` tra ve mot khoi
+    `.sec-head` gom `.section-title-row` (h3 + cac chip + o phai) va tuy chon
+    mot dong `.sec-sub`.
+  — `chipHtml(input)` nhan `Chip | string | false | null`, tra `''` khi rong —
+    de noi goi day thang du lieu vao, khong phai loc truoc.
+  — `countChip(shown, total?, unit?)`: ra `12 / 40` khi danh sach bi cat, ra
+    `12` khi khong. Mot so tran doc ra thanh "co 12 cai", day la noi doi khi
+    thuc te co 40.
+  — `rangeChip(from, to)`: gop lai thanh MOT chip, va thu gon con mot ngay khi
+    hai dau trung nhau.
+  — `ChipKind = plain | count | date | ok | warn | danger`. Kieu chinh la thu
+    lam chip doc duoc trong mot cai nhin.
+
+### C. Cai then chot: `#main .section-title` moi la luat co hieu luc
+
+  `#main .section-title` co do uu tien (1,0,1), thang `.section-title-row
+  .section-title` (0,2,0). Nghia la moi override ben trong mot row DEU phai co
+  `#main` trong selector, neu khong thi khong an gi ca. Vi vay phan reset cua
+  `.sec-head` duoc viet hai lan:
+
+    #main .sec-head .section-title, .sec-head .section-title { margin:0; ... }
+
+  Viet mot lan la mat 30 phut ngoi doan tai sao CSS khong an.
+
+### D. Duong gach thuoc ve KHOI, khong thuoc ve CHU
+
+  `.sec-head` ve duong gach bang `background-image: linear-gradient(90deg, ...)`
+  voi `background-size: 100% 1px` va `background-position: left bottom`. 56px
+  dau mang mau `--st-tone` (mac dinh `--accent`), phan con lai la
+  `--border-soft`.
+
+  Chon gradient chu KHONG chon mot `::before` hinh vach mau: co tu 6 cho tro len
+  co tieu de bat dau bang emoji, mot vach mau dat canh mot emoji doc ra thanh
+  rac. Gradient thi khong bao gio dung do.
+
+  `--st-tone` la bien, khong co mau nao hard-code trong khoi CSS nay, nen mot
+  muc ve rui ro chi can dat `--st-tone: var(--danger)` la duong gach doi theo.
+  Cung quy uoc voi `--pb-tone` cua hop thoai playbook (CHAT-37).
+
+### E. `.tag` thanh mot he thong chip
+
+  `<b>` ben trong mot `.tag` LUON LUON la con so: font mono, mau `--text`,
+  weight 700. Don vi de chu mo. Doc mot cot chip thi cac so thang hang va cac
+  chu tu tranh ra.
+
+  `.tag--count` co vien va nen nhuom `--accent` (vi "bao nhieu" la cau hoi chip
+  canh tieu de hay tra loi nhat), `.tag--date` mono toan bo, `.tag--ok` /
+  `--warn` / `--danger` nhuom theo trang thai. Tat ca la `var(--...)` nen theme
+  sang di theo, va cac chip dat style inline (nut bat/tat nganh trong scanner)
+  van ghi de duoc binh thuong.
+
+### F. Escape: du lieu thi escape, khung thi khong
+
+  `label` / `sub` / `right` la HTML. Bat buoc phai nhu vay: nhieu noi goi truyen
+  emoji va `<span class="muted">` lam ghi chu phu, va o the ngay cua calendar thi
+  label la `<span class="sec-date">`.
+
+  `text` va `n` cua mot chip la DU LIEU va duoc escape ngay trong `chipHtml`.
+  Noi goi KHONG duoc escape truoc, neu khong ma `AMD&` ra thanh `AMD&amp;`.
+
+### G. Scanner: 10 cho
+
+  Cho nguoi dung chi dung:
+
+    const title = sectionHead(t('scan.sec.chart'), days.length
+      ? [countChip(days.length, undefined, t('scan.chart.sessions')),
+         rangeChip(days[0]!, days[days.length - 1]!)]
+      : [{ text: t('scan.chart.none'), kind: 'warn' }]);
+
+  Hai chip tra loi dung hai cau hoi ma khong co chung thi khong doc duoc do thi:
+  bao nhieu phien, va la nhung phien nao. Con lai: cac muc ung vien, muc bi loai
+  (so ma qua vong truoc + nguong cat), muc nganh, watchlist, va hai tieu de trong
+  khoi `<details>` do cau hinh tho.
+
+### H. Calendar: 9 cho, va luat "khong co du lieu khac khong co su kien"
+
+  — Rui ro su kien cua toi: so ngay co rui ro (`8 / 14 ngay`) va NGAY NANG NHAT
+    (`24.3% ngay nang nhat`). Tu 20% von tro len thi chip thanh `danger` va ca
+    duong gach doi sang `--st-tone: var(--danger)`. 20% von vao lich cong bo cua
+    mot ngay la luc no thoi khong con la chi tiet nua.
+  — Khong co vi the nao cong bo: cau do thanh `sub` cua chinh tieu de, khong con
+    la mot dong xam lac giua card.
+  — 7 ngay toi: so su kien (`12 / 31 su kien`) va khoang ngay.
+  — The ngay: chinh ngay do lam tieu de, dat trong `.sec-date` (mono 13px, mau
+    `--text`, khong phai chu hoa 10px), nut "+ Them su kien" di vao `right`.
+  — Ngay chua co du lieu ra chip `warn` "Chua co du lieu" chu KHONG ra "0 su
+    kien". Day la luat so 1 ghi ngay dau file calendarTab.ts: nguon Nasdaq het
+    du lieu sau ~3 tuan, mot o trong o xa la CHUA BIET, khong phai AN TOAN. Mot
+    con so 0 tu tin la dung cach noi sai.
+  — Top 7 / VCP / Mean Reversion: so ma, `12 / 40` khi bang bi cat, va chip
+    `warn` so 0 khi khong co gi.
+
+### I. Kiem tra
+
+  — `tests/sectionHead.test.ts`: 16 test, khong can DOM (bo test nay chay
+    `environment: 'node'`, khong co jsdom va khong duoc them devDependency).
+    Chot: escape ca hai nua cua chip va ca tooltip; the duy nhat con lai trong
+    output la the do chinh ham viet ra; `{ n: 0 }` KHONG bi coi la chip rong
+    ("0 su kien" la mot su that); `countChip(8, 3)` khong ra `8 / 3`;
+    `sectionHead` chi sinh ra phan nao duoc truyen vao.
+  — `npx tsc --noEmit` sach. 321 test o apps/desktop, 792 test o packages/core,
+    tat ca xanh.
+  — styles.css: CRLF 4722 / LF 4722 / bare 0, `/*` 383 = `*/` 383, `{` 1446 =
+    `}` 1446.
+  — Them 4 khoa i18n: `cal.unit.days`, `cal.unit.names`, `cal.unit.events`,
+    `cal.risk.peak`.
+
+### J. Con no
+
+  — Scanner tren VM im tu 28/09/2026: doc thi duoc, day thi khong. Loi o phia
+    VM, can SSH tu may kia.
+  — Ban build Pages dang do: can `wrangler pages deploy dist --project-name
+    the-professional` tu `apps/desktop`.
+  — Commit `f0b6b0e9` ghi "22 tieu chi" (dung la 26).
+  — README muc 5.8 ghi sai cach restart, va mot khoi ```bash chua dong o dong
+    671-680.
+  — Cac file `package-lock.json` rac dang duoc theo doi trong git.
