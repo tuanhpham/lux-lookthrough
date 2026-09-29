@@ -893,6 +893,12 @@ a.tkr:hover { text-decoration: underline; }
 .tp-size-chip.active { background: var(--accent-wash); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .tp-size-custom { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--subtext); white-space: nowrap; }
 .tp-size-customlabel { font-weight: 600; }
+/* Caption for the earnings dots. The colour is `EARN` in `ui/charts.ts` (#a855f7) spelled out
+   again rather than shared through a variable: the markers are drawn on a canvas by
+   lightweight-charts, which cannot read CSS custom properties, so one of the two has to be the
+   copy. Hidden when empty so a card with no report dates does not carry a blank line. */
+.tp-earnhint { margin: -4px 0 8px; font-size: 11px; line-height: 1.5; color: #a855f7; }
+.tp-earnhint:empty { display: none; }
 .tp-derived { margin-bottom: 10px; }
 
 /* The grade's arithmetic under the stat grid: full size → percent → this size. */

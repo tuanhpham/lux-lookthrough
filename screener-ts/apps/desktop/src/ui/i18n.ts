@@ -318,13 +318,32 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   // What CAN be replayed is everything the bars decide; what CANNOT is the money, because
   // there is no history of the account's equity to go back to. Both are said out loud.
   'wl.plan.asof': { en: 'As of {date}', vi: 'Tính theo ngày {date}' },
+  // The chart is NOT in this list any more, and the difference is the point: since the window
+  // became six months AROUND the trade date, the picture shows what happened next while the
+  // judgement still cannot. Saying "and chart" here would have been a false claim to the user.
   'wl.plan.asofbars': {
-    en: 'setup, levels, grade and chart are computed from the bars up to that date — nothing after it is used',
-    vi: 'mẫu hình, mức giá, hạng và biểu đồ đều tính từ dữ liệu đến hết ngày đó — không dùng gì sau ngày đó',
+    en: 'setup, levels and grade are computed from the bars up to that date — nothing after it is used; the chart also shows the weeks after, so the outcome can be seen',
+    vi: 'mẫu hình, mức giá và hạng đều tính từ dữ liệu đến hết ngày đó — không dùng gì sau ngày đó; riêng biểu đồ hiện thêm giai đoạn sau để thấy kết quả',
   },
   'wl.plan.asofmoney': {
     en: '⚠ money is TODAY’S: equity, cash, open risk and the position count come from the account as it stands now',
     vi: '⚠ tiền là của HÔM NAY: vốn, tiền mặt, rủi ro đang mở và số vị thế lấy từ tài khoản hiện tại',
+  },
+  // ── Earnings dots under the plan chart ───────────────────────────────────
+  // The user's "the graph nen co earning date as well neu trong timeframe". A purple E with no
+  // caption is a mystery glyph, and the Nasdaq feed's four-quarter limit has to be stated or a
+  // back-dated plan with no dots in range looks like the feature is broken rather than out of data.
+  'wl.plan.earn': {
+    en: '⬤ E = earnings report date',
+    vi: '⬤ E = ngày công bố báo cáo',
+  },
+  'wl.plan.earnsrc': {
+    en: 'source: Nasdaq — US listings, last 4 quarters only',
+    vi: 'nguồn: Nasdaq — chỉ cổ phiếu Mỹ, và chỉ 4 quý gần nhất',
+  },
+  'wl.plan.earnnone': {
+    en: 'no report date falls inside this window — Nasdaq only publishes the last 4 quarters, so a plan from further back gets no dots',
+    vi: 'không có ngày báo cáo nào nằm trong khung này — Nasdaq chỉ công bố 4 quý gần nhất, nên kế hoạch lùi xa hơn sẽ không có điểm nào',
   },
   'wl.plan.asofnoregime': {
     en: '⚠ no market read for that date (SPY history does not reach back far enough), so the two market criteria stay unanswered',

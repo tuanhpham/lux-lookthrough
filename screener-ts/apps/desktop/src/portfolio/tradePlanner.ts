@@ -96,6 +96,7 @@ import { accounts, ensureAccountsLoaded, today } from './store.js';
 import { ensureEurUsd, eurUsdForDate, hasEurUsd } from './fx.js';
 import { accountPrices, hasPrices } from './prices.js';
 import { drawCandles, type CandleChart, type TradeOverlay } from '../ui/charts.js';
+import { fetchEarningsReports, type EarningsReport } from '../adapters/earningsDates.js';
 import { t, getLang } from '../ui/i18n.js';
 import { openPlaybookSettings } from '../ui/playbookSettings.js';
 import { sanitizeNoteHtml, richNoteDialog, isNoteEmpty } from '../ui/richNote.js';
@@ -485,6 +486,7 @@ async function computePlans(ctx: AppContext): Promise<void> {
         </div>
 
         <div class="tp-chart" data-tp-chart="${S}"></div>
+        <div class="tp-earnhint" data-tp-earnhint="${S}"></div>
         <div class="tp-derived" data-tp-derived="${S}"></div>
 
         <div class="tp-buy-row">
@@ -516,6 +518,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
   paintPlanStatus();
   for (const { plan } of plans) recalcPlan(plan.symbol);
   wirePlanEdits(ctx, out);
+  // Fire and forget: the cards are already usable, and the dots appear when Nasdaq answers.
+  void loadPlanEarnings(plans.map((p) => p.plan.symbol));
 
   // Clicking a symbol opens its stock detail — through the host's callback, because this
   // module must not import the stock modal (see the header: `miscTabs` already imports it,
@@ -1876,6 +1880,86 @@ function destroyPlanCharts(): void {
   planChartSpan.clear();
 }
 
+// ── Earnings dots ────────────────────────────────────────────────────────────
+/**
+ * The report dates behind each card's chart, newest first.
+ *
+ * ── WHY EARNINGS BELONG ON THIS CHART ───────────────────────────────────────
+ * The user's "the graph nen co earning date as well neu trong timeframe". On a planning chart a
+ * report date is not decoration: a base that tightened for three weeks and then gapped is a
+ * different story depending on whether the gap was a release, and an entry taken two days before
+ * one is a different trade from the same entry taken two days after. The grader already asks
+ * `earningsClear`, and it asks it as a MANUAL criterion because the calendar is not in the price
+ * data — so until now the user had to go and look the date up somewhere else to answer it.
+ *
+ * Kept in a map rather than fetched at paint time because `paintPlanChart` runs on every keystroke
+ * in the Entry box, and because markers live on the candle series: a chart rebuilt for a new bar
+ * range loses them and has to be given them again.
+ */
+const planEarnings = new Map<string, EarningsReport[]>();
+/**
+ * Guards a late fetch landing on cards that have since been replaced.
+ *
+ * The dates arrive from the network after the charts are drawn, and a slow response for a symbol
+ * dropped from the watchlist meanwhile would otherwise paint dots onto whatever card now sits in
+ * its place.
+ */
+let planEarnToken = 0;
+
+/**
+ * Fetch the report dates for the cards on screen and mark them.
+ *
+ * Deliberately NOT awaited by `computePlans`: this is a third-party HTTP call behind a three-day
+ * cache, and holding a whole panel of plans behind it would make every recompute feel like the
+ * network. `fetchEarningsReports` never throws and returns `[]` for anything it cannot answer
+ * (non-US tickers included), so there is nothing here to fail loudly about.
+ */
+async function loadPlanEarnings(symbols: readonly string[]): Promise<void> {
+  const token = ++planEarnToken;
+  await Promise.all(symbols.map(async (sym) => {
+    const rows = await fetchEarningsReports(sym);
+    if (token !== planEarnToken) return;
+    planEarnings.set(sym, rows);
+    paintPlanEarnings(sym);
+  }));
+}
+
+/**
+ * Put the dots on one card's chart, and caption them.
+ *
+ * ── WHY THE DOTS ARE NOT CUT AT THE TRADE DATE ──────────────────────────────
+ * Same reason the candles are not (see `chartBars`): this is the picture, not the judgement. A
+ * report inside the weeks AFTER a back-dated entry is very often the answer to "what happened
+ * next", and hiding it while drawing the bar it caused would be a stranger kind of dishonesty than
+ * showing it. Nothing graded reads this map.
+ *
+ * ── WHY THERE IS A CAPTION AT ALL ───────────────────────────────────────────
+ * A purple E under a candle means nothing to somebody who has not seen it before, and — the part
+ * that actually matters — Nasdaq publishes only the last four quarters. A plan dated two years ago
+ * therefore gets no dots at all, and without a line saying why, that reads as a broken feature
+ * rather than as data the app does not have.
+ */
+function paintPlanEarnings(symbol: string): void {
+  const chart = planCharts.get(symbol);
+  const rows = planEarnings.get(symbol);
+  if (!chart || !rows) return;
+  chart.setEarnings(rows.map((r) => ({ date: r.date })));
+
+  const hint = document.querySelector<HTMLElement>(`[data-tp-earnhint="${CSS.escape(symbol)}"]`);
+  if (!hint) return;
+  const bars = chartBars(symbol);
+  // No dates for this ticker at all — a VN listing, or a symbol Nasdaq does not cover. Silence
+  // rather than an apology: the user did not ask for earnings on this card, they asked for them
+  // where they exist.
+  if (!rows.length || !bars.length) { hint.innerHTML = ''; return; }
+  const lo = bars[0]!.date;
+  const hi = bars[bars.length - 1]!.date;
+  const inWindow = rows.some((r) => r.date >= lo && r.date <= hi);
+  hint.innerHTML = inWindow
+    ? `${t('wl.plan.earn')} <span class="muted">· ${t('wl.plan.earnsrc')}</span>`
+    : `<span class="muted">${t('wl.plan.earnnone')}</span>`;
+}
+
 /**
  * The bars the CHART may show — a window AROUND the trade date, not a cut at it.
  *
@@ -1945,6 +2029,10 @@ function paintPlanChart(symbol: string): void {
   // cut the left edge off the window it just widened — the trade date would drift towards the
   // middle of the chart on a short hold and off the left of it on a long one.
   planCharts.set(symbol, drawCandles(box, bars, overlay, emaState, { height: 260 }));
+  // A fresh series has no markers on it. Re-applied here rather than only after the fetch, because
+  // every widening of the window — recording an exit date, moving the trade date — builds a new
+  // chart, and the dots would silently disappear on exactly the view they matter most on.
+  paintPlanEarnings(symbol);
 }
 
 /**
