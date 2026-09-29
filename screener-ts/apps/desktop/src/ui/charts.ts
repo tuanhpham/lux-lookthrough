@@ -18,6 +18,14 @@ export interface TradeOverlay {
   entry?: number | null;
   stop?: number | null;
   target?: number | null;
+  /**
+   * Where the trade was actually closed — for a plan being reconstructed after the fact.
+   *
+   * Drawn in violet rather than green or red, because it is the one line on the chart that is a
+   * record instead of an intention, and colouring it by whether it made money would have the
+   * same line mean two different things on two charts.
+   */
+  exit?: number | null;
 }
 
 // Chart series colors. lightweight-charts is canvas-based and needs literal hex
@@ -27,6 +35,9 @@ const UP = '#18d89a';
 const DOWN = '#ff5266';
 /** Earnings markers — violet, so they read as "event", not "price level". */
 const EARN = '#a855f7';
+/** The recorded exit level. Fuchsia because every other line on this chart already has a
+ * colour and an EMA in that colour: #c084fc is the EMA-10, #a855f7 is an earnings mark. */
+const EXIT = '#e879f9';
 
 function themeOptions() {
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -149,6 +160,7 @@ export function drawCandles(
       [o.entry, '#5b8cff', 'Entry'],
       [o.stop, DOWN, 'Stop'],
       [o.target, UP, 'Target'],
+      [o.exit, EXIT, 'Exit'],
     ];
     for (const [price, color, title] of lines) {
       // `> 0` and not just `!= null`: a half-typed entry box hands over 0, and a price

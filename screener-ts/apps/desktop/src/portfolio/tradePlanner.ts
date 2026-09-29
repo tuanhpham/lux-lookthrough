@@ -80,6 +80,12 @@ import {
 import { openPlanReport, printPlanReport, type PlanReportInput } from './planReport.js';
 // The five criteria nobody can read off a chart, put to ChatGPT as of the trade date.
 import { criteriaNoteHtml, openCriteriaAsk } from './criteriaAsk.js';
+// The exit half of the card, and the journal entry a finished plan becomes.
+import {
+  EXIT_REASONS, autoCaseTitle, caseStudyFromPlan, emptyExit, exitMath, exitReasonText,
+  type ExitReasonKey, type PlanExit,
+} from './planExit.js';
+import { saveCase } from '../caseStudies/store.js';
 // Buying from inside the plan goes down the same path as the Buy button and the assistant.
 import { savePlanSnapshot } from './planSnapshot.js';
 import { applyWrite, plannedPrice, type PlannedPrice, type Rating, type WritePlan } from './writes.js';
@@ -399,6 +405,12 @@ async function computePlans(ctx: AppContext): Promise<void> {
       ownStop: false,
       ownTarget: false,
       explain: explainHtml(scan, lang),
+      // Nothing to seed it from: an exit is a fact about a trade that happened, and the app has
+      // no way to know whether one did. Deriving it from a lot in the account was considered and
+      // rejected — the sells there are one account's bookkeeping, while a case study is often
+      // reconstructed for a trade this app never held.
+      exit: emptyExit(),
+      exitOpen: isPastPlan(),
     };
     planEdits.set(plan.symbol, edit);
 
@@ -466,6 +478,8 @@ async function computePlans(ctx: AppContext): Promise<void> {
           <button type="button" class="btn tp-buy" data-tp-buy="${S}" disabled>${t('wl.plan.buy')}</button>
           <span class="tp-buy-hint" data-tp-buyhint="${S}"></span>
         </div>
+
+        ${exitSectionHtml(S, edit, vi)}
 
         <div class="tp-note-head">
           <span class="tp-note-label">${t('wl.plan.note')}</span>
@@ -543,6 +557,28 @@ interface PlanEdit {
   ownTarget: boolean;
   /** `explainPlan`'s passed/failed narrative, rendered once — the setup half. */
   explain: string;
+  /**
+   * How the trade ended, for a plan being reconstructed rather than placed. `price` is in
+   * `planCcy`, like every other level on the card.
+   *
+   * ── WHY THIS IS NOT IN `SymbolPlan` ─────────────────────────────────────────
+   * It would be the easy place to put it, and it would be wrong. `plan:NVDA` is ONE plan per
+   * symbol, and it is the plan for the NEXT NVDA trade — that is the whole reason
+   * `planSnapshot.ts` exists. An exit stored there would still be sitting on the card next
+   * spring when the user plans a fresh NVDA entry, attached to levels that have since been
+   * re-derived, describing a trade that closed a year ago. So it lives here while it is being
+   * typed and moves to the case study when it is filed, which is the record that owns it.
+   */
+  exit: PlanExit;
+  /**
+   * Whether the exit row is unfolded.
+   *
+   * Open by default on a past date and shut on today's, because those are two different uses of
+   * one card: a past date IS the case-study workflow (that is why the user asked for time
+   * travel), while a plan for a trade not yet placed has no exit and five empty boxes asking
+   * for one would read as a form the user has failed to finish.
+   */
+  exitOpen: boolean;
 }
 const planEdits = new Map<string, PlanEdit>();
 /** The bars the card is planned on: everything up to and including the trade date. */
@@ -840,6 +876,10 @@ function rescaleLevels(factor: number): void {
     if (e.entry !== null) e.entry = round2(e.entry * factor);
     if (e.stop !== null) e.stop = round2(e.stop * factor);
     if (e.target !== null) e.target = round2(e.target * factor);
+    // The exit is a price in the same currency as the other three, and it is a price the user
+    // TYPED from a broker statement. Leaving it behind when the toggle flips would turn a €198
+    // fill into a $198 one and the R multiple with it — a wrong result, quietly.
+    if (e.exit.price !== null) e.exit.price = round2(e.exit.price * factor);
   }
 }
 
@@ -1071,6 +1111,9 @@ function recalcPlan(symbol: string): void {
   // Derived, never remembered: whether this card can be bought depends on the account, the
   // entry and the share count, all of which this function has just recomputed.
   paintBuyButton(symbol);
+  // The exit's R multiple is measured against the PLANNED stop, so it moves when the stop does —
+  // which is every keystroke in the Entry box. It has to be repainted here, not once on render.
+  paintExitStats(symbol);
 
   // The note explains the plan; once the user has written in it, it is theirs.
   if (!e.noteEdited) {
@@ -1417,6 +1460,239 @@ async function askCriteria(symbol: string, btn: HTMLElement): Promise<void> {
   setTimeout(() => { btn.textContent = old; }, 2200);
 }
 
+// ── The exit, and filing the plan as a case study ───────────────────────────
+/**
+ * The fold-out "how it ended" row.
+ *
+ * ── WHY IT FOLDS, AND WHY IT SAYS "OPTIONAL" TWICE ──────────────────────────
+ * The user was explicit that this half is for the case study and not for the buy — "con neu ma
+ * buy thi khong can nhe". Five empty boxes below the Buy button would say the opposite: forms
+ * teach by what they ask for, and a user who reads them as required will start inventing an exit
+ * price for a trade they have not placed. So it is folded away on today's date, unfolded on a
+ * past one (which IS the case-study workflow), and labelled as optional where it is folded as
+ * well as where it is open.
+ *
+ * Nothing in here is read by `buyBlocker`. That is not an accident to be tidied up later.
+ */
+function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
+  const x = edit.exit;
+  const reasonOpts = EXIT_REASONS.map(
+    (r) => `<option value="${r.key}"${r.key === x.reason ? ' selected' : ''}>${esc(vi ? r.vi : r.en)}</option>`,
+  ).join('');
+  return `
+    <div class="tp-exit">
+      <button type="button" class="tp-exit-head" data-tp-exittoggle="${S}">
+        <span class="tp-exit-caret">${edit.exitOpen ? '▾' : '▸'}</span>
+        <span class="tp-exit-label">${t('wl.plan.exit')}</span>
+        <span class="tp-exit-opt">${t('wl.plan.exit.opt')}</span>
+      </button>
+      <div class="tp-exit-body${edit.exitOpen ? '' : ' hidden'}" data-tp-exitbody="${S}">
+        <p class="tp-exit-lead">${t('wl.plan.exit.lead')}</p>
+        <div class="tp-fields">
+          <label class="tp-field"><span>${t('wl.plan.exit.date')}</span>
+            <input class="field" type="date" max="${today()}" data-tp-exit="date" data-sym="${S}" value="${x.date ?? ''}" /></label>
+          <label class="tp-field"><span class="tp-exit-px">${t('wl.plan.exit.price')} (${planSym()})</span>
+            <input class="field" type="number" step="any" inputmode="decimal" data-tp-exit="price" data-sym="${S}" value="${x.price ?? ''}" /></label>
+          <label class="tp-field" style="grid-column:span 2"><span>${t('wl.plan.exit.reason')}</span>
+            <select class="field" data-tp-exit="reason" data-sym="${S}">
+              <option value="">${t('wl.plan.exit.noreason')}</option>
+              ${reasonOpts}
+            </select></label>
+          <label class="tp-field tp-exit-note"><span>${t('wl.plan.exit.note')}</span>
+            <input class="field" type="text" data-tp-exit="note" data-sym="${S}"
+              value="${esc(x.note)}" placeholder="${t('wl.plan.exit.noteph')}" /></label>
+        </div>
+        <div class="tp-exit-stats" data-tp-exitstats="${S}"></div>
+        <div class="tp-exit-actions">
+          <button type="button" class="btn-outline mini-btn" data-tp-case="${S}"
+            title="${t('wl.plan.case.title')}">🗂 ${t('wl.plan.case')}</button>
+          <span class="tp-exit-msg" data-tp-casemsg="${S}"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** What the recorded exit makes of the card: R, percent, money, days, verdict. */
+function cardExitMath(symbol: string): ReturnType<typeof exitMath> | null {
+  const e = planEdits.get(symbol);
+  if (!e) return null;
+  return exitMath({ entry: e.entry, stop: e.stop, shares: e.shares, date: planDate, exit: e.exit });
+}
+
+const OUTCOME_VAR: Record<string, string> = {
+  win: 'var(--up)', loss: 'var(--down)', open: 'var(--accent2)', scratch: 'var(--faint)',
+};
+
+/** The five derived numbers under the exit fields. Repainted with the rest of the card. */
+function paintExitStats(symbol: string): void {
+  const box = document.querySelector<HTMLElement>(`[data-tp-exitstats="${CSS.escape(symbol)}"]`);
+  const e = planEdits.get(symbol);
+  if (!box || !e) return;
+  const m = cardExitMath(symbol);
+  if (!m || e.exit.price === null) {
+    // No price, nothing derived. Saying so beats five dashes, which read as a broken panel.
+    box.innerHTML = `<p class="muted" style="margin:0;font-size:11.5px">${t('wl.plan.exit.nopx')}</p>`;
+    return;
+  }
+  const sym = planSym();
+  const sign = (v: number): string | undefined => (v >= 0 ? 'var(--up)' : 'var(--down)');
+  const cell = (k: string, v: string, color?: string): string =>
+    `<div class="stat"><div class="k">${k}</div><div class="v"${color ? ` style="color:${color}"` : ''}>${v}</div></div>`;
+  box.innerHTML = `
+    <div class="grid" style="grid-template-columns:repeat(5,1fr);gap:8px">
+      ${cell(t('wl.plan.exit.outcome'), t(`wl.plan.exit.out.${m.outcome}`), OUTCOME_VAR[m.outcome])}
+      ${cell('R', m.rMultiple != null ? num(m.rMultiple, 2) + 'R' : '—', m.rMultiple != null ? sign(m.rMultiple) : undefined)}
+      ${cell('%', m.pctGain != null ? (m.pctGain > 0 ? '+' : '') + num(m.pctGain, 2) + '%' : '—', m.pctGain != null ? sign(m.pctGain) : undefined)}
+      ${cell(t('wl.plan.exit.pnl'), m.pnl != null ? `${m.pnl > 0 ? '+' : ''}${sym}${num(m.pnl, 0)}` : '—', m.pnl != null ? sign(m.pnl) : undefined)}
+      ${cell(t('wl.plan.exit.held'), m.daysHeld != null ? String(m.daysHeld) : '—')}
+    </div>`;
+}
+
+/**
+ * File the card as a case study — the user's "de toi co the save nhu mot case study".
+ *
+ * ── WHY IT GOES INTO THE EXISTING JOURNAL ───────────────────────────────────
+ * Case Studies is already a tab with an index, a chart, an editor, an HTML export and an
+ * ask-ChatGPT section. A second store for "plans I want to keep" would give the user two
+ * journals, neither complete, and would mean the post-mortem tooling had to be written twice. So
+ * this writes a `CaseStudy` through `saveCase`, and what is new is the two fields it needed: the
+ * exit reason, and the frozen plan (`CasePlan`) so the study can still show the grade, the
+ * checklist and the acknowledgement the decision was made on.
+ *
+ * ── WHY THE LEVELS ARE CONVERTED ────────────────────────────────────────────
+ * A `CaseStudy` has no currency field: its report prints dollars and its chart draws these
+ * numbers against raw closes. The boxes here are usually in euros. `levelToUsd` on the way in is
+ * therefore not a nicety — without it the study's chart would draw its entry line off the axis.
+ */
+async function saveCaseStudy(ctx: AppContext, symbol: string, btn: HTMLElement): Promise<void> {
+  const e = planEdits.get(symbol);
+  if (!e) return;
+  const vi = getLang() === 'vi';
+  const msg = (text: string, bad = true): void => {
+    const box = document.querySelector<HTMLElement>(`[data-tp-casemsg="${CSS.escape(symbol)}"]`);
+    if (!box) return;
+    box.textContent = text;
+    box.classList.toggle('bad', bad);
+  };
+  // An entry is the one thing a study cannot be filed without: it is what the chart is drawn
+  // around and what every number in the journal is measured from. Everything else, exit
+  // included, may legitimately be missing.
+  if (e.entry === null || !(e.entry > 0)) { msg(t('wl.plan.case.noentry')); return; }
+
+  const grade = cardGrade(symbol);
+  const effective = e.gradeOverride ?? grade?.grade ?? null;
+  const usd = (v: number | null): number | null => (v === null ? null : round2(levelToUsd(v)));
+  const suggested = autoCaseTitle(symbol, planDate, e.setup || 'Setup');
+  const m = cardExitMath(symbol);
+
+  const title = await confirmCaseDialog({
+    symbol, date: planDate, suggested, vi,
+    setupLabel: e.setup ? setupName(e.setup, vi) : '—',
+    grade: effective,
+    outcome: m?.outcome ?? 'open',
+    rMultiple: m?.rMultiple ?? null,
+    exit: e.exit,
+    levels: { entry: e.entry, stop: e.stop, target: e.target },
+  });
+  if (title === null) return;
+
+  const plan = cardSymbolPlan(symbol);
+  if (!plan) return;
+  const study = caseStudyFromPlan({
+    symbol,
+    date: planDate,
+    setup: e.setup,
+    levels: { entry: usd(e.entry), stop: usd(e.stop), target: usd(e.target) },
+    exit: { ...e.exit, price: usd(e.exit.price) },
+    shares: e.shares,
+    effective,
+    notes: sanitizeNoteHtml(e.note ?? ''),
+    // The plan as it stands, frozen — the same shape a bought lot's snapshot takes, so the one
+    // report renderer can show either. `currency` records what the levels were TYPED in, which
+    // is what makes the frozen copy readable next to the study's converted dollars.
+    plan: {
+      symbol, savedAt: new Date().toISOString(), date: planDate, plan, grade, effective,
+      levels: { entry: e.entry, stop: e.stop, target: e.target },
+      shares: e.shares,
+      currency: planCcy,
+      pctOfFull: effective ? ladderConfig().ratingPct[effective] : 100,
+    },
+    vi,
+    todayIso: today(),
+    title,
+  });
+
+  try {
+    await saveCase(ctx, study);
+  } catch (err) {
+    msg((err as Error).message);
+    return;
+  }
+  msg(t('wl.plan.case.saved'), false);
+  const old = btn.textContent ?? '';
+  btn.textContent = t('wl.plan.case.ok');
+  setTimeout(() => { btn.textContent = old; }, 2200);
+}
+
+/**
+ * Show exactly what will be filed, let the title be edited, and wait for a yes.
+ *
+ * Resolves with the title, or null when cancelled — the same standard `confirmBuyDialog` is held
+ * to. A case study is a document the user will cite to themselves months later, so the one thing
+ * they have to be able to fix before it is written is the name they will find it under.
+ */
+function confirmCaseDialog(i: {
+  symbol: string; date: string; suggested: string; vi: boolean;
+  setupLabel: string; grade: ConvictionRating | null;
+  outcome: 'win' | 'loss' | 'open' | 'scratch'; rMultiple: number | null;
+  exit: PlanExit; levels: { entry: number | null; stop: number | null; target: number | null };
+}): Promise<string | null> {
+  const sym = planSym();
+  const px = (v: number | null): string => (v === null ? '—' : `${sym}${num(v, 2)}`);
+  const reason = exitReasonText(i.exit, i.vi);
+  const rows = [
+    confRow(t('wl.plan.case.name'), `<input class="field" data-title style="width:100%" value="${esc(i.suggested)}" />`),
+    confRow(t('pf.buy.date'), i.date),
+    confRow(t('wl.plan.setup'), `${esc(i.setupLabel)} · ${i.grade ?? '—'}`),
+    confRow(t('wl.plan.entry'), px(i.levels.entry), 'var(--accent)'),
+    confRow(t('wl.plan.stop'), px(i.levels.stop), 'var(--danger)'),
+    confRow(t('wl.plan.target'), px(i.levels.target)),
+    confRow(t('wl.plan.exit.date'), i.exit.date ?? '—'),
+    confRow(t('wl.plan.exit.price'), px(i.exit.price)),
+    confRow(t('wl.plan.exit.outcome'),
+      `${t(`wl.plan.exit.out.${i.outcome}`)}${i.rMultiple != null ? ` · ${num(i.rMultiple, 2)}R` : ''}`,
+      OUTCOME_VAR[i.outcome]),
+    reason ? confRow(t('wl.plan.exit.reason'), esc(reason)) : '',
+  ].filter(Boolean).join('');
+
+  return new Promise<string | null>((resolve) => {
+    const host = document.createElement('div');
+    host.className = 'dialog-host';
+    host.innerHTML = `
+      <div class="dialog-backdrop"></div>
+      <div class="dialog" style="width:min(520px,94vw)">
+        <div class="dialog-title">${t('wl.plan.case.ttl')}</div>
+        <div class="dialog-body">
+          <p class="muted" style="margin:0 0 10px;font-size:12px;line-height:1.55">${t('wl.plan.case.lead')}</p>
+          ${i.outcome === 'open' ? `<p class="tp-exit-msg bad" style="margin:0 0 10px">${t('wl.plan.case.open')}</p>` : ''}
+          <table style="border-collapse:collapse;font-size:13px;width:100%">${rows}</table>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn-outline" data-act="no">${t('wl.plan.ask.cancel')}</button>
+          <button class="btn" data-act="yes">${t('wl.plan.case.save')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    const box = host.querySelector<HTMLInputElement>('[data-title]')!;
+    const done = (answer: string | null): void => { host.remove(); resolve(answer); };
+    host.querySelector('[data-act="no"]')!.addEventListener('click', () => done(null));
+    host.querySelector('.dialog-backdrop')!.addEventListener('click', () => done(null));
+    // Empty is allowed and handled downstream: `caseStudyFromPlan` generates the title rather
+    // than filing a study with no name.
+    host.querySelector('[data-act="yes"]')!.addEventListener('click', () => done(box.value.trim()));
+  });
+}
+
 /**
  * One card as the report's input — for both ⎙ Print and 👁 View.
  *
@@ -1434,6 +1710,7 @@ function cardReportInput(symbol: string): PlanReportInput | null {
   if (!e || !plan) return null;
   const grade = cardGrade(symbol);
   const rating = e.gradeOverride ?? grade?.grade ?? null;
+  const m = exitMath({ entry: e.entry, stop: e.stop, shares: e.shares, date: planDate, exit: e.exit });
   return {
     plan,
     grade,
@@ -1446,9 +1723,25 @@ function cardReportInput(symbol: string): PlanReportInput | null {
     // Only the chart needs it, and only in euros — see `PlanReportInput.fxRate`.
     ...(planRate() > 0 ? { fxRate: planRate() } : {}),
     date: planDate,
-    bars: planBars.get(symbol) ?? [],
+    // The chart's bars, not the as-of slice: a plan with a recorded exit is a post-mortem, and
+    // the same rule applies on paper as on the card — see `chartBars`.
+    bars: chartBars(symbol),
     pctOfFull: rating ? ladderConfig().ratingPct[rating] : 100,
     vi: getLang() === 'vi',
+    // Only when there is something to say. A plan printed before the trade must not carry a
+    // verdict — that is what makes it worth printing. See `PlanReportInput.exit`.
+    ...(e.exit.price !== null || e.exit.date !== null
+      ? {
+        exit: {
+          date: e.exit.date,
+          price: e.exit.price,
+          reason: exitReasonText(e.exit, getLang() === 'vi'),
+          outcome: m.outcome,
+          rMultiple: m.rMultiple,
+          pctGain: m.pctGain,
+        },
+      }
+      : {}),
   };
 }
 
@@ -1469,10 +1762,41 @@ function setFieldValue(symbol: string, field: 'stop' | 'target' | 'shares', valu
  * dropped, or the observer outlives the chart it resizes.
  */
 const planCharts = new Map<string, CandleChart>();
+/**
+ * The bar range each chart was BUILT on, as `count:lastDate`.
+ *
+ * `setOverlay` can move the lines on a chart that is already drawn, which is what keeps the zoom
+ * and the scroll position while the user types. It cannot change the candles — so when recording
+ * an exit extends the window past the trade date (see `chartBars`), the chart has to be rebuilt
+ * or the new bars simply never appear and the exit line hangs off the right-hand edge.
+ */
+const planChartSpan = new Map<string, string>();
 
 function destroyPlanCharts(): void {
   for (const c of planCharts.values()) c.destroy();
   planCharts.clear();
+  planChartSpan.clear();
+}
+
+/**
+ * The bars the CHART may show — the as-of slice, extended to a recorded exit.
+ *
+ * ── WHY THE FUTURE IS ALLOWED IN HERE, AND ONLY HERE ────────────────────────
+ * Everything else on the card is a function of `planBars`, which stops at the trade date; that
+ * cut IS the time machine (see `asOfBars`) and nothing may widen it, or the grade would be scored
+ * on bars the decision could not have seen. The chart is the one exception, and only once the
+ * user has recorded an exit date: at that point they have themselves declared how the trade
+ * ended, so hiding the bars between the entry and their own exit would be withholding the
+ * picture the case study is about. The window stops AT the exit — not a day past it — so the
+ * card never volunteers what happened after the trade was over.
+ */
+function chartBars(symbol: string): Bar[] {
+  const asOf = planBars.get(symbol) ?? [];
+  const when = planEdits.get(symbol)?.exit.date;
+  if (!when || when <= planDate) return asOf;
+  const all = planAllBars.get(symbol);
+  if (!all?.length) return asOf;
+  return all.filter((b) => b.date <= when);
 }
 
 /**
@@ -1492,9 +1816,9 @@ function destroyPlanCharts(): void {
 function paintPlanChart(symbol: string): void {
   const box = document.querySelector<HTMLElement>(`[data-tp-chart="${CSS.escape(symbol)}"]`);
   const e = planEdits.get(symbol);
-  const bars = planBars.get(symbol);
+  const bars = chartBars(symbol);
   if (!box || !e) return;
-  if (!bars?.length) { box.innerHTML = ''; return; }
+  if (!bars.length) { box.innerHTML = ''; return; }
 
   // Back to USD: these lines are drawn against the candles, and the candles are raw closes.
   // A €198 line on a $232 chart would be off the bottom of the axis.
@@ -1502,19 +1826,29 @@ function paintPlanChart(symbol: string): void {
     entry: e.entry === null ? null : levelToUsd(e.entry),
     stop: e.stop === null ? null : levelToUsd(e.stop),
     target: e.target === null ? null : levelToUsd(e.target),
+    exit: e.exit.price === null ? null : levelToUsd(e.exit.price),
   };
 
-  // Already drawn: move the lines and leave the candles, the zoom and the scroll
+  // Already drawn on the same candles: move the lines and leave the zoom and the scroll
   // position exactly where the user put them.
+  const span = `${bars.length}:${bars[bars.length - 1]!.date}`;
   const existing = planCharts.get(symbol);
-  if (existing && box.firstChild) { existing.setOverlay(overlay); return; }
+  if (existing && box.firstChild && planChartSpan.get(symbol) === span) {
+    existing.setOverlay(overlay);
+    return;
+  }
 
   existing?.destroy();
+  planChartSpan.set(symbol, span);
   // The six EMAs of the detail chart are too many for a card this size. These four are
   // the ones a swing entry is actually judged against: 10 and 21 for the trigger, 50 for
   // the trend the setup lives in, 200 for whether it should be a long at all.
   const emaState = { 5: false, 10: true, 21: true, 50: true, 150: false, 200: true };
-  planCharts.set(symbol, drawCandles(box, bars.slice(-160), overlay, emaState, { height: 260 }));
+  // 160 bars plus however many the exit added: the base the entry came out of has to stay on
+  // screen next to the exit, and a fixed 160-bar tail on a trade held six months would have
+  // scrolled the setup itself off the left-hand edge.
+  const held = Math.max(0, bars.length - (planBars.get(symbol)?.length ?? bars.length));
+  planCharts.set(symbol, drawCandles(box, bars.slice(-(160 + held)), overlay, emaState, { height: 260 }));
 }
 
 /**
@@ -1701,6 +2035,53 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
    */
   root.querySelectorAll<HTMLElement>('[data-tp-ask]').forEach((b) => {
     b.addEventListener('click', () => void askCriteria(b.dataset.tpAsk!, b));
+  });
+
+  // Unfold "how it ended". The caret is flipped in place rather than by re-rendering the card:
+  // a redraw here would rebuild the chart and lose the zoom the user set to read the base.
+  root.querySelectorAll<HTMLElement>('[data-tp-exittoggle]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const sym = b.dataset.tpExittoggle!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      e.exitOpen = !e.exitOpen;
+      root.querySelector(`[data-tp-exitbody="${CSS.escape(sym)}"]`)?.classList.toggle('hidden', !e.exitOpen);
+      const caret = b.querySelector('.tp-exit-caret');
+      if (caret) caret.textContent = e.exitOpen ? '▾' : '▸';
+    });
+  });
+
+  /**
+   * The exit fields. `recalcPlan` rather than a local repaint, because the exit moves the chart
+   * (a new line, possibly new candles) as well as the five derived numbers.
+   *
+   * Deliberately NOT persisted through `persistPlan`: see `PlanEdit.exit` for why an exit has no
+   * business in the one-per-symbol plan. It is kept while the panel is open and written when the
+   * case study is filed.
+   */
+  root.querySelectorAll<HTMLElement>('[data-tp-exit][data-sym]').forEach((el2) => {
+    const handler = (): void => {
+      const sym = (el2 as HTMLInputElement).dataset.sym!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      const raw = (el2 as HTMLInputElement).value;
+      switch ((el2 as HTMLInputElement).dataset.tpExit) {
+        case 'date': e.exit.date = raw || null; break;
+        case 'price': e.exit.price = raw.trim() === '' ? null : Number(raw.trim().replace(',', '.')); break;
+        case 'reason': e.exit.reason = raw as ExitReasonKey | ''; break;
+        case 'note': e.exit.note = raw; break;
+      }
+      recalcPlan(sym);
+    };
+    el2.addEventListener('input', handler);
+    // `input` alone misses the native date picker in some browsers, and `change` alone would
+    // leave the derived R sitting stale while a price is typed.
+    el2.addEventListener('change', handler);
+  });
+
+  // File the card in the Case Studies journal.
+  root.querySelectorAll<HTMLElement>('[data-tp-case]').forEach((b) => {
+    b.addEventListener('click', () => void saveCaseStudy(ctx, b.dataset.tpCase!, b));
   });
 
   // Size chips: the playbook's own number, or a % of equity.

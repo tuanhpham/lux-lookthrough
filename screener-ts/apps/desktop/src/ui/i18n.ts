@@ -367,6 +367,67 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'Nghiên cứu tiêu chí — tính theo ngày {date}',
   },
 
+  // ── How the trade ended, and filing it in the journal ─────────────────────
+  // The user's "nen co them cai exit price … con neu ma buy thi khong can nhe … va exit nen co
+  // mot cai cho de bo ly do vao". Folded away on today's date, unfolded on a past one, and
+  // labelled optional in both — nothing here gates the Buy button. See `portfolio/planExit.ts`.
+  'wl.plan.exit': { en: 'How it ended', vi: 'Kết thúc giao dịch' },
+  'wl.plan.exit.opt': {
+    en: 'optional — only needed to file a case study',
+    vi: 'không bắt buộc — chỉ cần khi lưu thành hồ sơ setup',
+  },
+  'wl.plan.exit.lead': {
+    en: 'Fill this in when the trade is over and you want to keep it as a case study. Leave it empty to buy — nothing here affects the plan, the grade or the size.',
+    vi: 'Điền khi giao dịch đã xong và bạn muốn lưu lại thành hồ sơ. Để trống nếu chỉ muốn mua — phần này không ảnh hưởng đến kế hoạch, hạng hay cỡ vị thế.',
+  },
+  'wl.plan.exit.date': { en: 'Exit date', vi: 'Ngày thoát' },
+  'wl.plan.exit.price': { en: 'Exit price', vi: 'Giá thoát' },
+  'wl.plan.exit.reason': { en: 'Why you got out', vi: 'Lý do thoát' },
+  'wl.plan.exit.noreason': { en: '— pick a reason', vi: '— chọn lý do' },
+  'wl.plan.exit.note': { en: 'In your own words', vi: 'Ghi bằng lời của bạn' },
+  'wl.plan.exit.noteph': {
+    en: 'e.g. gapped through the stop on earnings; I sold the open rather than wait',
+    vi: 'VD: nhảy gap qua mức cắt lỗ vào ngày báo cáo; tôi bán ngay đầu phiên chứ không chờ',
+  },
+  'wl.plan.exit.nopx': {
+    en: 'Enter an exit price and this fills in: R, percent, money and days held.',
+    vi: 'Nhập giá thoát là phần này tự hiện: R, phần trăm, số tiền và số ngày giữ.',
+  },
+  'wl.plan.exit.outcome': { en: 'Outcome', vi: 'Kết quả' },
+  'wl.plan.exit.pnl': { en: 'Money', vi: 'Tiền' },
+  'wl.plan.exit.held': { en: 'Days held', vi: 'Ngày giữ' },
+  'wl.plan.exit.out.win': { en: 'Win', vi: 'Thắng' },
+  'wl.plan.exit.out.loss': { en: 'Loss', vi: 'Thua' },
+  'wl.plan.exit.out.open': { en: 'Still open', vi: 'Còn mở' },
+  'wl.plan.exit.out.scratch': { en: 'Scratch', vi: 'Hòa' },
+
+  // Filing the card in the Case Studies journal — the existing tab, not a second one.
+  'wl.plan.case': { en: 'Save as case study', vi: 'Lưu thành hồ sơ setup' },
+  'wl.plan.case.title': {
+    en: 'File this plan in the Case Studies tab — with the chart, the grade, the whole scorecard and the exit, frozen as they are now',
+    vi: 'Lưu kế hoạch này vào tab Hồ sơ Setup — kèm biểu đồ, hạng, toàn bộ bảng tiêu chí và phần thoát, đóng băng như hiện tại',
+  },
+  'wl.plan.case.ttl': { en: 'File this as a case study', vi: 'Lưu thành hồ sơ setup' },
+  'wl.plan.case.lead': {
+    en: 'The plan, the scorecard and the grade are copied in and never rewritten — so the study still shows what was decided before the outcome was known. Prices are converted to USD, which is what the journal stores.',
+    vi: 'Kế hoạch, bảng tiêu chí và hạng được sao vào và không bao giờ bị ghi lại — nên hồ sơ vẫn cho thấy điều đã quyết định trước khi biết kết quả. Giá được chuyển sang USD, đúng như hồ sơ lưu.',
+  },
+  'wl.plan.case.name': { en: 'Title', vi: 'Tiêu đề' },
+  'wl.plan.case.open': {
+    en: 'No exit price, so this is filed as still open. You can add the exit later in the Case Studies tab.',
+    vi: 'Chưa có giá thoát, nên hồ sơ được lưu là còn mở. Bạn có thể thêm phần thoát sau ở tab Hồ sơ Setup.',
+  },
+  'wl.plan.case.save': { en: 'File it', vi: 'Lưu hồ sơ' },
+  'wl.plan.case.saved': {
+    en: 'Filed — open the Case Studies tab to see it.',
+    vi: 'Đã lưu — mở tab Hồ sơ Setup để xem.',
+  },
+  'wl.plan.case.ok': { en: 'Filed ✓', vi: 'Đã lưu ✓' },
+  'wl.plan.case.noentry': {
+    en: 'Enter an entry price first — the study’s chart is drawn around it.',
+    vi: 'Nhập giá vào trước — biểu đồ của hồ sơ được vẽ quanh mức đó.',
+  },
+
   // Buying straight from the plan.
   'wl.plan.buy': { en: '✓ Buy this plan', vi: '✓ Mua theo kế hoạch' },
   'wl.plan.buyready': {

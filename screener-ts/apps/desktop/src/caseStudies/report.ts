@@ -33,6 +33,30 @@ const OUTCOME_COLOR: Record<CaseStudy['outcome'], string> = {
 };
 const RATING_COLOR: Record<string, string> = { A: '#18d89a', B: '#5b8cff', C: '#ffb648', D: '#ff5266' };
 
+/**
+ * The print half of the stylesheet, and why it is not simply `background:#fff`.
+ *
+ * This document used to force white on print, which is what threw away the colours the user
+ * asked to keep ("khi ma print to PDF, toi thay khong giu duoc cai background color dep nhu o
+ * html"). Browsers also drop backgrounds on their own to save ink, so BOTH had to go: the rule
+ * is deleted and `print-color-adjust: exact` asks for the colours back. Ink is still a real
+ * cost, so the white document survives as a checkbox the reader ticks — done with `:has()` and
+ * no script, matching `portfolio/planReport.ts`, which explains the reasoning in full.
+ */
+const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { margin: 12mm; }
+  @media print {
+    body { padding:0; max-width:none; }
+    .toolbar { display:none; }
+    .chart,.stat,.notes,.why,tr { break-inside:avoid; }
+    body:has(#ink:checked) { background:#fff; color:#000; }
+    body:has(#ink:checked) .chart,
+    body:has(#ink:checked) .stat,
+    body:has(#ink:checked) .why,
+    body:has(#ink:checked) .notes { background:#fafafa; border-color:#ddd; }
+    body:has(#ink:checked) .muted { color:#555; }
+  }`;
+
 /** Render the full standalone HTML document for a case study. */
 export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
   const win = windowBars(bars, study.keyDate, study.windowMonths);
@@ -81,10 +105,13 @@ export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
   .notes { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:14px 16px; line-height:1.7; }
   .muted { color:#5c6575; }
   .foot { color:#5c6575; font-size:11px; margin-top:28px; border-top:1px solid #1d222c; padding-top:12px; }
-  @media print { body { background:#fff; color:#000; padding:0; } .toolbar { display:none; } .chart,.stat,.notes { background:#fafafa; border-color:#ddd; } }
+  .why { background:#0c0e13; border:1px solid #1d222c; border-left:3px solid #e879f9; border-radius:10px; padding:12px 14px; margin:16px 0; }
+  .why .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+  .ink { color:#5c6575; font-size:12px; margin-left:12px; cursor:pointer; user-select:none; }
+${PRINT_CSS}
 </style></head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
+  <div class="toolbar"><button onclick="window.print()">🖨 Print / Save as PDF</button><label class="ink"><input type="checkbox" id="ink"> Print on white paper (saves ink)</label></div>
 
   <h1>${esc(study.symbol)} <span class="pill" style="color:${OUTCOME_COLOR[study.outcome]};border-color:${OUTCOME_COLOR[study.outcome]}">${OUTCOME_LABEL[study.outcome]}</span>${study.rating ? ` <span class="pill" style="color:${RATING_COLOR[study.rating] ?? '#99a2b2'};border-color:${RATING_COLOR[study.rating] ?? '#99a2b2'}">Grade ${esc(study.rating)}</span>` : ''}</h1>
   <p class="sub">${esc(study.title || '')}</p>
@@ -103,6 +130,7 @@ export function caseStudyHtml(study: CaseStudy, bars: readonly Bar[]): string {
     ${stat('Outcome', OUTCOME_LABEL[study.outcome], OUTCOME_COLOR[study.outcome])}
     ${stat('Rating', study.rating || '—', study.rating ? (RATING_COLOR[study.rating] ?? undefined) : undefined)}
   </div>
+  ${study.exitReason ? `<div class="why"><div class="k">Why it was closed</div><div>${esc(study.exitReason)}</div></div>` : ''}
 
   <h2>Catalysts &amp; news</h2>
   <table><tbody>${catalystRows}</tbody></table>

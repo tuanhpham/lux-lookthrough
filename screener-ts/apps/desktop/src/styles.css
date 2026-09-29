@@ -991,6 +991,34 @@ a.tkr:hover { text-decoration: underline; }
 .tp-buy:disabled { opacity: .45; cursor: not-allowed; }
 .tp-buy-hint { font-size: 11.5px; line-height: 1.4; color: var(--faint); }
 .tp-buy-hint.ok { color: var(--up); font-weight: 600; }
+/* ── "How it ended", and filing the plan as a case study ─────────────────────
+   Folded, dim, and outside the flow of the form above it. The card's job is to size a trade
+   that has not happened yet; this block is the other job — writing up one that has. Giving it
+   the same visual weight as the price fields would make every plan look half-finished, which
+   is why the header is a muted strip rather than a section title, and why it stays shut on
+   today's date (see `PlanEdit.exitOpen`). The violet is the exit's colour on the chart too. */
+.tp-exit { margin: 0 0 10px; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+.tp-exit-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 10px; background: none; border: 0; cursor: pointer; text-align: left;
+}
+.tp-exit-head:hover .tp-exit-label { color: var(--text); }
+.tp-exit-caret { font-size: 10px; color: var(--faint); }
+.tp-exit-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--subtext);
+}
+.tp-exit-opt { font-size: 11px; color: var(--faint); font-weight: 400; }
+.tp-exit-body { padding: 0 10px 10px; }
+.tp-exit-lead { margin: 0 0 8px; font-size: 11.5px; line-height: 1.5; color: var(--faint); }
+.tp-exit-px { color: var(--violet); }
+/* The free-text reason gets the whole row: it is the field that carries the lesson, and a
+   quarter-width box teaches the user to write four words in it. */
+.tp-exit-note { grid-column: 1 / -1; }
+.tp-exit-stats { margin-bottom: 9px; }
+.tp-exit-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.tp-exit-msg { font-size: 11.5px; line-height: 1.4; color: var(--up); font-weight: 600; }
+.tp-exit-msg.bad { color: var(--warn); }
 .tp-note h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
 .tp-note ul, .tp-note ol { margin: 4px 0; padding-left: 20px; }
 .tp-note li { margin: 2px 0; }

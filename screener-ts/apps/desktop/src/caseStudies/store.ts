@@ -7,6 +7,21 @@
  * Storage layout: `casestudies:index` → CaseStudyMeta[]; `casestudy:<id>` → CaseStudy.
  */
 import type { AppContext } from '../context.js';
+import type { PlanSnapshot } from '../portfolio/planSnapshot.js';
+
+/**
+ * The trade plan a case study was filed from, frozen.
+ *
+ * ── WHY IT IS THE LOT SNAPSHOT'S SHAPE, MINUS THE LOT ───────────────────────
+ * `PlanSnapshot` already answers "what was decided before this trade, and how big was it
+ * allowed to be" — the plan, the scored checklist, the letter in force, the levels as typed and
+ * the ladder share that applied at the time. A case study filed from the planner needs exactly
+ * that, and a second almost-identical shape would be a second thing to keep in step with the
+ * report that renders it. `lotId` is the one field that does not carry over: a case study can be
+ * reconstructed for a trade that was never recorded in an account, which is the whole point of
+ * being able to set the trade date into the past.
+ */
+export type CasePlan = Omit<PlanSnapshot, 'lotId'>;
 
 /** A dated catalyst / news note attached to a case study. */
 export interface Catalyst {
@@ -38,9 +53,26 @@ export interface CaseStudy {
   exitPrice: number | null;
   /** Realized R-multiple, if computed/entered. */
   rMultiple: number | null;
+  /**
+   * WHY the trade was closed, in one line: a reason from the planner's list, the user's own
+   * words, or "reason — words". Plain text, escaped wherever it is shown.
+   *
+   * Optional, and separate from `notes`, because it is the field a journal is read back BY. The
+   * lesson of a losing trade is almost never in the chart; it is in whether the stop was hit or
+   * the position was abandoned two days early, and that distinction is unfindable once it has
+   * been folded into a paragraph.
+   */
+  exitReason?: string;
   catalysts: Catalyst[];
   /** Free-form markdown-ish notes / lessons learned. */
   notes: string;
+  /**
+   * The trade plan this study was filed from, frozen at the moment of filing.
+   *
+   * Absent on every study written by hand in this tab, and on everything saved before the
+   * planner could file one — so every reader has to treat it as optional.
+   */
+  plan?: CasePlan;
   createdAt: string; // ISO date
   updatedAt: string; // ISO date
 }

@@ -55,6 +55,24 @@ export interface PlanReportInput {
   /** Share of full size the effective letter allows, from the ladder. */
   pctOfFull: number;
   vi: boolean;
+  /**
+   * How the trade ended, when it has — the case-study half of the same document.
+   *
+   * Optional, and absent is the normal case: a plan printed BEFORE the trade has no outcome, and
+   * inventing an "Open" verdict for it would put a result on a document whose whole purpose is
+   * to be unrevisable. Present, the report grows an outcome pill, an exit block and the exit
+   * level on the chart, so one file carries both halves — what was supposed to happen, and what
+   * did. `price` is in `currency`, like the levels.
+   */
+  exit?: {
+    date: string | null;
+    price: number | null;
+    /** One line: the reason from the list, the user's words, or both. Plain text. */
+    reason: string;
+    outcome: 'win' | 'loss' | 'open' | 'scratch';
+    rMultiple: number | null;
+    pctGain: number | null;
+  };
 }
 
 function esc(s: string): string {
@@ -156,6 +174,10 @@ export function planReportHtml(i: PlanReportInput): string {
       auto: 'Đo tự động', manual: 'Tự trả lời', weight: 'Trọng số', who: 'Theo',
       print: '🖨 In / Lưu PDF',
       ink: 'In trên giấy trắng (tiết kiệm mực)',
+      exit: 'Kết thúc giao dịch', exitdate: 'Ngày thoát', exitpx: 'Giá thoát',
+      resultr: 'Kết quả R', pctgain: 'Lãi/lỗ %', held: 'Số ngày giữ', why: 'Lý do thoát',
+      nowhy: 'Chưa ghi lý do.',
+      out: { win: 'Thắng', loss: 'Thua', open: 'Đang mở', scratch: 'Hòa' } as Record<string, string>,
       foot: 'Tạo lúc {when} · The Professional — kế hoạch giao dịch · Chỉ dùng để học. Không phải lời khuyên đầu tư.',
       staleack: 'Xác nhận lúc {when}, với giá vào {entry} / cắt lỗ {stop}.',
     }
@@ -171,6 +193,10 @@ export function planReportHtml(i: PlanReportInput): string {
       auto: 'Measured', manual: 'Answered by hand', weight: 'Weight', who: 'Per',
       print: '🖨 Print / Save as PDF',
       ink: 'Print on white paper (save ink)',
+      exit: 'How it ended', exitdate: 'Exit date', exitpx: 'Exit price',
+      resultr: 'Result R', pctgain: 'Gain/loss %', held: 'Days held', why: 'Why it was closed',
+      nowhy: 'No reason recorded.',
+      out: { win: 'Win', loss: 'Loss', open: 'Open', scratch: 'Scratch' } as Record<string, string>,
       foot: 'Generated {when} · The Professional — trade plan · Educational use only. Not financial advice.',
       staleack: 'Acknowledged {when}, against entry {entry} / stop {stop}.',
     };
@@ -194,10 +220,12 @@ export function planReportHtml(i: PlanReportInput): string {
     entry: chartPx(levels.entry),
     stop: chartPx(levels.stop),
     target: chartPx(levels.target),
-    exitPrice: null,
+    // The renderer already draws an ✕ at the exit and a line at its price — it was built for the
+    // case studies, which is what a plan with an exit on it has become.
+    exitPrice: chartPx(i.exit?.price ?? null),
     keyDate: i.date,
-    exitDate: null,
-    outcome: 'open',
+    exitDate: i.exit?.date ?? null,
+    outcome: i.exit?.outcome ?? 'open',
     catalysts: [],
   };
   const win = planWindow(i.bars, i.date);
@@ -247,6 +275,35 @@ export function planReportHtml(i: PlanReportInput): string {
     )}</div>`
     : `<div class="ack bad">⚠ ${esc(L.noack)}</div>`;
 
+  /*
+   * The outcome block — only when there is one.
+   *
+   * It sits BELOW the scorecard on purpose. Read top to bottom the document is then the trade in
+   * the order it happened: the grade that decided the size, the levels, the criteria, and only
+   * then how it ended. Putting the result at the top would make every re-read of the plan an
+   * exercise in hindsight, which is the one thing a printed plan is supposed to protect against.
+   */
+  const OUT_HEX: Record<string, string> = { win: '#18d89a', loss: '#ff5266', open: '#5b8cff', scratch: '#99a2b2' };
+  const x = i.exit;
+  const held = x?.date && i.date
+    ? Math.round((new Date(x.date + 'T00:00:00').getTime() - new Date(i.date + 'T00:00:00').getTime()) / 864e5)
+    : null;
+  const outHex = x ? (OUT_HEX[x.outcome] ?? '#99a2b2') : '#99a2b2';
+  const exitBlock = x
+    ? `<h2>${esc(L.exit)}</h2>
+  <div class="grid">
+    ${stat(L.exitdate, x.date ? esc(x.date) : '—')}
+    ${stat(L.exitpx, money(x.price), '#e879f9')}
+    ${stat(L.resultr, x.rMultiple != null ? x.rMultiple.toFixed(2) + 'R' : '—',
+      x.rMultiple != null ? (x.rMultiple >= 0 ? '#18d89a' : '#ff5266') : undefined)}
+    ${stat(L.pctgain, x.pctGain != null ? (x.pctGain > 0 ? '+' : '') + x.pctGain.toFixed(2) + '%' : '—',
+      x.pctGain != null ? (x.pctGain >= 0 ? '#18d89a' : '#ff5266') : undefined)}
+    ${stat(L.held, held != null ? String(held) : '—')}
+  </div>
+  <h2>${esc(L.why)}</h2>
+  <div class="notes">${x.reason ? esc(x.reason) : `<span class="muted">${esc(L.nowhy)}</span>`}</div>`
+    : '';
+
   const noteHtml = !isNoteEmpty(plan.note)
     ? safeNote(plan.note)
     : `<span class="muted">${esc(L.nonote)}</span>`;
@@ -295,6 +352,7 @@ ${PRINT_CSS}
 
   <h1>${esc(plan.symbol)}
     <span class="pill" style="color:${gradeHex};border-color:${gradeHex}">${esc(L.grade)} ${esc(i.effective ?? '—')}</span>
+    ${x ? `<span class="pill" style="color:${outHex};border-color:${outHex}">${esc(L.out[x.outcome] ?? x.outcome)}</span>` : ''}
     ${overridden ? `<span class="pill" style="color:#ffb648;border-color:#ffb648">${esc(L.overridden.replace('{auto}', grade?.grade ?? '—'))}</span>` : ''}
   </h1>
   <p class="sub">${esc(L.plan)} · ${esc(L.setup)} <b>${esc(setupWord)}</b> · ${esc(L.date)} <b>${esc(i.date)}</b></p>
@@ -320,6 +378,8 @@ ${PRINT_CSS}
   <table><thead><tr>
     <th></th><th>${esc(L.crit)}</th><th>${esc(L.weight)}</th><th>${esc(L.auto)}</th><th></th><th>${esc(L.who)}</th>
   </tr></thead><tbody>${critRows}</tbody></table>` : ''}
+
+  ${exitBlock}
 
   <h2>${esc(L.note)}</h2>
   <div class="notes">${noteHtml}</div>

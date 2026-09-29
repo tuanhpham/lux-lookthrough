@@ -31,6 +31,15 @@ import {
   wireGptBadge,
 } from '../ui/askChatGpt.js';
 import { buildCaseStudyPrompt, type CaseStudyPromptContext } from '@screener/core';
+// A study filed from the Trade Planner carries the plan it was filed from. Rendered with the
+// planner's own report so there is one trade-plan layout in the app, not two — see
+// `portfolio/planReport.ts`.
+import { openPlanReport } from '../portfolio/planReport.js';
+// The study's levels are stored in dollars; the plan it came from was typed in the planner's
+// currency, usually euros. Reading one document in two currencies needs the rate — see
+// `planReportInputFor`.
+import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
+import { EXIT_REASONS } from '../portfolio/planExit.js';
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
@@ -158,6 +167,13 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
       <button id="cs-back" class="btn-outline">← ${vi ? 'Quay lại' : 'Back'}</button>
       <div class="row" style="gap:8px">
+        ${study.plan
+          ? `<button id="cs-plan" class="btn-outline" title="${
+            vi
+              ? 'Xem kế hoạch giao dịch đã được đóng băng khi lưu hồ sơ này — hạng, bảng tiêu chí và các mức giá lúc đó'
+              : 'Read the trade plan frozen when this study was filed — the grade, the scorecard and the levels as they stood'
+          }">👁 ${vi ? 'Xem kế hoạch' : 'View plan'}</button>`
+          : ''}
         <button id="cs-edit" class="btn-outline">${vi ? '✎ Sửa' : '✎ Edit'}</button>
         <button id="cs-download" class="btn-outline">${vi ? '⬇ Tải HTML' : '⬇ Download HTML'}</button>
         <button id="cs-delete" class="btn-outline" style="color:var(--danger)">🗑</button>
@@ -183,6 +199,12 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
       ${detailStat(vi ? 'Loại' : 'Setup', escapeAttr(study.setupType))}
       ${detailStat(vi ? 'Xếp hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
     </div>
+    ${study.exitReason
+      ? `<div class="card" style="padding:10px;margin-bottom:14px;border-left:3px solid var(--violet)">
+          <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">${vi ? 'Lý do thoát' : 'Why it was closed'}</div>
+          <div>${escapeAttr(study.exitReason)}</div>
+        </div>`
+      : ''}
     <div class="section-title">${vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news'}</div>
     <div class="card" style="margin-bottom:14px">${catalystListHtml(study, vi)}</div>
     <div class="section-title">${vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons'}</div>
@@ -228,6 +250,61 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   $('#cs-download')!.addEventListener('click', () => {
     const html = caseStudyHtml({ ...study, windowMonths }, bars);
     downloadHtml(html, `case-study-${study.symbol}-${study.keyDate}`);
+  });
+
+  // The frozen plan, read back in the planner's own layout. Only present on studies filed
+  // from the Trade Planner — the button is not rendered otherwise.
+  $('#cs-plan')?.addEventListener('click', async () => {
+    const p = study.plan;
+    if (!p) return;
+    // The plan's money is in ITS currency (usually euros) while the study's exit price is in
+    // dollars, so a rate is needed to state both in one document. Loaded from the device cache
+    // rather than fetched: opening a report must not start a market-data download.
+    await ensureEurUsd(ctx).catch(() => {});
+    const eur = p.currency === 'EUR';
+    const rate = eur && hasEurUsd() ? eurUsdForDate(p.date) : 0;
+    // Back to the plan's currency with the PLAN date's rate — the same one the levels beside it
+    // are in. The exit-date rate would be more literal and less useful: an R multiple built from
+    // an entry at one rate and an exit at another is part FX move.
+    const toPlanCcy = (v: number | null): number | null =>
+      v === null ? null : rate > 0 ? Math.round((v / rate) * 100) / 100 : eur ? null : v;
+    const entry = study.entry;
+    openPlanReport(
+      {
+        plan: p.plan,
+        grade: p.grade,
+        effective: p.effective,
+        levels: p.levels,
+        shares: p.shares,
+        currency: p.currency,
+        ...(rate > 0 ? { fxRate: rate } : {}),
+        date: p.date,
+        // Clipped on the right, exactly as the planner card clips it: the plan was graded on
+        // what was visible on `p.date`, so the candles stop there — and are allowed to run on
+        // to the exit only because that is the trade this document is now a post-mortem of.
+        bars: bars.filter((b) => b.date <= (study.exitDate && study.exitDate > p.date ? study.exitDate : p.date)),
+        pctOfFull: p.pctOfFull,
+        vi,
+        exit: {
+          date: study.exitDate,
+          // null rather than the dollar number when euro levels meet an unknown rate: printing
+          // "€214.30" over a USD price is a wrong statement, where a dash is only a missing one.
+          price: toPlanCcy(study.exitPrice),
+          reason: study.exitReason ?? '',
+          outcome: study.outcome,
+          rMultiple: study.rMultiple,
+          // Both prices are dollars here, so the ratio needs no rate at all.
+          pctGain: study.exitPrice != null && entry != null && entry > 0
+            ? Math.round(((study.exitPrice - entry) / entry) * 10000) / 100
+            : null,
+        },
+      },
+      {
+        title: `${study.symbol} · ${t('plan.viewttl')}`,
+        print: t('pf.tx.planprint'),
+        close: t('pf.tx.planclose'),
+      },
+    );
   });
 
   // Last, and not awaited above: the ask section needs the configured GPT link from
@@ -351,6 +428,20 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         <div><label class="field-label">${vi ? 'Ngày thoát' : 'Exit date'}</label><input id="f-exitdate" class="field" type="date" max="${todayIso()}" value="${study.exitDate ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Giá thoát' : 'Exit price'}</label><input id="f-exitprice" class="field" type="number" step="any" value="${study.exitPrice ?? ''}" /></div>
         <div><label class="field-label" title="${vi ? '(exitPrice − entry) / (entry − stop). Tự động tính nếu để trống.' : '(exitPrice − entry) / (entry − stop). Auto-calculated if left blank.'}">${vi ? 'Kết quả R' : 'Result R'} <span class="muted" style="font-size:10px">${vi ? '(tự động)' : '(auto)'}</span></label><input id="f-rmult" class="field" type="number" step="any" value="${study.rMultiple ?? ''}" placeholder="${vi ? 'tự động' : 'auto'}" /></div>
+        <div style="grid-column:span 3"><label class="field-label" title="${
+          vi
+            ? 'Vì sao đã đóng vị thế. Chọn một lý do có sẵn rồi viết thêm, hoặc tự viết hẳn.'
+            : 'Why the position was closed. Pick one of the listed reasons and add to it, or write your own.'
+        }">${vi ? 'Lý do thoát' : 'Why it was closed'}</label>
+          <input id="f-exitreason" class="field" list="f-exitreason-list" value="${escapeAttr(study.exitReason ?? '')}" placeholder="${
+            vi ? 'VD: Chạm cắt lỗ — nhảy gap qua luôn sau tin lợi nhuận' : 'e.g. Stop hit — gapped straight through it on earnings'
+          }" />
+          <datalist id="f-exitreason-list">${
+            // The same fixed vocabulary the planner offers, as suggestions rather than a
+            // dropdown: a free-text field is what carries the lesson, and the list is what
+            // makes the journal countable later. See `portfolio/planExit.ts`.
+            EXIT_REASONS.map((r) => `<option value="${escapeAttr(vi ? r.vi : r.en)}"></option>`).join('')
+          }</datalist></div>
       </div>
     </div>
 
@@ -486,6 +577,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
       exitDate: ($('#f-exitdate') as HTMLInputElement).value || null,
       exitPrice,
       rMultiple,
+      exitReason: ($('#f-exitreason') as HTMLInputElement).value.trim(),
       catalysts,
       notes: sanitizeNoteHtml(notesHtml),
       updatedAt: todayIso(),
