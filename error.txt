@@ -4355,3 +4355,187 @@ Commit `82740c6c`, 10 file, 579 them / 135 xoa.
 - README §5.8 ghi sai cach restart, va hang rao ```bash o 671-680 chua dong.
 - Con theo doi rac: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o goc ma
   khong co `package.json` nao o goc.
+
+## CHAT-36 — In tren giay trang khong con le den, diem tho khong phai tren 100, playbook luu la ke hoach dang viet doi theo, ho so ghi dung dong tien
+
+Yeu cau cua nguoi dung, 4 viec:
+
+  1. "Khi ma tich ra de in mau trang ay, thi dang sau do o 4 margins co mau den
+     trong rat ky."
+  2. "Neu user answer all yes, no questions, the total points can be more than
+     100? dieu do la nhu the nao."
+  3. "Khi user thay doi trong playbook, khi save, thi tat ca moi thu phai (vi du
+     nhu dang setup trade plan, va vao thay doi playbook, thi sau khi save, cai
+     trade plan do phai thay doi chu, chi khi ma da buy, da save plan, save case
+     study thi moi khong thay doi thoi)."
+  4. Tra mon no da ghi o CHAT-35: do thi cua mot ho so EUR van ve tren nen USD.
+
+### A. Bon le trang in ra mau den — do canvas, khong phai do body
+
+Hop kiem "in tren giay trang" truoc day chi doi mau cua `<body>`. Vung LE TRANG
+(`@page { margin: 12mm }`) khong thuoc body — no do CANVAS ve, va canvas lay mau
+tu phan tu ROOT. Background cua `<body>` chi lan ra canvas khi `<html>` chua co
+mau rieng, va `:root { color-scheme: dark }` — thu ca hai tai lieu xuat ra deu
+khai bao — chinh la cai cho `<html>` mot mau: trinh duyet tu ve canvas toi cho
+khop voi scheme da khai bao.
+
+Nen ket qua la mot trang trang nam trong mot khung den 12mm.
+
+Sua: them vao `@media print` cua CA HAI tai lieu
+
+    html:has(#ink:checked) { background:#fff; color-scheme: light; }
+
+Can ca hai thuoc tinh, mot cai khong du: `color-scheme: light` ngan trinh duyet
+tu ve nen toi, `background:#fff` bit nhung engine van giu canvas mau xam. Cac
+quy tac `body:has(#ink:checked)` cu van giu — doi mot minh root thi chu se sang
+mau tren giay trang.
+
+Cai bay khi sua: KHONG viet van xuoi dai vao trong `PRINT_CSS`. Mot dau backtick
+trong day chuoi template la ket thuc chuoi, va TypeScript bao `TS1005` ngay tren
+mot dong trong nhu la CSS. Loi giai thich da doi len khoi JSDoc phia tren.
+
+Hai tai lieu in duoc trong app chi co hai cai nay: `portfolio/planReport.ts` va
+`caseStudies/report.ts`.
+
+### B. 174 diem, va vi sao khong quy ve 100
+
+Cau tra loi that: dung, tick het thi duoc 146/146 (ho `base`) hoac 138/138 (ho
+`pivot`), tong ca bang la 174. Trong so la TY LE TUONG DOI chu khong phai diem
+phan tram — thi truong 12 diem, so tron gan do 4 diem — nen chung cong lai thanh
+bao nhieu thi la bao nhieu. Quy ve tong 100 thi moi lan them mot tieu chi lai
+phai got bot cac tieu chi nang, tuc la noi sai ve hinh dang cua bang.
+
+Cai KHONG bao gio vuot 100 la `GradeResult.score`, vi no la `earned/possible`
+tinh ra phan tram — va do moi la so dung de xep hang va tinh size.
+
+Nen day la loi nhan nhan, khong phai loi tinh toan. O diem trong tab Hoc gio doc
+
+    Diem tho   146/146 diem          Xep hang   A - 100%
+
+va cau duoi bang noi ro "tick het thi duoc 146 diem, khong phai 100 — trong so
+la ty le tuong doi (tong ca bang 174 diem), va xep hang lay theo phan tram".
+Doan mo dau muc 11 cung noi "khong phai 100" ngay tu dau.
+
+`GRADE_TOTAL` da duoc dua len dau `tabs/swingPlaybook.ts` va tinh tu
+`GRADE_CRITERIA`, de con so trong van ban khong bao gio cu.
+
+### C. Luu playbook thi moi ke hoach DANG VIET tu tinh lai
+
+Truoc day moi nut banh rang tu chon cach lam moi cua no: nut o the Mua goi
+`draw(ctx)` — ve lai ca tab, tuc la xoa sach form dang dien nua; nut o panel ke
+hoach goi `computePlans`; luu tu tab Hoc thi form Mua giu nguyen stop cu.
+
+Gio co mot kenh chung trong `portfolio/playbook.ts`:
+
+    onPlaybookChange(fn): () => void     // dang ky, tra ve ham huy dang ky
+    notifyPlaybookChanged(): void        // ban ra, mot listener nem loi khong
+                                         // lam cac listener sau bi im
+
+Ban ra CHI tu `#pb-save` va `#pb-reset-all` cua hop thoai cai dat. Nguoi nghe:
+
+  • form Mua — `wireBuyPlan` dang ky `run()`, huy dang ky o dau moi lan wire lai
+    (bien `unsubscribeBuyPlan` o muc module), vi `draw()` dung lai ham nay va
+    mot listener bi ro ri se tinh lai mot form khong con trong trang;
+  • panel ke hoach — `openTradePlanner` dang ky `computePlans(planCtx)`, huy o
+    `closeTradePlanner`;
+  • tab Hoc khong can gi: no ve lai moi lan mo tab.
+
+Ca ba cho goi `openPlaybookSettings` gio KHONG truyen `onSaved` nua.
+
+Duong ranh nguoi dung ve duoc giu: cai da mua (`Lot`), da luu ke hoach
+(`PlanSnapshot`), da luu ho so (`CaseStudy`) la ban ghi cua mot quyet dinh da
+xong, luu kem chinh nhung con so luc do — khong cai nao bi cham vao.
+
+Vi sao KHONG ban tu trong `savePlaybookConfig`: `exitReasons.ts` cung ghi vao
+blob `pf_playbook_cfg` do, va listener cua panel ke hoach tai lai bars qua mang.
+Doi ten mot ly do thoat khong duoc ton mot vong tai du lieu. Nen hop thoai doi
+LUAT thi ban, trinh sua doi mot CAI NHAN thi khong.
+
+An toan khi chay lai: `apply()` trong `portfolioTab.ts` van giu stop/muc tieu
+nguoi dung tu go (bao lai la "kept"), nen viec nay chi doi nhung con so do app
+tu tinh ra.
+
+### D. Ho so EUR ve tren nen EUR — tra mon no cua CHAT-35
+
+`CaseStudy.currency?: 'USD' | 'EUR'` (KHONG CO = USD, tuc la moi ho so luu truoc
+2026-09-29). Mot ho so USD van duoc ghi voi truong nay VANG MAT chu khong phai
+`'USD'`, de chi co mot cach bieu dien "bang do" va blob dong bo khong sinh diff
+tren moi ho so cu.
+
+Chieu quy doi da doi han:
+
+  • truoc: `saveCaseStudy` doi cac muc gia EUR sang USD roi moi luu (`levelToUsd`),
+    vi ho so khong co cho nao noi khac duoc. Nhat quan ben trong nhung khong doc
+    duoc: mot lenh vao o 167 EUR bi ghi thanh "$194.12" ngay ben canh muc ke
+    hoach dong bang ghi "167,19 EUR" — mot lenh, hai gia, trong cung mot tai lieu.
+    Ho so tu go bang tay theo EUR thi cac duong ke ve lech hoan toan.
+  • gio: muc gia luu DUNG NHU DA NHAP, va NEN NEN duoc quy doi de gap chung —
+    `inCurrency(bars, rate)`, MOT ty gia cua ngay then chot, giong huong ma
+    `planReport.ts` da chon.
+
+Cac cho da sua:
+
+  • `caseStudyHtml(study, bars, earnings, fxRate)` — ho so EUR khong co ty gia
+    thi BO do thi kem mot dong giai thich, chu khong ve duong ke lech truc;
+  • `caseSym(study)` trong `caseStudiesTab.ts` — khong con hardcode `'$'`;
+  • ty gia lay tu cache thiet bi (`ensureEurUsd`), mo mot ho so khong duoc khoi
+    dong mot lan tai du lieu thi truong;
+  • o `#cs-plan` co HAI ty gia khac nhau, va gop chung lai la mot loi dang goi
+    ten: `planFx` de ve muc gia EUR tren nen nen USD (can cho MOI ke hoach EUR),
+    con `rate` de doi gia thoat cua ho so sang dong tien cua ke hoach (chi can
+    khi hai ben khac nhau, tuc la chi con voi ho so cu);
+  • trinh sua co o chon dong tien `#f-ccy`;
+  • `CaseStudyPromptContext.currency` — de khong bat model doi chieu gia EUR voi
+    bang gia USD no tu tra cuu, roi tra loi rang so lieu cua nguoi dung bi sai.
+
+### E. Tests
+
+  • `tests/planReport.test.ts` + `tests/caseReport.test.ts` — "turns the page
+    margins white too": regex tren `html:has(#ink:checked)` doi ca
+    `color-scheme: light` va `background:#fff`, va quy tac `body` phai con.
+  • `tests/caseReport.test.ts` — ho so EUR in ra "€100.00" va khong co
+    "$100.00"; do thi cua no BANG DUNG do thi ma mot ho so USD cung so ve tren
+    bars da chia san cho ty gia (phat bieu "quy doi" thanh mot dang thuc, thay
+    vi do mot nhan truc); khong co ty gia thi mat do thi nhung con ca ho so; ho
+    so USD khong doi mot chut nao du co truyen ty gia hay khong.
+  • `tests/planExit.test.ts` — "records euros as euros, and dollars as no field
+    at all".
+  • `tests/playbookBroadcast.test.ts` (moi) — moi listener deu nghe; mot listener
+    nem loi khong lam cac listener khac im; huy dang ky goi nhieu lan van dung;
+    va `savePlaybookConfig` TU NO khong ban ra.
+  • `packages/core/tests/planning/tradeGrader.test.ts` — "adds up to more than
+    100 raw points, and still grades out of 100": `possible > 100` nhung
+    `score === 100` cho ca hai ho.
+
+Ket qua: desktop 286 test / 19 file, core 792 test / 50 file, `tsc --noEmit`
+sach ca hai.
+
+### F. Cac file da sua
+
+    apps/desktop/src/caseStudies/report.ts        le trang trang + dong tien cua ho so
+    apps/desktop/src/caseStudies/store.ts         CaseStudy.currency
+    apps/desktop/src/portfolio/planExit.ts        CaseFromPlan.currency, khong doi muc gia
+    apps/desktop/src/portfolio/planReport.ts      le trang trang
+    apps/desktop/src/portfolio/playbook.ts        onPlaybookChange / notifyPlaybookChanged
+    apps/desktop/src/portfolio/tradePlanner.ts    dang ky kenh, khong con doi sang USD
+    apps/desktop/src/tabs/caseStudiesTab.ts       caseSym, quy doi nen, o chon dong tien
+    apps/desktop/src/tabs/portfolioTab.ts         form Mua nghe kenh, bo draw(ctx)
+    apps/desktop/src/tabs/swingPlaybook.ts        GRADE_TOTAL, nhan "Diem tho", cau giai thich
+    apps/desktop/src/ui/playbookSettings.ts       ban ra o Luu va Reset all
+    packages/core/src/analysis/caseStudyPrompt.ts context.currency
+    + 6 file test (1 moi)
+
+Commit: `efd80d0d` — 17 file, 525+/63-.
+
+### G. Con no
+
+  • Scanner tren VM khong con push tu 28/09/2026 — doc thi duoc, nen loi o phia
+    VM; can SSH tu may kia.
+  • Ban build Pages dang do: can `wrangler pages deploy dist --project-name
+    the-professional` tu `apps/desktop`.
+  • Commit `f0b6b0e9` ghi "22 tieu chi" (dung la 26) — sua thi phai force-push
+    nen de nguyen, ghi lai o day.
+  • README muc 5.8 ghi sai cach restart, va co mot khoi ```bash chua dong o dong
+    671-680.
+  • Cac file `package-lock.json` rac dang duoc theo doi trong git.
+
