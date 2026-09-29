@@ -9,7 +9,9 @@
  * words, and must carry the raw key into the tooltip so the gap can be closed.
  */
 import { describe, it, expect } from 'vitest';
-import { normKey, reasonLabel, setupLabel } from '../src/tabs/scannerVocab.js';
+import {
+  alertKindLabel, normKey, playbookNote, reasonLabel, setupLabel, setupWord, tableLabel,
+} from '../src/tabs/scannerVocab.js';
 
 describe('normKey', () => {
   it('collapses every separator the scanner might use', () => {
@@ -137,5 +139,74 @@ describe('reasonLabel', () => {
     for (const raw of ['', '_', '___', '   ']) {
       expect(reasonLabel(raw).text.length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * The three lookups added because the Scanner page printed pipeline internals in the
+ * middle of translated prose — the user's "tieng viet va tieng anh lan lon trong khi user
+ * chon tieng anh". Each one is a string the VM sends that used to reach the page raw.
+ */
+describe('playbookNote', () => {
+  it('translates the cell note the VM sends in accented Vietnamese', () => {
+    // The loudest leak on the page: the most prominent sentence in section 01.
+    expect(playbookNote('UPTREND', 'CONTRACTED'))
+      .toBe('The best case: tight bases, and a breakout has room to run.');
+    expect(playbookNote('DOWNTREND', 'EXPANDED')).toMatch(/^A downtrend/);
+    expect(playbookNote('RANGE', 'NORMAL')).toMatch(/mean-reversion/);
+  });
+
+  it('covers all twelve cells of config.PLAYBOOK', () => {
+    for (const trend of ['UPTREND', 'UPTREND_UNDER_STRESS', 'RANGE', 'DOWNTREND']) {
+      for (const vol of ['CONTRACTED', 'NORMAL', 'EXPANDED']) {
+        const s = playbookNote(trend, vol, 'RAW');
+        expect(s, `${trend}|${vol}`).not.toBe('RAW');
+        expect(s.length).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it('falls back to the note as it arrived rather than to an empty cell', () => {
+    // A regime pair this app has never heard of still has to print the day's instruction:
+    // a missing rule is worse than an untranslated one.
+    expect(playbookNote('SIDEWAYS_CHOP', 'NORMAL', 'Mot ghi chu moi')).toBe('Mot ghi chu moi');
+    expect(playbookNote(null, null, 'Mot ghi chu moi')).toBe('Mot ghi chu moi');
+    expect(playbookNote(undefined, undefined)).toBe('');
+  });
+});
+
+describe('alertKindLabel', () => {
+  it('says what NEW and UP actually mean', () => {
+    // The distinction is the column's whole reason for existing: an `UP` is the same
+    // opportunity getting stronger, not a second one.
+    expect(alertKindLabel('NEW').text).toBe('First');
+    expect(alertKindLabel('UP').text).toBe('Stronger');
+    expect(alertKindLabel('UP').tip).toMatch(/same opportunity/);
+    expect(alertKindLabel('new').known).toBe(true);
+  });
+
+  it('prints a dash for a missing kind and marks an unknown one', () => {
+    expect(alertKindLabel(null).text).toBe('—');
+    expect(alertKindLabel('').text).toBe('—');
+    expect(alertKindLabel('DOWN').known).toBe(false);
+  });
+});
+
+describe('tableLabel', () => {
+  it('turns the D1 schema names into words', () => {
+    // `struct` is not a word in either language, and it was hardcoded in two places.
+    expect(tableLabel('struct').text).toBe('Measured symbols');
+    expect(tableLabel('struct').tip).toMatch(/one row per symbol/i);
+    expect(tableLabel('bars').text).toBe('Daily bars');
+    expect(tableLabel('candidates').known).toBe(true);
+  });
+});
+
+describe('the SPIKE setup', () => {
+  it('has a name, because a playbook cell lists it', () => {
+    // It is intraday-only, so it never heads a candidates table — but `PLAYBOOK[...]
+    // ["setups"]` names it, and there it was rendering as a bare code.
+    expect(setupWord('SPIKE').text).toBe('Volume spike');
+    expect(setupLabel('SPIKE').text).toBe('Volume spike (SPIKE)');
   });
 });

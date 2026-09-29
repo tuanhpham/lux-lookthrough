@@ -24,8 +24,17 @@ import {
   chipHtml, countChip, rangeChip, sectionHead, type Chip, type ChipInput,
 } from '../ui/sectionHead.js';
 import { sectorName, sectorTip } from '../ui/sectorNames.js';
-import { caretHtml, openAttr, revealCollapse, setAllCollapsed, wireCollapse } from '../ui/collapse.js';
-import { reasonLabel, setupLabel, setupWord } from './scannerVocab.js';
+import {
+  caretHtml, foldBlock, openAttr, openAttrShut, revealCollapse, setAllCollapsed, wireCollapse,
+} from '../ui/collapse.js';
+import {
+  alertKindLabel, playbookNote, reasonLabel, setupLabel, setupWord, tableLabel,
+} from './scannerVocab.js';
+import {
+  CFG_DOC, CFG_SCALAR, G, METRICS, PLAN_STEPS, REJ_INTRO, REJ_LEGEND, REJ_TOTAL,
+  SETUP_DOC, WATCH_WHY,
+  cfgNote, cfgNum, gateText, planStepText, say, thrText, watchChecks, type Cfg,
+} from './scannerGuide.js';
 
 const KEY_STATUS = 'scanner:status';
 const KEY_CANDIDATES = 'scanner:candidates';
@@ -607,8 +616,14 @@ function renderToday(snap: RegimeSnap | null): string {
       + `${prev.vol && prev.vol !== r.vol ? ` / ${esc(t(`scan.vol.${prev.vol}`))}` : ''}</p>`
     : '';
 
-  const note = pb.note
-    ? `<div class="card" style="margin-top:10px">${esc(pb.note)}${changed}</div>`
+  // TRANSLATED, not printed raw. `config.PLAYBOOK`'s note is accented Vietnamese because
+  // the same string is the body of the morning Telegram message, and this was the loudest
+  // half of the user's "tieng viet va tieng anh lan lon trong khi user chon tieng anh": the
+  // most prominent sentence on the page ignored the language switch entirely. Keyed on the
+  // regime pair beside it, so it cannot go stale against a reworded note.
+  const noteTxt = pb.note ? playbookNote(r.trend, r.vol, pb.note) : '';
+  const note = noteTxt
+    ? `<div class="card" style="margin-top:10px">${esc(noteTxt)}${changed}</div>`
     : changed;
 
   return `
@@ -797,17 +812,78 @@ const tvLink = (sym: string): string =>
  * identically while calling for opposite actions. So the caller passes whether the
  * filter stage actually completed rather than letting the reader guess.
  */
-function renderWatch(snap: WatchSnap | null, blocked: boolean): string {
+/**
+ * Why anything is on the watch list at all, and how its plan was built.
+ *
+ * The four steps are provable rather than descriptive: `push.watchlist_payload()` is
+ * `WHERE setup='LEAD' ORDER BY quality DESC LIMIT watch_top`, so every row demonstrably
+ * cleared the LEAD gates, came from a top-N sector, and ranked inside the ceiling. The
+ * plan half is `plan.make()` with the live `plan.*` numbers substituted in — the user's
+ * "so sanh voi cai gi" applies to the plan as much as to the KPIs.
+ */
+function watchDocHtml(cfg: Cfg, topN: number, watchTop: number | null): string {
+  const steps = WATCH_WHY.map((w) =>
+    `${docH(say(w.h))}<p>${say(w.p)
+      .replace('{top}', `<b>${topN}</b>`)
+      .replace('{n}', `<b>${watchTop == null ? '—' : watchTop}</b>`)}</p>`).join('');
+  const plan = PLAN_STEPS.map((s) =>
+    `<li><span class="scan-gate-t"><b>${say(s.k)}</b> — ${planStepText(s.v, cfg)}</span></li>`)
+    .join('');
+  return `${steps}${docH(say(G.planHow!))}<ol class="scan-gates">${plan}</ol>`;
+}
+
+const WATCH_COLS = ['trigger', 'togo', 'stop', 'target', 'size_pct', 'quality', 'ref_close',
+  'atr_pct', 'off_high', 'rs21', 'rs63', 'base_len', 'adv20'] as const;
+
+/**
+ * One row's KPIs against the thresholds they had to clear — the user's *"co phan la why it
+ * is on the list voi cac KPIs nhung so sanh voi cai gi de biet duoc vao cac KPIs do thoa
+ * man"*.
+ *
+ * A `·` is not a `✕`. Two of the LEAD gates cannot be re-checked from a watch row — the
+ * dollar-volume gate used the 50-session average and the row carries the 20-session one,
+ * and RVOL is not stored on the row at all — so those print as unknown with the reason
+ * said out loud. Showing a red cross for a number this payload does not contain would
+ * accuse a row that passed.
+ */
+function watchWhyHtml(r: WatchRow, cfg: Cfg, top: readonly string[], span: number): string {
+  const MARK: Record<string, [string, string]> = {
+    ok: ['✓', 'var(--accent)'],
+    bad: ['✕', 'var(--danger)'],
+    unknown: ['·', 'var(--faint)'],
+  };
+  const lines = watchChecks(r, cfg, top).map((c) => {
+    const [m, col] = MARK[c.state]!;
+    return `<tr><td class="wl-chk-m" style="color:${col}">${m}</td>`
+      + `<td class="wl-chk-k">${esc(c.label)}</td>`
+      + `<td class="wl-chk-v">${esc(c.value)}</td>`
+      + `<td class="wl-chk-t">${esc(c.vs)}</td>`
+      + `<td class="wl-chk-n">${c.note ? esc(c.note) : ''}</td></tr>`;
+  }).join('');
+  return `<tr class="wl-why" data-why-for="${esc(r.sym ?? '')}" hidden>`
+    + `<td colspan="${span}">`
+    + `<div class="wl-why-h">${say(G.why!)} — <b>${esc(r.sym ?? '')}</b></div>`
+    + `<table class="wl-chk"><tbody>${lines}</tbody></table>`
+    + `<div class="wl-why-f">${say(G.measured!)} / ${say(G.required!)}</div>`
+    + `</td></tr>`;
+}
+
+function renderWatch(
+  snap: WatchSnap | null, blocked: boolean,
+  cfg: Cfg, topN: number, topSectors: readonly string[],
+): string {
   const rows = snap?.rows ?? [];
   const total = snap?.total ?? rows.length;
+  const watchTop = cfgNum(cfg, 'nightly.watch_top');
   const title = tags(
     snap?.d ? { n: snap.d, kind: 'date' } : null,
     rows.length ? countChip(rows.length, total) : null,
   );
+  const doc = docFold('scan:doc:watch', say(G.how!), watchDocHtml(cfg, topN, watchTop));
 
   if (!rows.length) {
     return `${title}<p class="muted">`
-      + `${blocked ? t('scan.watch.blocked') : t('scan.watch.none')}</p>`;
+      + `${blocked ? t('scan.watch.blocked') : t('scan.watch.none')}</p>${doc}`;
   }
 
   // Two header rows: the plan you act on, then the evidence that put the ticker
@@ -844,8 +920,13 @@ function renderWatch(snap: WatchSnap | null, blocked: boolean): string {
       ? `<span class="muted" style="font-size:11px"> ${((togo * (r.ref_close ?? 0)) / atr).toFixed(1)}×A</span>`
       : '';
     const noPlan = r.trigger == null || r.stop == null;
+    // The ⓘ opens this row's KPI checklist. It has to sit inside the symbol cell rather
+    // than in a column of its own: the table is already 15 columns wide and scrolls
+    // sideways on a phone, and a 16th column would be the first thing off the screen.
+    const why = `<button class="wl-why-b" data-why="${esc(r.sym ?? '')}"`
+      + ` title="${esc(say(G.whyOpen!))}" aria-label="${esc(say(G.whyOpen!))}">ⓘ</button>`;
     return `<tr data-sym="${esc(r.sym ?? '')}">`
-      + `<td class="wl-sep-r">${r.sym ? tvLink(r.sym) : '—'}</td>`
+      + `<td class="wl-sep-r">${r.sym ? tvLink(r.sym) : '—'}${why}</td>`
       + (noPlan
         // One dash per cell would read as "zero"; one spanned note reads as
         // "this row has no plan", which is the actual state.
@@ -869,13 +950,19 @@ function renderWatch(snap: WatchSnap | null, blocked: boolean): string {
       + cell(signedFrac(r.rs63), (r.rs63 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
       + cell(r.base_len == null ? '—' : String(r.base_len))
       + cell(fmtBig(r.adv20))
-      + `</tr>`;
+      + `</tr>`
+      // Rendered for every row, hidden until asked for. Built in the string rather than on
+      // demand because this page re-renders on every poll: a row built by script after
+      // mount would vanish on the next one, mid-read.
+      + watchWhyHtml(r, cfg, topSectors, 1 + PLAN.length + CTX.length);
   }).join('');
 
   return `${title}
+    ${doc}
     <div class="card" style="padding:0;overflow-x:auto">
       <table class="wl"><thead>${head}</thead><tbody>${body}</tbody></table>
     </div>
+    ${docFold('scan:doc:watchcols', say(G.cols!), metricDocHtml(WATCH_COLS))}
     <p class="muted" style="font-size:12px;margin:8px 0 0">${t('scan.watch.note')}</p>`;
 }
 
@@ -1139,12 +1226,25 @@ function renderThresholds(snap: ThresholdsSnap | null): string {
     // `playbook` is the 12-row lookup table, not a bag of scalars — the one group
     // that has to keep its own shape to be readable at all.
     if (group === 'playbook' && Array.isArray(val)) {
-      const rows = (val as Record<string, unknown>[]).map((p) =>
-        `<tr><td>${esc(String(p.trend ?? ''))}</td>`
-        + `<td>${esc(String(p.vol ?? ''))}</td>`
-        + `<td>${thValue(p.setups)}</td>`
-        + `<td>${sizeText(typeof p.size === 'number' ? p.size : null)}</td>`
-        + `<td>${esc(String(p.note ?? ''))}</td></tr>`).join('');
+      const rows = (val as Record<string, unknown>[]).map((p) => {
+        const trend = p.trend == null ? '' : String(p.trend);
+        const vol = p.vol == null ? '' : String(p.vol);
+        const setups = Array.isArray(p.setups)
+          // The words, with the codes in the tooltip — same treatment as the tile in 01,
+          // and the reason `SPIKE` now has a dictionary entry: it appears only here.
+          ? `<span title="${esc(p.setups.map((k) => String(k)).join(' · '))}">`
+            + esc(p.setups.map((k) => setupWord(String(k)).text).join(' · ')) + '</span>'
+          : thValue(p.setups);
+        // Not escaped: `enumLabel` returns the translated word plus the raw code in a muted
+        // span, exactly as the tile in section 01 prints it.
+        return `<tr><td>${enumLabel('trend', trend)}</td>`
+          + `<td>${enumLabel('vol', vol)}</td>`
+          + `<td>${setups}</td>`
+          + `<td>${sizeText(typeof p.size === 'number' ? p.size : null)}</td>`
+          // Translated, for the same reason as the tile in section 01: this is the same
+          // accented-Vietnamese string, and all 12 of them were printed raw here.
+          + `<td>${esc(playbookNote(trend, vol, p.note == null ? '' : String(p.note)))}</td></tr>`;
+      }).join('');
       return `${sectionHead(t('scan.sec.playbook'), [countChip(val.length, undefined, t('scan.col.regime'))])}
         <div class="card" style="padding:0;overflow-x:auto">
         <table><thead><tr><th>${t('scan.col.regime')}</th><th>${t('scan.col.volat')}</th>
@@ -1152,14 +1252,34 @@ function renderThresholds(snap: ThresholdsSnap | null): string {
         <th>${t('scan.col.note')}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
     if (val && typeof val === 'object' && !Array.isArray(val)) {
-      const rows = Object.entries(val as Record<string, unknown>).map(([k, v]) =>
-        `<tr><td>${esc(k)}</td><td>${thValue(v)}</td></tr>`).join('');
-      return `${sectionHead(esc(group), [countChip(Object.keys(val as object).length)])}
+      // Every row used to be `min_dollar_vol | 20000000.0` — a schema name and a number,
+      // in a section whose whole job is to explain the numbers on the rest of the page.
+      // `CFG_DOC` carries the name in words and the comment that sits beside the value in
+      // `config.py`, which is the only reason any of these numbers are readable. An
+      // undocumented key still prints, under its raw name: hiding it would be worse.
+      const doc = CFG_DOC[group];
+      const rows = Object.entries(val as Record<string, unknown>).map(([k, v]) => {
+        const kd = doc?.keys[k];
+        return `<tr><td class="scan-cfg-k">`
+          + `<div>${esc(kd ? say(kd.label) : k)}</div>`
+          + `<div class="scan-cfg-raw">${esc(k)}</div></td>`
+          + `<td class="scan-cfg-v">${thValue(v)}</td>`
+          + `<td class="scan-cfg-n">${kd ? cfgNote(kd.note, v) : ''}</td></tr>`;
+      }).join('');
+      const label = doc
+        ? `${esc(say(doc.label))} <span class="muted" style="font-size:11px">${esc(group)}</span>`
+        : esc(group);
+      return `${sectionHead(label, [countChip(Object.keys(val as object).length)],
+        doc ? { sub: say(doc.lead) } : undefined)}
         <div class="card" style="padding:0;overflow-x:auto">
-        <table><tbody>${rows}</tbody></table></div>`;
+        <table class="scan-cfg"><tbody>${rows}</tbody></table></div>`;
     }
-    return `<div class="stat"><div class="k">${esc(group)}</div>`
-      + `<div class="v" style="font-size:13px">${thValue(val)}</div></div>`;
+    const sd = CFG_SCALAR[group];
+    return `<div class="stat"${sd ? ` title="${esc(say(sd.note).replace(/<[^>]+>/g, ''))}"` : ''}>`
+      + `<div class="k">${esc(sd ? say(sd.label) : group)}</div>`
+      + `<div class="v" style="font-size:13px">${thValue(val)}</div>`
+      + (sd ? `<div class="scan-cfg-n" style="margin-top:4px">${say(sd.note)}</div>` : '')
+      + `</div>`;
   });
 
   // Scalars first in one card row, then the grouped tables.
@@ -1197,14 +1317,21 @@ function renderStatus(status: Status | null, pushedAt: number | null): string {
 
   // Table freshness. `age` is in trading-day terms from the VM's own `today`, and
   // it is the number that explains a silent scanner, so it gets its own row.
-  const table = (label: string, info: TableInfo | undefined, rows?: string): string => {
-    if (!info) return stat(label, `<span class="muted">${t('scan.st.missing')}</span>`);
+  // `name` is the D1 table, and it used to BE the label: `bars`, `struct`, `candidates`,
+  // hardcoded English schema names in a panel that is otherwise fully translated. `struct`
+  // in particular is not a word in either language. So the tile prints the table's meaning
+  // and keeps the schema name in the tooltip, where it is still needed to match the VM's log.
+  const table = (name: string, info: TableInfo | undefined, rows?: string): string => {
+    const l = tableLabel(name);
+    const label = `<div class="stat" title="${esc(`${name} — ${l.tip}`)}">`
+      + `<div class="k">${esc(l.text)}</div>`;
+    if (!info) return `${label}<div class="v"><span class="muted">${t('scan.st.missing')}</span></div></div>`;
     const age = info.age;
     const warn = age != null && age > MAX_AGE_DAYS;
     const body = `${rows ?? String(info.rows ?? 0)}`
       + `<span class="muted" style="font-size:11px"> · ${esc(info.last ?? '—')}`
       + `${age == null ? '' : ` (${age}d)`}</span>`;
-    return stat(label, body, warn ? 'var(--danger)' : undefined);
+    return `${label}<div class="v"${warn ? ' style="color:var(--danger)"' : ''}>${body}</div></div>`;
   };
 
   const bySetup = status.candidates?.by_setup ?? {};
@@ -1262,7 +1389,83 @@ function candRow(c: Candidate): string {
     + `</tr>`;
 }
 
-function renderCandidates(snap: CandidatesSnap | null): string {
+/* ── explanation blocks ──────────────────────────────────────────────────── */
+
+/**
+ * A fold of explanation, closed by default, whose open state survives a re-render.
+ *
+ * Closed, because this page is read most often by someone who already knows what a
+ * breakout is and wants the rows. Persisted, because the reader who does NOT know should
+ * not have to re-open it on every 60-second poll — `data-collapse` puts the state in the
+ * same store `ui/collapse.ts` uses for the sections themselves.
+ */
+const docFold = (id: string, label: string, body: string): string =>
+  `<details class="scan-th scan-doc" data-collapse="${esc(id)}"${openAttrShut(id)}>`
+  + `<summary>${label}</summary>${body}</details>`;
+
+/** A sub-heading inside a doc fold. Not `sectionHead`: that one numbers the page's spine. */
+const docH = (label: string): string => `<h4 class="scan-doc-h">${label}</h4>`;
+
+/**
+ * One setup, explained: what it is, the universe, every gate in test order with its live
+ * or mirrored threshold, the caps, what `quality` means, and what still has to happen
+ * intraday.
+ *
+ * The gate LIST is the answer to "cho minh mot kieu summary vi du nhu phai dat moc nao do
+ * cua cac criteria thi moi" — a criterion without its threshold beside it is not a
+ * criterion, it is a topic.
+ */
+function setupDocHtml(code: string, cfg: Cfg): string {
+  const doc = SETUP_DOC[code.trim().toUpperCase()];
+  if (!doc) return '';
+  const gate = (g: typeof doc.gates[number], i: number): string =>
+    `<li><span class="scan-gate-t">${gateText(g, cfg)}</span>`
+    + (g.note ? `<span class="scan-gate-n">${say(g.note)}</span>` : '')
+    + `</li>`;
+  const parts = [
+    `<p>${say(doc.what)}</p>`,
+    doc.universe
+      ? docH(say(G.universe!))
+        + `<p>${say(doc.universe).replace(
+          '{v}', `<b>${thrText(cfgNum(cfg, 'sectors.top_n'), 'int')}</b>`)}</p>`
+      : '',
+    docH(say(G.gates!)),
+    `<p class="scan-doc-note">${say(doc.mirrored ? G.mirror! : G.live!)}`
+      + `${cfg ? '' : ` ${say(G.noCfg!)}`}</p>`,
+    `<ol class="scan-gates">${doc.gates.map(gate).join('')}</ol>`,
+    doc.caps?.length
+      ? docH(say(G.caps!)) + `<ol class="scan-gates">${doc.caps.map(gate).join('')}</ol>`
+      : '',
+    docH(say(G.quality!)), `<p>${say(doc.quality)}</p>`,
+    doc.trigger ? docH(say(G.trigger!)) + `<p>${say(doc.trigger)}</p>` : '',
+  ];
+  return parts.join('');
+}
+
+/** The measurement columns of a table, defined, with what each is compared against. */
+function metricDocHtml(keys: readonly string[]): string {
+  const rows = keys.map((k) => {
+    const m = METRICS[k];
+    if (!m) return '';
+    return `<li><span class="scan-gate-t"><b>${say(m.label)}</b> — ${say(m.what)}</span>`
+      + (m.vs ? `<span class="scan-gate-n">${say(m.vs)}</span>` : '')
+      + `</li>`;
+  }).filter(Boolean).join('');
+  return rows ? `<ul class="scan-gates scan-gloss">${rows}</ul>` : '';
+}
+
+const CAND_COLS = ['quality', 'ref_close', 'pivot', 'dist_pivot', 'base_len', 'base_depth',
+  'off_high', 'rs_pct', 'adv20', 'atr_pct', 'fund_ok'] as const;
+
+/**
+ * The raw candidate tables, one fold per setup.
+ *
+ * Folded because of the user's "danh sach qua dai, scroll rat met": three setups of up to
+ * 500 rows each, stacked, put the config section several screens below anything that would
+ * make you want it. `foldBlock` means the heading and its count chip stay visible, so the
+ * page still reads as "BO 42 · RV 7 · LEAD 10" with nothing opened.
+ */
+function renderCandidates(snap: CandidatesSnap | null, cfg: Cfg): string {
   const by = snap?.by_setup ?? {};
   const setups = Object.keys(by).filter((k) => Array.isArray(by[k])).sort(bySetupOrder);
   if (!setups.length) {
@@ -1276,18 +1479,43 @@ function renderCandidates(snap: CandidatesSnap | null): string {
     // here: re-ranking a truncated list by "closest to pivot" would read as "the
     // closest in the market" when it is only the closest among the top N by quality.
     const head = candHead().map((h) => `<th>${esc(h)}</th>`).join('');
-    return `
-      ${sectionHead(setupHead(s), [countChip(rows.length, total)])}
+    const doc = setupDocHtml(s, cfg);
+    const body = `
+      ${doc ? docFold(`scan:doc:cand:${s}`, say(G.how!), doc) : ''}
+      ${docFold(`scan:doc:candcols:${s}`, say(G.cols!), metricDocHtml(CAND_COLS))}
       <div class="card" style="padding:0;overflow-x:auto">
         <table><thead><tr>${head}</tr></thead>
         <tbody>${rows.map(candRow).join('')}</tbody></table>
       </div>`;
+    const sub = SETUP_DOC[s.trim().toUpperCase()]?.sub;
+    return foldBlock(
+      `scan:cand:${s}`,
+      sectionHead(setupHead(s), [countChip(rows.length, total)],
+        sub ? { sub: say(sub) } : undefined),
+      body,
+      t('sec.fold'),
+    );
   });
 
   return blocks.join('');
 }
 
-function renderRejects(snap: RejectsSnap | null): string {
+/**
+ * What the three columns of "Why rejected" actually mean — as VISIBLE content.
+ *
+ * Straight from the user's questions: *"share o day co nghia la gi, count cai gi vay number
+ * of stocks ah?"*. Both answers existed only in the author's head. `Count` is stocks, not
+ * events; `Share` is out of every symbol examined for that setup, which is the rejected
+ * rows plus the passed chip — so the table sums to 100% and a single dominant row is
+ * immediately readable as "this one gate is deciding everything".
+ */
+const rejLegendHtml = (): string =>
+  `<p>${say(REJ_INTRO)}</p><ul class="scan-gates scan-gloss">`
+  + REJ_LEGEND.map((r) =>
+    `<li><span class="scan-gate-t"><b>${say(r.term)}</b> — ${say(r.def)}</span></li>`).join('')
+  + `</ul>`;
+
+function renderRejects(snap: RejectsSnap | null, cfg: Cfg): string {
   const by = snap?.by_setup ?? {};
   const setups = Object.keys(by).sort(bySetupOrder);
   if (!setups.length) {
@@ -1313,34 +1541,63 @@ function renderRejects(snap: RejectsSnap | null): string {
       // An unmapped reason is shown in italics with its raw key in the tooltip, so
       // the gap is visible and fixable instead of silently reading as a translation.
       const r = reasonLabel(reason);
-      return `<tr><td title="${esc(r.tip)}"${r.known ? '' : ' class="scan-raw"'}>${esc(r.text)}</td>`
+      // The explanation is now a VISIBLE second line, not only a `title=`. Every one of
+      // these sentences already existed in `scannerVocab.ts` and was reachable only by
+      // hovering a table cell — which on a phone means not at all. The user asked for
+      // exactly this: "Phan reason phai co them doan details nua, nghia la gi".
+      const detail = r.known && r.tip && r.tip !== reason
+        ? `<div class="scan-rej-why">${esc(r.tip)}</div>` : '';
+      return `<tr><td${r.known ? '' : ' class="scan-raw"'}>`
+        + `<div${r.known ? '' : ` title="${esc(r.tip)}"`}>${esc(r.text)}</div>${detail}</td>`
         + `<td>${n}</td>`
         + `<td><span class="scorebar"><span style="width:${share.toFixed(1)}%"></span></span>`
         + ` <span class="muted">${share.toFixed(1)}%</span></td></tr>`;
     });
-    return `
-      ${sectionHead(setupHead(s), [
+    const doc = setupDocHtml(s, cfg);
+    const body = `
+      ${doc ? docFold(`scan:doc:rej:${s}`, say(G.gates!), doc) : ''}
+      <div class="card" style="padding:0;overflow-x:auto">
+        <table class="scan-rej"><thead><tr><th>${t('scan.col.reason')}</th>
+        <th>${t('scan.col.count')}</th><th>${t('scan.col.share')}</th></tr></thead>
+        <tbody>${rows.join('')}</tbody></table>
+      </div>`;
+    return foldBlock(
+      `scan:rej:${s}`,
+      sectionHead(setupHead(s), [
         { n: passed, text: t('scan.rej.passed'), kind: 'count' },
         floor != null && floor !== passed
           ? { n: floor, text: t('scan.rej.floor'), kind: 'count' as const } : null,
         cutoff ? { n: cutoff, text: t('scan.rej.cut'), kind: 'warn' } : null,
-      ])}
-      <div class="card" style="padding:0;overflow-x:auto">
-        <table><thead><tr><th>${t('scan.col.reason')}</th>
-        <th>${t('scan.col.count')}</th><th>${t('scan.col.share')}</th></tr></thead>
-        <tbody>${rows.join('')}</tbody></table>
-      </div>`;
+      ], { sub: `${total} ${say(REJ_TOTAL)}` }),
+      body,
+      t('sec.fold'),
+    );
   });
 
   const meta: Chip[] = [];
-  if (snap?.struct != null) meta.push({ n: snap.struct, text: 'struct', kind: 'count' });
+  // The table name in words — `struct` was the one hardcoded English string in this
+  // section, and it is a schema identifier rather than a word in either language.
+  if (snap?.struct != null) {
+    const l = tableLabel('struct');
+    meta.push({ n: snap.struct, text: l.text, kind: 'count', title: `struct — ${l.tip}` });
+  }
   if (snap?.cho_fund) meta.push({ n: snap.cho_fund, text: t('scan.rej.fund'), kind: 'warn' });
 
   return `
     ${tags(...meta)}
     <p class="muted" style="font-size:12px;margin:0 0 8px">${t('scan.rej.note')}</p>
+    ${docFold('scan:doc:rejlegend', say(G.legend!), rejLegendHtml())}
     ${blocks.join('')}`;
 }
+
+/**
+ * `+15m`, `MFE`, `MAE` are the three most opaque strings on the page: they are jargon in
+ * English and untranslated jargon in Vietnamese, and the columns they head are the only
+ * place the scanner grades its own alerts. `score` needs a definition too — it shares a
+ * name with the nightly `quality` column and has nothing to do with it.
+ */
+const ALERT_COLS = ['score', 'px', 'chg', 'rvol', 'dollar_vol',
+  'px15', 'px_close', 'hi_after', 'lo_after'] as const;
 
 function renderAlerts(snap: AlertsSnap | null): string {
   const rows = snap?.rows ?? [];
@@ -1354,9 +1611,14 @@ function renderAlerts(snap: AlertsSnap | null): string {
       const m = move(r.px, v);
       return m == null ? '—' : `<span style="color:${m >= 0 ? 'var(--accent)' : 'var(--danger)'}">${signed(m)}</span>`;
     };
+    // `NEW` / `UP` in words. The difference between them is the column's whole reason for
+    // existing — an `UP` is the same opportunity getting stronger, not a second one — and
+    // two raw uppercase codes conveyed that to nobody, in either language.
+    const kind = alertKindLabel(r.kind);
     return `<tr data-sym="${esc(r.sym ?? '')}">`
       + `<td>${esc((r.ts_et ?? '').slice(11, 16) || '—')}</td>`
-      + `<td>${esc(r.kind ?? '—')}</td>`
+      + `<td${kind.tip ? ` title="${esc(kind.tip)}"` : ''}`
+      + `${kind.known ? '' : ' class="scan-raw"'}>${esc(kind.text)}</td>`
       + `<td>${tkr(r.sym)}</td>`
       + cell(num(r.score, 1))
       + cell(num(r.px, 2))
@@ -1374,7 +1636,8 @@ function renderAlerts(snap: AlertsSnap | null): string {
   return `${title}
     <div class="card" style="padding:0;overflow-x:auto">
       <table><thead><tr>${head}</tr></thead><tbody>${body.join('')}</tbody></table>
-    </div>`;
+    </div>
+    ${docFold('scan:doc:alertcols', say(G.cols!), metricDocHtml(ALERT_COLS))}`;
 }
 
 // ── shell ────────────────────────────────────────────────────────────────────
@@ -1616,6 +1879,21 @@ function draw(ctx: AppContext): void {
     return typeof s?.top_n === 'number' ? s.top_n : 3;
   })();
 
+  // The running config, passed down to every section that prints a threshold. Read from
+  // the VM's own `config.snapshot()` rather than mirrored in TypeScript, so a gate list on
+  // this page cannot quietly disagree with the gate the scanner ran — the two exceptions
+  // are the BO and RV dicts, which `config.snapshot()` does not publish and which
+  // `scannerGuide.ts` therefore labels as mirrored.
+  const cfg: Cfg = thresholds?.config;
+  // Which sectors are currently in the top N, for the watch list's first check. From the
+  // sectors snapshot, NOT from the watch rows: the question is whether this name's sector
+  // is one of the strong ones today, and the row can only say which sector it is in.
+  const topSectors = (sectors?.rows ?? [])
+    .filter((r) => (r.rank ?? 99) <= topN)
+    .sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+    .map((r) => r.sym ?? '')
+    .filter(Boolean);
+
   // Did the filter stage run? An empty watch list means two opposite things and
   // only the run record can tell them apart. Absent a run record, assume it ran:
   // accusing a stage of having failed on no evidence is its own kind of wrong.
@@ -1640,12 +1918,12 @@ function draw(ctx: AppContext): void {
     </nav>
     ${sec('today', renderToday(get<RegimeSnap>(KEY_REGIME)))}
     ${sec('sectors', renderSectors(sectors, topN))}
-    ${sec('watch', renderWatch(get<WatchSnap>(KEY_WATCH), watchBlocked))}
+    ${sec('watch', renderWatch(get<WatchSnap>(KEY_WATCH), watchBlocked, cfg, topN, topSectors))}
     ${sec('night', renderNight(status?.night))}
     ${sec('guide', renderGuide(status?.night))}
     ${sec('status', renderStatus(status, pushedAt))}
-    ${sec('cand', renderCandidates(get<CandidatesSnap>(KEY_CANDIDATES)))}
-    ${sec('rejects', renderRejects(get<RejectsSnap>(KEY_REJECTS)))}
+    ${sec('cand', renderCandidates(get<CandidatesSnap>(KEY_CANDIDATES), cfg))}
+    ${sec('rejects', renderRejects(get<RejectsSnap>(KEY_REJECTS), cfg))}
     ${sec('alerts', renderAlerts(alertsKey ? get<AlertsSnap>(alertsKey) : null))}
     ${sec('thresholds', renderThresholds(thresholds))}`;
 
@@ -1707,8 +1985,26 @@ function draw(ctx: AppContext): void {
     tr.addEventListener('click', (e) => {
       // The TradingView link inside the row is a different destination. Without
       // this the modal opens behind the new tab on every single click of it.
-      if ((e.target as HTMLElement).closest('[data-tv]')) return;
+      // Same for the ⓘ: it expands the row in place, and opening the chart over the
+      // explanation the reader just asked for would hide it behind a modal.
+      if ((e.target as HTMLElement).closest('[data-tv],[data-why]')) return;
       void openStock(ctx, sym);
+    });
+  });
+
+  // The per-row "why it is on the list". A plain hidden-row toggle rather than a popover:
+  // the checklist is 11 lines wide with a note column, and the numbers it compares are in
+  // the row directly above it — which is the whole point of showing them together.
+  root.querySelectorAll<HTMLElement>('[data-why]').forEach((b) => {
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const sym = b.dataset.why ?? '';
+      const row = root.querySelector<HTMLElement>(`tr.wl-why[data-why-for="${CSS.escape(sym)}"]`);
+      if (!row) return;
+      const open = row.hidden;
+      row.hidden = !open;
+      b.classList.toggle('on', open);
+      b.setAttribute('aria-expanded', String(open));
     });
   });
 }

@@ -51,10 +51,24 @@ export function openAttr(id: string): string {
   return isCollapsed(id) ? '' : ' open';
 }
 
+/**
+ * The same thing for a fold that should START CLOSED — an explanation beside data, which
+ * the reader who already knows should not have to fold away on every visit.
+ *
+ * Needs `false` to be STORED rather than treated as absent, which is why `setCollapsed`
+ * writes both values: "never touched" and "opened once" have to be different states, and
+ * for a default-open section they are not.
+ */
+export function openAttrShut(id: string): string {
+  return read()[id] === false ? ' open' : '';
+}
+
 export function setCollapsed(id: string, collapsed: boolean): void {
   const s = read();
-  if (collapsed) s[id] = true;
-  else delete s[id]; // open is the default, so stop storing it
+  // Both values are written, including `false`. It costs a few bytes per section the
+  // reader has opened, and it buys `openAttrShut` above — with `false` deleted, a fold
+  // that starts closed can never remember having been opened.
+  s[id] = collapsed;
   write(s);
 }
 

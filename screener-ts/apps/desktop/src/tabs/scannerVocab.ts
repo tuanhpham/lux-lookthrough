@@ -84,6 +84,16 @@ const SETUPS: Record<string, Term> = {
     tipVi: 'Không phải mẫu hình kỹ thuật mà là một bộ sàn chất lượng: mã đủ thanh khoản '
       + 'thuộc top 3 sector, mạnh hơn SPY và còn gần đỉnh.',
   },
+  // Not a nightly setup, so it never heads a candidates table — but it IS one of the names
+  // listed in a playbook cell's `setups`, and it was rendering there as a bare code.
+  spike: {
+    en: 'Volume spike', vi: 'Bùng khối lượng',
+    tipEn: 'An intraday-only engine: an unusual surge of volume and range, with no base and no '
+      + 'pivot behind it. The playbook allows it in some regimes and not in others.',
+    tipVi: 'Đây là engine chỉ chạy trong phiên: một cú bùng khối lượng và biên độ bất thường, '
+      + 'không có nền và không có pivot phía sau. Playbook cho phép nó ở một số trạng thái thị '
+      + 'trường và chặn ở các trạng thái khác.',
+  },
 };
 
 /* ── Reject reasons, exact ───────────────────────────────────────────────── */
@@ -199,8 +209,18 @@ const REASONS: Record<string, Term> = {
   // ── Intraday triggers: trig_bo() / trig_rv(). Not in `scanner:rejects` today. ──
   thieu_gia_pivot: {
     en: 'Price or pivot missing', vi: 'Thiếu giá hoặc pivot',
+    tipEn: 'A data gap, not a verdict on the stock: with no quote or no pivot there is no level '
+      + 'to compare anything against, so the check cannot be run at all.',
+    tipVi: 'Đây là lỗ hổng dữ liệu, không phải kết luận về mã đó: không có giá hoặc không có pivot '
+      + 'thì không có mốc nào để so, nên phép kiểm tra không chạy được.',
   },
-  thieu_gia: { en: 'Price missing', vi: 'Thiếu giá' },
+  thieu_gia: {
+    en: 'Price missing', vi: 'Thiếu giá',
+    tipEn: 'No usable quote arrived for this symbol — stale, halted, or never fetched. '
+      + 'Treated as a rejection because a missing price is never assumed to be a good one.',
+    tipVi: 'Không nhận được giá dùng được cho mã này — giá quá cũ, mã bị tạm ngừng, hoặc chưa lấy '
+      + 'được. Bị coi là loại vì thiếu giá không bao giờ được mặc định là giá tốt.',
+  },
   chua_vuot_pivot: {
     en: 'Has not cleared the pivot', vi: 'Chưa vượt pivot',
     tipEn: 'Still below the breakout level. Nothing to do yet.',
@@ -223,6 +243,12 @@ const REASONS: Record<string, Term> = {
   },
   khong_dong_o_vung_dinh_ngay: {
     en: 'Not closing near the high of the day', vi: 'Không đóng ở vùng đỉnh ngày',
+    tipEn: 'Price cleared the level intraday but gave the gain back before the close. A breakout '
+      + 'has to hold the upper half of the day’s range (the upper quarter for a reversal): the '
+      + 'close is the only price the whole market agreed on.',
+    tipVi: 'Giá đã vượt mốc trong phiên nhưng trả lại hết trước khi đóng cửa. Một cú bứt phá phải '
+      + 'giữ được nửa trên biên độ ngày (đảo chiều là 1/4 trên): giá đóng cửa là giá duy nhất mà '
+      + 'cả thị trường đồng ý.',
   },
   chua_co_so_lieu_co_ban: {
     en: 'No fundamentals yet', vi: 'Chưa có số liệu cơ bản',
@@ -236,6 +262,12 @@ const REASONS: Record<string, Term> = {
   },
   gap_to_entry_xau: {
     en: 'Large gap — poor entry', vi: 'Gap to, entry xấu',
+    tipEn: 'A warning, not a rejection: the trigger still fires. Price opened more than 8% above '
+      + 'yesterday’s close, so the planned stop is now far below and the position it sizes has to '
+      + 'be small. The setup may be right and the entry still bad.',
+    tipVi: 'Đây là cảnh báo, không phải loại: điểm kích hoạt vẫn nổ. Giá mở cửa cao hơn 8% so với '
+      + 'đóng cửa hôm trước, nên cắt lỗ theo kế hoạch giờ nằm rất xa và vị thế tính ra phải nhỏ. '
+      + 'Setup có thể đúng mà điểm vào vẫn tệ.',
   },
 
   // ── Counters. `scannerTab` hides `_`-prefixed keys from the table and prints
@@ -427,6 +459,152 @@ export function setupLabel(code: string): Label {
   // Don't print "VCP (VCP)".
   const text = normKey(l.text) === normKey(short) ? l.text : `${l.text} (${short})`;
   return { ...l, text };
+}
+
+/* ── Playbook notes ──────────────────────────────────────────────────────── */
+
+/**
+ * The one line each playbook cell says about itself.
+ *
+ * These notes live in `config.PLAYBOOK` as ACCENTED Vietnamese, and they must stay that
+ * way: the same string goes verbatim into the morning Telegram message, which is read on
+ * a phone in Vietnamese and has no language switch. So the Vietnamese here is a copy of
+ * the source, and the English is the translation this page needed — the note was the
+ * single biggest reason the Scanner tab read as half-translated.
+ *
+ * Keyed `TREND|VOL`, the pair `config.py` keys the playbook by, because that pair is in
+ * the payload beside the note. The note text itself is deliberately NOT the key: it is
+ * prose, it will be reworded, and a reworded note would silently stop translating. When
+ * a pair is unknown the raw note is printed as it arrived — a Vietnamese sentence in an
+ * English page is bad, an empty cell where the day's instruction should be is worse.
+ */
+const PLAYBOOK_NOTES: Record<string, Term> = {
+  'uptrend|contracted': {
+    vi: 'Trường hợp tốt nhất: nền chặt, breakout có chỗ để chạy.',
+    en: 'The best case: tight bases, and a breakout has room to run.',
+  },
+  'uptrend|normal': {
+    vi: 'Bình thường, đầy đủ setup.',
+    en: 'Normal conditions, every setup available.',
+  },
+  'uptrend|expanded': {
+    vi: 'Biên độ nở rộng → stop phải rộng hơn → hạ cỡ vị thế.',
+    en: 'Volatility is expanded → stops have to be wider → cut the position size.',
+  },
+  'uptrend_under_stress|contracted': {
+    vi: 'Chỉ quản lý vị thế đang có, không vào mới.',
+    en: 'Manage what is already open; take nothing new.',
+  },
+  'uptrend_under_stress|normal': {
+    vi: 'Chỉ quản lý vị thế đang có, không vào mới.',
+    en: 'Manage what is already open; take nothing new.',
+  },
+  'uptrend_under_stress|expanded': {
+    vi: 'Xu hướng yếu đi kèm biên độ nở rộng: đứng ngoài.',
+    en: 'A weakening trend with expanding volatility: stay out.',
+  },
+  'range|contracted': {
+    vi: 'Kênh giá hẹp: chỉ mua lại chứ không mua breakout.',
+    en: 'A narrow channel: buy pullbacks, not breakouts.',
+  },
+  'range|normal': {
+    vi: 'Kênh giá: chỉ mean-reversion, nửa cỡ vị thế.',
+    en: 'A channel: mean-reversion only, at half size.',
+  },
+  'range|expanded': {
+    vi: 'Kênh giá + biên độ nở rộng = whipsaw hai chiều, đứng ngoài.',
+    en: 'A channel plus expanding volatility = whipsaws both ways. Stay out.',
+  },
+  'downtrend|contracted': {
+    vi: 'Xu hướng giảm: không mở vị thế mua, chỉ canh stop.',
+    en: 'A downtrend: open no long, watch the stops.',
+  },
+  'downtrend|normal': {
+    vi: 'Xu hướng giảm: không mở vị thế mua, chỉ canh stop.',
+    en: 'A downtrend: open no long, watch the stops.',
+  },
+  'downtrend|expanded': {
+    vi: 'Xu hướng giảm + biên độ nở rộng: tuyệt đối không mở vị thế mua.',
+    en: 'A downtrend with expanding volatility: open no long under any circumstances.',
+  },
+};
+
+/**
+ * The playbook cell's note in the reader's language. `raw` is what the payload sent and
+ * is the fallback, so an unmapped cell still prints its instruction.
+ */
+export function playbookNote(
+  trend: string | null | undefined,
+  vol: string | null | undefined,
+  raw?: string | null,
+): string {
+  const hit = PLAYBOOK_NOTES[`${normKey(trend ?? '')}|${normKey(vol ?? '')}`];
+  if (!hit) return raw ?? '';
+  return getLang() === 'vi' ? hit.vi : hit.en;
+}
+
+/* ── Alert kinds ─────────────────────────────────────────────────────────── */
+
+/**
+ * `main.py` sends exactly two: the first alert of the session for a symbol, and a
+ * re-alert because its score climbed past the best already sent. The distinction is the
+ * whole point of the column — an `UP` is not a second opportunity, it is the same one
+ * getting stronger — and `NEW`/`UP` printed raw explained neither.
+ */
+const ALERT_KINDS: Record<string, Term> = {
+  new: {
+    en: 'First', vi: 'Lần đầu',
+    tipEn: 'The first alert for this symbol in today’s session.',
+    tipVi: 'Cảnh báo đầu tiên của mã này trong phiên hôm nay.',
+  },
+  up: {
+    en: 'Stronger', vi: 'Mạnh hơn',
+    tipEn: 'Already alerted today, and re-sent because the score rose clearly above the best '
+      + 'already sent. The same opportunity improving, not a new one.',
+    tipVi: 'Đã báo hôm nay rồi, và được gửi lại vì điểm tăng rõ rệt so với mức tốt nhất đã gửi. '
+      + 'Đây là cùng một cơ hội đang mạnh lên, không phải một cơ hội mới.',
+  },
+};
+
+export function alertKindLabel(raw: string | null | undefined): Label {
+  if (!raw) return { text: '—', tip: '', known: true };
+  return look(ALERT_KINDS, raw);
+}
+
+/* ── Pipeline table names ────────────────────────────────────────────────── */
+
+/**
+ * The scanner's D1 tables, which the status and rejects sections count rows of. `struct`
+ * is a schema name, not a word: printed raw it is the only thing on that line the reader
+ * cannot look up.
+ */
+const TABLES: Record<string, Term> = {
+  bars: {
+    en: 'Daily bars', vi: 'Nến ngày',
+    tipEn: 'Rows of daily open/high/low/close/volume — the raw history everything else is '
+      + 'computed from.',
+    tipVi: 'Số dòng nến ngày (mở/cao/thấp/đóng/khối lượng) — lịch sử gốc mà mọi thứ khác được '
+      + 'tính ra từ đó.',
+  },
+  struct: {
+    en: 'Measured symbols', vi: 'Mã đã đo',
+    tipEn: 'One row per symbol per session, holding the derived measurements: pivot, base length '
+      + 'and depth, ATR%, RS, distance off the high. This is the table every gate is tested '
+      + 'against, so it is also the universe the "Why rejected" shares are taken out of.',
+    tipVi: 'Một dòng cho mỗi mã mỗi phiên, chứa các số liệu đã tính: pivot, độ dài và độ sâu nền, '
+      + 'ATR%, RS, khoảng cách tới đỉnh. Đây là bảng mà mọi điều kiện được kiểm tra trên đó, nên '
+      + 'nó cũng là tổng số mà tỷ lệ ở mục "Vì sao bị loại" được chia ra.',
+  },
+  candidates: {
+    en: 'Candidates', vi: 'Ứng viên',
+    tipEn: 'Symbols that cleared every gate of at least one setup and were given a plan.',
+    tipVi: 'Các mã đã qua toàn bộ điều kiện của ít nhất một setup và đã được lập kế hoạch.',
+  },
+};
+
+/** A pipeline table name as words. */
+export function tableLabel(name: string): Label {
+  return look(TABLES, name);
 }
 
 /** A reject reason as a sentence fragment a reader can act on. */
