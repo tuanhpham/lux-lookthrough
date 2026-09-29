@@ -3867,3 +3867,136 @@ tinh nang chong nhin truoc la thu te nhat trong ca man hinh nay.
 - Rac con theo doi: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o
   goc ma khong co `package.json` nao o goc.
 
+## CHAT-32 — Co "E" ngay bao cao tren ca do thi in ra, va tra cuu luc mo chu khong dong bang
+
+Yeu cau cua user chi co ba chu: "lam luon di", tra loi dung muc "con no" o cuoi CHAT-31 — ban
+in ke hoach chua co co ngay bao cao. Nen pham vi cua chat nay la: dua co "E" sang trinh ve SVG,
+roi noi day du moi noi dang dung trinh ve do.
+
+### A. Trinh ve SVG: mot hang co moi o dai tren
+
+`caseStudies/svgChart.ts` la trinh ve dung chung cho HAI ban in: ban in ke hoach
+(`portfolio/planReport.ts`) va ban in ho so (`caseStudies/report.ts`). Sua mot cho la ca hai co.
+
+- `ChartSubject` them `earnings?: readonly string[]` — CO DAU HOI. `CaseStudy` thoa interface nay
+  theo cau truc chu khong khai bao, nen mot truong bat buoc se lam vo moi cho goi hien co.
+- `CaseChartColors` them `earn`, `DARK_CHART_COLORS.earn = '#a855f7'` — cung mau tim voi hang so
+  `EARN` trong `ui/charts.ts`, de ban in va do thi tuong tac danh dau cung mot thu cung mot mau.
+- Vong ve dat o `earnTop = padT + 11`, tuc mot hang DUOI hang cua chat xuc tac (`padT`/`padT+8`).
+
+Vi sao la dai tren chu khong phai duoi than nen nhu do thi tuong tac: duoi than nen la cho cua
+mui `▲ ENTRY` (`y(low) + 14`). Neu ve o do thi dung luc mot ky bao cao roi gan ngay vao, hai ky
+hieu se de len nhau — ma do lai chinh la truong hop dang can nhin ro nhat. Dai tren la cho trinh
+ve nay von da dat cac su kien co ngay, va them mot hang rieng thi bao cao va chat xuc tac cung
+ngay khong dap nhau.
+
+### B. Ngoai khung thi khong ve gi, va day khong phai chi tiet nho
+
+`nearestIdx` tim nen GAN NHAT — no sinh ra de khi user go ngay cuoi tuan thi mui ENTRY khong bi
+troi ve thu Sau. Nhung neu dua vao no mot ky bao cao cach khung sau thang, no se dan ky do vao
+nen DAU hoac nen CUOI cua khung va ve mot co o do. Doc len thi day la mot su thuc, chu khong
+phai mot sai so lam tron. Nen co kiem tra khoang truoc:
+
+    if (date < bars[0]!.date || date > bars[n - 1]!.date) continue;
+
+### C. Dong chu thich, vi ky hieu trong SVG khong hover duoc
+
+Marker cua lightweight-charts khong co tooltip (da ghi o CHAT-31 §C), va SVG tinh cung vay. Nen
+duoi do thi co mot dong: "E = ngay cong bo bao cao (nguon: Nasdaq, 4 quy gan nhat)".
+
+Khong co co nao trong khung thi KHONG co dong chu thich. Giai thich mot ky hieu khong ton tai la
+loi hua ma do thi khong giu. (Do thi tren the o Trade Planner thi nguoc lai: no NOI RO "khong co
+ngay nao trong khung vi Nasdaq chi co 4 quy" — vi o do user vua bam doi ngay nen can biet tai sao
+cac diem vua bien mat. Ban in thi khong ai vua bam gi ca.)
+
+CSS them `.chart-note` vao ca hai ban in. Luu y khi viet test: `.chart-note` LUON nam trong
+`<style>`, nen kiem tra phai la `not.toContain('<div class="chart-note"')`, khong phai
+`not.toContain('chart-note')`.
+
+### D. Ngay bao cao KHONG phai chat xuc tac
+
+Cach nhanh nhat de co co la nhap ngay bao cao vao `study.catalysts`. Khong lam, va day la ly do
+duoc ghi ngay trong `ChartSubject.earnings`:
+
+- Mot `Catalyst` la thu NGUOI DUNG tu viet, va no co BANG RIENG trong bao cao.
+- Mot ngay bao cao duoc tra cuu tu Nasdaq, khong phai mot cau user khang dinh, va khong thuoc
+  bang nao.
+
+Tron hai thu se vua them vao dong thoi gian cua user nhung dong ho chua bao gio go, vua lam cau
+"minh co ghi nhan rui ro bao cao hay chua" thanh khong con tra loi duoc. Truong rieng, ky hieu
+rieng, mau rieng.
+
+### E. Noi day du: sau cho goi, khong phai mot
+
+| Noi | Cho goi | Lay ngay bao cao o dau |
+|-----|---------|------------------------|
+| Trade Planner — ban in the | `tradePlanner.ts` `cardReportInput` | `planEarnings` da co san tren man hinh |
+| Case Studies — do thi tren trang | `caseSvgChart(win, {...study, earnings})` | `fetchEarningsReports` sau lan ve dau |
+| Case Studies — file HTML tai ve | `caseStudyHtml(study, bars, earnDates)` | cung bien do |
+| Case Studies — nut Xem ke hoach | `openPlanReport({... earnings})` | cung bien do |
+| Portfolio — ban in o Mua | `reportNow()` doc `lastEarn` | `Promise.all` trong `run` |
+| Portfolio — ke hoach dong bang cua lo | `openPlanReport({... earnings})` | `Promise.all` canh `barsFor` |
+
+`caseStudyHtml` nhan `earnings` la tham so THU BA co gia tri mac dinh `[]`, va `PlanReportInput`
+.`earnings` la tuy chon — nen moi cho goi cu khong sua gi van bien dich va van ve dung nhu truoc.
+
+### F. Tra cuu luc mo, khong dong bang vao ban ghi
+
+`PlanSnapshot` khong luu ngay bao cao, va co y. Ban ghi ke hoach luu thu APP DA QUYET DINH — muc
+gia, hang, bang tieu chi — de sau nay khong sua duoc nua. Con ky bao cao roi vao ngay nao la su
+thuc cua thi truong: doc lai no khong phai doc lai mot quyet dinh. Cung ly do voi ly do `bars`
+duoc tai lai chu khong luu kem.
+
+Doi lai: `planReport.ts` va `report.ts` NHAN ngay bao cao chu khong tu goi mang — de hai module
+do van la ham thuan cua dau vao va van render duoc trong test khong co mang. Giong het ly do
+`fxRate` duoc truyen vao.
+
+### G. Case Studies ve truoc, danh dau sau
+
+`openDetail` KHONG cho ngay bao cao cung luc voi du lieu gia. Do thi la ly do trang do ton tai,
+nen no khong duoc doi them mot vong mang moi hien; khi ngay bao cao ve thi ve lai do thi. Hai
+cai chan:
+
+- `detailToken` (bien module, tang moi lan mo): mot lan tra cuu ve muon khong roi vao ho so ma
+  user da chuyen di khoi. Chi kiem tra `#cs-chart` con ton tai la KHONG DU — mo ho so khac thi
+  `#cs-chart` van ton tai, nhung no la do thi cua ma khac.
+- Van kiem tra `$('#cs-chart')` nua, vi bam Back thi khong tang token.
+
+O Portfolio thi khac: `lastEarn` nam canh `lastBars` va duoc XOA CUNG voi no (ba cho: doi ma,
+`resetForm`, va khoi dau). Mot do thi ve tu nen cua ma nay voi ngay bao cao cua ma khac la mot
+phat bieu ve mot giao dich khong ai dat.
+
+### H. Kiem tra
+
+4 test moi trong `tests/planReport.test.ts`: co trong khung thi co `>E</text>` va co dong chu
+thich; co ngoai khung (ca truoc nen dau va sau nen cuoi) thi khong co ca hai; khong truyen ngay
+nao thi giong het truoc; va ban tieng Viet khong lo chu tieng Anh.
+
+tsc sach. apps/desktop 265/265 (17 file). packages/core 790/790 (50 file). Commit 1fdd9af3.
+
+Nguoi dung nen tu kiem:
+
+- Mo Trade Planner mot ma My, bam 🖨 hoac 👁: do thi trong ban in phai co chu E mau tim o dai
+  tren, va mot dong chu thich mau tim duoi do thi.
+- Doi Trade Date ve hai nam truoc roi in lai: KHONG co chu E nao, va cung KHONG co dong chu
+  thich nao (khac voi do thi tren the — cho do co noi ro vi sao).
+- Vao Case Studies mo mot ho so: do thi hien ngay, roi mot lat sau cac chu E xuat hien.
+- Bam ±1M/±3M/±6M: chu E phai theo khung moi.
+- Bam Tai HTML: mo file ra, cac chu E y nguyen nhu tren trang.
+- Mo mot ho so, bam Back, mo ngay mot ho so khac: do thi khong bao gio nhay ve ma truoc.
+- Tab Portfolio, bang giao dich, bam nut ke hoach cua mot lo cu: ban in do cung phai co chu E.
+- Mot ma VN: khong co chu E o dau ca, va khong co dong chu thich nao.
+
+### I. Con no
+
+- Loi nhan f0b6b0e9 viet "22 tieu chi" (dung la 26) — sua phai force-push, de nguyen.
+- Ban build Pages cua lux-lookthrough van do: chay `wrangler pages deploy dist
+  --project-name the-professional` tu apps/desktop tren may co dang nhap Cloudflare.
+- Scanner khong day tin ke tu 28-09-2026: doc van duoc nen loi nam o phia VM, can SSH tu may
+  kia.
+- Web search cho assistant: chua lam.
+- Tran cat lo van dang mac dinh min ('deeper') theo gia dinh cua toi, chua co xac nhan.
+- Ghi chu le ben canh tung muc cho sach Learn: chua lam.
+- README muc 5.8 ghi sai cach restart, va con mot khoi ```bash chua dong o dong 671-680.
+- Rac con theo doi: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o
+  goc ma khong co `package.json` nao o goc.
