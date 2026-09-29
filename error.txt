@@ -5131,3 +5131,95 @@ Yeu cau: "2. phan why rejected phan reason ban co the tra trong scanner repo ma"
   — `tests/scannerVocab.test.ts` viet lai: 15 test, moi khoa trong do COPY tu
     `setups.py`. Co test noi ro `setupLabel('EP').known === false`, va test kiem tra
     con so khong bi mat khi dich (`gia < $10.0` ra "Price below $10.0").
+
+## CHAT-41 — Mobile: cai khung khong con bi tran
+
+Yeu cau: "van chua toi uu cho phien ban mobile lam" — cu the la ba cho: hang nut
+"Ask ChatGPT / View plan / Print plan" trong trade plan o trang tung ma va trong Buy
+form thi vuot qua khung, cac o KPI (entry, stop) trong bao cao View plan cung vuot
+khung, va bang tieu chi cung vay; "khong dynamically change khi ma size thay doi".
+
+### A. Ba nguyen nhan khac nhau, khong phai mot
+
+  — Hang nut: `.tp-note-head` la flex KHONG wrap. Ba nut mini cong lai rong hon the,
+    nen chung cu chay tiep ra ngoai le phai. Chi can cho wrap la xong. Mot class nay
+    dung o hai noi (`tradePlanner.ts` va `portfolioTab.ts` cua Buy form) nen sua mot
+    lan la ca hai cho het loi.
+  — Cac o so lieu: `1fr` trong CSS Grid co nghia la `minmax(auto, 1fr)`, tuc la o
+    KHONG BAO GIO duoc hep hon noi dung cua no. Mot so tien nhu `$12,345 (12.3%)`
+    bang phong chu so 15px khong the ngat dong, nen no keo rong o, va cai TRAN ra
+    ngoai khung la ca luoi chu khong phai con so. Cach sua: dat san ro rang
+    (`minmax(132px, 1fr)`) hoac `minmax(0, 1fr)`, cong voi `min-width: 0` va
+    `overflow-wrap: break-word` tren `.stat`.
+  — "Khong dynamically change": cua so KHONG phai la container cua the. Cung mot the
+    trade plan duoc ve trong modal cua mot ma, va trong nua trai cua luoi `1fr 1fr`
+    o Paper Trading. Voi mot cua so 1000px, the do co the rong 470px hoac 900px —
+    mot rule `@media (max-width: 640px)` khong the phan biet hai truong hop do, nen
+    no khong bao gio chay dung luc. `repeat(auto-fit, minmax(Xpx, 1fr))` hoi CHINH
+    CAI THE, va do dung la y nghia cua "thay doi theo size".
+
+### B. Da sua trong app
+
+  — `.tp-note-head`: them `flex-wrap: wrap` va `gap: 5px 8px`.
+  — `.tp-fields`: `repeat(auto-fit, minmax(118px, 1fr))`, va bo dong `.tp-fields`
+    trong block 640px — lam o hai noi thi cua so lai ghi de len quyet dinh cua the.
+  — Class moi `.tp-statgrid` voi bien `--tp-col` (mac dinh 132px): hai luoi so lieu
+    trong `tradePlanner.ts` truoc day la inline `repeat(3, 1fr)` va `repeat(5, 1fr)`.
+    Hang exit xin `--tp-col: 98px` inline vi cac o cua no ngan (`1.2R`, `+8.4%`).
+    Mot media query KHONG THE ghi de mot inline style — do la ly do trong repo dang
+    co may cai hack `[style*="repeat(4"] { ... !important }`; dua template vao class
+    la cach thoat khoi kieu hack do.
+  — `.tp-playfields` va `.tp-crit-row`: doi `1fr` thanh `minmax(0, 1fr)`.
+  — Block 600px: `.card-head-actions` duoc wrap (hang tieu de cua the Buy: Reset /
+    Playbook / Ly do ban, khoang 310px nut ben canh mot tieu de — `nowrap` la co y
+    de cap nut khong bi tach tren desktop, nhung tren dien thoai chinh no lam nut
+    treo ra ngoai le), va `#main .stat` bot padding 14/16 xuong 11/12, so tu 18px
+    xuong 16px.
+
+### C. Hai tap bao cao (View plan va case study)
+
+Hai tap nay la TAI LIEU DOC LAP: co `<style>` rieng, khong dung styles.css. O day
+media query LA dung cong cu, vi viewport cua mot tai lieu chinh la container cua no
+— man hinh dien thoai, hoac chieu rong cua iframe `srcdoc` ma app dung de xem truoc.
+
+  — Them `<meta name="viewport" content="width=device-width, initial-scale=1">`.
+    Khong co dong nay thi trinh duyet dien thoai dan trang o 980px roi thu nho lai,
+    va khong co CSS nao ben duoi cuu duoc chuyen do.
+  — `body`: `padding: clamp(14px, 4vw, 32px)` thay cho `padding: 32px`.
+  — `.grid`: `repeat(4, minmax(0, 1fr))`, roi 2 cot duoi 760px, 1 cot duoi 430px.
+  — `.stat`: `min-width: 0`, `.stat .v` them `overflow-wrap: anywhere`.
+  — Khoi moi ten `NARROW_CSS`, dat canh `PRINT_CSS` trong TUNG file — hai file nay
+    chia nhau stylesheet bang cach COPY chu khong phai import (PRINT_CSS cung vay),
+    vi moi tap phai dung duoc mot minh.
+
+### D. Bang tieu chi: bang khong the reflow
+
+Mot `<table>` khong the doi so cot nhu grid: moi cot giu o rong nhat cua no. Nen
+`scorecard.ts` bay gio:
+
+  — Duoi 560px, hai cot cuoi (nhom tieu chi, nguon do) ROI KHOI bang (`.sc-fold`
+    an di) va hien lai thanh dong thu hai duoi ten tieu chi (`.sc-meta`). Khong mat
+    thong tin nao — cung nhung chu do, doi cho.
+  — Bang duoc boc trong `<div class="sc-wrap">` co `overflow-x: auto` lam luoi an
+    toan cuoi cung: mot o `measured` qua dai thi cuon ngang, chu khong keo ca tai
+    lieu rong ra.
+  — `.gbar-k` tu `width: 200px` thanh `clamp(92px, 30vw, 200px)`.
+  — Ca ba thu tren nam trong `SCORECARD_CSS`, nen hai tap bao cao huong loi cung luc.
+
+### E. Suyt mat file styles.css
+
+Khi ap dung cac sua doi bang Python, `io.open(p, 'w')` CAT FILE VE 0 BYTE TRUOC KHI
+ma hoa. Mot emoji viet duoi dang surrogate escape lam `UnicodeEncodeError` ban ra
+SAU khi file da bi cat, va `styles.css` con 0 byte — mat het phan CSS chua commit,
+phai `git checkout -- src/styles.css` roi lam lai tu dau. Tu gio: dung byte string
+hoan chinh truoc, ghi bang `open(p, 'wb')`, khong dat ky tu ngoai BMP trong ma nguon
+Python, va `wc -c` ngay sau moi lan ghi.
+
+### F. Kiem tra
+
+  — `npx tsc -p tsconfig.json --noEmit`: sach.
+  — `npx vitest run`: 24 file / 365 test, xanh het (362 + 5 test moi, 2 file).
+  — `styles.css`: 4855 CRLF, 0 bare LF, ngoac va dau comment can bang.
+  — Test moi chi giu ba dieu khong the phuc hoi ve sau, vi mot tap bao cao luu nam
+    ngoai thi khong the tao lai: co the viewport, thu tu so cot 4 -> 2 -> 1, va cot
+    gap lai van con chu trong markup.
