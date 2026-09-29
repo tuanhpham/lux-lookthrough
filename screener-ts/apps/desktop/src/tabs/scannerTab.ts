@@ -326,6 +326,13 @@ let loading = false;
 let loadError: string | null = null;
 let lastLoad = 0;
 
+/**
+ * Removes the jump bar's window listeners. Every `draw()` replaces the bar, and a
+ * listener holding a reference to a bar that is no longer in the document would keep
+ * running (and keep the dead node alive) once per scroll frame, forever.
+ */
+let jumpDispose: (() => void) | null = null;
+
 /** Sector table sort. Rank ascending is the order the ranking itself produced. */
 type SectorSortKey = 'rank' | 'sym' | 'composite' | 'ret21' | 'ret63' | 'ret126'
   | 'chg0' | 'chg1';
@@ -420,8 +427,13 @@ function healthNotes(status: Status | null, pushedAt: number | null): string[] {
   }
   if (status.db_error) out.push(`${t('scan.warn.db')}: ${status.db_error}`);
 
+  // The tail matters as much as the warning: once pushing stops, every date on the
+  // page freezes at the moment of the last snapshot, and a reader who does not know
+  // that reads "bars: Friday" on a Tuesday as a SECOND fault — a nightly run that
+  // skipped Monday — when it is the same one fault seen from below. On Monday the
+  // newest closed session really was Friday, and that is what the snapshot says.
   if (pushedAt && Date.now() - pushedAt > PUSH_STALE_SEC * 1000) {
-    out.push(`${t('scan.warn.stale')} (${ago(pushedAt)})`);
+    out.push(`${t('scan.warn.stale')} (${ago(pushedAt)}) — ${t('scan.warn.stale.tail')}`);
   }
 
   const cAge = status.candidates?.age;
@@ -1346,6 +1358,51 @@ const sec = (id: string, html: string): string => {
     ${html}</section>`;
 };
 
+/**
+ * The status strip: what state the bridge is in, how old the snapshot under it is,
+ * and the button that re-reads it.
+ *
+ * It used to be three loose things in a `.toolbar` — a chip, a button, and the words
+ * "read 0s" — and the colour was the bug: `status-chip--muted` painted "1 to check"
+ * in the same grey as the timestamp next to it, so the one line on the page that says
+ * something is broken read as furniture.
+ *
+ * Two ages, not one, because they answer different questions. "Read" is when this
+ * browser last asked; the SNAPSHOT age is how old the numbers below actually are. A
+ * page can be read one second ago and be a day old — which is exactly the state this
+ * strip exists to make impossible to miss, so the snapshot age turns amber on its own
+ * rather than waiting for the notice underneath to be read.
+ */
+function statusStrip(status: Status | null, pushedAt: number | null, notes: string[]): string {
+  const state = loading
+    ? { k: 'load', txt: `<span class="spinner"></span> ${t('scan.loading')}` }
+    : loadError
+      ? { k: 'bad', txt: esc(loadError) }
+      : notes.length
+        ? { k: 'warn', txt: `${notes.length} ${t('scan.issues')}` }
+        : status
+          ? { k: 'ok', txt: t('scan.ok') }
+          : null;
+
+  const stale = pushedAt != null && Date.now() - pushedAt > PUSH_STALE_SEC * 1000;
+  const ages: string[] = [];
+  if (pushedAt) {
+    ages.push(`<span class="scan-age${stale ? ' is-stale' : ''}" title="${t('scan.snapwhat')}">`
+      + `${t('scan.snapage').replace('{age}', ago(pushedAt))}</span>`);
+  }
+  if (lastLoad) {
+    ages.push(`<span class="scan-age" title="${t('scan.readwhat')}">`
+      + `${t('scan.readago').replace('{age}', ago(lastLoad))}</span>`);
+  }
+
+  return `<div class="scan-bar" data-state="${state?.k ?? 'none'}">
+    ${state ? `<span class="scan-bar-state"><i class="scan-dot"></i>${state.txt}</span>` : ''}
+    ${ages.length ? `<div class="scan-bar-ages">${ages.join('<span class="scan-age-sep">·</span>')}</div>` : ''}
+    <button class="btn-outline scan-bar-btn" id="scan-refresh"${loading ? ' disabled' : ''}>
+      <span aria-hidden="true">↻</span> ${t('scan.refresh')}</button>
+  </div>`;
+}
+
 /** The chips that used to crowd a section title (a date, a row count). */
 const tags = (...items: (string | false | null | undefined)[]): string => {
   const on = items.filter(Boolean) as string[];
@@ -1353,6 +1410,95 @@ const tags = (...items: (string | false | null | undefined)[]): string => {
     ? `<div class="scan-tags">${on.map((x) => `<span class="tag">${x}</span>`).join('')}</div>`
     : '';
 };
+
+/**
+ * The jump bar, which is now an index that follows the reader.
+ *
+ * It was a row of ten identical grey pills above the fold, and above the fold is the
+ * one place it is useless: you are already at the top of the page when you can see
+ * it. So the bar STICKS under the top nav and marks which section you are in, which
+ * is the other half of an index — "where am I" is asked far more often than "take me
+ * somewhere". The pills carry the same 01..10 numbers as the section headers, so the
+ * bar and the page read as one spine.
+ *
+ * Pattern borrowed from `ui/stickyToc.ts` rather than the module itself: that one
+ * discovers its entries from the DOM and keeps a single module-level instance, and
+ * mounting it here would tear the listeners off the Learn tab's bar and share its
+ * bookmark key. Ten hand-listed sections do not need discovery.
+ */
+function wireJump(root: HTMLElement): void {
+  jumpDispose?.();
+  jumpDispose = null;
+
+  const bar = root.querySelector<HTMLElement>('.scan-jump');
+  const pills = Array.from(root.querySelectorAll<HTMLElement>('[data-jump]'));
+  if (!bar || !pills.length) return;
+  const secs = pills.map((p) => root.querySelector<HTMLElement>(`#scan-sec-${p.dataset.jump}`));
+
+  for (const p of pills) {
+    p.addEventListener('click', () => {
+      // `scroll-margin-top` on .scan-sec clears both the fixed nav and this bar, so
+      // the target heading never lands underneath the thing that sent you to it.
+      root.querySelector(`#scan-sec-${p.dataset.jump}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  root.querySelector('#scan-top')?.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // Which section owns the reading line. Same offset as `scroll-margin-top`: a
+  // section counts as current from the moment its header clears the sticky bar.
+  const OFFSET = 116;
+  let idx = -1;
+  const paint = (): void => {
+    // The tab can be display:none (another tab is open) — every rect is 0 then, and
+    // that would park the marker on the last section.
+    if (!bar.offsetParent) return;
+    let next = 0;
+    for (let i = 0; i < secs.length; i++) {
+      const el = secs[i];
+      if (el && el.getBoundingClientRect().top - OFFSET <= 0) next = i;
+      else break;
+    }
+    if (next === idx) return;
+    idx = next;
+    pills.forEach((p, i) => {
+      p.classList.toggle('active', i === idx);
+      if (i === idx) p.setAttribute('aria-current', 'true');
+      else p.removeAttribute('aria-current');
+    });
+    // The pill row scrolls sideways on a phone, so the active pill has to be brought
+    // into view or the marker is on a pill nobody can see. `nearest` on both axes:
+    // the bar is already visible, so this must not move the page vertically.
+    pills[idx]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+
+  let raf = 0;
+  const onScroll = (): void => {
+    // Every redraw builds a new bar; this catches the case where a listener outlived
+    // its DOM (a redraw that did not go through `wireJump`, e.g. a language switch).
+    if (!bar.isConnected) {
+      jumpDispose?.();
+      return;
+    }
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      paint();
+    });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+  paint();
+
+  jumpDispose = () => {
+    window.removeEventListener('scroll', onScroll);
+    window.removeEventListener('resize', onScroll);
+    if (raf) cancelAnimationFrame(raf);
+    jumpDispose = null;
+  };
+}
 
 function draw(ctx: AppContext): void {
   const root = $('#tab-scanner')!;
@@ -1376,16 +1522,6 @@ function draw(ctx: AppContext): void {
   // false accusation against the VM for the browser not having asked yet.
   const notes = lastLoad ? healthNotes(status, pushedAt) : [];
 
-  const chip = loading
-    ? `<span class="status-chip status-chip--loading"><span class="spinner"></span> ${t('scan.loading')}</span>`
-    : loadError
-      ? `<span class="status-chip status-chip--muted">${esc(loadError)}</span>`
-      : notes.length
-        ? `<span class="status-chip status-chip--muted">${notes.length} ${t('scan.issues')}</span>`
-        : status
-          ? `<span class="status-chip status-chip--ok">${t('scan.ok')}</span>`
-          : '';
-
   const alertsKey = newestAlertsKey();
   const thresholds = get<ThresholdsSnap>(KEY_THRESHOLDS);
   const sectors = get<SectorsSnap>(KEY_SECTORS);
@@ -1408,16 +1544,16 @@ function draw(ctx: AppContext): void {
   root.innerHTML = `
     <h1>${t('scan.title')}</h1>
     <p class="subtitle">${t('scan.sub')}</p>
-    <div class="toolbar">
-      ${chip}
-      <button class="btn-outline" id="scan-refresh"${loading ? ' disabled' : ''}>${t('scan.refresh')}</button>
-      <span class="muted" style="font-size:12px">${lastLoad ? `${t('scan.read')} ${ago(lastLoad)}` : ''}</span>
-    </div>
+    ${statusStrip(status, pushedAt, notes)}
     ${notes.map((n) => `<div class="notice" style="margin-bottom:8px">${esc(n)}</div>`).join('')}
     ${status || !lastLoad ? '' : `<p class="muted">${t('scan.nodata')}</p>`}
-    <nav class="toolbar scan-jump">
-      <span class="muted" style="font-size:12px">${t('scan.jump')}</span>
-      ${SECS.map((x) => `<button class="range-btn" data-jump="${x.id}">${t(x.key)}</button>`).join('')}
+    <nav class="scan-jump" aria-label="${t('scan.jump')}">
+      <span class="scan-jump-lbl">${t('scan.jump')}</span>
+      <div class="scan-jump-pills">
+        ${SECS.map((x, i) => `<button class="scan-pill" data-jump="${x.id}">`
+          + `<span class="scan-pill-n">${String(i + 1).padStart(2, '0')}</span>${t(x.key)}</button>`).join('')}
+      </div>
+      <button class="scan-jump-up" id="scan-top" title="${t('scan.top')}" aria-label="${t('scan.top')}">↑</button>
     </nav>
     ${sec('today', renderToday(get<RegimeSnap>(KEY_REGIME)))}
     ${sec('sectors', renderSectors(sectors, topN))}
@@ -1442,14 +1578,7 @@ function draw(ctx: AppContext): void {
     });
   });
 
-  // Jump bar. `scroll-margin-top` on .scan-sec keeps the heading clear of the
-  // fixed top bar, so this can stay a plain scrollIntoView.
-  root.querySelectorAll<HTMLElement>('[data-jump]').forEach((b) => {
-    b.addEventListener('click', () => {
-      const target = root.querySelector(`#scan-sec-${b.dataset.jump}`);
-      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  });
+  wireJump(root);
 
   // Sector table sort. Client-side only: the 11 rows are already in hand, so
   // sorting must not cost a D1 read.

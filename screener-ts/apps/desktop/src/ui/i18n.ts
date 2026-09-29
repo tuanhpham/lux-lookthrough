@@ -972,7 +972,22 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'scan.loading': { en: 'Reading', vi: 'Đang đọc' },
   'scan.ok': { en: 'Healthy', vi: 'Bình thường' },
   'scan.issues': { en: 'to check', vi: 'cần xem' },
-  'scan.read': { en: 'read', vi: 'đọc' },
+  // The two ages in the status strip. Kept as whole sentences with a slot rather than
+  // a label plus a bare number: "read 23h" is ambiguous about which direction the
+  // time runs in, and these two are the numbers you decide whether to trust the page
+  // by. `snapage` is how old the VM's snapshot is, `readago` is when this browser
+  // last asked for it — see `statusStrip`.
+  'scan.snapage': { en: 'Snapshot {age} old', vi: 'Bản chụp cũ {age}' },
+  'scan.snapwhat': {
+    en: 'How long ago the VM last pushed a status snapshot. Everything on this page comes from that moment.',
+    vi: 'Lần cuối VM đẩy bản chụp trạng thái lên, cách đây bao lâu. Mọi thứ trên trang này là của thời điểm đó.',
+  },
+  'scan.readago': { en: 'Read {age} ago', vi: 'Đọc {age} trước' },
+  'scan.readwhat': {
+    en: 'When this browser last read the snapshots. Reading again does not make the VM push.',
+    vi: 'Lần cuối trình duyệt này đọc các bản chụp. Đọc lại không làm VM đẩy dữ liệu mới.',
+  },
+  'scan.top': { en: 'Back to top', vi: 'Lên đầu trang' },
   'scan.nodata': {
     en: 'Nothing pushed yet. Run `python push.py --all` on the VM.',
     vi: 'Chưa có gì được đẩy lên. Chạy `python push.py --all` trên VM.',
@@ -1370,6 +1385,13 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'scan.warn.stale': {
     en: 'Status is stale — the push cron has stopped',
     vi: 'Trạng thái đã cũ — cron đẩy dữ liệu đã dừng',
+  },
+  // Said in the same breath as the staleness, because the page below it goes on
+  // looking perfectly healthy: every date on it is simply frozen at the last push,
+  // and a frozen date reads exactly like a nightly run that skipped a session.
+  'scan.warn.stale.tail': {
+    en: 'everything below is frozen at that moment, so the dates you read are that snapshot’s, not today’s',
+    vi: 'mọi thứ bên dưới đứng yên ở thời điểm đó, nên các ngày bạn đọc là của bản chụp cũ, không phải hôm nay',
   },
   'scan.warn.silent': {
     en: 'The candidates table is older than the bot will accept, so it is sending nothing at all: no alerts, no errors',

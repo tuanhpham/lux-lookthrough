@@ -3309,3 +3309,131 @@ thang moi mot class don).
 - Nguoi dung van muon assistant co web search (CHAT-26 muc B): chua lam.
 - Nguoi dung chua tra loi min hay max cho tran cat lo; mac dinh dang la min ('deeper'), doi bang
   mot dropdown trong Cam nang.
+
+## CHAT-28 — Vi sao tab Scanner bao "stale" va ngay du lieu la 25-09, cong thanh trang thai va thanh muc luc dinh
+
+Nguoi dung hoi ba viec: (1) bao "Status is stale — the push cron has stopped (23h)" co dung
+khong, co van de gi khong, va vi sao du lieu la 25-09-2026 khi phien gan nhat la 28-09-2026;
+(2) "Phan Jump to, lam cho no noi bat hon khong la khong ai de y"; (3) "phan 1 to check,
+refresh, read 0s .... lam cho no dep hon di nhe".
+
+### A. Doc cai canh bao: MOT loi, khong phai hai
+
+Canh bao dung nghia den. `healthNotes` bat khi `Date.now() - pushedAt > PUSH_STALE_SEC`
+(600 giay), voi `pushedAt` la dau thoi gian CUA CLOUDFLARE luc VM ghi khoa
+`scanner:status` vao D1. 23h nghia la ban chup moi nhat ma Cloudflare dang giu da 23 tieng,
+tuc khoang hon 1000 lan cron phut khong de lai gi. Day khong phai mot cu truot nhip.
+
+Ngay 25-09 KHONG phai loi thu hai, no la ket qua cua chinh loi tren, va con dung ca theo
+mot ly do thu hai:
+
+- Ban chup dung yen tu 23h truoc, tuc tu trong ngay thu Hai 28-09. Trong ngay thu Hai,
+  phien DA DONG gan nhat la thu Sau 25-09. Vay ban chup ghi 25-09 la dung o thoi diem no
+  duoc chup.
+- `nightly.py` chay 08:00 gio New York, thu Hai den thu Sau (VM-4). No lam viec tren nen DA
+  DONG. Nen suot ca ngay thu Hai, `bar` van la 25-09; nen thu Hai 28-09 chi vao so sau khi
+  lan chay 08:00 ET thu Ba 29-09 xong. Luc doc trang nay la 08:06 gio Trung Au thu Ba, tuc
+  02:06 ET — con truoc 08:00 ET. Vay dau mot he thong hoan toan khoe manh thi luc do cung
+  van hien 25-09.
+
+Nen: ngay du lieu khong phai van de. Van de la VM da im 23 tieng.
+
+Suy ra duoc them mot dieu quan trong tu chinh trang nay: PHIA DOC VAN CHAY. Trinh duyet
+lay duoc ban chup (cu) tu D1, nen ma truy cap, endpoint `/api/scanner`, D1 deu on. Loi nam
+o phia VM ghi len. Va `push.py --status` la cron RIENG, khong lien quan main.py: neu main.py
+chet ma cron con song thi van co ban chup moi, chi kem canh bao nhip tim cu. Im hoan toan
+nghia la cron khong chay, hoac VM khong chay, hoac lenh ghi bi tu choi — va `push.py` nuot
+loi (co ghi trong `functions/api/scanner/[[path]].ts`), nen mot token sai tao ra dung cai
+su im lang nay chu khong tao ra thong bao nao.
+
+Thu tu di kiem tra tren VM (chua lam duoc o may nay, khong co SSH):
+
+1. VM con song khong — ssh vao. Oracle free tier co the thu hoi may dang ranh.
+2. `crontab -l` duoi user `ubuntu`, KHONG `sudo` — con du hai dong `push.py` va dong
+   `CRON_TZ` khong.
+3. `cd ~/scanner && source .venv/bin/activate && python push.py --all` — chay tay de loi
+   HIEN RA man hinh; chay qua cron thi loi bi nuot.
+4. `python nightly.py --status` — dem qua chuoi nightly co chay khong. Day la cau hoi KHAC
+   voi chuyen day du lieu, va khong the tra loi bang trang Scanner khi trang dang dong bang.
+5. `sudo systemctl status scanner` — main.py con song khong (nhip tim). Nho: cung luc chi
+   MOT tien trinh main.py duoc chay.
+
+### B. Noi ro trong app rang moi ngay ben duoi dang dong bang
+
+Them khoa `scan.warn.stale.tail`, noi ngay trong cung dong canh bao: moi thu ben duoi dung
+yen o thoi diem do, nen cac ngay doc duoc la cua ban chup cu chu khong phai hom nay. Dung
+cai nhap nhang da lam nguoi dung tuong co hai loi — trang van trong hoan toan binh thuong
+khi cron chet, chi la moi con so tren no dong bang lai, va mot ngay dong bang doc y nhu mot
+dem nightly bi bo.
+
+### C. Thanh trang thai — apps/desktop/src/tabs/scannerTab.ts, ham statusStrip
+
+Truoc: ba thu roi trong mot `.toolbar` — chip `status-chip--muted`, nut Refresh, va chu
+"read 0s" mau xam 12px. Loi thuc su la MAU: "1 to check" duoc son cung mot mau xam voi cai
+dau thoi gian ben canh, nen dong duy nhat tren trang noi rang co cai gi dang hong lai doc
+nhu do trang tri.
+
+- Mot the `.scan-bar` co `data-state` = load / bad / warn / ok / none. Mot diem tron
+  `.scan-dot` doi mau truoc chu (mau doc nhanh hon chu), chu cung doi mau, va ca thanh
+  nhuom nhe theo trang thai — de thay khi mat dang o cho khac tren trang.
+- HAI tuoi, khong phai mot: "Ban chup cu 23h" va "Doc 4s truoc". Hai con so tra loi hai cau
+  khac nhau — mot trang co the vua doc xong mot giay truoc ma van cu mot ngay. Tuoi ban chup
+  chuyen mau canh bao tu no khi qua `PUSH_STALE_SEC`, khong cho ai doc dong canh bao ben
+  duoi. Ca hai la cau co cho trong `{age}` chu khong phai nhan cong so tran: "read 23h"
+  khong noi ro thoi gian chay huong nao.
+- Moi khoa dung tooltip rieng (`scan.snapwhat`, `scan.readwhat`) noi ro "doc lai khong lam
+  VM day du lieu moi" — cai nham lan tu nhien nhat khi thay mot nut Refresh canh mot so cu.
+- Bo khoa `scan.read` (khong con cho dung). Nut Refresh giu nguyen id `#scan-refresh`, va
+  giu padding to tren mobile bang mot luat rieng, vi luat cu gan vao `.toolbar`.
+
+### D. Thanh Jump to — gio la muc luc dinh, co danh dau dang o dau
+
+Mot hang 10 vien xam giong nhau nam tren dau trang: cho no nam la dung cho no vo dung, vi
+luc thay duoc no thi nguoi doc DANG o dau trang roi.
+
+- `.scan-jump` gio `position: sticky; top: 56px`, nen mo (thanh nav tren trong suot, noi
+  dung chay phia sau — thanh trong suot se chong hai lop chu), co vien va shadow.
+- Vien pill mang dung so 01..10 nhu tieu de tung muc, nen thanh va trang doc thanh MOT
+  xuong song. Vien dang doc duoc to sang (`.active`, cong `aria-current`).
+- `wireJump` theo doi scroll bang rAF, va co `jumpDispose` o muc module: moi `draw()` dung
+  lai mot thanh moi, mot listener con tro vao thanh cu se chay mai mai moi khung hinh va
+  giu luon cai DOM da chet.
+- Hang pill cuon NGANG tren dien thoai (`overflow-x`, an scrollbar) chu khong xuong dong
+  thu hai: mot thanh dinh ma cao len hai dong se day trang duoi tay nguoi doc. Vien dang
+  doc duoc keo vao tam nhin bang `scrollIntoView({block:'nearest', inline:'nearest'})` —
+  `nearest` ca hai truc de khong bao gio lam trang nhay doc.
+- Them nut len trang dau (↑) va khoa `scan.top`.
+- `.scan-sec { scroll-margin-top }` tu 72px len 116px: 56 thanh nav cong ~46 thanh dinh.
+  So nay TRUNG voi `OFFSET` trong `wireJump` — mot muc duoc tinh la "dang doc" dung luc
+  tieu de cua no thoat khoi thanh dinh. Sua mot cho phai sua cho kia.
+
+Khong dung lai `ui/stickyToc.ts` (Learn tab) du no gan nhu du chuc nang: no tu do muc tu
+DOM va giu MOT the hien duy nhat o muc module, nen mount o day se thao listener cua thanh
+ben Learn va dung chung luon khoa bookmark `learn:bookmark`. Muoi muc viet tay thi khong
+can do tim.
+
+### E. Da chay
+
+- packages/core: build sach (khong doi gi ben core).
+- apps/desktop: tsc sach, 185 test pass (14 tep), npm run build sach. Khong co test nao cho
+  `scannerTab.ts` — tab nay toan DOM ma vitest o day chay environment node.
+- package-lock.json khong doi.
+
+### F. Phai tan mat xem lai
+
+- Thanh dinh khi cuon xuong: no dung duoi thanh nav, khong bi chu chay xuyen qua, va vien
+  pill sang len dung muc dang doc.
+- Bam mot vien pill: tieu de muc khong bi nam duoi thanh dinh.
+- Tren dien thoai: hang pill cuon ngang, nhan "Den phan" an di, nut Refresh du to de bam.
+- Doi ngon ngu va doi theme roi cuon lai — listener khong duoc nhan doi (vien pill khong
+  nhay giat).
+- Mau cua thanh trang thai o ca ba trang thai: binh thuong (xanh), co van de (vang), loi
+  doc (do).
+
+### G. Con no (giu nguyen tu CHAT-27)
+
+- Loi nhan f0b6b0e9 viet "22 tieu chi" (dung la 26) — sua phai force-push, de nguyen.
+- Ban build Pages cua lux-lookthrough van do: chay `wrangler pages deploy dist
+  --project-name the-professional` tu apps/desktop tren may co dang nhap Cloudflare.
+- Web search cho assistant: chua lam.
+- Tran cat lo van dang mac dinh min ('deeper') theo gia dinh cua toi, chua co xac nhan.
