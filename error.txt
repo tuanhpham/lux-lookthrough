@@ -5379,3 +5379,90 @@ chuoi rong.
     `watchChecks` khong bao gio ket mot dong truot gate ma no khong do lai duoc.
   — `styles.css`: them 158 dong, xoa 0 dong, CRLF giu nguyen (kiem bang
     `git diff --stat`, khong kiem bang grep).
+
+## CHAT-43 — Cac hop giai thich: trinh bay lai cho ra hinh
+
+Yeu cau: mo mot hop giai thich ra thi "will be text but cover only 1/3 of the page
+(looks weird)", va "nhung cai title do se bi che lap di boi qua nhieu text". Muon
+tieu de duoc highlight, doan van nam trong mot cai khung noi bat, va "cac thong so,
+ban co the dung cac table that dep, thay vi liet ke". Kem mot cau: "ra soat toan bo".
+
+### A. Chi chiem 1/3 trang: loi o max-width, khong phai o thieu chu
+
+`.scan-doc p` bi chan `max-width: 78ch`. Tren dien thoai do la mot do dai dong dung;
+tren man hinh 1500px do la mot phan ba trang voi hai phan ba de trong ben canh, va
+mat nhu loi dan trang chu khong phai nhu mot lua chon ve chu. Cach sua KHONG phai keo
+doan van rong ra — mot dong 200 ky tu thi khong ai doc het — ma la cho noi dung THEM
+COT:
+
+  — `.scan-doc-sec` la mot grid: tu 900px tro len, tieu de mot cot (160-216px) va noi
+    dung mot cot; duoi 900px thi xep doc nhu cu. Chieu rong duoc dung het, va do dai
+    mot dong van nam trong muc doc duoc vi cot tieu de da an bot.
+  — Ranh giua cac khoi la mot duong ke `border-top`, lam thay viec ma margin cua tieu
+    de truoc day lam khong tot.
+
+### B. Tieu de gio khong the bi chon vao van ban
+
+Mot tieu de 11px mau xam dat tren mot doan 12,5px mau xam khong phai tieu de, no chi
+la mot dong ngan hon. Nen:
+
+  — `.scan-doc-h`: nen `--accent-wash`, vach `--accent` ben trai, in hoa, va tu 900px
+    tro len nam trong cot rieng cua no.
+  — `.scan-doc-i`: so thu tu dang badge cho bon buoc cua watch list — bon buoc do la
+    MOT CHUOI (buoc sau chi xet cai buoc truoc con lai) nen thu tu la mot phan noi
+    dung, khong phai trang tri.
+  — `.scan-doc-lead`: cau tra loi cho dung cai tieu de cua hop, dat rieng trong mot
+    khung, 13px, muc chu day nhat. Nguoi mo hop ra la de doc cau do truoc.
+  — `.scan-doc-in`: ca hop nam trong mot khung `--surface` co vien, nen phan giai
+    thich tach han ra khoi bang du lieu chung quanh.
+
+### C. Liet ke thanh bang
+
+Gate, tu dien cot, cac buoc tinh ke hoach va legend truoc day deu la danh sach cau.
+Do dung la hinh dang lam tieu de bi chon: moi dong giong het moi dong. Thanh bang co
+tieu de cot thi nguoi doc biet TRUOC khi doc rang ben trai la luat va ben phai la ly
+do con so do nhu vay, va dung lai o cot ho can.
+
+  — Gate: bang ba cot (`#`, dieu kien kem nguong, vi sao lai la con so do). Cot `#`
+    phai giu vi thu tu chinh la thong tin — `setups.py` ghi gate truot dau tien roi
+    dung, nen gate 2 chi duoc thu tren nhung ma da qua gate 1.
+  — `METRICS`: bang ba cot (cot nao, nghia la gi, so voi nguong nao).
+  — `PLAN_STEPS` va `REJ_LEGEND`: bang hai cot.
+  — Bang config nhan them dong tieu de (Thong so / Dang dung / Vi sao la con so do).
+  — Bang KPI cua tung dong watch list: co tieu de cot that (Dieu kien / Do duoc /
+    Phai dat / Ghi chu) thay cho dong chu thich "measured / required" o duoi bang —
+    ghi o duoi thi nguoi doc phai tu doan trong hai so mono tren mot dong thi so nao
+    la so nao, ma dung cap so do LA toan bo noi dung cua bang.
+  — Cac nhan tieu de cot nam trong `G` cua `scannerGuide.ts` (`thNo`, `thCrit`,
+    `thWhy`, `thCol`, `thWhat`, `thVs`, `thStep`, `thHow`, `thTerm`, `thMeaning`,
+    `thCheck`, `thNote`, `thKey`, `thVal`), nen bang cung doi ngon ngu theo trang.
+
+### D. Loi am tim ra khi ra soat: `#main` thang moi rule cua o bang
+
+`#main td` va `#main th` la selector co ID, nen chung THANG `table.scan-gt td` hay
+`.scan-cfg-n`. Nghia la toan bo o bang giai thich viet o CHAT-42 that ra dang chay o
+13px voi padding 10/12 cua trang, khong phai 11,5-12,5px nhu thiet ke — CSS co day du
+nhung khong bao gio duoc ap dung. Ba he qua da sua:
+
+  — Moi rule nham vao o bang gio viet hai nhanh: `#main table.scan-gt td,
+    table.scan-gt td`. Cung ly do da ghi trong memory ve modal khong nam trong `#main`
+    — o repo nay, mot rule cho `td` ma khong noi `#main` thi coi nhu khong viet.
+  — `th` cua trang la `position: sticky` voi nen trong suot trong `#main`. Trong mot
+    bang giai thich khong cuon doc, sticky chi lam chu de len du lieu khi lan trang —
+    nen cac bang nay dat lai `position: static` kem nen rieng.
+  — `tbody tr` cua trang la `cursor: pointer` (bang cua app bam vao la mo mot thu).
+    Bang giai thich khong bam duoc, nen `cursor: default`: mot hang khong lam gi thi
+    khong nen to ra lam duoc.
+
+### E. Kiem tra
+
+  — `npx tsc -p tsconfig.json --noEmit`: sach.
+  — `npx vitest run`: 25 file / 401 test, xanh het.
+  — `npx vite build`: sach, CSS ra 143,63 kB — de chac cu phap CSS khong hong o cho
+    nao, vi mot dau ngoac thieu trong CSS khong lam test do.
+  — `styles.css`: 177 dong them / 73 dong xoa, 5117 CRLF, 0 bare LF, ngoac can bang.
+  — Cac class cu (`.scan-gates`, `.scan-gate-t`, `.scan-gate-n`, `.scan-gloss`,
+    `.wl-why-f`) khong con noi nao dung nen xoa khoi CSS. Doi chieu bang script: lay
+    moi class `scan-*` / `wl-*` trong `scannerTab.ts` roi kiem tung cai co trong
+    `styles.css` — chi con `.scan-sec-body` khong co rule, va cai do co tu truoc,
+    la mot div boc khong can style.
