@@ -724,6 +724,12 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   },
   'cal.ofcapital': { en: 'of capital', vi: 'trên tổng vốn' },
   'cal.holdings': { en: 'holdings', vi: 'vị thế' },
+  // Units for the chips beside a section heading. They are the quiet half of
+  // "8 days" / "12 names", so they stay lower-case and singular-agnostic.
+  'cal.unit.days': { en: 'days', vi: 'ngày' },
+  'cal.unit.names': { en: 'names', vi: 'mã' },
+  'cal.unit.events': { en: 'events', vi: 'sự kiện' },
+  'cal.risk.peak': { en: 'peak day', vi: 'ngày nặng nhất' },
   'cal.addevent': { en: 'Add event', vi: 'Thêm sự kiện' },
   'cal.event.date': { en: 'Date', vi: 'Ngày' },
   'cal.event.symbol': { en: 'Symbol (optional)', vi: 'Mã (không bắt buộc)' },

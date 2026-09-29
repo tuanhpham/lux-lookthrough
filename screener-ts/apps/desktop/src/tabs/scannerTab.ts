@@ -20,6 +20,9 @@ import { scannerPull } from '../adapters/scannerClient.js';
 import { openSyncSettings } from '../ui/syncSettings.js';
 import { copyToClipboard } from '../ui/askChatGpt.js';
 import { rankChartSvg, rankChartColor, type RankHistory } from './scannerRankChart.js';
+import {
+  chipHtml, countChip, rangeChip, sectionHead, type Chip, type ChipInput,
+} from '../ui/sectionHead.js';
 
 const KEY_STATUS = 'scanner:status';
 const KEY_CANDIDATES = 'scanner:candidates';
@@ -600,7 +603,7 @@ function sectorSortVal(r: SectorRow, key: SectorSortKey,
 }
 
 function renderSectors(snap: SectorsSnap | null, topN: number): string {
-  const title = tags(snap?.d && esc(snap.d));
+  const title = tags(snap?.d ? { n: snap.d, kind: 'date' } : null);
   const rows = snap?.rows ?? [];
   if (!rows.length) return `${title}<p class="muted">${t('scan.sectors.none')}</p>`;
 
@@ -687,13 +690,15 @@ function renderRankChart(snap: SectorsSnap | null, topN: number): string {
   const hist = snap?.hist;
   const days = hist?.days ?? [];
   const order = Object.keys(hist?.series ?? {});
-  const title = `<div class="section-title-row">`
-    + `<h3 class="section-title">${t('scan.sec.chart')}</h3>`
-    + (days.length
-      ? `<span class="tag">${days.length} ${t('scan.chart.sessions')}</span>`
-        + `<span class="tag">${esc(days[0]!)} → ${esc(days[days.length - 1]!)}</span>`
-      : `<span class="tag">${t('scan.chart.none')}</span>`)
-    + `</div>`;
+  // The two chips answer the two questions this chart cannot be read without: HOW
+  // MANY sessions it covers, and WHICH ones. A rank chart over 2 sessions and one
+  // over 60 look identical at a glance and mean entirely different things.
+  const title = sectionHead(t('scan.sec.chart'), days.length
+    ? [
+        countChip(days.length, undefined, t('scan.chart.sessions')),
+        rangeChip(days[0]!, days[days.length - 1]!),
+      ]
+    : [{ text: t('scan.chart.none'), kind: 'warn' }]);
 
   if (days.length < 2 || !order.length) {
     return `${title}<p class="muted">${t('scan.chart.none')}</p>`;
@@ -740,8 +745,8 @@ function renderWatch(snap: WatchSnap | null, blocked: boolean): string {
   const rows = snap?.rows ?? [];
   const total = snap?.total ?? rows.length;
   const title = tags(
-    snap?.d && esc(snap.d),
-    rows.length ? String(total > rows.length ? `${rows.length} / ${total}` : total) : '',
+    snap?.d ? { n: snap.d, kind: 'date' } : null,
+    rows.length ? countChip(rows.length, total) : null,
   );
 
   if (!rows.length) {
@@ -1084,7 +1089,7 @@ function renderThresholds(snap: ThresholdsSnap | null): string {
         + `<td>${thValue(p.setups)}</td>`
         + `<td>${sizeText(typeof p.size === 'number' ? p.size : null)}</td>`
         + `<td>${esc(String(p.note ?? ''))}</td></tr>`).join('');
-      return `<h3 class="section-title">${t('scan.sec.playbook')}</h3>
+      return `${sectionHead(t('scan.sec.playbook'), [countChip(val.length, undefined, t('scan.col.regime'))])}
         <div class="card" style="padding:0;overflow-x:auto">
         <table><thead><tr><th>${t('scan.col.regime')}</th><th>${t('scan.col.volat')}</th>
         <th>${t('scan.col.setups')}</th><th>${t('scan.col.size')}</th>
@@ -1093,7 +1098,7 @@ function renderThresholds(snap: ThresholdsSnap | null): string {
     if (val && typeof val === 'object' && !Array.isArray(val)) {
       const rows = Object.entries(val as Record<string, unknown>).map(([k, v]) =>
         `<tr><td>${esc(k)}</td><td>${thValue(v)}</td></tr>`).join('');
-      return `<h3 class="section-title">${esc(group)}</h3>
+      return `${sectionHead(esc(group), [countChip(Object.keys(val as object).length)])}
         <div class="card" style="padding:0;overflow-x:auto">
         <table><tbody>${rows}</tbody></table></div>`;
     }
@@ -1209,14 +1214,9 @@ function renderCandidates(snap: CandidatesSnap | null): string {
     // Rows arrive sorted by quality and truncated to TOP_N. They are NOT re-sorted
     // here: re-ranking a truncated list by "closest to pivot" would read as "the
     // closest in the market" when it is only the closest among the top N by quality.
-    const cut = total > rows.length
-      ? `<span class="tag">${rows.length} / ${total}</span>`
-      : `<span class="tag">${total}</span>`;
     const head = candHead().map((h) => `<th>${esc(h)}</th>`).join('');
     return `
-      <div class="section-title-row">
-        <h3 class="section-title">${esc(s)}</h3>${cut}
-      </div>
+      ${sectionHead(esc(s), [countChip(rows.length, total)])}
       <div class="card" style="padding:0;overflow-x:auto">
         <table><thead><tr>${head}</tr></thead>
         <tbody>${rows.map(candRow).join('')}</tbody></table>
@@ -1251,11 +1251,10 @@ function renderRejects(snap: RejectsSnap | null): string {
         + ` <span class="muted">${share.toFixed(1)}%</span></td></tr>`;
     });
     return `
-      <div class="section-title-row">
-        <h3 class="section-title">${esc(s)}</h3>
-        <span class="tag">${t('scan.rej.passed')} ${passed}</span>
-        ${cutoff ? `<span class="tag">${t('scan.rej.cut')} ${cutoff}</span>` : ''}
-      </div>
+      ${sectionHead(esc(s), [
+        { n: passed, text: t('scan.rej.passed'), kind: 'count' },
+        cutoff ? { n: cutoff, text: t('scan.rej.cut'), kind: 'warn' } : null,
+      ])}
       <div class="card" style="padding:0;overflow-x:auto">
         <table><thead><tr><th>${t('scan.col.reason')}</th>
         <th>${t('scan.col.count')}</th><th>${t('scan.col.share')}</th></tr></thead>
@@ -1263,19 +1262,19 @@ function renderRejects(snap: RejectsSnap | null): string {
       </div>`;
   });
 
-  const meta: string[] = [];
-  if (snap?.struct != null) meta.push(`struct ${snap.struct}`);
-  if (snap?.cho_fund) meta.push(`${t('scan.rej.fund')} ${snap.cho_fund}`);
+  const meta: Chip[] = [];
+  if (snap?.struct != null) meta.push({ n: snap.struct, text: 'struct', kind: 'count' });
+  if (snap?.cho_fund) meta.push({ n: snap.cho_fund, text: t('scan.rej.fund'), kind: 'warn' });
 
   return `
-    ${tags(...meta.map((m) => esc(m)))}
+    ${tags(...meta)}
     <p class="muted" style="font-size:12px;margin:0 0 8px">${t('scan.rej.note')}</p>
     ${blocks.join('')}`;
 }
 
 function renderAlerts(snap: AlertsSnap | null): string {
   const rows = snap?.rows ?? [];
-  const title = tags(snap?.day && esc(snap.day));
+  const title = tags(snap?.day ? { n: snap.day, kind: 'date' } : null);
   if (!rows.length) return `${title}<p class="muted">${t('scan.noalerts')}</p>`;
 
   const body = rows.map((r) => {
@@ -1403,12 +1402,16 @@ function statusStrip(status: Status | null, pushedAt: number | null, notes: stri
   </div>`;
 }
 
-/** The chips that used to crowd a section title (a date, a row count). */
-const tags = (...items: (string | false | null | undefined)[]): string => {
-  const on = items.filter(Boolean) as string[];
-  return on.length
-    ? `<div class="scan-tags">${on.map((x) => `<span class="tag">${x}</span>`).join('')}</div>`
-    : '';
+/**
+ * The chips that used to crowd a section title (a date, a row count).
+ *
+ * Typed now, via `ui/sectionHead.ts`: a count is tinted with its number in mono and
+ * a date is mono throughout, so "12 / 40" and "2026-09-25" stop looking like the same
+ * kind of thing. Callers pass DATA — `chipHtml` escapes it, so do not `esc()` first.
+ */
+const tags = (...items: ChipInput[]): string => {
+  const on = items.map(chipHtml).filter(Boolean);
+  return on.length ? `<div class="scan-tags">${on.join('')}</div>` : '';
 };
 
 /**

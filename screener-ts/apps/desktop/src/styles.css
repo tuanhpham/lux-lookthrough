@@ -1194,7 +1194,50 @@ html.light .tp-case-btn { --accent-ink: #fff; }
 #about-block p { font-size: 14px; line-height: 1.7; }
 .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; margin: 20px 0 9px; }
 .chart { width: 100%; height: 280px; }
-.tag { font-size: 11px; padding: 1px 7px; border-radius: var(--radius-xs); background: var(--border); color: var(--subtext); }
+
+/* ── Chips (`ui/sectionHead.ts`) ───────────────────────────────────────────────
+   A chip beside a heading is DATA: a count, a date, a span, a state. It used to be
+   grey-on-grey with proportional digits, which made "2 sessions" and
+   "2026-09-25 → 2026-09-28" look like the same kind of thing — one is a quantity and
+   one is a span of time, and a reader scanning for "how much history am I looking
+   at?" had to read both to find out which was which.
+
+   So the NUMBER is mono and bright and the unit stays quiet: `<b>` inside a chip is
+   always the figure. Everything is a `var(--…)`, so the light theme follows and the
+   inline-styled chips (the scanner's sector toggles) still override cleanly. */
+.tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; line-height: 1.55; padding: 2px 9px;
+  border-radius: 999px; white-space: nowrap;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--subtext); font-weight: 600;
+}
+.tag > b {
+  font-family: var(--font-mono); font-weight: 700; font-size: 11.5px;
+  letter-spacing: -.02em; color: var(--text);
+}
+/* A quantity. Tinted, because "how many" is the question a heading's chip is most
+   often there to answer. */
+.tag--count {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.tag--count > b { color: var(--accent); }
+/* A date or a span of dates: mono throughout, because the whole chip is the figure. */
+.tag--date { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: -.01em; }
+.tag--date > b { color: var(--text); font-size: 11px; }
+.tag--ok { border-color: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--accent); }
+.tag--ok > b { color: var(--accent); }
+.tag--warn {
+  border-color: color-mix(in srgb, var(--warn) 38%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--warn);
+}
+.tag--warn > b { color: var(--warn); }
+.tag--danger {
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger);
+}
+.tag--danger > b { color: var(--danger); }
 
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
 .notice { background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); color: var(--warn); border-radius: var(--radius-sm); padding: 9px 13px; font-size: 13px; }
@@ -3579,17 +3622,65 @@ html.light #app-menu {
   margin-bottom: 28px;
 }
 
-/* ── Section labels: tiny all-caps dividers ── */
+/* ── Section labels: tiny all-caps dividers ──
+   `--subtext` and not `--faint`: this is a HEADING. The palette's quietest colour
+   was being used for the one line on screen whose job is to tell you where you
+   are, which is why it was reported as not standing out. */
 #main .section-title {
   font-size: 10px;
   letter-spacing: .14em;
-  color: var(--faint);
+  color: var(--subtext);
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
   margin: 32px 0 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-soft);
 }
+
+/* ── Section sub-heads: a label, its chips, and one line of explanation ──
+   Emitted by `sectionHead()` in `ui/sectionHead.ts`. See that file for why.
+
+   The rule belongs to the BLOCK, not to the words. A `border-bottom` on the title
+   alone stopped where the text stopped, so a heading with chips beside it had a
+   hairline under a third of itself and the group read as leftover UI.
+
+   Its first 56px carry `--st-tone` (default `--accent`) and the rest is the usual
+   hairline — one `background-image`, no extra element, so it never collides with
+   the emoji several headings begin with. Nothing here hard-codes a colour, so a
+   section about risk sets `--st-tone: var(--danger)` and the rule follows. */
+.sec-head {
+  margin: 30px 0 13px;
+  padding-bottom: 8px;
+  background-image: linear-gradient(90deg,
+    color-mix(in srgb, var(--st-tone, var(--accent)) 60%, transparent) 0 56px,
+    var(--border-soft) 56px);
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  background-position: left bottom;
+}
+/* First one in a card or a panel does not need the 30px above it. */
+.card > .sec-head:first-child, .modal-body > .sec-head:first-child { margin-top: 0; }
+/* The title inside a sub-head owns none of the spacing or the rule — the block
+   does. `#main` in the selector to outrank `#main .section-title` above. */
+#main .sec-head .section-title, .sec-head .section-title {
+  margin: 0; padding: 0; border-bottom: 0;
+}
+#main .sec-head .section-title-row, .sec-head .section-title-row {
+  margin: 0; gap: 9px;
+}
+.sec-head-sp { flex: 1 1 auto; }
+/* A date used AS the heading — a calendar day. The date IS the data here, not a
+   label for it, so it gets mono and full size instead of 10px tracked-out caps. */
+.section-title .sec-date {
+  font-family: var(--font-mono); font-size: 13px;
+  letter-spacing: .02em; color: var(--text);
+}
+/* One sentence, at most. Anything longer belongs in the body, not the heading. */
+.sec-sub {
+  margin: 6px 0 0; font-size: 11.5px; line-height: 1.55;
+  color: var(--faint); max-width: 74ch;
+}
+.sec-sub b { color: var(--subtext); font-weight: 600; }
 
 /* ── Cards: more air, softer border ── */
 #main .card {

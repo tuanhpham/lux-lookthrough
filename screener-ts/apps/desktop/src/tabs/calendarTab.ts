@@ -43,6 +43,7 @@ import { t, getLang } from '../ui/i18n.js';
 import { openStock } from '../ui/stockModal.js';
 import { formDialog } from '../ui/forms.js';
 import { loadIndex, loadItems } from '../ui/watchlists.js';
+import { countChip, rangeChip, sectionHead, type ChipInput } from '../ui/sectionHead.js';
 import { fetchCatalystWindow, todayLocal } from '../adapters/CatalystProvider.js';
 import {
   listSnapshotDays,
@@ -458,11 +459,16 @@ function renderRisk(): void {
   }
   const risks = dayRisks(allEvents(), exp.weights);
   if (!risks.length) {
+    // Nothing reports: that is a result, not an empty section, so it is stated as
+    // the heading's own sentence rather than as a stray grey line under it.
     host.innerHTML = `<div class="card" style="margin-bottom:14px">
-      <div class="section-title" style="margin:0 0 6px">${t('cal.myrisk')}</div>
-      <span class="muted">${t('cal.myrisk.none')}</span></div>`;
+      ${sectionHead(t('cal.myrisk'), [], { sub: t('cal.myrisk.none') })}</div>`;
     return;
   }
+  // The worst single day is the number this section exists to surface, so it goes
+  // in the heading. Below 20% it is context; at or above, it is the week's story.
+  const peak = Math.max(...risks.map((d) => d.exposure));
+  const shown = Math.min(risks.length, 8);
   const rows = risks.slice(0, 8).map((d) => {
     // 20% of capital into one day's prints is where it stops being a detail and
     // starts being the dominant driver of the week's P&L.
@@ -493,9 +499,14 @@ function renderRisk(): void {
         : 'Accounts use different currencies — amounts are summed without conversion.'}</span>`
     : '';
 
+  const hottest = peak >= 0.2;
   host.innerHTML = `
     <div class="card" style="margin-bottom:14px">
-      <div class="section-title" style="margin:0 0 6px">${t('cal.myrisk')}</div>
+      ${sectionHead(t('cal.myrisk'), [
+        countChip(shown, risks.length, t('cal.unit.days')),
+        { n: `${(peak * 100).toFixed(1)}%`, text: t('cal.risk.peak'),
+          kind: hottest ? 'danger' : 'plain', title: t('cal.ofcapital') },
+      ], { tone: hottest ? 'var(--danger)' : undefined })}
       <table><thead><tr>
         <th>${t('cal.event.date')}</th><th>${t('cal.holdings')}</th>
         <th style="text-align:right">${t('cal.ofcapital')}</th>
@@ -518,8 +529,9 @@ function renderUpcoming(): void {
   const host = $('#cal-upcoming')!;
   if (!current) return;
   const cutoff = dateRange(current.from, current.to)[7] ?? current.to;
-  const soon = visibleEvents()
-    .filter((e) => e.date <= cutoff)
+  const inWindow = visibleEvents().filter((e) => e.date <= cutoff);
+  const soon = inWindow
+    .slice()
     .sort((a, b) => b.impact - a.impact || a.date.localeCompare(b.date))
     .slice(0, 12);
 
@@ -527,8 +539,13 @@ function renderUpcoming(): void {
     host.innerHTML = '';
     return;
   }
+  // "Next 7 days" is a promise about a window; the range chip is what makes it
+  // checkable, and the count says whether the strip is complete or the top 12.
   host.innerHTML = `
-    <div class="section-title">${t('cal.upcoming')}</div>
+    ${sectionHead(t('cal.upcoming'), [
+      countChip(soon.length, inWindow.length, t('cal.unit.events')),
+      rangeChip(current.from, cutoff),
+    ])}
     <div class="cal-strip">${soon.map(eventCardHtml).join('')}</div>`;
   wireSymbolClicks(host);
 }
@@ -680,13 +697,20 @@ function renderDayPanel(): void {
         </div>`).join('')}</div>`
     : '';
 
+  // Rule 1 of this file: "no data" and "no events" must not look the same. So an
+  // uncovered day gets a warn chip, never a confident "0 events".
+  const dayChips: ChipInput[] = [
+    dayEvents.length || !missing.length
+      ? countChip(dayEvents.length, undefined, t('cal.unit.events'))
+      : { text: t('cal.nodata'), kind: 'warn', title: t('cal.nodata.tip') },
+    date === todayLocal() ? { text: t('cal.today'), kind: 'ok' } : null,
+  ];
+
   host.innerHTML = `
     <div class="card" style="margin-top:14px">
-      <div class="row" style="flex-wrap:nowrap">
-        <div class="section-title" style="margin:0">${date}</div>
-        <span style="flex:1"></span>
-        <button id="cal-day-add" class="range-btn">+ ${t('cal.addevent')}</button>
-      </div>
+      ${sectionHead(`<span class="sec-date">${date}</span>`, dayChips, {
+        right: `<button id="cal-day-add" class="range-btn">+ ${t('cal.addevent')}</button>`,
+      })}
       ${body}${warn}${mineHtml}
     </div>`;
 
@@ -714,9 +738,9 @@ function renderWatch(): void {
   const host = $('#cal-watch')!;
   if (watchScanning) return; // the progress card owns the host mid-scan
 
-  const header = `
-    <div class="section-title" style="margin-top:22px">${t('cal.watch.title')}</div>
-    <p class="muted" style="margin:-6px 0 12px;font-size:12px;line-height:1.55">${t('cal.watch.sub')}</p>`;
+  // No chips here: this heading opens three sub-sections that each carry their own
+  // counts, and a number on the group would only repeat one of them.
+  const header = sectionHead(t('cal.watch.title'), [], { sub: t('cal.watch.sub') });
 
   if (!watchScan) {
     host.innerHTML = `${header}
@@ -733,7 +757,7 @@ function renderWatch(): void {
     ? ` · <span class="badge">${watchScan.regime}</span>`
     : '';
   host.innerHTML = `${header}
-    <p class="muted" style="margin:-6px 0 12px;font-size:12px">
+    <p class="muted" style="margin:0 0 12px;font-size:12px">
       ${scannedAtLabel(watchScanAt, lang)} · ${watchScan.scanned} ${t('picks.scanned')}${regime}
       <button id="cal-watch-rerun" class="link-btn" style="margin-left:8px">${t('cal.watch.rerun')}</button>
     </p>
@@ -755,7 +779,7 @@ async function startWatchScan(): Promise<void> {
   watchScanning = true;
 
   host.innerHTML = `
-    <div class="section-title" style="margin-top:22px">${t('cal.watch.title')}</div>
+    ${sectionHead(t('cal.watch.title'), [{ text: t('cal.watch.scanning'), kind: 'warn' }])}
     <div class="card">
       <div class="row" style="align-items:center;gap:12px;flex-wrap:nowrap">
         <span class="muted" id="cal-watch-label" style="font-size:12px">${t('cal.watch.scanning')}…</span>
@@ -865,8 +889,10 @@ function renderTopAttention(): void {
   const rows = rankAttention(inputs, today, 7);
   host.innerHTML = `
     <div class="card" style="margin-bottom:14px">
-      <div class="section-title" style="margin:0 0 2px">${t('cal.top.title')}</div>
-      <p class="muted" style="margin:0 0 10px;font-size:11px;line-height:1.5">${t('cal.top.sub')}</p>
+      ${sectionHead(t('cal.top.title'), [
+        { n: rows.length, text: t('cal.unit.names'), kind: rows.length ? 'count' : 'warn',
+          title: `${pool.size} ${t('picks.scanned')}` },
+      ], { sub: t('cal.top.sub') })}
       ${rows.length ? topTableHtml(rows) : `<p class="muted" style="margin:0">${t('cal.top.none')}</p>`}
     </div>`;
   wireSymbolClicks(host);
@@ -951,8 +977,10 @@ function renderVcpSection(rows: VcpWatchRow[]): void {
 
   host.innerHTML = `
     <div class="card" style="margin-bottom:14px">
-      <div class="section-title" style="margin:0 0 2px">${t('cal.vcp.title')}</div>
-      <p class="muted" style="margin:0 0 10px;font-size:11px;line-height:1.5">${t('cal.vcp.sub')}</p>
+      ${sectionHead(t('cal.vcp.title'), [
+        top.length ? countChip(top.length, rows.length, t('cal.unit.names'))
+          : { n: 0, text: t('cal.unit.names'), kind: 'warn' },
+      ], { sub: t('cal.vcp.sub') })}
       ${top.length ? `<div style="overflow-x:auto"><table><thead><tr>
         <th>${t('col.symbol')}</th>
         <th style="text-align:right">${t('col.price')}</th>
@@ -997,8 +1025,10 @@ function renderMeanReversionSection(rows: MeanReversionRow[]): void {
 
   host.innerHTML = `
     <div class="card" style="margin-bottom:14px">
-      <div class="section-title" style="margin:0 0 2px">${t('cal.mr.title')}</div>
-      <p class="muted" style="margin:0 0 10px;font-size:11px;line-height:1.5">${t('cal.mr.sub')}</p>
+      ${sectionHead(t('cal.mr.title'), [
+        top.length ? countChip(top.length, rows.length, t('cal.unit.names'))
+          : { n: 0, text: t('cal.unit.names'), kind: 'warn' },
+      ], { sub: t('cal.mr.sub') })}
       ${top.length ? `<div style="overflow-x:auto"><table><thead><tr>
         <th>${t('col.symbol')}</th>
         <th style="text-align:right">${t('col.price')}</th>
