@@ -3744,3 +3744,126 @@ hieu ca dang "Nhan — ghi chu" ma planner ghi ra, va doi chieu duoc ca hai ngon
 - Rac con theo doi: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o
   goc ma khong co `package.json` nao o goc.
 
+
+## CHAT-31 — Doi Trade Date thi tinh lai het, gia lam tron 2 so, va diem ngay bao cao tren do thi
+
+Commit: e4f2dfdd, 23b87037.
+
+### A. Yeu cau
+
+Nguyen van cua user, gom ba phan:
+
+1. Khi chon Trade Date, the entry price, target, stop co ve nhu khong thay doi va van lay theo
+   ngay hien tai. Cac danh gia criteria phai dua vao du lieu truoc ngay do de xem co pass hay
+   khong. Khi chon trade date thi moi thu phai duoc refresh.
+2. Exit price nen rounded toi 2 decimal.
+3. The graph nen co earning date as well neu trong timeframe.
+
+### B. Loi thu nhat — khong phai o cho toi tuong
+
+`computePlans` KHONG sai: no da quet lai `scanQm` tren phan cat as-of tu CHAT-29, va
+`planRegime()` cung doc thi truong cua ngay do. Loi nam dung mot dong sau:
+
+    const edit: PlanEdit = prev ?? { entry: usdToLevel(plan.entry), ... };
+
+`prev` la `planEdits.get(sym)`, va ghi chu cu noi "keep any prior user edits". Nhung no giu
+luon ba muc gia SUY RA tu ngay TRUOC, cong doan giai thich va phong doan setup cua screener.
+Ket qua: diem chat luong, contraction va RS chay ve 2024 trong khi entry/stop/target dung o
+gia hom nay.
+
+Phan te nhat: hai tieu chi duoc cham TU chinh ba o do — `rMultiple` va `stopPct` trong
+`cardGrade` — nen hai tieu chi cua bang 26 tieu chi da bi cham bang so cua nam sai. Nghia la
+loi nay khong chi lam sai cai hien ra, no lam sai ca hang chu.
+
+Cach sua: mot co `planDateMoved`, dat khi o ngay doi that (`planDate !== wasDate`), va dong
+seed doc `planDateMoved ? undefined : carried`. Doi ngay = seed lai the tu bar moi.
+
+Nhung gi user SO HUU khong mat, va khong phai vi toi cho phep ma vi chung khong nam o day:
+setup, cau tra loi tieu chi, ghi de hang chu va ghi chu tu viet deu di qua `persistPlan` vao
+`plan:<SYM>`, roi tro lai qua `stored` — dung nhu khi mo panel moi. Rieng `exit` duoc mang
+tay qua (`carried?.exit`), vi no la thu duy nhat tren the khong duoc luu o dau ca, va vi mot
+lan thoat la su that ve mot lenh that: doi ngay ke hoach khong xoa no.
+
+Co duoc xoa sau khi `rows` dung xong, khong phai trong ham xu ly su kien: neu xoa som thi mot
+lan ve lai giua chung se lai giu so cu.
+
+### C. Loi thu hai — hai so thap phan
+
+`usdToLevel` chi lam tron trong nhanh EUR. Gia dong tho trong cache la
+198.44000244140625, nen o USD con so do vao thang o gia thoat. Sua: lam tron ca hai chieu.
+Mot muc gia duoc bao bang cent; nhung so sau cent la dinh dang luu tru lot vao bieu mau.
+
+### D. Diem ngay bao cao tren do thi
+
+Khong phai viet moi tu dau — ha tang da co san het:
+
+- `adapters/earningsDates.ts` → `fetchEarningsReports(symbol)`, goi
+  `/company/<SYM>/earnings-surprise` qua `functions/api/nasdaqcal`, cache localStorage 3 ngay,
+  khong bao gio nem loi (tra `[]`), ticker `.VN/.HN/.UP` thi bo qua.
+- `ui/charts.ts` → `CandleChart.setEarnings(marks)` va `EarningsMark`. Da dung o tab co phieu
+  tu truoc; ba noi khac goi `drawCandles` thi chua goi bao gio, ke ca planner.
+
+Nen CHAT-31 chi la noi day vao: map `planEarnings`, `loadPlanEarnings` (khong await trong
+`computePlans` — day la mot cu goi HTTP ben thu ba, giu ca panel sau no thi moi lan tinh lai
+se cham nhu mang), va `paintPlanEarnings`.
+
+Hai diem phai nho:
+
+- Marker nam tren SERIES chu khong tren khung, nen moi lan dung chart moi la mat het. Vi vay
+  `paintPlanChart` goi lai `paintPlanEarnings` sau khi dung, khong chi goi sau khi tai xong.
+- Khong cat diem tai ngay giao dich. Cung ly do nhu cac thanh nen (xem CHAT-30 muc B): day la
+  buc anh chu khong phai phan xet, va mot bao cao roi vao may tuan sau diem vao thuong chinh
+  la cau tra loi cho "roi sao nua". Khong co gi duoc cham diem doc map nay.
+
+Gioi han phai noi ra: Nasdaq chi cong bo 4 QUY GAN NHAT. Mot ke hoach lui hai nam se khong co
+diem nao. Nen co dong chu thich duoi do thi: co diem thi giai thich chu E va ghi nguon, khong
+co diem thi noi ro la het du lieu chu khong phai tinh nang hong. `.tp-earnhint:empty` an di
+khi ticker khong co ngay nao (co phieu VN chang han) — user khong xin earnings o the do.
+
+### E. Mot cau noi da thanh sai tu CHAT-30
+
+`wl.plan.asofbars` viet "setup, muc gia, hang va BIEU DO deu tinh tu du lieu den het ngay do
+— khong dung gi sau ngay do". Tu CHAT-30 nua sau cua cau do khong con dung voi bieu do nua.
+Da sua lai: bieu do hien them giai doan sau de thay ket qua. Mot dong chu noi sai ve chinh
+tinh nang chong nhin truoc la thu te nhat trong ca man hinh nay.
+
+### F. Kiem tra
+
+- `npx tsc --noEmit` sach o apps/desktop.
+- apps/desktop: 261/261 phep kiem trong 17 tep. packages/core: 790/790 trong 50 tep.
+- package-lock.json khong doi.
+- Khong them phep kiem moi: ca ba thay doi nam trong DOM va trang thai module cua panel, ma
+  vitest ben app chay environment node.
+
+### G. Phai tan mat xem lai
+
+- Mo Trade Planner, ghi lai entry/stop/target cua mot ma, roi doi Trade Date ve mot nam truoc:
+  ba so do PHAI doi. Truoc ban sua thi chung khong doi.
+- Cung luc do, mo bang tieu chi: hai dong R:R va khoang cach stop phai doi theo.
+- Truoc khi doi ngay, tra loi vai tieu chi va chon setup: sau khi doi ngay chung phai con.
+- Truoc khi doi ngay, dien gia va ngay thoat: sau khi doi ngay o thoat phai con nguyen.
+- Chon ngay thoat: so trong o gia chi co hai so thap phan.
+- Do thi cua mot ma My: co diem tim chu E duoi cac thanh nen, va dong chu thich duoi do thi.
+- Doi Trade Date ve hai nam truoc: khong con diem nao, va dong chu thich noi ro vi Nasdaq chi
+  co 4 quy.
+- Mot ma VN (neu co trong watchlist): khong co diem, va KHONG co dong chu thich nao.
+- Ghi ngay thoat cho mot ke hoach cu: chart dung lai, va cac diem E phai xuat hien lai.
+- Doc lai thanh mau ho phach khi dat ngay qua khu: cau ve bieu do gio noi dung.
+
+### H. Con no (giu nguyen tu CHAT-30, them mot)
+
+- Ban in ke hoach (`planReport.ts` qua `caseStudies/svgChart.ts`) CHUA co co ngay bao cao.
+  Do thi SVG do da co co cho catalyst (`:284-292`), nen them vao la noi `EarningsReport[]`
+  vao `ChartSubject` — chua lam, vi user hoi ve do thi tren the.
+- Loi nhan f0b6b0e9 viet "22 tieu chi" (dung la 26) — sua phai force-push, de nguyen.
+- Ban build Pages cua lux-lookthrough van do: chay `wrangler pages deploy dist
+  --project-name the-professional` tu apps/desktop tren may co dang nhap Cloudflare.
+- Scanner khong day tin ke tu 28-09-2026: doc van duoc nen loi nam o phia VM, can SSH tu may
+  kia.
+- Web search cho assistant: chua lam.
+- Tran cat lo van dang mac dinh min ('deeper') theo gia dinh cua toi, chua co xac nhan.
+- Ghi chu le ben canh tung muc cho sach Learn: chua lam.
+- README muc 5.8 ghi sai cach restart, va con mot khoi ```bash chua dong o dong 671-680.
+- Rac con theo doi: `.claude/worktrees/.../package-lock.json` va mot `package-lock.json` o
+  goc ma khong co `package.json` nao o goc.
+
