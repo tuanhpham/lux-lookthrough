@@ -4539,3 +4539,207 @@ Commit: `efd80d0d` — 17 file, 525+/63-.
     671-680.
   • Cac file `package-lock.json` rac dang duoc theo doi trong git.
 
+## CHAT-37 — Cau hinh cam nang tu giai thich: the trang thai thi truong, chuoi giam rui ro, bang luat chia nhom va mot vi du song
+
+Yeu cau cua nguoi dung, mot cau nhung ba viec:
+
+  1. "make the playbook seetings more beautiful, colorful, highlighted important
+     things, nicer table"
+  2. "more explaination for the part of Rules per setup, (currently user will not
+     understand what is the Stop anchor, N Sessions, Pad.... and so on"
+  3. "va cai dong dau Range SPY 771.35 .... co nghia la gi .... lay tu dau lam
+     cho no noi bat hon di"
+
+### A. Vi sao `title=` khong bao gio du
+
+Muoi mot cot cua bang "Luat theo tung thiet lap" truoc day duoc giai thich bang
+thuoc tinh `title=` viet tay canh tung the `<th>`. Ba van de, va ca ba deu la ly
+do nguoi dung bao khong hieu:
+
+  — Dien thoai khong hover duoc. Tren dien thoai lop giai thich do KHONG TON TAI.
+  — Mot cau moi o. Du de nhac lai cho nguoi da biet, khong du de day nguoi chua
+    biet.
+  — Nguoi doc phai DOAN la co cai gi de hover. Khong co dau hieu nao noi rang
+    chu "Pad %" co mot cau giai thich an sau no.
+
+Va vi loi giai thich nam canh the `<th>` chu khong nam cung cho voi cot, doi ten
+cot hoac doi thu tu cot thi loi giai thich o lai — chi vao cai o khac — ma khong
+co gi bao loi.
+
+Nen cach sua khong phai la viet title dai hon. Loi giai thich phai thanh NOI
+DUNG: mot phan chu giai HIEN RA, cung thu tu va cung mau voi cac cot.
+
+### B. Mot bang duy nhat sinh ra ba thu
+
+`apps/desktop/src/ui/playbookHelp.ts` (moi, khong dung DOM):
+
+  — `SETUP_COLUMNS` la mot mang co thu tu cua
+    `{ field, group, vi, en, whatVi/En, whyVi/En }`. `whatVi` noi CON SO DO LA GI,
+    `whyVi` noi SUA NO THI DIEU GI DOI — hai cau khac nhau, va cai thu hai la cai
+    cu bi thieu.
+  — `playbookSettings.ts` lap qua chinh mang do BA LAN: dai ten nhom + dong ten
+    cot, cac o `<td>` de nhap, va cac the chu giai ben duoi bang. Nen khong the
+    them cot ma quen giai thich, va khong the doi ten cot ma loi giai thich lech
+    di: khong co danh sach thu hai nao de lech.
+  — `RULE_GROUPS` chia 11 cot thanh BA CAU HOI, vi that ra bang chi tra loi ba
+    cau: cho nao chung minh minh sai (`stop`), cho nao chot phan dau (`target`),
+    phan con lai chay the nao (`manage`).
+
+Kiem tra bang test: moi truong sua duoc cua `SetupRule` phai co dung mot dong
+trong `SETUP_COLUMNS`, cac cot cung nhom phai nam LIEN NHAU (vi dong dai nhom
+dung mot `colspan`, nhom bi tach thi dai se trum lech o), va `stop` phai dung
+truoc `target` — ai doc "R muc tieu dau tien" truoc "Neo cat lo" la doc dap an
+truoc cau hoi.
+
+### C. Dong "Range — SPY 771.35 — MA50 ..." la cai gi
+
+Do la mot dong xam chay dai, nam o dau hop thoai, in ra nam con so khong nhan.
+Tuc la thong tin quan trong nhat tren man hinh — thi truong giam thi app tu choi
+len ke hoach mua, khong can biet mau hinh dep the nao — lai trong nhu mot dong
+debug.
+
+Thay bang mot THE TRANG THAI (`.pb-hero`) noi bon dieu:
+
+  1. TEN trang thai, trong mot vien bau to mau theo trang thai (`REGIME_DOC[r].color`).
+  2. PHEP DO nao dat ra cai ten do. Vi du UPTREND_UNDER_STRESS = "MA50 van tren
+     MA200 va van di len, nhung gia da tut xuong duoi MA50".
+  3. NO TON BAO NHIEU ve co vi the — noi ngay canh cai ten gay ra no.
+  4. Nam con so, moi con mot o rieng co nhan va co GHI CHU NGUON, cong voi mot
+     chip so sanh ("gia TREN" / "gia DUOI" / "dang len" / "gian ra") vi mot con so
+     nhu MA50 771.35 khong co nghia gi neu khong biet gia dang o phia nao cua no.
+
+Va mot cau tra loi truc tiep cho "lay tu dau": app tu do tu NEN NGAY CUA SPY —
+chinh du lieu tai ve bang nut ↻ Cap nhat o tab Portfolio — khong ai nhap tay, va
+khong phai du bao: no mo ta nhung gi da xay ra tinh den het phien ghi tren the.
+Khi chua du 210 phien thi the noi thang la chua do duoc va app KHONG ap khoan
+giam nao — no khong tu nghi ra mot hinh phat cho du lieu con thieu.
+
+Su that ve du lieu: SMA chu khong phai EMA (de khop TradingView), `atrRatio` la
+ATR% hom nay chia cho trung binh 100 phien cua chinh no, va `null` — khong bao
+gio la 1.0 — khi chua co nen tham chieu.
+
+### D. Chuoi rui ro, vi cac khoan giam NHAN voi nhau
+
+Truoc day chi in ra mot con so cuoi. Mot con so khong the noi tai sao no la con
+so do, nen nguoi dung se sua no bang cam giac.
+
+Gio la mot chuoi chip: bac (`dang hoc` / `dang chung minh` / `on dinh`) → co day
+du → tung khoan giam mot chip → ket qua. Viet thanh mot HANG chip chu khong phai
+mot danh sach gach dau dong, vi cac khoan giam NHAN voi nhau: hai lan giam nua la
+mot phan tu, khong phai hai dong.
+
+`cutText` va `stageLabel` duoc go bang `Record<RiskCut, ...>` va
+`Record<RiskStage, ...>` chu khong phai `Record<string, ...>`. Nen neu core them
+khoan giam thu bay thi BUILD do, khong phai hop thoai in ra `undefined`.
+
+Luu y con thieu trong danh sach do la co y: hang tin cay (A/B/C/D) KHONG con la
+mot khoan giam o day. No nhan vao SO CO DA TINH XONG trong `suggestSize`. Moi
+khoan giam trong chuoi nay la mot quyet dinh APP tu lam thay nguoi dung; hang tin
+cay la nguoi dung tu chon nho hon.
+
+### E. Vi du song, va vi sao no goi `suggestLevels`
+
+"Pad %", "N phien", "R dau tien" chi tro nen cu the khi thanh phep tinh. Nen duoi
+phan chu giai la mot lenh tuong tuong duoc len ke hoach bang DUNG nhung con so
+dang co trong bang ngay luc do — sua mot o thi vi du doi theo tung phim bam.
+
+Hai quyet dinh dang ghi lai:
+
+  — Vi du goi `suggestLevels`, chinh ham ma form Mua dung, tren 40 nen co dinh
+    (`DEMO_BARS`, seed 99). KHONG viet lai phep tinh. Mot ban cai dat thu hai ma
+    viec duy nhat cua no la duoc tin tuong thi den ngay hai ban lech nhau, nguoi
+    doc se tin ban sai.
+  — `readSetupBoxes(host, k)` dung CHUNG cho vi du va cho Save. Mot ham doc o duy
+    nhat, nen vi du khong the dang tinh mot lenh khac voi lenh sap duoc luu, va
+    quy tac "o trong nghia la gi" chi ton tai o mot cho. Save gio tinh hieu so
+    tu ket qua cua ham nay — hanh vi y nguyen, doi chieu tung truong hop: o trong
+    voi truong nullable → null, o trong voi truong khong nullable → giu mac dinh,
+    so vo nghia → giu mac dinh.
+
+Do thi la ly do phan nay ton tai o dang hinh chu khong phai doan van: VUNG TO BONG
+tren do thi CHINH LA "N phien", va khoang cach giua duong day dut o day va duong
+cat lo CHINH LA "Pad %". Hai chu do khong co nghia gi cho den khi chung la mot
+khoang cach nhin thay duoc.
+
+### F. `--pb-tone`: mot bien mang mau di khap noi
+
+Ba mau co nghia va chung mang nghia di khap noi: `--danger` la cat lo (cho minh
+sai), `--accent` la muc tieu (cho minh dung), `--violet` la phan chay tiep (quan
+ly the nao). Dong ten cot, the chu giai cua no, va buoc cua no trong vi du dung
+CUNG MOT MAU — do la cai giup mat noi "Pad %" trong bang voi doan van giai thich
+no.
+
+Moi phan tu doc `--pb-tone`, do renderer dat inline. Khong cho nao trong khoi CSS
+moi ghi cung mot trong ba mau, nen cung bo quy tac do phuc vu ca ba nhom cot VA
+bon trang thai cua the thi truong. Va vi moi mau la `var(--...)` hoac
+`color-mix(...)`, giao dien sang (`html.light`) tu dung theo.
+
+Hai chi tiet phai nho: `.pb-ch` va `.pb-gh` can `position: static` de pha cai
+`th` sticky toan cuc (bang nay khong cuon doc), va `.pb-tbl tbody tr:hover` phai
+`background: transparent` vi cac dong nay khong bam duoc — khong co gi phia sau
+de mo.
+
+### G. `DEMO_ENTRY` = 102 chu khong phai 104.5 — test bat duoc
+
+Chu thich do thi viet "ban mua khi no vuot len tren nen". Test kiem tra cau do va
+BAO SAI: dinh cao nhat trong 20 phien cuoi la 103.99 (cai rau nen mo dau nen),
+tuc la gia vao 102 nam TRONG nen chu khong tren nen.
+
+Da thu doi gia vao len 104.5 — dung nghia "vuot len tren nen". Ket qua: ca BAY
+thiet lap tra ve `stopWiderThanAtr`, cat lo 4.4%—6.0%. Mot hinh minh hoa ma moi
+dong la canh bao thi day canh bao chu khong day phep tinh.
+
+Nen giu 102 (cat lo 2.1%—3.8%, la khoang nguoi doc can nhan ra, va hai thiet lap
+van cham tran cat lo — dung mot canh bao dang gap o day) va sua CHU THICH cho
+dung voi do thi: mot lenh mua dat tren dinh cay nen cuoi (101.46). Test gio khoa
+ca hai dau: gia vao phai tren dinh nen cuoi, va khong thiet lap nao duoc tra ve
+`stopWiderThanAtr`.
+
+Day la lan thu hai trong du an nay mot test bat duoc VAN XUOI sai chu khong phai
+code sai. Dang giu cach nay.
+
+### H. Test
+
+`apps/desktop/tests/playbookHelp.test.ts`, 17 test, khong can DOM (`apps/desktop`
+chay `environment: 'node'`, khong co jsdom va khong duoc them devDependency nao —
+do la ly do noi dung va vi du nam trong mot module khong dung DOM):
+
+  — moi truong sua duoc cua `SetupRule` co dung mot dong `SETUP_COLUMNS`, va
+    khong dong nao tro vao truong core khong co;
+  — moi `whatVi/En` va `whyVi/En` dai hon 30 ky tu — chinh cai ngan qua la cai
+    lam title truoc day vo dung;
+  — cac nhom nam lien nhau, dung thu tu `RULE_GROUPS`, `stop` truoc `target`;
+  — `REGIME_DOC` phu het bon trang thai, `REGIME_STATS` dung dung nam khoa ma
+    renderer tra cuu (`close`, `ma50`, `ma200`, `slope`, `atr`) — khoa thu sau se
+    in ra `undefined`;
+  — `DEMO_BARS` on dinh, 40 nen, `high >= max(o,c)`, ngay tang dan;
+  — `exampleSteps` ket thuc dung o `stop` va `target` ma `suggestLevels` tra ve,
+    cho ca bay thiet lap;
+  — doi mot o thi so doi theo (pad rong hon → cat lo thap hon).
+
+Toan bo: 303 test `apps/desktop` (20 file) va 792 test `packages/core` (50 file)
+deu xanh. `tsc --noEmit` sach.
+
+### I. File va commit
+
+  — `apps/desktop/src/ui/playbookHelp.ts` (moi, khong DOM)
+  — `apps/desktop/tests/playbookHelp.test.ts` (moi)
+  — `apps/desktop/src/ui/playbookSettings.ts` (viet lai phan trinh bay; hop dong
+    Save va moi `data-*` giu nguyen)
+  — `apps/desktop/src/styles.css` (+204 dong, khoi `.pb-*`)
+
+Commit `3b15abf4`, da push. `_scratch.mjs` (script tam de in truoc cac con so vi
+du) da xoa.
+
+### J. Con no
+
+  — Scanner tren VM im tu 28/09/2026: doc thi duoc, day thi khong. Loi o phia
+    VM, can SSH tu may kia.
+  — Ban build Pages dang do: can `wrangler pages deploy dist --project-name
+    the-professional` tu `apps/desktop`.
+  — Commit `f0b6b0e9` ghi "22 tieu chi" (dung la 26) — sua thi phai force-push
+    nen de nguyen, ghi lai o day.
+  — README muc 5.8 ghi sai cach restart, va co mot khoi ```bash chua dong o dong
+    671-680.
+  — Cac file `package-lock.json` rac dang duoc theo doi trong git.
+
