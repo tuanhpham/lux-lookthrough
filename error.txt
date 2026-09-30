@@ -5603,3 +5603,36 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 ### D. Kiem tra
 — core 823 test, desktop 405 test (them 4 test record_balance), typecheck exit 0, vite build OK.
 — syncMerge co mot lan het gio 5s khi chay ca bo (may ban); chay rieng thi qua.
+
+
+## CHAT-48 — Co phieu Duc (Allianz ALV.DE...): thi truong Germany va gia EUR dung trong Portfolio
+
+### A. Yeu cau
+— "minh co the co them nhung co phieu nhu la cua Germany khong (e.g. Allianz ...)".
+— Hieu la 2 viec: (1) Screener co them thi truong Duc ben canh My va Viet Nam; (2) mua ALV.DE vao Portfolio phai tinh dung gia EUR.
+
+### B. Screener
+— core sectors.ts: DE_SECTOR_STOCKS, 97 ma Xetra `.DE` (DAX + phan lon MDAX), chia 11 nganh dung ten nganh cua My.
+— Nut thi truong "Duc" (co Duc) o Picks, Screener, Sectors. 2 universe: "DAX – von hoa lon (~40)" va "DAX + MDAX (~105)".
+— Gia hien bang € (fmtPrice, EPS va khoang 52 tuan trong trang co phieu). Nguong gia toi thieu hien €.
+— Giong Viet Nam: khong co kiem tra xu huong thi truong (regime SPY) va khong loc truoc theo momentum.
+
+### C. Loi ngam da sua: moi gia Yahoo bi coi la USD
+— Yahoo tra gia theo tien te cua san: AAPL bang USD, ALV.DE bang EUR. App cu chia moi gia cho EURUSD khi tai khoan la EUR -> Allianz €350 se hien ≈€300, khong bao loi.
+— core quoteCurrencyOf(sym): doc duoi ma. .DE/.F/.PA/.AS/.MI/.MC... = EUR; .VN = VND; khong co duoi hoac BRK.B = USD; .L/.SW/.T... = null (chua ho tro, KHONG doan la USD).
+— desktop fx.ts: quoteToCcy(sym, tien te dich, ngay) va ccyFactor(tu, den, ngay). Chua co ty gia thi = 1 nhu truoc.
+— portfolioTab: bang gia, duong equity, nen, bieu do dong, goi y gia mua/ban deu qua quoteToCcy. Tai khoan USD giu ALV.DE cung duoc doi (nhan ty gia).
+— buildBuyPlan (playbook) nhan them symbol, tinh stop/target theo tien te cua ma.
+— Bieu do plan (Trade Planner, ban in plan, Case Studies man hinh va ban xuat): candleDivisor(sym, tien te plan, ty gia). 0 = khong can doi, null = can ty gia ma chua co -> khong ve (thay vi ve lech truc).
+— Buy form: go ma .DE tu chuyen o tien te sang EUR; san chua ho tro thi hien canh bao.
+— Chatbot: gia khong ghi tien te = tien te cua ma (ALV.DE -> EUR); ma o san chua ho tro bi tu choi voi cau giai thich.
+— positionsDigest (scanner VM doc de bao stop): bo qua ma khong phai USD, vi VM so stop voi gia USD. Nghia la stop cua ALV.DE CHUA duoc canh bao qua Telegram.
+
+### D. Kiem tra
+— core 828 test (them quoteCurrency.test + 1 test digest), desktop 413 test (them quoteFx.test), typecheck exit 0, vite build OK.
+— Test bat duoc 1 loi that: VOD.L va 7203.T (1 chu cai) bi doc nhu co phan hang B cua My; da them danh sach san 1 chu cai (L, T, V).
+
+### E. Chua lam
+— London (pence), Zurich (CHF), Tokyo...: chua co ty gia, chua ho tro.
+— Canh bao stop cho ma .DE tren scanner VM.
+— Lenh cho (pending order) cua ma EUR trong tai khoan USD: nguong van so voi gia goc, chua kiem ky.
