@@ -5577,3 +5577,29 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 
 ### D. Kiem tra
 — typecheck exit 0, desktop 401 test, vite build OK.
+
+## CHAT-47 — Doi ten Financial Status + chatbot ghi so du ("N26 4K")
+
+### A. Yeu cau
+— Doi ten trang Wealth Status thanh Financial Status (vi: Tinh trang tai chinh). Da lam o 850ac653.
+— Chatbot phai biet trang nay: nguoi dung go "N26 4K" thi ghi mot dong moi cho N26 voi ngay hom nay; neu khong ro thi hoi lai.
+
+### B. Doi ten
+— Chi doi chu tren man hinh. Tab id, ten file, khoa i18n va khoa dong bo `wealth` GIU NGUYEN: doi khoa thi mat so du da luu.
+
+### C. Cong cu record_balance (6db5718)
+— Cong cu ghi moi, nhu cac lenh khac: hien the duyet, chua luu gi cho toi khi bam Luu.
+— Tham so: account (ten nhu nguoi dung noi), amount, date (bo trong = hom nay), note.
+— Kieu so moi `balance`: cho phep 0 (tai khoan da dong) va so am (khoan vay). signedMoney cu khong nhan 0.
+— "4K", "1.5M", "250tr": mo hinh tu doi ra so day du. Neu gui chu "4K" thi bi tra loi va duoc nhac cach doi.
+— Tim ten: trung khop, roi bat dau bang, roi chua; khong phan biet hoa thuong. Khop 2 tai khoan -> loi "Ask which one". Khong khop -> liet ke cac tai khoan co san.
+— Chatbot KHONG tao tai khoan moi (loai va tien te do nguoi dung chon tren trang). Ngay tuong lai bi tu choi.
+— So tien la tien te cua chinh tai khoan do (tai khoan VND nhan VND), khong quy doi.
+— The duyet hien: tai khoan, so du, ngay, lan ghi truoc (de bat loi "4K" doc thanh 4), va bao neu thay lan ghi cung ngay.
+— Ghi vao so `wealth` qua loadBook/setBalance/saveBook (saveBook tu choi khi chua dong bo xong), khong qua withAccounts. Co ghi nhat ky audit.
+— Trang Financial Status tai lai so khi chat ghi xong, ke ca khi dang an: neu khong, lan sua tiep theo tren trang se ghi de bang ban cu.
+— Prompt: "ten + so tien" la so du hien tai, khong phai nap tien, khong phai tai khoan danh muc; khong chac thi hoi mot cau ngan.
+
+### D. Kiem tra
+— core 823 test, desktop 405 test (them 4 test record_balance), typecheck exit 0, vite build OK.
+— syncMerge co mot lan het gio 5s khi chay ca bo (may ban); chay rieng thi qua.
