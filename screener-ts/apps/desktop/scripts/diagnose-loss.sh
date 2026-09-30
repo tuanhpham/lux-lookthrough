@@ -74,11 +74,13 @@ echo "════ NEXT ════"
 echo "Read section 2 first. If accounts_bytes is large, the server is FINE: deploy the"
 echo "current build, then re-enter the access code to pull it down. Stop there."
 echo
-echo "Only if the server really was wiped: take the wipe minute from 2b, subtract ~10"
-echo "minutes, and probe that instant. Never restore blind — take a copy first:"
+echo "Only if the server really was wiped: take the wipe minute from 2b (UTC), subtract ONE"
+echo "minute, write it with a Z (e.g. 2026-09-30T19:41:00Z) and probe that instant."
+echo "RECOVERY.md step 0c has the kv_history query that gives the exact instant."
+echo "Never restore blind — take a copy first:"
 echo
 echo "  npx wrangler d1 export $DB --remote --output ../../../kv-now.sql   # OUTSIDE the repo"
-echo "  npx wrangler d1 time-travel info $DB --timestamp <wipe minute minus 10min>"
+echo "  npx wrangler d1 time-travel info $DB --timestamp <wipe minute minus 1min>Z"
 echo
 echo "⚠️  A dump contains the \`users\` table, i.e. YOUR ACCESS CODE IN PLAINTEXT, plus"
 echo "    the whole portfolio. Keep it out of the repo and never commit or share it."

@@ -106,13 +106,70 @@ On any device that still shows the real data, open **☰ → Sync → ⬇ Export
 
 ### 0c. Measure the overwrite time — do not guess it
 
-`scripts/diagnose-loss.sh` prints `kv.updated_at` for every live row. That column
-IS the moment the overwrite happened. Aim Time Travel ~10 minutes before it.
-
 Restoring to a guessed instant that is *after* the overwrite silently returns an
 already-empty snapshot. And note Time Travel keeps **every** point in the last 30
 days: restoring does not consume bookmarks, so a wrong probe costs nothing and is
 undoable. The only hard boundary is the 30-day limit.
+
+**Try the app first.** Now that `kv_history` exists, ☁️ → "🕘 Browse versions"
+restores one key (`accounts`, `wealth`, `plan:<SYM>`) without touching anything
+else. Time Travel rolls back the **whole database**, so it also undoes the scanner's
+`scanner_kv` rows and every other key written since. Use it only when the history
+list does not reach far enough back.
+
+#### Getting the exact timestamp, step by step
+
+**1. Read the overwrite instant from the server.** Do not use your memory of "about
+10 minutes ago". `kv_history` holds every value that was overwritten, together with
+the instant it was replaced (`archived_at`):
+
+```bash
+npx wrangler d1 execute screener-sync --remote --json --command \
+  "SELECT key,
+          datetime(updated_at/1000,'unixepoch')  AS value_written_utc,
+          datetime(archived_at/1000,'unixepoch') AS overwritten_utc,
+          archived_at                            AS overwritten_ms,
+          length(value)                          AS bytes
+   FROM kv_history WHERE key IN ('accounts','wealth')
+   ORDER BY archived_at DESC LIMIT 20"
+```
+
+**2. Find the wipe row.** Read down the list and stop at the most recent row with
+a large `bytes` value (the real portfolio is tens of KB), directly above rows that
+are small (an empty starter account is a few hundred bytes). That row is the last
+good value. Its `overwritten_utc` is the wipe moment.
+
+Before `kv_history` existed, use `kv.updated_at` from `scripts/diagnose-loss.sh`
+(section 2b). There the wipe shows up as many rows stamped within the same minute.
+
+**3. Pick an instant inside the good window.** Any instant from
+`value_written_utc` up to, but not including, `overwritten_utc` held the good
+value. One minute before the wipe is the safest choice. Going further back (the
+old advice was 10 minutes) also rolls back real edits made just before the wipe.
+
+```bash
+MS=<overwritten_ms from step 1>
+date -u -d @$(( MS/1000 - 60 )) +%Y-%m-%dT%H:%M:%SZ     # e.g. 2026-09-30T19:41:00Z
+```
+
+**4. Mind the format and the time zone.** Wrangler accepts `--timestamp` as
+RFC3339 or as Unix **seconds**:
+- `updated_at` / `archived_at` are **milliseconds**, so divide by 1000.
+- `datetime(...)` in the SQL output above is **UTC**.
+- A clock time you remember is local. Luxembourg is UTC+2 until 25 Oct 2026, then
+  UTC+1. So 21:41 on your screen is `19:41:00Z`.
+- A timestamp without `Z` or an offset is the most common mistake: wrangler reads
+  it in UTC, and the restore lands two hours off.
+
+**5. Check it before restoring.** `time-travel info` resolves the instant without
+changing anything. `scripts/probe-timestamp.sh <ts>` goes further: it restores to
+that instant, prints the size of `accounts` there, and saves a way back. The
+instant is right when `accounts` shows tens of KB and `lot_mentions > 0`.
+
+```bash
+npx wrangler d1 time-travel info screener-sync --timestamp 2026-09-30T19:41:00Z
+bash scripts/probe-timestamp.sh 2026-09-30T19:41:00Z
+```
 
 ### 1. Authenticate wrangler (read-only steps follow)
 
@@ -127,11 +184,11 @@ npx wrangler login
 bash scripts/diagnose-loss.sh     # read-only: live rows + the overwrite window
 ```
 
-Then resolve a bookmark for ~10 minutes before the `earliest_utc` it reports. The
-timestamp below is a PLACEHOLDER — substitute the measured one:
+Then resolve a bookmark for the instant worked out in step 0c: one minute before the
+wipe, in UTC with a `Z`. The timestamp below is a PLACEHOLDER — substitute the measured one:
 
 ```bash
-npx wrangler d1 time-travel info screener-sync --timestamp <measured-minus-10min>
+npx wrangler d1 time-travel info screener-sync --timestamp <wipe-minus-1min>Z
 ```
 
 D1 keeps 30 days of point-in-time history. This is the real recovery path and it
@@ -174,7 +231,7 @@ Then either:
 timestamp measured in step 0c; the one below is only a shape example:
 
 ```bash
-npx wrangler d1 time-travel restore screener-sync --timestamp <measured-minus-10min>
+npx wrangler d1 time-travel restore screener-sync --timestamp <wipe-minus-1min>Z
 ```
 
 This is the cleanest fix if nothing worth keeping was written since. It is
