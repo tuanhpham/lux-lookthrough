@@ -5557,3 +5557,23 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 
 ### E. Kiem tra
 — core 823 test, desktop 401 test, typecheck exit 0, vite build OK.
+
+## CHAT-46 — Wealth Status: bieu do tung tai khoan + tu cap nhat moi ngay
+
+### A. Yeu cau
+— Mo tung tai khoan phai co bieu do rieng; trang tu cap nhat moi ngay mot lan, nhat la sau phien giao dich.
+
+### B. Bieu do tung tai khoan
+— Bam ten hoac nut mo cua dong: hien bieu do + bang cac lan ghi. Dong Danh muc cung mo ra duoc (phan Danh muc quy EUR).
+— Tai khoan USD/VND co nut chuyen: tien goc (phang giua hai lan ghi, dung nhu sao ke) hoac EUR (thay doi theo ty gia).
+— Dung chung cac nut khoang thoi gian (All/2Y/1Y/6M) voi bieu do chinh.
+
+### C. Tu cap nhat
+— Moc la lastSettledSession(): 17:00 New York (khoang 23:00 gio Lux), khong phai nua dem: truoc moc do chi co gia tam cua phien.
+— Chay khi mo trang, va moi 10 phut neu trang dang hien va cua so dang mo (visibilitychange cung kiem tra).
+— Phan Danh muc dung refreshStalePrices cua Portfolio (chi tai khoan bi cham, 1 lan/phien/may). Sau do lay ty gia.
+— Bien nhan `wealth_fx:session`, chi o tren may. Chi ghi khi lay ty gia thanh cong, nen mot toi mat mang se duoc thu lai. Bam Update thu cong thanh cong cung ghi bien nhan.
+— So du ngan hang KHONG tu cap nhat (la so nguoi dung go). App dong thi khong chay: la web app, khong co job tren server cho viec nay.
+
+### D. Kiem tra
+— typecheck exit 0, desktop 401 test, vite build OK.
