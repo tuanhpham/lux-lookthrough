@@ -5697,3 +5697,10 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 — Gio moi tien te mot mau: EUR xanh duong, USD vang cam, VND do hong, CNY tim. Portfolio van mau xanh la.
 — Hai tai khoan cung tien te: tai khoan thu 2, thu 3... la sac nhat/dam hon cua cung mau, de bieu do chong van tach duoc. Thu tu lay theo luc them tai khoan, khong theo cot dang sap xep, nen mau khong doi khi bam tieu de.
 — Chu thich "● EUR ● VND..." nam duoi thanh ty trong.
+
+
+### G. "No exchange rate yet for USD" ca sau khi Update (bo sung CHAT-50)
+— Nguyen nhan (loi do CHAT-49 gay ra): refreshFx ghi EURUSD thanh cong, roi ghi EURVND thi het quota. setCache don het bo dem cuc bo de lay cho, trong do co wealth_fx:USD vua ghi va pf_eurusd_bars. loadFx doc lai tu storage, khong con ty gia USD.
+— Sua: ty gia tai trong phien duoc giu trong bo nho (Map `fetched` trong wealth/store.ts), va cachedBars doc bo nho truoc storage.
+— Bang tai khoan mac dinh sap theo ten A-Z. Neu da bam mot cot khac thi app nho lua chon do (wealth_sort).
+— Van con: bo nho may day la goc van de. Tai lai trang thi mat ty gia trong bo nho, den khi Update tu dong chay lai. Chua co cong cu xem key nao chiem cho.
