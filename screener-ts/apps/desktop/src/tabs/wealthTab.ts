@@ -1,5 +1,5 @@
 /**
- * Wealth Status — the Portfolio plus bank accounts, savings, cash and debts, in euros.
+ * Financial Status — the Portfolio plus bank accounts, savings, cash and debts, in euros.
  *
  * The model (what a balance reading means, how a date is converted, where the chart
  * starts) is in `@screener/core` `wealth/` and is tested there; storage and rates are in
@@ -102,7 +102,7 @@ export async function renderWealth(ctx: AppContext): Promise<void> {
 // ── The automatic update ───────────────────────────────────────────────────
 
 /**
- * The session this device has brought Wealth Status up to: "the portfolio and the rates
+ * The session this device has brought Financial Status up to: "the portfolio and the rates
  * here include that US close". Under `wealth_fx:`, so device-local, for the reason
  * `pf_autoupdate` is: the bars it vouches for never leave this machine.
  */
@@ -159,7 +159,7 @@ async function autoUpdate(ctx: AppContext): Promise<void> {
 }
 
 /**
- * Keep an open page current across the close: someone who leaves Wealth Status on screen
+ * Keep an open page current across the close: someone who leaves Financial Status on screen
  * through the evening sees it update when the session settles, without pressing anything.
  * Only while this page is the one shown and the window is visible — every other entry
  * goes through `renderWealth`, which checks on its own.

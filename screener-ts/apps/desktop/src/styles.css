@@ -5122,7 +5122,7 @@ html.light .chat-shell::before {
   .scan-doc p, .scan-rej-why, #main .scan-cfg-n, .scan-cfg-n { max-width: none; }
 }
 
-/* ── Wealth Status ──────────────────────────────────────────────────────────
+/* ── Financial Status ──────────────────────────────────────────────────────────
    The allocation bar is one flex row whose segments are sized by value (flex-grow
    is set inline). The reading history is a table inside a row: `#main` goes in front
    of the cell rules, or `#main td` wins and the nested rows get the full padding. */

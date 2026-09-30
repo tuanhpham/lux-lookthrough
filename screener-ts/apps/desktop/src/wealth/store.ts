@@ -1,5 +1,5 @@
 /**
- * The Wealth Status book and its exchange rates — storage only; the model is in
+ * The Financial Status book and its exchange rates — storage only; the model is in
  * `@screener/core` (`wealth/`).
  *
  * ── ONE SYNCED KEY, WRITTEN ONLY AFTER HYDRATION ────────────────────────────

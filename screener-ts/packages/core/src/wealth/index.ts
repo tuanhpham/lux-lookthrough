@@ -1,5 +1,5 @@
 /**
- * Wealth Status: the portfolio plus everything that is not traded — bank accounts,
+ * Financial Status: the portfolio plus everything that is not traded — bank accounts,
  * savings, cash, a loan — added up in one currency.
  *
  * ── A BALANCE IS A DATED READING, NOT A TRANSACTION ─────────────────────────

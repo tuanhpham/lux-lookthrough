@@ -2928,7 +2928,7 @@ export function refreshStalePrices(ctx: AppContext): Promise<void> {
 }
 
 /**
- * "Update All", for a caller that is not this tab — the Wealth Status page, whose total
+ * "Update All", for a caller that is not this tab — the Financial Status page, whose total
  * is only as current as the portfolio snapshots under it.
  *
  * The same loop as the Overview button, with its guards made explicit because the tab

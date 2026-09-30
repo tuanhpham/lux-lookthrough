@@ -612,7 +612,7 @@ async function listWatchlists(ctx: AppContext, args: ToolArgs): Promise<ToolOutc
   return ok({ lists, ...(lists.length ? {} : { note: want ? `No watch list matching "${want}".` : 'No watch lists yet.' }) });
 }
 
-/** The Wealth Status page as numbers — the same series the page draws, from `wealth/store.ts`. */
+/** The Financial Status page as numbers — the same series the page draws, from `wealth/store.ts`. */
 async function getWealth(ctx: AppContext): Promise<ToolOutcome> {
   const [book, fx] = await Promise.all([loadBook(ctx), loadFx(ctx)]);
   const side = portfolioSide(accounts);
@@ -642,8 +642,8 @@ async function getWealth(ctx: AppContext): Promise<ToolOutcome> {
       };
     }),
     monthEndTotals: [...months].slice(-60).map(([month, total]) => ({ month, total })),
-    ...(s.missingFx.length ? { missingRates: s.missingFx, note: `No ${s.missingFx.join('/')} rate on this device yet — those accounts are not in the total. The Update button on Wealth Status fetches them.` } : {}),
-    ...(!now ? { note: 'Nothing to show yet: no portfolio history and no recorded balances. Accounts are added on the Wealth Status tab.' } : {}),
+    ...(s.missingFx.length ? { missingRates: s.missingFx, note: `No ${s.missingFx.join('/')} rate on this device yet — those accounts are not in the total. The Update button on Financial Status fetches them.` } : {}),
+    ...(!now ? { note: 'Nothing to show yet: no portfolio history and no recorded balances. Accounts are added on the Financial Status tab.' } : {}),
   });
 }
 

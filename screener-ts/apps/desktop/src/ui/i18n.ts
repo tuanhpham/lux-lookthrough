@@ -14,9 +14,9 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.watchlist': { en: 'Watchlists', vi: 'Danh sách theo dõi' },
   'nav.sectors': { en: 'Sectors', vi: 'Ngành' },
   'nav.portfolio': { en: 'Portfolio', vi: 'Danh Mục' },
-  'nav.wealth': { en: 'Wealth Status', vi: 'Tình trạng tài sản' },
-  // ── Wealth Status ──
-  'wealth.title': { en: 'Wealth Status', vi: 'Tình trạng tài sản' },
+  'nav.wealth': { en: 'Financial Status', vi: 'Tình trạng tài chính' },
+  // ── Financial Status ──
+  'wealth.title': { en: 'Financial Status', vi: 'Tình trạng tài chính' },
   'wealth.sub': { en: 'Portfolio plus bank accounts, savings, cash and debts, all converted to EUR at each date’s rate. Balances are readings: each one holds until the next.', vi: 'Danh mục cộng tài khoản ngân hàng, tiết kiệm, tiền mặt và khoản nợ, quy về EUR theo tỷ giá của từng ngày. Mỗi số dư là một lần ghi nhận, giữ nguyên đến lần ghi tiếp theo.' },
   'wealth.add': { en: 'Account', vi: 'Tài khoản' },
   'wealth.record': { en: 'Record balances', vi: 'Ghi số dư' },

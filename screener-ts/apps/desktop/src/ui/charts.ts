@@ -346,7 +346,7 @@ export interface StackLayer {
 }
 
 /**
- * Stacked areas — the Wealth Status breakdown, one layer per account.
+ * Stacked areas — the Financial Status breakdown, one layer per account.
  *
  * lightweight-charts has no stacking, so each layer is drawn as the RUNNING TOTAL of itself
  * and every layer below it, top layer first: each later, lower area paints over the part of
