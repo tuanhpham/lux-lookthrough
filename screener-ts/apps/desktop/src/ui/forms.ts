@@ -19,6 +19,12 @@ export interface Field {
    * every existing caller is unaffected and a "— none —" row can sit above the groups.
    */
   options?: { value: string; label: string; group?: string }[];
+  /**
+   * Return the text exactly as typed. Every other field has its FIRST comma turned into a
+   * dot, which suits "185,50" and breaks "250,000,000" into "250.000,000" — so a field whose
+   * caller parses separators itself (a VND balance) opts out.
+   */
+  raw?: boolean;
 }
 
 /** Option labels are user text (custom exit reasons), so they are escaped rather than trusted. */
@@ -76,7 +82,7 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
                 // known Safari bug where .value can return '' for valid decimal input).
                 const isNum = f.type === 'number';
                 return `<label class="field-label">${f.label}</label>
-                  <input class="field dialog-field" data-key="${f.key}"
+                  <input class="field dialog-field" data-key="${f.key}"${f.raw ? ' data-raw="1"' : ''}
                     type="${isNum ? 'text' : (f.type ?? 'text')}"
                     ${isNum ? 'inputmode="decimal" autocorrect="off" autocapitalize="off"' : ''}
                     value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" />`;
@@ -104,7 +110,8 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
           if (el.dataset.type === 'info') continue;
           // Normalize comma decimal separator so onChange receives parseable values
           // on locales/keyboards that produce "185,50" instead of "185.50".
-          current[el.dataset.key!] = (el as HTMLInputElement).value.replace(',', '.');
+          const v = (el as HTMLInputElement).value;
+          current[el.dataset.key!] = el.dataset.raw ? v : v.replace(',', '.');
         }
         const overrides = onChange(current);
         if (overrides) {
@@ -138,7 +145,8 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
       for (const el of allFields) {
         if (el.dataset.type === 'info') continue; // exclude display-only fields
         // Normalize comma decimal separator (iOS/European keyboards send "185,50")
-        out[el.dataset.key!] = (el as HTMLInputElement).value.trim().replace(',', '.');
+        const v = (el as HTMLInputElement).value.trim();
+        out[el.dataset.key!] = el.dataset.raw ? v : v.replace(',', '.');
       }
       close(out);
     };

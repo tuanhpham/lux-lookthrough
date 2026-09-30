@@ -43,6 +43,8 @@ import {
   type AccountState,
   type OrderType,
   type ToolArgs,
+  accountStatus,
+  wealthSeries,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import {
@@ -72,6 +74,7 @@ import {
 } from '../portfolio/playbook.js';
 import { loadIndex, loadItems } from '../ui/watchlists.js';
 import { listSnapshotDays, loadWindow } from '../tabs/catalystCache.js';
+import { loadBook, loadFx, portfolioSide } from '../wealth/store.js';
 import {
   accountNameTaken,
   applyWrite,
@@ -609,6 +612,41 @@ async function listWatchlists(ctx: AppContext, args: ToolArgs): Promise<ToolOutc
   return ok({ lists, ...(lists.length ? {} : { note: want ? `No watch list matching "${want}".` : 'No watch lists yet.' }) });
 }
 
+/** The Wealth Status page as numbers — the same series the page draws, from `wealth/store.ts`. */
+async function getWealth(ctx: AppContext): Promise<ToolOutcome> {
+  const [book, fx] = await Promise.all([loadBook(ctx), loadFx(ctx)]);
+  const side = portfolioSide(accounts);
+  const s = wealthSeries({ book, portfolio: side.lines, fx, today: today() });
+  const now = s.points[s.points.length - 1];
+  const r2 = (v: number): number => Math.round(v * 100) / 100;
+  // Month-ends: the last point of each YYYY-MM, which is what the chart's shape is made of.
+  const months = new Map<string, number>();
+  for (const p of s.points) months.set(p.date.slice(0, 7), r2(p.total));
+  return ok({
+    currency: 'EUR',
+    start: s.start,
+    asOf: now?.date ?? null,
+    total: now ? r2(now.total) : null,
+    portfolio: { eur: now ? r2(now.portfolio) : null, snapshotsUpTo: side.asOf, ...(side.missing.length ? { notCounted: side.missing } : {}) },
+    otherAccounts: book.accounts.map((a) => {
+      const st = accountStatus(book, a.id, today());
+      return {
+        name: a.name,
+        kind: a.kind,
+        currency: a.currency,
+        balance: st.latest?.amount ?? null,
+        recordedOn: st.latest?.date ?? null,
+        daysSinceRecorded: st.ageDays,
+        eur: now && st.latest ? r2(now.byAccount[a.id] ?? 0) : null,
+        ...(a.note ? { note: a.note } : {}),
+      };
+    }),
+    monthEndTotals: [...months].slice(-60).map(([month, total]) => ({ month, total })),
+    ...(s.missingFx.length ? { missingRates: s.missingFx, note: `No ${s.missingFx.join('/')} rate on this device yet — those accounts are not in the total. The Update button on Wealth Status fetches them.` } : {}),
+    ...(!now ? { note: 'Nothing to show yet: no portfolio history and no recorded balances. Accounts are added on the Wealth Status tab.' } : {}),
+  });
+}
+
 async function getCalendar(ctx: AppContext, args: ToolArgs): Promise<ToolOutcome> {
   const only = str(args, 'ticker')?.toUpperCase();
   const days = Number(args['days'] ?? 14) || 14;
@@ -978,6 +1016,8 @@ export async function execRead(
         return await listWatchlists(ctx, args);
       case 'get_calendar':
         return await getCalendar(ctx, args);
+      case 'get_wealth':
+        return await getWealth(ctx);
       case 'web_search':
         return await webSearch(args);
       default:

@@ -5,6 +5,7 @@ import { initModal, onModalClose } from './ui/stockModal.js';
 import { renderPicks, renderScreener, renderSectors } from './tabs/screenerTabs.js';
 import { renderWatchlist, renderLearn } from './tabs/miscTabs.js';
 import { renderPortfolio } from './tabs/portfolioTab.js';
+import { renderWealth } from './tabs/wealthTab.js';
 import { migrateAccountsBlob } from './portfolio/store.js';
 import { renderCalendar } from './tabs/calendarTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
@@ -47,7 +48,7 @@ onModalClose(() => {
   if (entered && currentTab === 'watchlist') renderTab('watchlist');
 });
 
-const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'backtest', 'playbook', 'casestudies', 'scanner', 'learn', 'about'] as const;
+const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'wealth', 'backtest', 'playbook', 'casestudies', 'scanner', 'learn', 'about'] as const;
 type Tab = (typeof TABS)[number];
 
 let entered = false;
@@ -94,6 +95,9 @@ function renderTab(tab: Tab): void {
       break;
     case 'portfolio':
       void renderPortfolio(ctx);
+      break;
+    case 'wealth':
+      void renderWealth(ctx);
       break;
     case 'backtest':
       renderBacktest(ctx);
@@ -294,6 +298,7 @@ function buildAppMenu(): HTMLElement {
       <div class="app-menu-col">
         <button class="sl-menu-item" id="app-menu-home">${t('nav.home')}</button>
         <button class="sl-menu-item" data-amtab="portfolio">${t('nav.portfolio')}</button>
+        <button class="sl-menu-item" data-amtab="wealth">${t('nav.wealth')}</button>
         <button class="sl-menu-item" data-amtab="picks">${t('nav.picks')}</button>
         <button class="sl-menu-item" data-amtab="screener">${t('nav.screener')}</button>
         <button class="sl-menu-item" data-amtab="watchlist">${t('nav.watchlist')}</button>

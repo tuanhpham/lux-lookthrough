@@ -110,6 +110,7 @@ function appGuideSection(tools: readonly AgentToolDef[]): string {
     `- Case Studies: a journal of filed trades and examples — entry, stop, exit, R multiple, exit reason, lessons, and the plan frozen at filing.${via('list_case_studies')}`,
     `- Calendar: upcoming earnings, dividends, splits, IPOs and macro events, from a snapshot the Calendar tab builds; plus each company's last four reported quarters.${via('get_calendar')}`,
     `- Watchlist tab: the user's own named lists of symbols.${via('list_watchlists')}`,
+    `- Wealth Status: net worth in EUR — the Portfolio's equity plus accounts the user records by hand (bank, savings, cash, crypto, property, loans as negatives) in EUR, USD or VND. A balance is a dated reading that holds until the next one; every date is converted at that date's rate.${via('get_wealth')}`,
     '- Screener, Picks, Sectors and Backtest tabs run scans in the browser on demand; you cannot run them. For a single symbol, get_quote gives price and trend.',
     '- A tool that reports no data (sync not set up, no snapshot yet) is an answer: say which tab or button fills it in.',
   ].join('\n');

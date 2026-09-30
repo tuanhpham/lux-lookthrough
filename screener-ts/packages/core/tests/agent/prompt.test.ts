@@ -109,7 +109,7 @@ describe('the app guide and the web switch', () => {
     // only knows portfolios answers "I can only see your accounts".
     const p = buildSystemPrompt(facts, readTools());
     expect(p).toContain('HOW THIS APP WORKS');
-    for (const n of ['get_scanner', 'list_trade_plans', 'get_playbook', 'list_case_studies', 'get_calendar', 'list_watchlists']) {
+    for (const n of ['get_scanner', 'list_trade_plans', 'get_playbook', 'list_case_studies', 'get_calendar', 'list_watchlists', 'get_wealth']) {
       expect(p).toContain(`Read it with ${n}`);
     }
   });

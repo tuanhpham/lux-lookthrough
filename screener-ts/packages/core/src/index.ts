@@ -14,3 +14,4 @@ export * from './catalysts/index.js';
 export * from './reports/index.js';
 export * from './backtesting/index.js';
 export * from './agent/index.js';
+export * from './wealth/index.js';

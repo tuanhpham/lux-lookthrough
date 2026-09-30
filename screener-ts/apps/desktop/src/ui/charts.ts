@@ -339,4 +339,72 @@ export function drawLine(
   return chart;
 }
 
+/** One layer of a stacked chart: its own values, not the running total. */
+export interface StackLayer {
+  color: string;
+  points: { time: string; value: number }[];
+}
+
+/**
+ * Stacked areas — the Wealth Status breakdown, one layer per account.
+ *
+ * lightweight-charts has no stacking, so each layer is drawn as the RUNNING TOTAL of itself
+ * and every layer below it, top layer first: each later, lower area paints over the part of
+ * the one above that is not its own. Layers must share one date axis (the caller's series
+ * already does). A negative layer (a loan) is drawn at the bottom of the stack by the caller's
+ * ordering; the top edge is then still the true total.
+ */
+export function drawStacked(
+  container: HTMLElement,
+  layers: StackLayer[],
+  options: { currency?: string; height?: number } = {},
+): IChartApi {
+  const { currency = '€', height = 260 } = options;
+  container.innerHTML = '';
+  const base = themeOptions();
+  const chart = createChart(container, {
+    ...base,
+    width: container.clientWidth || container.offsetWidth || 600,
+    height,
+    localization: { priceFormatter: (v: number) => compactMoney(v, currency) },
+    rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: 0.12, bottom: 0.05 } },
+    timeScale: { ...base.timeScale, timeVisible: false, secondsVisible: false },
+  });
+  const n = layers[0]?.points.length ?? 0;
+  const running = new Array<number>(n).fill(0);
+  const cumulative = layers.map((l) =>
+    l.points.map((p, i) => {
+      running[i]! += p.value;
+      return { time: p.time, value: running[i]! };
+    }),
+  );
+  for (let k = layers.length - 1; k >= 0; k--) {
+    const c = layers[k]!.color;
+    const s = chart.addAreaSeries({
+      lineColor: c,
+      topColor: c + 'cc',
+      bottomColor: c + '99',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: k === layers.length - 1,
+      priceFormat: { type: 'price', precision: 0, minMove: 1 },
+    });
+    s.setData(cumulative[k]!);
+  }
+  chart.timeScale().fitContent();
+  const ro = new ResizeObserver(() => {
+    if (!container.isConnected) {
+      ro.disconnect();
+      return;
+    }
+    try {
+      chart.applyOptions({ width: container.clientWidth });
+    } catch {
+      ro.disconnect();
+    }
+  });
+  ro.observe(container);
+  return chart;
+}
+
 export { EMA_CONFIG };

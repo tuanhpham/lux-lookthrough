@@ -54,6 +54,7 @@ import {
   removeAccount,
   loadAccounts as load,
   saveAccounts as save,
+  ensureAccountsLoaded,
   OVERVIEW_ID,
   uuid,
   today,
@@ -2924,6 +2925,37 @@ export function refreshStalePrices(ctx: AppContext): Promise<void> {
       autoRefresh = null;
     });
   return autoRefresh;
+}
+
+/**
+ * "Update All", for a caller that is not this tab — the Wealth Status page, whose total
+ * is only as current as the portfolio snapshots under it.
+ *
+ * The same loop as the Overview button, with its guards made explicit because the tab
+ * may never have been opened this session: the accounts are loaded first (an empty list
+ * would update nothing and report success), and it refuses before hydration for the
+ * reason `runAutoRefresh` gives — `update()` ends in `save()`. The cached EURUSD bars are
+ * applied first so an account with no tickers still has a rate on screen.
+ */
+export async function updateAllAccounts(
+  ctx: AppContext,
+  onStep?: (name: string, i: number, total: number) => void,
+): Promise<number> {
+  if (!isHydrated()) throw new Error('portfolio is still syncing');
+  await ensureAccountsLoaded(ctx);
+  applyEurUsdBars(await loadEurUsdCache(ctx));
+  const saved = activeId();
+  try {
+    for (let i = 0; i < accounts.length; i++) {
+      const acct = accounts[i]!;
+      onStep?.(acct.account.name, i + 1, accounts.length);
+      setActiveId(acct.account.id);
+      await update(ctx);
+    }
+  } finally {
+    setActiveId(saved);
+  }
+  return accounts.length;
 }
 
 async function runAutoRefresh(ctx: AppContext): Promise<void> {
