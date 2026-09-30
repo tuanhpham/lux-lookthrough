@@ -5704,3 +5704,14 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 — Sua: ty gia tai trong phien duoc giu trong bo nho (Map `fetched` trong wealth/store.ts), va cachedBars doc bo nho truoc storage.
 — Bang tai khoan mac dinh sap theo ten A-Z. Neu da bam mot cot khac thi app nho lua chon do (wealth_sort).
 — Van con: bo nho may day la goc van de. Tai lai trang thi mat ty gia trong bo nho, den khi Update tu dong chay lai. Chua co cong cu xem key nao chiem cho.
+
+
+### H. Nut hien thi bang VND (bo sung CHAT-50)
+— "cho toi mot nut chuyen doi toan bo so tien trong trang financial status do sang VND".
+— Nut "Hien thi bang: € EUR / $ USD / ₫ VND / ¥ CNY" tren thanh cong cu. Lam ca 4 tien te vi cach lam giong nhau.
+— Doi theo: KPI, thanh ty trong, bieu do tong/chong, bieu do tung tai khoan, cot "Quy ...", cot "... ngay do" trong lich su, phu de.
+— Moi ngay nhan ty gia CUA NGAY DO, khong phai ty gia hom nay, cung cach tinh duong EUR. Vi vay duong VND cung dao dong theo ty gia EURVND.
+— Mo hinh van tinh bang EUR; day chi la cach hien thi (inDisplay trong wealthTab.ts).
+— Chua co ty gia tien te duoc chon: van hien EUR, co canh bao, va tu tai ty gia khi bam nut.
+— Lua chon luu trong key `wealth_ccy`, dong bo giua cac may.
+— Kiem tra: typecheck exit 0, 413 test, vite build OK.
