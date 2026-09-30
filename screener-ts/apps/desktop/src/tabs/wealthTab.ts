@@ -66,7 +66,8 @@ const SORT_STORE = 'wealth_sort';
 const SORT_KEYS: readonly SortKey[] = ['name', 'kind', 'ccy', 'eur', 'asof', 'change'];
 /** First click on a column: A→Z for words, biggest / newest first for numbers and dates. */
 const FIRST_DIR: Record<SortKey, 1 | -1> = { name: 1, kind: 1, ccy: 1, eur: -1, asof: -1, change: -1 };
-let sort: { key: SortKey; dir: 1 | -1 } = { key: 'eur', dir: -1 };
+// By name until the user clicks a header — the user's choice of default.
+let sort: { key: SortKey; dir: 1 | -1 } = { key: 'name', dir: 1 };
 /** The Portfolio row's key in `openHistory` — no wealth account can have it, ids are uuids. */
 const PF_ROW = '__portfolio__';
 let busy = false;

@@ -49,7 +49,19 @@ export async function saveBook(ctx: AppContext, book: WealthBook): Promise<void>
   await ctx.storage.set(WEALTH_KEY, book);
 }
 
+/**
+ * The rates fetched in this session, kept in memory whatever storage did with them.
+ *
+ * On a device whose store is full, `setCache` may drop a write — and worse, the room it makes
+ * for EURVND is made by purging every local cache, including the EURUSD it had just written.
+ * Reading the table back from storage then found no dollar rate at all, and the page said
+ * "No exchange rate yet for USD" straight after an Update that had fetched it. Memory first.
+ */
+const fetched = new Map<FxCcy, Bar[]>();
+
 async function cachedBars(ctx: AppContext, ccy: FxCcy): Promise<Bar[]> {
+  const mem = fetched.get(ccy);
+  if (mem?.length) return mem;
   const own = (await ctx.storage.get<Bar[]>(FX_PREFIX + ccy)) ?? [];
   if (own.length || ccy !== 'USD') return own;
   return (await ctx.storage.get<Bar[]>(PF_EURUSD_KEY)) ?? [];
@@ -102,6 +114,7 @@ export async function refreshFx(ctx: AppContext, from: string, need: readonly We
       for (const b of whole ? [] : cached) m.set(b.date, b);
       for (const b of got.bars) m.set(b.date, b);
       const merged = [...m.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+      fetched.set(ccy, merged);
       // A full store is not a failed fetch: setCache makes room or drops the cache quietly.
       await ctx.synced.setCache(FX_PREFIX + ccy, merged);
     } catch {
