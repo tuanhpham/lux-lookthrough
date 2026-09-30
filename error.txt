@@ -5532,3 +5532,28 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
   — core: 51 file / 805 test xanh (them test parser DDG/Yahoo va test prompt bat/tat web).
   — desktop: typecheck sach, 25 file / 401 test xanh, `vite build` sach.
   — Code: commit 6b3d7917.
+
+## CHAT-45 — Trang Wealth Status (tong tai san quy EUR)
+
+### A. Yeu cau
+— Trang moi "Wealth Status": Danh muc + moi tai khoan khac (ngan hang, tien mat...), cap nhat thinh thoang (thang/quy) kem ngay, tien USD/VND/EUR, tong quy ve EUR. Ngay bat dau lay tu Portfolio.
+
+### B. Thiet ke (tu quyet, chua hoi)
+— So du la LAN GHI co ngay, khong phai giao dich: giua hai lan ghi thi giu nguyen (bac thang), truoc lan ghi dau tinh 0. Vi vay form them tai khoan mac dinh ngay = ngay bat dau Portfolio.
+— Moi ngay tren bieu do quy EUR theo ty gia cua chinh ngay do (EURUSD=X, EURVND=X tu Yahoo). Thieu ty gia -> tai khoan bi loai khoi tong va co canh bao, KHONG bao gio quy 1:1.
+— So am duoc phep (khoan vay, the tin dung); loai "loan".
+— Danh muc lay tu accounts[].snapshots (da dong bo). Tai khoan khong co vi the -> tinh tien mat phang tu createdAt. Co vi the ma chua co snapshot -> khong cong, bao "bam Update".
+— Nut Update: chay Update All cua Portfolio (updateAllAccounts) roi lay ty gia.
+— Lan ghi cu hon 100 ngay -> canh bao (STALE_DAYS trong wealthTab.ts).
+
+### C. Luu tru
+— Key dong bo `wealth` = {accounts, balances}; saveBook tu choi truoc khi hydrate (nhu withAccounts).
+— Ty gia: `wealth_fx:USD`, `wealth_fx:VND`, chi tren may (LOCAL_ONLY_PREFIXES). USD lay tam tu pf_eurusd_bars khi chua co.
+
+### D. File
+— core: packages/core/src/wealth/index.ts (+18 test) — mo hinh, parseAmount, wealthSeries.
+— desktop: tabs/wealthTab.ts, wealth/store.ts (portfolioSide dung chung voi tro ly), ui/charts.ts drawStacked, ui/forms.ts co `raw` (khong doi dau phay: 250,000,000).
+— Tro ly: tool get_wealth + dong trong appGuideSection.
+
+### E. Kiem tra
+— core 823 test, desktop 401 test, typecheck exit 0, vite build OK.
