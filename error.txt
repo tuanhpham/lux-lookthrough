@@ -5664,3 +5664,29 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 ### E. Chua lam
 — Chua co test tu dong cho thu tu Import va setCache.
 — Nguyen nhan chinh xac cua lan mat dau tien (10 phut truoc) chua xac nhan; nghi hydration + quota.
+
+
+## CHAT-50 — Financial Status: sap xep, tien te CNY, sua lan ghi so du
+
+### A. Yeu cau
+— "trong trang Financial status, toi muon co chuc nang sort theo ten, .... 2. trong trang do toi cung co currency CNY. Cac transactions cua cac account should be editable (e.g. change the date and so on ...)".
+— Trang nay khong co "giao dich": moi dong la mot lan ghi so du co ngay (xem CHAT-45). "Transaction" o day hieu la lan ghi so du.
+
+### B. Sap xep (0a8a91eb)
+— Bam tieu de cot: Ten, Loai, Tien te, Ngay cap nhat, So voi lan truoc. Bam lan nua de dao chieu.
+— So du, Quy EUR, Ty trong deu sap theo gia tri EUR, vi so du o nhieu tien te khac nhau khong so sanh truc tiep duoc. "So voi lan truoc" cung quy ra EUR.
+— Tai khoan khong co gia tri de so (chua ghi, hoac thieu ty gia) luon nam cuoi, du sap chieu nao. Dong Portfolio luon o tren cung.
+— Lua chon luu trong key `wealth_sort`, key nay dong bo giua cac may.
+
+### C. CNY
+— WEALTH_CURRENCIES them CNY; ty gia EURCNY=X, luu trong wealth_fx:CNY; ky hieu ¥.
+— parseAmount bo qua CNY, RMB, ¥, 元.
+— CANH BAO: may chay ban cu (vi du MacBook chua tai lai) doc tai khoan CNY thanh EUR (normalizeBook). Neu may do luu lai so, tai khoan se thanh EUR vinh vien. Tai lai app tren moi may truoc khi them tai khoan CNY.
+
+### D. Sua lan ghi so du
+— Nut ✎ o moi dong lich su: sua ngay, so tien, ghi chu. Ham core moi editBalance giu nguyen id.
+— Doi sang mot ngay da co lan ghi khac: app hoi truoc, roi thay lan ghi do (giong setBalance, moi ngay chi 1 gia tri).
+— So tien de nguyen khong sua thi khong parse lai, vi parseAmount doc "1.234" la 1234.
+
+### E. Kiem tra
+— core 833 test (them 6 test wealth), desktop 413 test, typecheck exit 0, vite build OK.
