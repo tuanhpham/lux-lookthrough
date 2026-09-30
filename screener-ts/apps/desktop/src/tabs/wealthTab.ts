@@ -68,6 +68,19 @@ const SORT_KEYS: readonly SortKey[] = ['name', 'kind', 'ccy', 'eur', 'asof', 'ch
 const FIRST_DIR: Record<SortKey, 1 | -1> = { name: 1, kind: 1, ccy: 1, eur: -1, asof: -1, change: -1 };
 // By name until the user clicks a header — the user's choice of default.
 let sort: { key: SortKey; dir: 1 | -1 } = { key: 'name', dir: 1 };
+/**
+ * The currency the page's totals are SHOWN in. The model stays in EUR; this is a view.
+ *
+ * Each date's EUR figure is multiplied by that same date's rate, never by today's: "what I was
+ * worth in dong on 1 March" is the March value at the March EURVND, exactly as the EUR line
+ * is built. So a VND view of the curve is not the EUR curve rescaled — it also moves with the
+ * rate. With no rate for the chosen currency the page stays in EUR and says so, rather than
+ * printing euro numbers next to a ₫. Remembered in `wealth_ccy` (synced, like `wealth_sort`).
+ */
+const DISPLAY_STORE = 'wealth_ccy';
+let display: WealthCurrency = 'EUR';
+/** What the current draw actually used: `display`, or EUR when its rate is missing. */
+let shown: WealthCurrency = 'EUR';
 /** The Portfolio row's key in `openHistory` — no wealth account can have it, ids are uuids. */
 const PF_ROW = '__portfolio__';
 let busy = false;
@@ -99,7 +112,8 @@ function fmt(v: number, ccy: WealthCurrency, cents = true): string {
   const body = a.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
   return `${sign}${SYMBOL[ccy]}${body}`;
 }
-const eur = (v: number): string => fmt(v, 'EUR', false);
+/** A page total, in the display currency. Named for what it was before the toggle existed. */
+const eur = (v: number): string => fmt(v, shown, false);
 /** Used by `fmt` and the account charts. Dong is written after the number, in `fmt`. */
 const SYMBOL: Record<WealthCurrency, string> = { EUR: '€', USD: '$', VND: '₫', CNY: '¥' };
 const tone = (v: number): string => (v >= 0 ? 'var(--accent)' : 'var(--danger)');
@@ -152,16 +166,18 @@ export async function renderWealth(ctx: AppContext): Promise<void> {
     });
   }
   await ensureAccountsLoaded(ctx);
-  const [b, f, done, srt] = await Promise.all([
+  const [b, f, done, srt, disp] = await Promise.all([
     loadBook(ctx),
     loadFx(ctx),
     ctx.storage.get<string>(AUTO_KEY),
     ctx.storage.get<{ key?: unknown; dir?: unknown }>(SORT_STORE),
+    ctx.storage.get<string>(DISPLAY_STORE),
   ]);
   book = b;
   fx = f;
   autoDone = done ?? null;
   if (srt && SORT_KEYS.includes(srt.key as SortKey)) sort = { key: srt.key as SortKey, dir: srt.dir === 1 ? 1 : -1 };
+  if ((WEALTH_CURRENCIES as readonly string[]).includes(disp ?? '')) display = disp as WealthCurrency;
   draw(ctx);
   // Draw from what is cached first, then catch up — the page never waits on Yahoo.
   void autoUpdate(ctx);
@@ -249,16 +265,45 @@ function watchForClose(ctx: AppContext): void {
 function neededCurrencies(): WealthCurrency[] {
   const need = new Set<WealthCurrency>(book.accounts.map((a) => a.currency));
   for (const a of accounts) if (a.account.currency === 'USD') need.add('USD');
+  need.add(display);
   return [...need];
 }
 
 function draw(ctx: AppContext): void {
   const root = $('#tab-wealth')!;
   const side = portfolioSide(accounts);
-  const series = wealthSeries({ book, portfolio: side.lines, fx: fx!, today: today() });
+  const series = inDisplay(wealthSeries({ book, portfolio: side.lines, fx: fx!, today: today() }));
   root.innerHTML = pageHtml(side, series);
   wire(ctx, root, series);
 }
+
+/** The series in the display currency, each point at its own date's rate. Sets `shown`. */
+function inDisplay(s: WealthSeries): WealthSeries {
+  shown = 'EUR';
+  if (display === 'EUR' || !fx) return s;
+  const rates = s.points.map((p) => fx!.perEur(display, p.date));
+  if (rates.some((r) => r == null)) return s;
+  shown = display;
+  const by = (o: Record<string, number>, r: number): Record<string, number> =>
+    Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v * r]));
+  return {
+    ...s,
+    points: s.points.map((p, i) => {
+      const r = rates[i]!;
+      return { date: p.date, portfolio: p.portfolio * r, byAccount: by(p.byAccount, r), others: p.others * r, total: p.total * r };
+    }),
+  };
+}
+
+/** An EUR amount on `date` in the display currency; null when that date has no rate. */
+function fromEur(v: number, date: string): number | null {
+  if (shown === 'EUR') return v;
+  const r = fx?.perEur(shown, date);
+  return r ? v * r : null;
+}
+
+/** `{ccy}` in a label becomes the currency actually shown. */
+const tc = (key: string): string => t(key).replace(/\{ccy\}/g, shown);
 
 function pageHtml(side: PortfolioSide, s: WealthSeries): string {
   const now = s.points[s.points.length - 1] ?? null;
@@ -272,17 +317,22 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
 
   const warnings: string[] = [];
   if (s.missingFx.length) warnings.push(t('wealth.warn.fx').replace('{ccy}', s.missingFx.join(', ')));
+  if (display !== shown) warnings.push(t('wealth.warn.display').replace(/\{ccy\}/g, display));
   if (side.missing.length) warnings.push(t('wealth.warn.pf').replace('{names}', esc(side.missing.join(', '))));
   const stale = book.accounts.filter((a) => (accountStatus(book, a.id, today()).ageDays ?? 0) > STALE_DAYS);
   if (stale.length) warnings.push(t('wealth.warn.stale').replace('{n}', String(STALE_DAYS)).replace('{names}', esc(stale.map((a) => a.name).join(', '))));
 
   return `
     <h1>${t('wealth.title')}</h1>
-    <p class="subtitle">${t('wealth.sub')}</p>
+    <p class="subtitle">${tc('wealth.sub')}</p>
     <div class="toolbar" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
       <button class="btn" id="w-add">+ ${t('wealth.add')}</button>
       <button class="btn-outline" id="w-record"${book.accounts.length ? '' : ' disabled'}>${t('wealth.record')}</button>
       <button class="btn-outline" id="w-update">${t('wealth.update')}</button>
+      <span class="toolbar" style="margin:0;gap:4px" title="${t('wealth.display.hint')}">
+        <span class="muted" style="font-size:12px">${t('wealth.display')}</span>
+        ${WEALTH_CURRENCIES.map((c) => `<button class="range-btn${display === c ? ' active' : ''}" data-w-disp="${c}">${SYMBOL[c]} ${c}</button>`).join('')}
+      </span>
       <span id="w-status"></span>
       <span class="muted" style="font-size:12px">${t('wealth.auto.hint')}${autoDone ? ` · ${t('wealth.auto.last').replace('{session}', autoDone)}` : ''}</span>
     </div>
@@ -300,7 +350,7 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
 
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
-        <span class="section-title" style="margin:0">${t('wealth.chart')}</span>
+        <span class="section-title" style="margin:0">${tc('wealth.chart')}</span>
         <div class="toolbar" style="margin:0;gap:4px">
           <button class="range-btn${view === 'total' ? ' active' : ''}" data-w-view="total">${t('wealth.view.total')}</button>
           <button class="range-btn${view === 'stack' ? ' active' : ''}" data-w-view="stack">${t('wealth.view.stack')}</button>
@@ -312,7 +362,7 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
       <div id="wealth-chart" style="height:280px"></div>
     </div>
 
-    ${sectionHead(t('wealth.accounts'), [countChip(book.accounts.length + 1, undefined, t('pf.unit.accounts'))], { sub: t('wealth.accounts.sub') })}
+    ${sectionHead(t('wealth.accounts'), [countChip(book.accounts.length + 1, undefined, t('pf.unit.accounts'))], { sub: tc('wealth.accounts.sub') })}
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       ${accountsTable(now, side)}
     </div>`;
@@ -342,7 +392,7 @@ function accountsTable(now: WealthSeries['points'][number] | null, side: Portfol
   const share = (v: number): string => (total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '—');
   const pfRow = `<tr>
       <td><span class="kpi-dot" style="background:${PF_COLOR};margin-right:6px"></span><a href="#" class="link-ticker" id="w-open-pf"><strong>${t('nav.portfolio')}</strong></a></td>
-      <td>${t('wealth.kind.portfolio')}</td><td>EUR</td>
+      <td>${t('wealth.kind.portfolio')}</td><td>${shown}</td>
       <td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? share(now.portfolio) : '—'}</td>
       <td>${side.asOf ?? '—'}</td><td class="muted">${t('wealth.pf.auto')}</td>
       <td><button class="pf-icon-btn" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}">${openHistory.has(PF_ROW) ? '▴' : '▾'}</button></td>
@@ -356,7 +406,7 @@ function accountsTable(now: WealthSeries['points'][number] | null, side: Portfol
     return `<th data-w-sort="${key}" title="${t('wealth.sort.hint')}" style="cursor:pointer;user-select:none;white-space:nowrap${on ? ';color:var(--accent)' : ''}">${label}${on ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</th>`;
   };
   return `<table>
-      <thead><tr>${head(t('wealth.col.name'), 'name')}${head(t('wealth.col.kind'), 'kind')}${head(t('wealth.col.ccy'), 'ccy')}${head(t('wealth.col.balance'), 'eur')}${head(t('wealth.col.eur'), 'eur')}${head(t('wealth.col.share'), 'eur')}${head(t('wealth.col.asof'), 'asof')}${head(t('wealth.col.change'), 'change')}<th></th></tr></thead>
+      <thead><tr>${head(t('wealth.col.name'), 'name')}${head(t('wealth.col.kind'), 'kind')}${head(t('wealth.col.ccy'), 'ccy')}${head(t('wealth.col.balance'), 'eur')}${head(tc('wealth.col.eur'), 'eur')}${head(t('wealth.col.share'), 'eur')}${head(t('wealth.col.asof'), 'asof')}${head(t('wealth.col.change'), 'change')}<th></th></tr></thead>
       <tbody>${pfRow}${rows}</tbody>
     </table>
     ${book.accounts.length ? '' : `<p class="muted" style="margin:10px 4px">${t('wealth.empty')}</p>`}`;
@@ -427,20 +477,21 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
     ? hist
         .map((b) => {
           const r = fx?.perEur(a.currency, b.date);
-          return `<tr><td>${b.date}</td><td>${fmt(b.amount, a.currency)}</td><td class="muted">${r ? eur(b.amount / r) : '—'}</td><td class="muted">${b.note ? esc(b.note) : ''}</td><td style="white-space:nowrap"><button class="pf-icon-btn" data-w-baledit="${b.id}" title="${t('wealth.act.editreading')}">✎</button><button class="pf-icon-btn" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">✕</button></td></tr>`;
+          const then = r ? fromEur(b.amount / r, b.date) : null;
+          return `<tr><td>${b.date}</td><td>${fmt(b.amount, a.currency)}</td><td class="muted">${then == null ? '—' : eur(then)}</td><td class="muted">${b.note ? esc(b.note) : ''}</td><td style="white-space:nowrap"><button class="pf-icon-btn" data-w-baledit="${b.id}" title="${t('wealth.act.editreading')}">✎</button><button class="pf-icon-btn" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">✕</button></td></tr>`;
         })
         .join('')
     : `<tr><td colspan="5" class="muted">${t('wealth.noreading')}</td></tr>`;
   const mode = chartMode.get(a.id) ?? 'native';
   const modes =
-    a.currency === 'EUR'
+    a.currency === shown
       ? ''
       : `<div class="toolbar" style="margin:0 0 4px;gap:4px">${(['native', 'eur'] as const)
-          .map((m) => `<button class="range-btn${mode === m ? ' active' : ''}" data-w-cmode="${a.id}" data-mode="${m}">${m === 'native' ? a.currency : 'EUR'}</button>`)
+          .map((m) => `<button class="range-btn${mode === m ? ' active' : ''}" data-w-cmode="${a.id}" data-mode="${m}">${m === 'native' ? a.currency : shown}</button>`)
           .join('')}</div>`;
   return `${row}<tr class="w-hist"><td colspan="9">
       ${modes}<div class="w-acct-chart" data-w-chart="${a.id}"></div>
-      <table class="w-hist-t"><thead><tr><th>${t('wealth.col.date')}</th><th>${t('wealth.col.balance')}</th><th>${t('wealth.col.eurthen')}</th><th>${t('wealth.col.note')}</th><th></th></tr></thead><tbody>${inner}</tbody></table>
+      <table class="w-hist-t"><thead><tr><th>${t('wealth.col.date')}</th><th>${t('wealth.col.balance')}</th><th>${tc('wealth.col.eurthen')}</th><th>${t('wealth.col.note')}</th><th></th></tr></thead><tbody>${inner}</tbody></table>
     </td></tr>`;
 }
 
@@ -471,7 +522,7 @@ function inRange(s: WealthSeries): WealthSeries['points'] {
 function drawAccountChart(el: HTMLElement, id: string, s: WealthSeries): void {
   const pts = inRange(s);
   const a = book.accounts.find((x) => x.id === id);
-  const native = a && a.currency !== 'EUR' && (chartMode.get(id) ?? 'native') === 'native';
+  const native = a && a.currency !== shown && (chartMode.get(id) ?? 'native') === 'native';
   const sorted = a ? balancesOf(book, a.id) : [];
   const line = pts.map((p) => ({
     time: p.date,
@@ -482,7 +533,7 @@ function drawAccountChart(el: HTMLElement, id: string, s: WealthSeries): void {
     return;
   }
   try {
-    drawLine(el, line, { money: true, currency: native ? SYMBOL[a!.currency] : '€', height: 200, maxLine: true, minLine: true });
+    drawLine(el, line, { money: true, currency: native ? SYMBOL[a!.currency] : SYMBOL[shown], height: 200, maxLine: true, minLine: true });
   } catch {
     el.innerHTML = `<div class="muted">${t('pf.unavailable')}</div>`;
   }
@@ -496,7 +547,7 @@ function drawChart(el: HTMLElement, s: WealthSeries): void {
   }
   try {
     if (view === 'total') {
-      drawLine(el, pts.map((p) => ({ time: p.date, value: p.total })), { money: true, currency: '€', height: 280, maxLine: true, minLine: true });
+      drawLine(el, pts.map((p) => ({ time: p.date, value: p.total })), { money: true, currency: SYMBOL[shown], height: 280, maxLine: true, minLine: true });
       return;
     }
     // Debts at the bottom, so the stack's top edge is still the true total.
@@ -510,7 +561,7 @@ function drawChart(el: HTMLElement, s: WealthSeries): void {
         { color: PF_COLOR, points: pts.map((p) => ({ time: p.date, value: p.portfolio })) },
         ...positives.map((a) => ({ color: colorOf(a.id), points: pts.map((p) => ({ time: p.date, value: p.byAccount[a.id] ?? 0 })) })),
       ],
-      { currency: '€', height: 280 },
+      { currency: SYMBOL[shown], height: 280 },
     );
   } catch {
     el.innerHTML = `<div class="muted">${t('pf.unavailable')}</div>`;
@@ -771,6 +822,26 @@ function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
       if (!confirm(t('wealth.confirm.delete').replace('{name}', a.name).replace('{n}', String(n)))) return;
       openHistory.delete(a.id);
       void commit(ctx, removeWealthAccount(book, a.id));
+    }),
+  );
+  root.querySelectorAll<HTMLElement>('[data-w-disp]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      display = btn.dataset.wDisp as WealthCurrency;
+      void ctx.storage.set(DISPLAY_STORE, display).catch(() => {});
+      draw(ctx);
+      // A currency no account uses has never been fetched: get its rate now, then redraw.
+      if (display !== shown && !busy) {
+        busy = true;
+        void refreshFx(ctx, s.start ?? today(), [display])
+          .then(() => loadFx(ctx))
+          .then((f) => {
+            fx = f;
+          })
+          .finally(() => {
+            busy = false;
+            draw(ctx);
+          });
+      }
     }),
   );
   root.querySelectorAll<HTMLElement>('[data-w-sort]').forEach((th) =>
