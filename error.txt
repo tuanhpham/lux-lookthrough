@@ -5636,3 +5636,31 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 — London (pence), Zurich (CHF), Tokyo...: chua co ty gia, chua ho tro.
 — Canh bao stop cho ma .DE tren scanner VM.
 — Lenh cho (pending order) cua ma EUR trong tai khoan USD: nguong van so voi gia goc, chua kiem ky.
+
+
+## CHAT-49 — Mat du lieu, Import loi "exceeded the quota" o pf_bars, "could not fetch the VND rate"
+
+### A. Trieu chung
+— "toi lai vua bi mat du lieu roi..." roi "mat tat ca nhe, minh export ra data o mot thiet bi khac va dinh import lai nhung co loi Portfolio: Failed to execute 'setItem' on Storage: ... 'screener:pf_bars:...' exceeded the quota. could not fetch the VND rate".
+
+### B. Nguyen nhan tim thay
+— localStorage cua trinh duyet ~5 MB. File export phan lon la pf_bars: (lich su gia). Import cu ghi tu tren xuong va dung o loi dau tien -> chet truoc khi toi `accounts`.
+— Tab Portfolio ghi bo dem gia (saveBarCache) bang set thuong -> het quota la nem loi ra ca trang ("Portfolio: Failed to execute setItem").
+— Financial Status: refreshFx tai ty gia xong nhung ghi wealth_fx: that bai vi quota, catch chung -> bao "could not fetch the VND rate" du thuc ra da tai duoc.
+— Cong hydration: ghi truoc lan pull thanh cong dau tien bi coi la mac dinh luc khoi dong, server thang. May day bo nho pull that bai -> cong van dong -> Import xong bi lan pull sau ghi de, khong bao loi. Day co the la ly do "mat du lieu" lap lai.
+
+### C. Da sua (822f17f6)
+— Import: bo qua du lieu gia (isRebuildableCache: pf_bars, pf_eurusd_bars, wealth_fx...), app tu tai lai. Ghi du lieu cua ban truoc; het quota thi don bo dem cuc bo 1 lan roi ghi tiep. Lich/scan cu (scan:, calendar:) ghi sau, moi nhat truoc, khong du cho thi bo va bao so ngay bo.
+— claimAsDeliberate(keys): key vua Import khong con nam trong preHydrationWrites -> last-write-wins binh thuong, ban Import (stamp "bay gio") thang.
+— Export khong con chua ma sync (sync:*), __sync_ts__, ban chup truoc merge.
+— SyncedStorage.setCache: ghi bo dem; loi quota -> purgeLocalCaches (chi lop local, khong xoa remote) -> thu lai -> van khong vua thi bo qua. Dung o saveBarCache, saveEurUsdCache, stamp :asof cua Portfolio va wealth_fx: cua Financial Status.
+— Kiem tra: typecheck exit 0, desktop 413 test, vite build OK.
+
+### D. Huong dan nguoi dung
+— Cho Pages deploy ~1-2 phut, tai lai app.
+— Uu tien ☁️ -> "🕘 Xem phiên bản cũ": phuc hoi `accounts`, `wealth` tu truoc luc mat.
+— Hoac Import lai file. KHONG nhap lai ma sync sau khi Import (ma "moi" cho server thang tat ca key).
+
+### E. Chua lam
+— Chua co test tu dong cho thu tu Import va setCache.
+— Nguyen nhan chinh xac cua lan mat dau tien (10 phut truoc) chua xac nhan; nghi hydration + quota.
