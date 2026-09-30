@@ -71,9 +71,18 @@ let sort: { key: SortKey; dir: 1 | -1 } = { key: 'eur', dir: -1 };
 const PF_ROW = '__portfolio__';
 let busy = false;
 
-/** The portfolio's own layer colour, then one per account. Six-digit hex: the stack adds alpha. */
+/**
+ * Colours. The portfolio has its own. Every other account takes the colour of its CURRENCY:
+ * the user's request, because a colour per account said nothing, whereas one per currency
+ * shows at a glance how much sits in dong or in dollars. Two accounts in the same currency
+ * would then be one indistinguishable layer in the stacked chart, so each one after the first
+ * gets a lighter or darker shade of that hue (`shade`). Six-digit hex throughout, because the
+ * stacked chart appends an alpha byte.
+ */
 const PF_COLOR = '#18d89a';
-const PALETTE = ['#4f8cff', '#f5a524', '#a78bfa', '#f472b6', '#22d3ee', '#fb7185', '#facc15', '#94a3b8', '#c084fc', '#34d399'];
+const CCY_COLOR: Record<WealthCurrency, string> = { EUR: '#4f8cff', USD: '#f5a524', VND: '#f43f5e', CNY: '#a78bfa' };
+/** Shade steps for the 2nd, 3rd… account in one currency: + toward white, − toward black. */
+const SHADES = [0, 0.35, -0.3, 0.6, -0.5, 0.2, -0.15, 0.75];
 /** A reading older than this is flagged: the total is quietly using an old statement. */
 const STALE_DAYS = 100;
 
@@ -94,9 +103,31 @@ const eur = (v: number): string => fmt(v, 'EUR', false);
 const SYMBOL: Record<WealthCurrency, string> = { EUR: '€', USD: '$', VND: '₫', CNY: '¥' };
 const tone = (v: number): string => (v >= 0 ? 'var(--accent)' : 'var(--danger)');
 
+function shade(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.round(f >= 0 ? c + (255 - c) * f : c * (1 + f)));
+  return '#' + ch.map((c) => c.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * An account's colour: its currency's hue, shaded by its place among the accounts in that
+ * currency, in the order they were added. That order, not the table's sort, so a colour
+ * does not change when a header is clicked.
+ */
 function colorOf(accountId: string): string {
-  const i = book.accounts.findIndex((a) => a.id === accountId);
-  return PALETTE[(i < 0 ? 0 : i) % PALETTE.length]!;
+  const a = book.accounts.find((x) => x.id === accountId);
+  if (!a) return CCY_COLOR.EUR;
+  const i = book.accounts.filter((x) => x.currency === a.currency).indexOf(a);
+  return shade(CCY_COLOR[a.currency], SHADES[i % SHADES.length]!);
+}
+
+/** "● EUR ● VND …" for the currencies in the book, so the colours can be read. */
+function currencyLegend(): string {
+  const used = [...new Set(book.accounts.map((a) => a.currency))];
+  if (!used.length) return '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:11px" class="muted">${used
+    .map((c) => `<span class="kpi-key"><span class="kpi-dot" style="background:${CCY_COLOR[c]}"></span>${c}</span>`)
+    .join('')}</div>`;
 }
 
 // ── Render ─────────────────────────────────────────────────────────────────
@@ -301,6 +332,7 @@ function allocationHtml(now: NonNullable<WealthSeries['points'][number]>): strin
   return `<div class="card" style="margin-bottom:14px;padding:10px 12px">
       <div class="w-alloc">${bar}</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12px">${keys}</div>
+      ${currencyLegend()}
     </div>`;
 }
 
