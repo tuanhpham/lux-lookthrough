@@ -152,6 +152,11 @@ export class AssistantSession {
   constructor(
     private readonly ctx: AppContext,
     private readonly cfg: LlmConfig,
+    /**
+     * The panel's Web switch, read at the start of every turn — so flipping it applies
+     * to the next question without starting a new conversation.
+     */
+    private readonly webSearch: () => boolean = () => true,
   ) {}
 
   /** Everything spent in this conversation, for the panel's meter. */
@@ -260,7 +265,10 @@ export class AssistantSession {
     // No approval callback, no write tools — see the header. `buildSystemPrompt` is
     // given this same array, so what the prompt promises and what the model was
     // handed cannot disagree.
-    const tools = onApprove ? [...readTools(), ...writeTools()] : readTools();
+    // Web search off = the tool is not in the list at all, rather than offered and
+    // refused: a model that can see a tool will keep trying it.
+    const reads = readTools().filter((t) => t.name !== 'web_search' || this.webSearch());
+    const tools = onApprove ? [...reads, ...writeTools()] : reads;
     const system = buildSystemPrompt(
       { today: today(), accounts: accountFacts(), lang: getLang() === 'vi' ? 'vi' : 'en' },
       tools,

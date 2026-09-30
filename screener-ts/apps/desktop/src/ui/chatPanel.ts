@@ -89,6 +89,7 @@ function icon(path: string): string {
 const GEAR = icon('<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2m0 14v2m-9-9h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4"/>');
 const NEW = icon('<path d="M12 5v14M5 12h14"/>');
 const CLOSE = icon('<path d="M6 6l12 12M18 6 6 18"/>');
+const GLOBE = icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>');
 /** An arrow, not the word "Send": the composer is already full of words. */
 const SEND = icon('<path d="M12 19V5M5 12l7-7 7 7"/>');
 
@@ -120,6 +121,7 @@ function build(): HTMLElement {
           <textarea class="chat-input" data-role="input" rows="1"
             placeholder="${t('chat.placeholder')}"></textarea>
           <div class="chat-field-actions">
+            <button class="chat-gpt chat-web" data-act="web" data-role="web">${GLOBE}${t('chat.web')}</button>
             <button class="chat-gpt" data-act="askgpt" title="${t('chat.askgpt.help')}">${t('chat.askgpt')}</button>
             <button class="chat-send" data-act="send" title="${t('chat.send')}"
               aria-label="${t('chat.send')}">${SEND}</button>
@@ -141,6 +143,10 @@ function wire(el: HTMLElement): void {
     else if (act === 'new') startNew();
     else if (act === 'settings') void openLlmSettings(ctxRef!);
     else if (act === 'askgpt') void handoff(e.target as HTMLElement);
+    else if (act === 'web') {
+      setWebSearch(!webSearchOn());
+      paintWebToggle();
+    }
     else if (act === 'suggest') {
       const q = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')!.dataset['q'] ?? '';
       const input = field();
@@ -181,6 +187,44 @@ const log = (): HTMLElement => host!.querySelector<HTMLElement>('[data-role="log
 
 let ctxRef: AppContext | null = null;
 
+// ── web search switch ────────────────────────────────────────────────────────
+//
+// Device-local, like the sync code: it is a preference about THIS screen's spending
+// and trust, not portfolio data, so it has no business in the synced blob. On by
+// default — the user asked for search — and read per question, so flipping it
+// mid-conversation applies to the very next turn: the session builds its tool list
+// from it each time, and a model that was never handed `web_search` cannot call it.
+const WEB_KEY = 'chat_web_search';
+
+/** Holds the choice when localStorage refuses the write. */
+let webOverride: boolean | null = null;
+
+function webSearchOn(): boolean {
+  if (webOverride !== null) return webOverride;
+  try {
+    return localStorage.getItem(WEB_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
+function setWebSearch(on: boolean): void {
+  try {
+    localStorage.setItem(WEB_KEY, on ? '1' : '0');
+  } catch {
+    /* private mode: the switch still works for this page */
+  }
+  webOverride = on;
+}
+
+function paintWebToggle(): void {
+  const b = host?.querySelector<HTMLElement>('[data-role="web"]');
+  if (!b) return;
+  const on = webSearchOn();
+  b.setAttribute('aria-pressed', String(on));
+  b.title = t(on ? 'chat.web.on' : 'chat.web.off');
+}
+
 // ── open / close ─────────────────────────────────────────────────────────────
 
 export function isChatOpen(): boolean {
@@ -214,6 +258,7 @@ export async function openChatPanel(ctx: AppContext): Promise<void> {
   // to read the log is not a reason to refuse to open the panel.
   recentWrites = (await readAuditLog(ctx).catch(() => [])).slice(0, 3);
   host.classList.add('chat--open');
+  paintWebToggle();
   render();
   setTimeout(() => field().focus(), 60);
 }
@@ -263,7 +308,7 @@ async function refreshConfig(): Promise<void> {
   // Not configured: drop the session but KEEP the visible transcript. Any answer in
   // it came from Tier 0, which never needed a key and is still true.
   if (!ready) session = null;
-  else if (cfg && !session) session = new AssistantSession(ctxRef!, cfg);
+  else if (cfg && !session) session = new AssistantSession(ctxRef!, cfg, webSearchOn);
   if (host) {
     const badge = host.querySelector<HTMLElement>('[data-role="model"]')!;
     badge.textContent = ready ? (cfg?.model ?? '') : t('chat.notconfigured');
@@ -642,7 +687,7 @@ async function submit(): Promise<void> {
 
   // Without a key, Tier 0 is still worth trying — those questions never needed one.
   const active =
-    session ?? new AssistantSession(ctxRef!, cfg ?? { providerId: 'openai', model: '' });
+    session ?? new AssistantSession(ctxRef!, cfg ?? { providerId: 'openai', model: '' }, webSearchOn);
   entries.push({ role: 'pending', text: '' });
   render();
 

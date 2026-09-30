@@ -978,8 +978,17 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.new': { en: 'New conversation', vi: 'Hội thoại mới' },
   'chat.send': { en: 'Send', vi: 'Gửi' },
   'chat.placeholder': {
-    en: 'Ask about your portfolio…',
-    vi: 'Hỏi về danh mục của bạn…',
+    en: 'Ask about your portfolio, plans, the scanner, the news…',
+    vi: 'Hỏi về danh mục, kế hoạch, scanner, tin tức…',
+  },
+  'chat.web': { en: 'Web', vi: 'Web' },
+  'chat.web.on': {
+    en: 'Web search is ON: the assistant may look up news and web pages (Yahoo Finance news, DuckDuckGo). Results add tokens to each answer. Click to turn off.',
+    vi: 'Tìm kiếm web đang BẬT: trợ lý có thể tra tin tức và trang web (tin Yahoo Finance, DuckDuckGo). Kết quả làm tăng token mỗi câu trả lời. Bấm để tắt.',
+  },
+  'chat.web.off': {
+    en: 'Web search is OFF: the assistant only uses the app\'s own data. Click to turn on.',
+    vi: 'Tìm kiếm web đang TẮT: trợ lý chỉ dùng dữ liệu của app. Bấm để bật.',
   },
   'chat.askgpt': { en: 'Ask ChatGPT', vi: 'Hỏi ChatGPT' },
   'chat.askgpt.help': {

@@ -4561,6 +4561,12 @@ html.light .chat-shell::before {
   transition: color .12s ease, border-color .12s ease, background .12s ease;
 }
 .chat-gpt:hover { color: var(--text); border-color: var(--accent-line); background: var(--cardhover); }
+/* The web-search switch: same pill as Ask ChatGPT, lit in the accent while on, so
+   whether an answer may have come from the internet is visible before asking. */
+.chat-web { display: inline-flex; align-items: center; gap: 5px; }
+.chat-web svg { width: 13px; height: 13px; }
+.chat-web[aria-pressed="true"] { color: var(--accent); border-color: var(--accent-line); }
+.chat-web[aria-pressed="false"] { opacity: .75; text-decoration: line-through; text-decoration-thickness: 1px; }
 /* A round accent button with an arrow. Square with the word "Send" in it spends a
    quarter of the composer's width on a label the arrow already gives. */
 .chat-send {

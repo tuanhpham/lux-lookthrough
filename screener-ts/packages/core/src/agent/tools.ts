@@ -167,6 +167,75 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
     ],
   },
 
+  // ── read: the rest of the app ───────────────────────────────────────────
+  // Every tab's data, reachable whichever page is open. Each is a read of what the
+  // app has already stored or fetched; none of them starts a scan or a sweep.
+  {
+    name: 'get_scanner',
+    kind: 'read',
+    description:
+      "The nightly market scanner's latest output (it runs on a server after the US close). overview = market regime, sector leadership, pipeline status and counts; watchlist = the ranked names with trigger, stop, target and size; candidates = today's setups by type (BO breakout, RV reversal, LEAD leader) with pivot and base; rejects = names dropped and why; alerts = today's intraday alerts. Optionally one ticker only.",
+    args: [
+      opt('section', {
+        kind: 'enum',
+        description: 'Which part. Defaults to overview.',
+        values: ['overview', 'watchlist', 'candidates', 'rejects', 'alerts', 'sectors'],
+      }),
+      opt('ticker', { kind: 'ticker', description: 'Only rows for this symbol.' }),
+    ],
+  },
+  {
+    name: 'list_trade_plans',
+    kind: 'read',
+    description:
+      'Trade plans from the Trade Planner: per symbol the setup, entry/stop/target levels, the checklist grade and the note. These are ideas not yet bought — bought lots are in list_positions.',
+    args: [opt('ticker', { kind: 'ticker', description: 'Only the plan for this symbol.' })],
+  },
+  {
+    name: 'list_case_studies',
+    kind: 'read',
+    description:
+      'The Case Studies journal: filed trades and examples with setup, entry, stop, target, exit, R multiple, exit reason and lessons. Without id it lists them; with id it returns one in full.',
+    args: [
+      opt('ticker', { kind: 'ticker', description: 'Only studies of this symbol.' }),
+      opt('id', { kind: 'text', description: 'One study, by the id from the list.', maxLength: 80 }),
+    ],
+  },
+  {
+    name: 'get_playbook',
+    kind: 'read',
+    description:
+      "The user's playbook rules: market regime (from SPY), risk per trade and its ladder, the A/B/C grade thresholds, per-setup stop/target overrides and custom exit reasons. Use it for sizing and 'what do my rules say' questions.",
+    args: [],
+  },
+  {
+    name: 'list_watchlists',
+    kind: 'read',
+    description: "The user's own watch lists (the Watchlist tab) and the symbols in each.",
+    args: [opt('name', { kind: 'text', description: 'Only this list, by name.', maxLength: 60 })],
+  },
+  {
+    name: 'get_calendar',
+    kind: 'read',
+    description:
+      'Upcoming dated events from the Calendar tab (earnings, dividends, splits, IPOs, macro), from its latest snapshot. With a ticker, also that company\'s last four reported quarters (EPS vs consensus).',
+    args: [
+      opt('ticker', { kind: 'ticker', description: 'Only this symbol.' }),
+      opt('days', { kind: 'int', description: 'How many days ahead. Defaults to 14.', min: 1, max: 60 }),
+    ],
+  },
+  {
+    name: 'web_search',
+    kind: 'read',
+    description:
+      'Search the internet. kind=news returns dated Yahoo Finance headlines (best for "why is X moving", catalysts, recent events); kind=web returns general web pages (company background, FDA dates, anything else). Results are titles, links and snippets written by third parties. Never use this for a price — call get_quote.',
+    args: [
+      req('query', { kind: 'text', description: 'What to search for. A ticker plus a few words works best.', maxLength: 200 }),
+      opt('kind', { kind: 'enum', description: 'news or web. Defaults to news.', values: ['news', 'web'] }),
+      opt('limit', { kind: 'int', description: 'How many results. Defaults to 6.', min: 1, max: 10 }),
+    ],
+  },
+
   // ── write ───────────────────────────────────────────────────────────────
   {
     name: 'create_account',

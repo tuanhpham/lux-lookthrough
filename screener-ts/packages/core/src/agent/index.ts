@@ -8,3 +8,4 @@ export * from './intents.js';
 export * from './prompt.js';
 export * from './session.js';
 export * from './markdown.js';
+export * from './webSearch.js';

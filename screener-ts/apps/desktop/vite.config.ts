@@ -153,6 +153,15 @@ export default defineConfig({
           origin: 'https://www.nasdaq.com',
         },
       },
+      // DuckDuckGo HTML results for the assistant's web_search — POST passes through
+      // untouched, which matters: a GET is answered with the bot challenge. Mirrors
+      // functions/api/search.
+      '/api/search': {
+        target: 'https://html.duckduckgo.com',
+        changeOrigin: true,
+        rewrite: () => '/html/',
+        headers: { 'User-Agent': UA, referer: 'https://html.duckduckgo.com/' },
+      },
       // VNDirect dchart — Vietnam OHLCV (HOSE + HNX + UPCoM).
       '/api/vndirect': {
         target: 'https://dchart-api.vndirect.com.vn/dchart',
