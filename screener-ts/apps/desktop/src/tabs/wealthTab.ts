@@ -16,7 +16,9 @@
  */
 import {
   accountStatus,
+  balanceOn,
   balancesOf,
+  lastSettledSession,
   pointOn,
   removeBalance,
   removeWealthAccount,
@@ -40,15 +42,19 @@ import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { drawLine, drawStacked } from '../ui/charts.js';
 import { accounts, ensureAccountsLoaded, today, uuid } from '../portfolio/store.js';
 import { isHydrated } from '../adapters/storage.js';
-import { updateAllAccounts } from './portfolioTab.js';
+import { refreshStalePrices, updateAllAccounts } from './portfolioTab.js';
 import { loadBook, loadFx, portfolioSide, refreshFx, saveBook, type PortfolioSide } from '../wealth/store.js';
 
 let book: WealthBook = { accounts: [], balances: [] };
 let fx: FxTable | null = null;
 let view: 'total' | 'stack' = 'total';
 let range: 'all' | '2y' | '1y' | '6m' = 'all';
-/** Accounts whose reading history is unfolded. Page-local: a list, not a setting. */
+/** Accounts whose chart and reading history are unfolded. Page-local: a list, not a setting. */
 const openHistory = new Set<string>();
+/** A foreign account's own chart: in its own currency (what the bank statement says) or in EUR. */
+const chartMode = new Map<string, 'native' | 'eur'>();
+/** The Portfolio row's key in `openHistory` — no wealth account can have it, ids are uuids. */
+const PF_ROW = '__portfolio__';
 let busy = false;
 
 /** The portfolio's own layer colour, then one per account. Six-digit hex: the stack adds alpha. */
@@ -83,8 +89,98 @@ export async function renderWealth(ctx: AppContext): Promise<void> {
   const root = $('#tab-wealth');
   if (!root) return;
   await ensureAccountsLoaded(ctx);
-  [book, fx] = await Promise.all([loadBook(ctx), loadFx(ctx)]);
+  const [b, f, done] = await Promise.all([loadBook(ctx), loadFx(ctx), ctx.storage.get<string>(AUTO_KEY)]);
+  book = b;
+  fx = f;
+  autoDone = done ?? null;
   draw(ctx);
+  // Draw from what is cached first, then catch up — the page never waits on Yahoo.
+  void autoUpdate(ctx);
+  watchForClose(ctx);
+}
+
+// ── The automatic update ───────────────────────────────────────────────────
+
+/**
+ * The session this device has brought Wealth Status up to: "the portfolio and the rates
+ * here include that US close". Under `wealth_fx:`, so device-local, for the reason
+ * `pf_autoupdate` is: the bars it vouches for never leave this machine.
+ */
+const AUTO_KEY = 'wealth_fx:session';
+let autoDone: string | null = null;
+/** How often an open Wealth page checks whether a new close has settled. The check is one storage read. */
+const WATCH_MS = 10 * 60_000;
+let watching = false;
+
+/**
+ * Update by itself once per trading day — after the close has settled (`lastSettledSession`:
+ * 17:00 New York, about 23:00 in Luxembourg), not at midnight, because a fetch made during
+ * the session only gets today's live patch.
+ *
+ * The portfolio half is the Portfolio tab's own `refreshStalePrices`: only the accounts whose
+ * bars are behind, once per session per device, and it never rejects. Then the rates. The
+ * receipt is written only when the rates came back, so an offline evening is retried on the
+ * next check instead of being counted as done.
+ *
+ * Balances are not fetched: a bank account is whatever was last typed. What moves daily is
+ * the portfolio and the EUR value of the USD and VND accounts.
+ */
+async function autoUpdate(ctx: AppContext): Promise<void> {
+  if (busy || !isHydrated()) return;
+  const session = lastSettledSession();
+  if (autoDone === session || (await ctx.storage.get<string>(AUTO_KEY)) === session) return;
+  busy = true;
+  const loadingMsg = t('wealth.auto.running').replace('{session}', session);
+  const r0 = $('#tab-wealth');
+  if (r0) setStatus(r0, `<span class="status-chip status-chip--loading"><span class="spinner"></span>${loadingMsg}</span>`);
+  let failed: WealthCurrency[] = [];
+  try {
+    await refreshStalePrices(ctx);
+    const side = portfolioSide(accounts);
+    const start = wealthSeries({ book, portfolio: side.lines, fx: fx!, today: today() }).start ?? today();
+    failed = await refreshFx(ctx, start, neededCurrencies());
+    fx = await loadFx(ctx);
+    if (!failed.length) {
+      await ctx.storage.set(AUTO_KEY, session);
+      autoDone = session;
+    }
+  } finally {
+    busy = false;
+  }
+  const root = $('#tab-wealth');
+  if (!root || root.classList.contains('hidden')) return; // the next render draws it
+  draw(ctx);
+  setStatus(
+    $('#tab-wealth')!,
+    failed.length
+      ? errChip(t('wealth.warn.fxfetch').replace('{ccy}', failed.join(', ')))
+      : okChip(`✓ ${t('wealth.auto.done').replace('{session}', session)}`),
+  );
+}
+
+/**
+ * Keep an open page current across the close: someone who leaves Wealth Status on screen
+ * through the evening sees it update when the session settles, without pressing anything.
+ * Only while this page is the one shown and the window is visible — every other entry
+ * goes through `renderWealth`, which checks on its own.
+ */
+function watchForClose(ctx: AppContext): void {
+  if (watching) return;
+  watching = true;
+  const check = (): void => {
+    const root = $('#tab-wealth');
+    if (document.visibilityState !== 'visible' || !root || root.classList.contains('hidden')) return;
+    void autoUpdate(ctx);
+  };
+  setInterval(check, WATCH_MS);
+  document.addEventListener('visibilitychange', check);
+}
+
+/** The currencies the page needs a rate for: every account's, and USD for a dollar portfolio account. */
+function neededCurrencies(): WealthCurrency[] {
+  const need = new Set<WealthCurrency>(book.accounts.map((a) => a.currency));
+  for (const a of accounts) if (a.account.currency === 'USD') need.add('USD');
+  return [...need];
 }
 
 function draw(ctx: AppContext): void {
@@ -119,6 +215,7 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
       <button class="btn-outline" id="w-record"${book.accounts.length ? '' : ' disabled'}>${t('wealth.record')}</button>
       <button class="btn-outline" id="w-update">${t('wealth.update')}</button>
       <span id="w-status"></span>
+      <span class="muted" style="font-size:12px">${t('wealth.auto.hint')}${autoDone ? ` · ${t('wealth.auto.last').replace('{session}', autoDone)}` : ''}</span>
     </div>
     ${warnings.map((w) => `<div class="status-chip status-chip--muted" style="display:block;white-space:normal;margin-bottom:8px;color:var(--warn)">${w}</div>`).join('')}
 
@@ -177,8 +274,9 @@ function accountsTable(now: WealthSeries['points'][number] | null, side: Portfol
       <td><span class="kpi-dot" style="background:${PF_COLOR};margin-right:6px"></span><a href="#" class="link-ticker" id="w-open-pf"><strong>${t('nav.portfolio')}</strong></a></td>
       <td>${t('wealth.kind.portfolio')}</td><td>EUR</td>
       <td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? share(now.portfolio) : '—'}</td>
-      <td>${side.asOf ?? '—'}</td><td class="muted">${t('wealth.pf.auto')}</td><td></td>
-    </tr>`;
+      <td>${side.asOf ?? '—'}</td><td class="muted">${t('wealth.pf.auto')}</td>
+      <td><button class="pf-icon-btn" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}">${openHistory.has(PF_ROW) ? '▴' : '▾'}</button></td>
+    </tr>${openHistory.has(PF_ROW) ? `<tr class="w-hist"><td colspan="9"><div class="w-acct-chart" data-w-chart="${PF_ROW}"></div></td></tr>` : ''}`;
   const rows = [...book.accounts]
     .sort((a, b) => (now?.byAccount[b.id] ?? 0) - (now?.byAccount[a.id] ?? 0))
     .map((a) => accountRow(a, now))
@@ -197,7 +295,7 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
   const total = now?.total ?? 0;
   const age = st.latest ? `${st.latest.date} <span class="muted">(${st.ageDays}d)</span>` : `<span class="muted">${t('wealth.noreading')}</span>`;
   const row = `<tr>
-      <td><span class="kpi-dot" style="background:${colorOf(a.id)};margin-right:6px"></span><strong>${esc(a.name)}</strong>${a.note ? `<div class="muted" style="font-size:11px">${esc(a.note)}</div>` : ''}</td>
+      <td><span class="kpi-dot" style="background:${colorOf(a.id)};margin-right:6px"></span><a href="#" class="link-ticker" data-w-hist="${a.id}"><strong>${esc(a.name)}</strong></a>${a.note ? `<div class="muted" style="font-size:11px">${esc(a.note)}</div>` : ''}</td>
       <td>${t('wealth.kind.' + a.kind)}</td><td>${a.currency}</td>
       <td>${st.latest ? fmt(st.latest.amount, a.currency) : '—'}</td>
       <td>${st.latest ? eur(v) : '—'}</td>
@@ -221,7 +319,15 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
         })
         .join('')
     : `<tr><td colspan="5" class="muted">${t('wealth.noreading')}</td></tr>`;
+  const mode = chartMode.get(a.id) ?? 'native';
+  const modes =
+    a.currency === 'EUR'
+      ? ''
+      : `<div class="toolbar" style="margin:0 0 4px;gap:4px">${(['native', 'eur'] as const)
+          .map((m) => `<button class="range-btn${mode === m ? ' active' : ''}" data-w-cmode="${a.id}" data-mode="${m}">${m === 'native' ? a.currency : 'EUR'}</button>`)
+          .join('')}</div>`;
   return `${row}<tr class="w-hist"><td colspan="9">
+      ${modes}<div class="w-acct-chart" data-w-chart="${a.id}"></div>
       <table class="w-hist-t"><thead><tr><th>${t('wealth.col.date')}</th><th>${t('wealth.col.balance')}</th><th>${t('wealth.col.eurthen')}</th><th>${t('wealth.col.note')}</th><th></th></tr></thead><tbody>${inner}</tbody></table>
     </td></tr>`;
 }
@@ -232,12 +338,47 @@ function shiftDays(date: string, days: number): string {
   return new Date(Date.parse(date) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-function drawChart(el: HTMLElement, s: WealthSeries): void {
+/** The points inside the page's range buttons — the main chart and every account chart share them. */
+function inRange(s: WealthSeries): WealthSeries['points'] {
   const cutoff =
     range === 'all' || !s.points.length
       ? ''
       : shiftDays(s.points[s.points.length - 1]!.date, -({ '2y': 730, '1y': 365, '6m': 182 } as const)[range]);
-  const pts = s.points.filter((p) => p.date >= cutoff);
+  return s.points.filter((p) => p.date >= cutoff);
+}
+
+const SYMBOL: Record<WealthCurrency, string> = { EUR: '€', USD: '$', VND: '₫' };
+
+/**
+ * One account's own line, on the same dates as the main chart.
+ *
+ * In its own currency the line is the readings carried forward — flat between two
+ * statements, which is what a statement says. In EUR it is the page's converted value, so
+ * a VND account that never changed still moves with EURVND; the toggle is there to tell
+ * those two apart.
+ */
+function drawAccountChart(el: HTMLElement, id: string, s: WealthSeries): void {
+  const pts = inRange(s);
+  const a = book.accounts.find((x) => x.id === id);
+  const native = a && a.currency !== 'EUR' && (chartMode.get(id) ?? 'native') === 'native';
+  const sorted = a ? balancesOf(book, a.id) : [];
+  const line = pts.map((p) => ({
+    time: p.date,
+    value: id === PF_ROW ? p.portfolio : native ? (balanceOn(sorted, p.date)?.amount ?? 0) : (p.byAccount[id] ?? 0),
+  }));
+  if (!line.length) {
+    el.innerHTML = `<div class="muted" style="padding:20px 0;text-align:center">${t('wealth.nodata')}</div>`;
+    return;
+  }
+  try {
+    drawLine(el, line, { money: true, currency: native ? SYMBOL[a!.currency] : '€', height: 200, maxLine: true, minLine: true });
+  } catch {
+    el.innerHTML = `<div class="muted">${t('pf.unavailable')}</div>`;
+  }
+}
+
+function drawChart(el: HTMLElement, s: WealthSeries): void {
+  const pts = inRange(s);
   if (!pts.length) {
     el.innerHTML = `<div class="muted" style="display:flex;align-items:center;justify-content:center;height:100%">${t('wealth.nodata')}</div>`;
     return;
@@ -405,12 +546,14 @@ async function updateFlow(ctx: AppContext, root: HTMLElement, s: WealthSeries): 
       problems.push(`${t('nav.portfolio')}: ${(e as Error).message}`);
     }
     setStatus(root, loading(t('wealth.updating.fx')));
-    const need = new Set<WealthCurrency>(book.accounts.map((a) => a.currency));
-    for (const a of accounts) if (a.account.currency === 'USD') need.add('USD');
-    const from = s.start ?? today();
-    const failed = await refreshFx(ctx, from, [...need]);
+    const failed = await refreshFx(ctx, s.start ?? today(), neededCurrencies());
     if (failed.length) problems.push(t('wealth.warn.fxfetch').replace('{ccy}', failed.join(', ')));
     fx = await loadFx(ctx);
+    if (!problems.length) {
+      // A full manual update covers this session: the automatic one need not repeat it.
+      autoDone = lastSettledSession();
+      await ctx.storage.set(AUTO_KEY, autoDone);
+    }
   } finally {
     busy = false;
   }
@@ -421,7 +564,10 @@ async function updateFlow(ctx: AppContext, root: HTMLElement, s: WealthSeries): 
 
 function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
   const chartEl = root.querySelector<HTMLElement>('#wealth-chart');
+  const drawAccountCharts = (): void =>
+    root.querySelectorAll<HTMLElement>('[data-w-chart]').forEach((c) => drawAccountChart(c, c.dataset.wChart!, s));
   if (chartEl) drawChart(chartEl, s);
+  drawAccountCharts();
 
   root.querySelector('#w-add')?.addEventListener('click', () => void addAccountFlow(ctx, s.start));
   root.querySelector('#w-record')?.addEventListener('click', () => void recordAllFlow(ctx));
@@ -443,6 +589,7 @@ function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
       range = b.dataset.wRange as typeof range;
       root.querySelectorAll('[data-w-range]').forEach((x) => x.classList.toggle('active', x === b));
       if (chartEl) drawChart(chartEl, s);
+      drawAccountCharts();
     }),
   );
 
@@ -453,8 +600,18 @@ function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
       if (a) void balanceFlow(ctx, a);
     }),
   );
-  root.querySelectorAll<HTMLElement>('[data-w-hist]').forEach((b) =>
+  root.querySelectorAll<HTMLElement>('[data-w-cmode]').forEach((b) =>
     b.addEventListener('click', () => {
+      const id = b.dataset.wCmode!;
+      chartMode.set(id, b.dataset.mode as 'native' | 'eur');
+      root.querySelectorAll<HTMLElement>(`[data-w-cmode="${id}"]`).forEach((x) => x.classList.toggle('active', x === b));
+      const c = root.querySelector<HTMLElement>(`[data-w-chart="${id}"]`);
+      if (c) drawAccountChart(c, id, s);
+    }),
+  );
+  root.querySelectorAll<HTMLElement>('[data-w-hist]').forEach((b) =>
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
       const id = b.dataset.wHist!;
       if (openHistory.has(id)) openHistory.delete(id);
       else openHistory.add(id);
