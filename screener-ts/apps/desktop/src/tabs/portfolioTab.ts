@@ -39,6 +39,7 @@ import {
   type PriceMap,
   type SetupKey,
   type Bar,
+  quoteCurrencyOf,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 // The portfolio state itself lives in the store, not in this tab — the assistant
@@ -65,7 +66,7 @@ import { accountPrices as prices, setAccountPrices, seedPrice } from '../portfol
 // The EURUSD table left this file for the same reason: a chat-recorded buy has to
 // divide a USD fill by the rate on the trade date, and a second rate table would
 // give the same trade two different cost bases depending on who booked it.
-import { applyEurUsdBars, eurUsdForDate, hasEurUsd, latestEurUsd } from '../portfolio/fx.js';
+import { applyEurUsdBars, eurUsdForDate, hasEurUsd, latestEurUsd, quoteToCcy } from '../portfolio/fx.js';
 // `snapshotNow` is shared with the assistant's write path, so a chat buy moves the
 // equity curve today exactly as the Buy button does. `onAgentWrite` fires only for
 // writes this tab did not make — see the note on the notifier.
@@ -154,19 +155,15 @@ function wirePriceHint(
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  // Holds the last fetched raw USD close and its date so we can re-convert
-  // instantly when the currency selector changes without re-fetching.
+  // Holds the last fetched raw close (in the symbol's quote currency), its date and
+  // symbol so we can re-convert instantly when the currency selector changes.
   let lastRawClose: number | null = null;
   let lastBarDate: string | null = null;
+  let lastSym = '';
 
-  /** Convert raw USD close to the currently selected currency. */
-  function convertClose(rawUsd: number, barDate: string): number {
-    const ccy = ccyEl?.value ?? 'USD';
-    if (ccy === 'EUR') {
-      const fx = eurUsdForDate(barDate);
-      return fx > 0 ? rawUsd / fx : rawUsd;
-    }
-    return rawUsd;
+  /** Convert a raw close to the currently selected currency. */
+  function convertClose(raw: number, barDate: string): number {
+    return raw * quoteToCcy(lastSym, ccyEl?.value ?? 'USD', barDate);
   }
 
   function refreshHint() {
@@ -189,6 +186,19 @@ function wirePriceHint(
   const fetchHint = async () => {
     const sym = tickerEl.value.trim().toUpperCase();
     if (!sym) { hintEl.innerHTML = ''; return; }
+    const quote = quoteCurrencyOf(sym);
+    if (quote === null) {
+      // London quotes in pence, Zurich in francs… — no rate here converts those into the account.
+      hintEl.innerHTML = `<span class="muted">${getLang() === 'vi'
+        ? 'Sàn này chưa được hỗ trợ: ứng dụng chỉ đổi được giá Mỹ (USD), khu vực euro (.DE, .PA…) và Việt Nam.'
+        : 'This market is not supported yet: the app converts only US (USD), euro-area (.DE, .PA…) and Vietnamese prices.'}</span>`;
+      return;
+    }
+    // A euro listing is quoted — and bought at the broker — in euros; offer the form in that.
+    if (sym !== lastSym && quote === 'EUR' && ccyEl && ccyEl.value !== 'EUR') {
+      ccyEl.value = 'EUR';
+      ccyEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     const wantDate = dateEl?.value && dateEl.value < todayStr ? dateEl.value : null;
     const mine = ++token;
     hintEl.innerHTML = `<span class="spinner"></span> ${wantDate ? `close on ${wantDate}…` : 'latest close…'}`;
@@ -200,6 +210,7 @@ function wirePriceHint(
       : ohlcv.bars[ohlcv.bars.length - 1]!;
     if (!bar) { hintEl.textContent = `no price on/before ${wantDate}`; return; }
     lastRawClose = bar.close;
+    lastSym = sym;
     lastBarDate = bar.date;
     refreshHint();
   };
@@ -570,6 +581,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
         state: active(),
         prices: prices(active().account.id),
         bars,
+        symbol: sym,
         entry: price,
         entryCurrency: (ccyEl?.value ?? 'USD') as 'EUR' | 'USD',
         setup,
@@ -813,7 +825,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
       currency: ccy,
       // Euro levels have to go back to dollars to be drawn on a chart of dollar closes, and
       // the rate is the trade date's — the same one the lot itself is recorded at.
-      ...(ccy === 'EUR' && hasEurUsd() ? { fxRate: eurUsdForDate(date) } : {}),
+      ...(hasEurUsd() ? { fxRate: eurUsdForDate(date) } : {}),
       date,
       bars: lastBars,
       earnings: lastEarn,
@@ -1033,18 +1045,16 @@ function buildDailyEquity(
     barByTickerDate.set(sym, m);
   }
 
-  // Normalize a raw USD close to the account's base currency on a given date.
-  function normalizeClose(rawUsd: number, date: string): number {
-    if (st.account.currency !== 'EUR') return rawUsd;
-    const fx = eurUsdForDate(date);
-    return fx > 1 ? rawUsd / fx : rawUsd;
+  // Normalize a raw close (the symbol's quote currency) to the account's base currency on a given date.
+  function normalizeClose(sym: string, raw: number, date: string): number {
+    return raw * quoteToCcy(sym, st.account.currency, date);
   }
 
   const prevClose = new Map<string, number>(); // stores already-normalized closes
   function getClose(sym: string, date: string): number | null {
     const b = barByTickerDate.get(sym)?.get(date);
     if (b) {
-      const normalized = normalizeClose(b.close, date);
+      const normalized = normalizeClose(sym, b.close, date);
       prevClose.set(sym, normalized);
       return normalized;
     }
@@ -1159,15 +1169,15 @@ export async function renderPortfolio(ctx: AppContext): Promise<void> {
         const pm = prices(acct.account.id);
         // `prices()` returns {} for an account with nothing fetched — skip it rather
         // than write an empty map back over the entry.
-        if (!Object.keys(pm).length || acct.account.currency !== 'EUR') continue;
+        if (!Object.keys(pm).length) continue;
         const normalized: PriceMap = {};
         for (const [sym, rawClose] of Object.entries(pm)) {
           const bc = barMapByAccount.get(acct.account.id);
           const acctBars = bc?.get(sym);
           if (!acctBars?.length) { normalized[sym] = rawClose; continue; }
           const barDate = acctBars[acctBars.length - 1]!.date;
-          const fx = eurUsdForDate(barDate);
-          normalized[sym] = fx > 1 ? rawClose / fx : rawClose;
+          // A USD account holding ALV.DE needs this too, so no currency short-cut.
+          normalized[sym] = rawClose * quoteToCcy(sym, acct.account.currency, barDate);
         }
         setAccountPrices(acct.account.id, normalized);
       }
@@ -1764,19 +1774,16 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       rowPanel.style.display = '';
 
       function applyBars(raw: Bar[]) {
-        // raw bars are in USD (stock prices); scale by shares first, then convert
-        // to display currency. For EUR accounts showing USD: divide by EURUSD.
-        // For USD display: no conversion needed (stock already in USD).
+        // raw bars are in the symbol's quote currency (USD, or EUR for ALV.DE); scale
+        // by shares first, then convert: to EUR for a EUR account shown in EUR, else USD.
         const acctCcy = active().account.currency;
-        const sharesScaled = raw
+        const target = acctCcy === 'EUR' && displayCurrency === 'EUR' ? 'EUR' : 'USD';
+        rowBars = raw
           .filter((bar) => bar.date >= fromDate && bar.date <= endStr)
-          .map((bar) => ({ ...bar, open: bar.open * shares, high: bar.high * shares, low: bar.low * shares, close: bar.close * shares }));
-        rowBars = (acctCcy === 'EUR' && displayCurrency === 'EUR')
-          ? sharesScaled.map((b) => {
-              const fx = eurUsdForDate(b.date);
-              return fx > 1 ? { ...b, open: b.open / fx, high: b.high / fx, low: b.low / fx, close: b.close / fx } : b;
-            })
-          : sharesScaled; // USD display or USD account: keep raw USD × shares
+          .map((bar) => {
+            const k = shares * quoteToCcy(ticker, target, bar.date);
+            return { ...bar, open: bar.open * k, high: bar.high * k, low: bar.low * k, close: bar.close * k };
+          });
         renderRowChart();
       }
 
@@ -1840,7 +1847,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
             // Not stored on the snapshot: the rate for a past date does not change, so the
             // cache is as good a source as a copy would be — and one fewer field that can be
             // missing on a record written by an older version.
-            ...(snap.currency === 'EUR' && hasEurUsd() ? { fxRate: eurUsdForDate(snap.date) } : {}),
+            ...(hasEurUsd() ? { fxRate: eurUsdForDate(snap.date) } : {}),
             date: snap.date,
             bars,
             earnings: earn.map((r) => r.date),
@@ -2041,13 +2048,9 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           const n = Number(raw);
           return raw && !Number.isNaN(n) ? n.toFixed(2) : raw;
         }
-        // Convert raw USD close to the requested currency using the rate for the bar's date.
-        function closeInCcy(rawUsd: number, barDate: string, ccy: string): string {
-          if (ccy === 'EUR') {
-            const fx = eurUsdForDate(barDate);
-            return roundPrice(String(fx > 0 ? rawUsd / fx : rawUsd));
-          }
-          return roundPrice(String(rawUsd));
+        // Convert a raw close (the symbol's quote currency) to the requested currency at the bar's date.
+        function closeInCcy(raw: number, barDate: string, ccy: string): string {
+          return roundPrice(String(raw * quoteToCcy(t, ccy, barDate)));
         }
         function priceForDateInCcy(date: string, ccy: string): string {
           const raw = priceForDate(date); // raw USD string from bar cache
@@ -2798,19 +2801,14 @@ async function update(ctx: AppContext): Promise<void> {
   await ensureRegime(ctx, { refresh: true }).catch(() => null);
 
   // Build price map from latest bar — normalize to account base currency.
-  // Yahoo always returns USD prices; EUR accounts need EUR prices so that
-  // lastPrice matches the EUR-denominated buyPrice/stop/target in every lot.
+  // Yahoo quotes each venue in its own currency (AAPL in USD, ALV.DE in EUR);
+  // lastPrice must match the account-currency buyPrice/stop/target in every lot.
   const priceMap: PriceMap = {};
   for (const sym of tickers) {
     const bars = barCache[sym];
     if (!bars?.length) continue;
     const rawClose = bars[bars.length - 1]!.close;
-    if (st.account.currency === 'EUR') {
-      const fx = eurUsdForDate(endDate);
-      priceMap[sym] = fx > 1 ? rawClose / fx : rawClose;
-    } else {
-      priceMap[sym] = rawClose;
-    }
+    priceMap[sym] = rawClose * quoteToCcy(sym, st.account.currency, endDate);
   }
   setAccountPrices(st.account.id, priceMap);
 
@@ -3038,19 +3036,18 @@ function buildCandleSeries(
     barByTickerDate.set(sym, m);
   }
 
-  // Normalize a raw USD bar to the account's base currency (EUR) on a given date.
+  // Normalize a raw bar (the symbol's quote currency) to the account's base currency on a given date.
   // Mirrors the normalizeClose() logic in buildDailyEquity so the candle close
   // matches the equity snapshot on any given day.
-  function normalizeBar(b: Bar, date: string): Bar {
-    if (st.account.currency !== 'EUR') return b;
-    const fx = eurUsdForDate(date);
-    if (!(fx > 1)) return b;
+  function normalizeBar(sym: string, b: Bar, date: string): Bar {
+    const k = quoteToCcy(sym, st.account.currency, date);
+    if (k === 1) return b;
     return {
       date: b.date,
-      open: b.open / fx,
-      high: b.high / fx,
-      low: b.low / fx,
-      close: b.close / fx,
+      open: b.open * k,
+      high: b.high * k,
+      low: b.low * k,
+      close: b.close * k,
       volume: b.volume,
     };
   }
@@ -3060,7 +3057,7 @@ function buildCandleSeries(
     const m = barByTickerDate.get(sym);
     const raw = m?.get(date);
     if (raw) {
-      const nb = normalizeBar(raw, date);
+      const nb = normalizeBar(sym, raw, date);
       prevClose.set(sym, nb.close);
       return nb;
     }

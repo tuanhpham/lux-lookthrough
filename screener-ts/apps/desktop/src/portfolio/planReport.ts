@@ -26,7 +26,7 @@ import { setupName } from './planWords.js';
 import { scorecardBarsHtml, scorecardTableHtml, scorecardWords, SCORECARD_CSS } from './scorecard.js';
 import { safeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { downloadHtml } from '../ui/exportFile.js';
-import { inCurrency } from './planExit.js';
+import { candleDivisor, inCurrency } from './planExit.js';
 import type { PlanLevels, SymbolPlan } from './planStore.js';
 
 export interface PlanReportInput {
@@ -253,7 +253,7 @@ export function planReportHtml(i: PlanReportInput): string {
   // Every bar at the TRADE DATE's rate, deliberately: the shape is then the dollar shape scaled
   // by a constant, so no euro move is smuggled into the price action the plan is judged on.
   // Per-day rates would draw candles that moved because of the currency.
-  const fx = i.currency === 'EUR' && i.fxRate && i.fxRate > 0 ? i.fxRate : 0;
+  const fx = candleDivisor(i.plan.symbol, i.currency, i.fxRate ?? 0);
   const subject: ChartSubject = {
     entry: levels.entry,
     stop: levels.stop,
@@ -269,11 +269,11 @@ export function planReportHtml(i: PlanReportInput): string {
     // plan has no user-written timeline on it — the case study it becomes is where that lives.
     ...(i.earnings?.length ? { earnings: i.earnings } : {}),
   };
-  const win = inCurrency(planWindow(i.bars, i.date), fx);
+  const win = inCurrency(planWindow(i.bars, i.date), fx ?? 0);
   // No rate for euro levels means the lines cannot be placed against these candles at all.
   // A chart with the lines in the wrong place is worse than no chart, because it is the part
   // of this document a reader trusts without reading.
-  const plottable = i.currency !== 'EUR' || fx > 0;
+  const plottable = fx !== null;
   // The E flags need a caption for the same reason they do on the card: a purple letter under a
   // candle explains nothing, and this document is read months later by somebody who may not
   // remember what the app draws. Only shown when a flag actually landed in the window.

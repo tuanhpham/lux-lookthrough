@@ -689,3 +689,51 @@ export const VN_SECTOR_STOCKS: Record<string, string[]> = {
 };
 
 export const VN_ALL_SECTORS: string[] = Object.keys(VN_SECTOR_STOCKS);
+
+/** Curated German (Xetra) sector universes: the DAX and most of the MDAX, as Yahoo's
+ * `<TICKER>.DE` symbols, priced in EUR. Hand-classified into the same sector names as
+ * SECTOR_STOCKS. Membership is a screening list, not a copy of the index: the DAX
+ * reshuffles every quarter, and a name that left it is still worth screening. */
+export const DE_SECTOR_STOCKS: Record<string, string[]> = {
+  "Financials": [
+    'ALV.DE', 'MUV2.DE', 'HNR1.DE', 'TLX.DE', 'DBK.DE', 'CBK.DE', 'DB1.DE',
+  ],
+  "Technology": [
+    'SAP.DE', 'IFX.DE', 'NEM.DE', 'BC8.DE', 'AIXA.DE', 'TMV.DE', 'COK.DE', 'NA9.DE',
+    'ELG.DE', 'SMHN.DE', 'WAF.DE', 'JEN.DE',
+  ],
+  "Industrials": [
+    'SIE.DE', 'AIR.DE', 'MTX.DE', 'RHM.DE', 'DHL.DE', 'DTG.DE', 'KBX.DE', 'G1A.DE',
+    'HAG.DE', 'R3NK.DE', 'KGX.DE', 'JUN3.DE', 'KRN.DE', 'DUE.DE', 'STM.DE', 'DEZ.DE',
+    '8TRA.DE', 'HLAG.DE', 'FRA.DE', 'LHA.DE', 'SIX2.DE', 'HOT.DE',
+  ],
+  "Consumer Discretionary": [
+    'ADS.DE', 'BMW.DE', 'MBG.DE', 'VOW3.DE', 'P911.DE', 'PAH3.DE', 'CON.DE', 'ZAL.DE',
+    'PUM.DE', 'BOSS.DE', 'HFG.DE', 'DHER.DE', 'AG1.DE', 'FIE.DE', 'TUI1.DE', 'EVD.DE',
+  ],
+  "Consumer Staples": [
+    'BEI.DE', 'HEN3.DE', 'KWS.DE',
+  ],
+  "Healthcare": [
+    'BAYN.DE', 'FRE.DE', 'FME.DE', 'MRK.DE', 'SHL.DE', 'SRT3.DE', 'QIA.DE', 'AFX.DE',
+    'GXI.DE', 'EVT.DE',
+  ],
+  "Materials": [
+    'BAS.DE', 'HEI.DE', 'SY1.DE', 'BNR.DE', 'EVK.DE', 'WCH.DE', 'LXS.DE', 'NDA.DE',
+    'SZG.DE', 'TKA.DE', 'SDF.DE', 'VBK.DE',
+  ],
+  "Utilities": [
+    'EOAN.DE', 'RWE.DE',
+  ],
+  "Energy": [
+    'ENR.DE', 'S92.DE',
+  ],
+  "Communication Services": [
+    'DTE.DE', 'UTDI.DE', '1U1.DE', 'FNTN.DE', 'PSM.DE', 'RRTL.DE', 'G24.DE',
+  ],
+  "Real Estate": [
+    'VNA.DE', 'LEG.DE', 'TEG.DE', 'DWNI.DE',
+  ],
+};
+
+export const DE_ALL_SECTORS: string[] = Object.keys(DE_SECTOR_STOCKS);

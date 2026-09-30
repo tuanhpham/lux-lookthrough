@@ -41,6 +41,7 @@
  * level and nothing that would reconstruct the portfolio.
  */
 import type { AccountState } from '../types/index.js';
+import { quoteCurrencyOf } from './quoteCurrency.js';
 
 export interface PositionsRow {
   /** Ticker as entered. The VM upper-cases before matching. */
@@ -159,6 +160,10 @@ export function buildPositionsDigest(
       if (!(lot.remainingShares > 0)) continue;
       const sym = String(lot.ticker ?? '').trim().toUpperCase();
       if (!sym) continue;
+      // The scanner watches US quotes only. A Xetra name (ALV.DE) quotes in euros, and the
+      // reader would convert its euro stop to dollars and compare it with a euro price —
+      // a level off by the whole rate. Left out, it is simply not watched.
+      if (quoteCurrencyOf(sym) !== 'USD') continue;
       const r = get(sym);
       r.shares += lot.remainingShares;
       r.cost += lot.remainingShares * lot.buyPrice;

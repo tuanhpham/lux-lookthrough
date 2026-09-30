@@ -29,7 +29,7 @@
  * flat trade is, the currency the case study is stored in — is arithmetic, and it lives here
  * rather than inside the card's repaint so it can be checked. See `tests/planExit.test.ts`.
  */
-import type { Bar, ConvictionRating, SetupKey } from '@screener/core';
+import { quoteCurrencyOf, type Bar, type ConvictionRating, type SetupKey } from '@screener/core';
 import {
   newCaseId,
   type CaseOutcome,
@@ -205,6 +205,7 @@ export function planChartWindow(
  * date's frame (`usdToLevel`, `plannedPrice`), so this keeps one frame for the whole document.
  */
 export function inCurrency(bars: readonly Bar[], rate: number): Bar[] {
+  if (rate === 1) return bars as Bar[];
   if (!(rate > 0)) return bars as Bar[];
   return bars.map((b) => ({
     ...b,
@@ -213,6 +214,21 @@ export function inCurrency(bars: readonly Bar[], rate: number): Bar[] {
     low: b.low / rate,
     close: b.close / rate,
   }));
+}
+
+/**
+ * The `rate` `inCurrency` needs to bring `symbol`'s candles into `ccy`, given 1 EUR = `eurUsd` USD.
+ *
+ * Yahoo quotes a ticker in its venue's currency — `AAPL` in dollars, `ALV.DE` in euros — so "a euro
+ * plan divides by EURUSD" was only true while every ticker was American. 0 means the candles are
+ * already in `ccy` (or in a currency this app does not convert): draw them as they are. `null`
+ * means a rate is needed and `eurUsd` is not one, so the lines cannot be placed on these candles.
+ */
+export function candleDivisor(symbol: string, ccy: 'EUR' | 'USD', eurUsd: number): number | null {
+  const q = quoteCurrencyOf(symbol);
+  if (q === ccy || (q !== 'USD' && q !== 'EUR')) return 0;
+  if (!(eurUsd > 0)) return null;
+  return q === 'USD' ? eurUsd : 1 / eurUsd;
 }
 
 /**

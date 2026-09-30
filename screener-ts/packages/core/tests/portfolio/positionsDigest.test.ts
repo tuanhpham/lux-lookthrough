@@ -362,3 +362,14 @@ describe('junk in, no crash out', () => {
     expect(d.rows[0]!.noStop).toBe(10);
   });
 });
+
+describe('quote currency', () => {
+  it('leaves out a euro-quoted holding: the scanner compares stops against dollar quotes', () => {
+    const st = acct('A');
+    const ids = counterIds('A');
+    buy(st, { ticker: 'AAPL', buyDate: '2026-09-01', buyPrice: 200, shares: 10, stop: 180 }, ids);
+    buy(st, { ticker: 'ALV.DE', buyDate: '2026-09-01', buyPrice: 350, shares: 5, stop: 330 }, ids);
+    const d = buildPositionsDigest([st], AT);
+    expect(d.rows.map((r) => r.sym)).toEqual(['AAPL']);
+  });
+});

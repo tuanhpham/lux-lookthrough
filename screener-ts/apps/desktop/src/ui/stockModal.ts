@@ -9,7 +9,7 @@ import {
   type StockPromptContext,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { $, num, fmtBig, money, fmtPrice, isVnSymbol, scoreColor } from './dom.js';
+import { $, num, fmtBig, money, fmtPrice, isVnSymbol, pricePrefix, scoreColor } from './dom.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from './charts.js';
 import { setupBadge, classBadge } from './badges.js';
 import { t, getLang } from './i18n.js';
@@ -503,11 +503,12 @@ function fundGridHtml(f: {
   const ccy = vn ? ' ₫' : '';
   // VN market cap is in VND (huge) — fmtBig's T/B suffixes apply; tag the unit.
   const mcap = f.marketCap != null ? fmtBig(f.marketCap) + (vn ? ' ₫' : '') : '—';
-  // EPS in VND is whole-đồng (e.g. 5,216 ₫); in USD it's a few dollars.
-  const eps = f.eps != null ? (vn ? num(f.eps, 0) + ' ₫' : '$' + num(f.eps)) : '—';
+  // EPS in VND is whole-đồng (e.g. 5,216 ₫); in USD or EUR it's a few units.
+  const pre = pricePrefix(symbol);
+  const eps = f.eps != null ? (vn ? num(f.eps, 0) + ' ₫' : pre + num(f.eps)) : '—';
   const range =
     f.week52Low != null && f.week52High != null
-      ? (vn ? num(f.week52Low, 0) + '–' + num(f.week52High, 0) + ccy : '$' + num(f.week52Low, 0) + '–' + num(f.week52High, 0))
+      ? (vn ? num(f.week52Low, 0) + '–' + num(f.week52High, 0) + ccy : pre + num(f.week52Low, 0) + '–' + num(f.week52High, 0))
       : '—';
   // Live mode shows TTM/live figures; as-of mode shows latest-annual-before-date,
   // so the labels switch to "(annual)" to set the right expectation.

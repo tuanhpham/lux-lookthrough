@@ -42,7 +42,7 @@ import { openPlanReport } from '../portfolio/planReport.js';
 import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
 // One window rule for a plan's chart, shared with the planner so a filed study draws the same
 // picture the card it came from drew.
-import { inCurrency, planChartWindow } from '../portfolio/planExit.js';
+import { candleDivisor, inCurrency, planChartWindow } from '../portfolio/planExit.js';
 // Read at render time, not imported as a constant: the list includes the user's own rows.
 import { exitReasonKeyOfText, exitReasonList } from '../portfolio/exitReasons.js';
 // Report dates for the chart's E flags. Same source the planner card and the stock modal use, so
@@ -196,8 +196,13 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
    */
   const sym = caseSym(study);
   const eurCase = study.currency === 'EUR';
-  if (eurCase) await ensureEurUsd(ctx).catch(() => {});
-  const caseFx = eurCase && hasEurUsd() ? eurUsdForDate(study.keyDate) : 0;
+  // A rate is needed whenever the study's currency is not the ticker's quote currency: a euro
+  // study of AAPL, or a dollar study of ALV.DE.
+  const caseCcy = eurCase ? 'EUR' : 'USD';
+  const needsFx = candleDivisor(study.symbol, caseCcy, 1) !== 0;
+  if (needsFx) await ensureEurUsd(ctx).catch(() => {});
+  const caseFx = needsFx && hasEurUsd() ? eurUsdForDate(study.keyDate) : 0;
+  const caseDiv = candleDivisor(study.symbol, caseCcy, caseFx);
 
   root.innerHTML = `
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -270,7 +275,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
    */
   let earnDates: readonly string[] = [];
   const drawChart = () => {
-    if (eurCase && !(caseFx > 0)) {
+    if (caseDiv === null) {
       $('#cs-chart')!.innerHTML = `<p class="muted" style="margin:0">${
         vi
           ? 'Không vẽ được đồ thị: hồ sơ này ghi giá bằng EUR nhưng chưa có tỷ giá EUR/USD của ngày then chốt trong bộ nhớ.'
@@ -278,7 +283,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
       }</p>`;
       return;
     }
-    const win = inCurrency(windowBars(bars, study.keyDate, windowMonths), caseFx);
+    const win = inCurrency(windowBars(bars, study.keyDate, windowMonths), caseDiv);
     // `study` itself, not a spread with the live `windowMonths` folded in: the renderer takes
     // levels and dates only (see `ChartSubject`), and `windowBars` above has already applied
     // the window. The spread was copying a field the chart never read.
@@ -343,7 +348,8 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     // euro levels on dollar candles (needed for EVERY euro plan), while `rate` restates the study's
     // exit price in the plan's currency (needed only when the two disagree). One variable for both
     // meant a same-currency euro study was printed with no chart.
-    const planFx = eur && hasEurUsd() ? eurUsdForDate(p.date) : 0;
+    // Any plan may need it now, not just a euro one: a dollar plan of ALV.DE draws euro candles.
+    const planFx = hasEurUsd() ? eurUsdForDate(p.date) : 0;
     const rate = sameCcy ? 0 : planFx;
     // Back to the plan's currency with the PLAN date's rate — the same one the levels beside it
     // are in. The exit-date rate would be more literal and less useful: an R multiple built from

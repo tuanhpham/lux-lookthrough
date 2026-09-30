@@ -22,7 +22,7 @@
  * So writers ask `hasEurUsd()` first and refuse, which is why the two live together
  * here rather than the fallback being everyone's problem.
  */
-import type { Bar } from '@screener/core';
+import { quoteCurrencyOf, type Bar } from '@screener/core';
 import type { AppContext } from '../context.js';
 
 /** The device-local cache the Portfolio tab fills on Update. */
@@ -51,6 +51,30 @@ export function applyEurUsdBars(bars: readonly Bar[]): void {
  */
 export function eurUsdForDate(date: string): number {
   return byDate.get(date) ?? latest ?? 1;
+}
+
+/**
+ * The factor that turns one of `symbol`'s Yahoo prices into `target` money on `date`.
+ *
+ * Yahoo quotes each venue in its own currency: `AAPL` in dollars, `ALV.DE` in euros.
+ * Every close-to-account conversion used to assume dollars and divide by EURUSD, which
+ * would have shown Allianz at €350 as ≈€300 in a EUR account. Multiply by this instead.
+ *
+ * 1 when the quote is already in `target`, when no rate is loaded (the display
+ * fallback — see the header), and for quotes this table cannot convert (VND, or a
+ * venue `quoteCurrencyOf` does not know): those are shown as quoted, as before.
+ */
+export function quoteToCcy(symbol: string, target: string, date: string): number {
+  return ccyFactor(quoteCurrencyOf(symbol), target, date);
+}
+
+/** The factor that turns `from` money into `to` money on `date`; 1 on anything but a real EUR↔USD pair. */
+export function ccyFactor(from: string | null, to: string, date: string): number {
+  if (from === to || (from !== 'USD' && from !== 'EUR') || (to !== 'USD' && to !== 'EUR')) return 1;
+  if (!hasEurUsd()) return 1;
+  const fx = eurUsdForDate(date);
+  if (!(fx > 0)) return 1;
+  return from === 'USD' ? 1 / fx : fx; // USD → EUR divides; EUR → USD multiplies
 }
 
 /** The most recent rate, or null when none has been loaded. */

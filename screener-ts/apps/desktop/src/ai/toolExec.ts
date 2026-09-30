@@ -40,6 +40,7 @@ import {
   findTool,
   riskBudget,
   riskStageOf,
+  quoteCurrencyOf,
   type AccountState,
   type OrderType,
   type ToolArgs,
@@ -851,7 +852,16 @@ export async function planWrite(
   }
 
   const date = str(args, 'date') ?? today();
-  const ccy = ((str(args, 'priceCurrency') ?? 'USD') as 'EUR' | 'USD');
+  // A ticker's quotes come in its venue's currency (ALV.DE in euros), so a price given without
+  // one is read in that currency, not assumed to be dollars.
+  const tickerArg = str(args, 'ticker');
+  const quote = tickerArg ? quoteCurrencyOf(tickerArg) : 'USD';
+  if (tickerArg && quote === null) {
+    return {
+      error: `${tickerArg} trades on a market whose currency this app cannot convert — only US, euro-area (.DE, .PA, .AS…) and Vietnamese tickers are supported. Tell the user the portfolio cannot hold it yet.`,
+    };
+  }
+  const ccy = ((str(args, 'priceCurrency') ?? (quote === 'EUR' ? 'EUR' : 'USD')) as 'EUR' | 'USD');
 
   if (toolName === 'record_balance') return planBalance(ctx, args, date);
 

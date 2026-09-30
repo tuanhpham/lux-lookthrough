@@ -161,6 +161,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.market': { en: 'Market', vi: 'Thị trường' },
   'picks.market.us': { en: 'US', vi: 'Mỹ' },
   'picks.market.vn': { en: 'Vietnam', vi: 'Việt Nam' },
+  'picks.market.de': { en: 'Germany', vi: 'Đức' },
   'picks.universe': { en: 'Universe', vi: 'Phạm vi' },
   'picks.uni.curated': { en: 'Curated (~540)', vi: 'Chọn lọc (~540)' },
   'picks.uni.broad': { en: 'S&P 1500', vi: 'S&P 1500' },
@@ -171,6 +172,8 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'picks.uni.hnx': { en: 'HNX (~135)', vi: 'Sàn HNX (~135)' },
   'picks.uni.upcom': { en: 'UPCoM (~360)', vi: 'Sàn UPCoM (~360)' },
   'picks.uni.vnmarket': { en: 'All VN (~880)', vi: 'Toàn TT VN (~880)' },
+  'picks.uni.dax': { en: 'DAX large caps (~40)', vi: 'DAX – vốn hóa lớn (~40)' },
+  'picks.uni.deall': { en: 'DAX + MDAX (~100)', vi: 'DAX + MDAX (~100)' },
   'picks.uni.vnall.hint': {
     en: 'Scans the full universe via VNDirect (covers HOSE + HNX + UPCoM). Takes a few minutes; less-liquid names with little history are skipped — use Stop anytime.',
     vi: 'Quét toàn bộ qua VNDirect (gồm HOSE + HNX + UPCoM). Mất vài phút; các mã kém thanh khoản ít lịch sử sẽ bị bỏ qua — bấm Dừng bất cứ lúc nào.',

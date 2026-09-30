@@ -47,9 +47,10 @@ import {
   type SetupKey,
   type SetupRuleOverrides,
   type SizeSuggestion,
+  quoteCurrencyOf,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
-import { eurUsdForDate } from './fx.js';
+import { ccyFactor } from './fx.js';
 
 const CFG_KEY = 'pf_playbook_cfg';  // syncs — the user's own rules
 const SPY_KEY = 'pf_spy_bars';      // device-local; see LOCAL_ONLY_PREFIXES
@@ -362,6 +363,11 @@ export interface BuyPlanInput {
   state: AccountState;
   prices: PriceMap;
   bars: readonly Bar[];
+  /**
+   * The ticker the bars belong to — it decides what currency they are in (`ALV.DE` quotes
+   * in EUR). Absent reads as a US ticker, which is what every caller before German stocks was.
+   */
+  symbol?: string;
   /** Price as typed in the form. */
   entry: number;
   /** Currency the form's price is in. */
@@ -410,17 +416,18 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
   const rating = input.rating ?? null;
   const ladder = ladderConfig();
 
-  // Bars are USD; the form may be in EUR. Work in USD, report in the form's currency.
-  const fx = eurUsdForDate(date);
-  const toUsd = (v: number): number => (entryCurrency === 'EUR' && fx > 0 ? v * fx : v);
-  const fromUsd = (v: number): number => (entryCurrency === 'EUR' && fx > 0 ? v / fx : v);
+  // Bars are in the ticker's quote currency (USD, or EUR for ALV.DE); the form may be in
+  // either. Work in the quote currency, report in the form's.
+  const quote = input.symbol ? quoteCurrencyOf(input.symbol) : 'USD';
+  const toQuote = (v: number): number => v * ccyFactor(entryCurrency, quote ?? 'USD', date);
+  const fromQuote = (v: number): number => v * ccyFactor(quote ?? 'USD', entryCurrency, date);
 
-  const levels = suggestLevels(bars, toUsd(entry), setup, cfg.setups, ladder);
+  const levels = suggestLevels(bars, toQuote(entry), setup, cfg.setups, ladder);
   if (!levels) return null;
 
   // Equity, cash and open risk are all in the account's currency already.
   const acctCcy = state.account.currency;
-  const usdToAcct = (v: number): number => (acctCcy === 'EUR' && fx > 0 ? v / fx : v);
+  const quoteToAcct = (v: number): number => v * ccyFactor(quote ?? 'USD', acctCcy, date);
 
   const equity = computeEquity(state, prices);
   const stage = riskStageOf(closedTradePnls(state), ladder);
@@ -437,8 +444,8 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
   const size = suggestSize({
     equity,
     cash: computeCash(state),
-    entry: usdToAcct(toUsd(entry)),
-    riskPerShare: usdToAcct(levels.riskPerShare),
+    entry: quoteToAcct(toQuote(entry)),
+    riskPerShare: quoteToAcct(levels.riskPerShare),
     budget,
     openRisk: openRiskOf(state),
     openPositions: openPositionCount(state),
@@ -450,8 +457,8 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
   });
 
   return {
-    stop: round2(fromUsd(levels.stop)),
-    target: levels.target !== null ? round2(fromUsd(levels.target)) : null,
+    stop: round2(fromQuote(levels.stop)),
+    target: levels.target !== null ? round2(fromQuote(levels.target)) : null,
     rMultiple: levels.rMultiple,
     stopPct: levels.stopPct,
     shares: size.shares,

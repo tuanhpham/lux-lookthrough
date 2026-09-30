@@ -6,6 +6,8 @@ import {
   ALL_SECTORS,
   VN_SECTOR_STOCKS,
   VN_ALL_SECTORS,
+  DE_SECTOR_STOCKS,
+  DE_ALL_SECTORS,
   scanQm,
   qmToRow,
   DEFAULT_QM_CONFIG,
@@ -76,12 +78,32 @@ const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbo
 const VN_CURATED = new Set(Object.values(VN_SECTOR_STOCKS).flat());
 /** US symbols that are in the static sector map. */
 const US_CURATED = new Set(CURATED);
+/** German (Xetra `.DE`) symbols in the static sector map — every one of them labelled. */
+const DE_ALL = [...new Set(Object.values(DE_SECTOR_STOCKS).flat())].sort();
+const DE_CURATED = new Set(DE_ALL);
+/**
+ * The DAX-sized core of the German list: the large caps. Not the index itself — it
+ * reshuffles quarterly — but the forty-odd names a "DAX" scan is expected to cover.
+ */
+const DE_LARGE = [
+  'ADS', 'AIR', 'ALV', 'BAS', 'BAYN', 'BEI', 'BMW', 'BNR', 'CBK', 'CON', 'DB1', 'DBK',
+  'DHL', 'DTE', 'DTG', 'ENR', 'EOAN', 'FME', 'FRE', 'G1A', 'G24', 'HEI', 'HEN3', 'HNR1',
+  'IFX', 'MBG', 'MRK', 'MTX', 'MUV2', 'P911', 'PAH3', 'QIA', 'RHM', 'RWE', 'SAP', 'SHL',
+  'SIE', 'SRT3', 'SY1', 'VNA', 'VOW3', 'ZAL',
+].map((s) => `${s}.DE`);
+
+/** The sector map for a market — the one switch the three tabs share. */
+const sectorMapFor = (m: Market): Record<string, string[]> =>
+  m === 'vn' ? VN_SECTOR_STOCKS : m === 'de' ? DE_SECTOR_STOCKS : SECTOR_STOCKS;
+const sectorListFor = (m: Market): string[] =>
+  m === 'vn' ? VN_ALL_SECTORS : m === 'de' ? DE_ALL_SECTORS : ALL_SECTORS;
 
 // ── Top Picks ─────────────────────────────────────────────────────────────────
-type Market = 'us' | 'vn';
+type Market = 'us' | 'vn' | 'de';
 type UniverseMode =
   | 'curated' | 'broad' | 'all'
-  | 'vn30' | 'vn100' | 'vnall' | 'hnx' | 'upcom' | 'vnmarket';
+  | 'vn30' | 'vn100' | 'vnall' | 'hnx' | 'upcom' | 'vnmarket'
+  | 'dax' | 'deall';
 
 /** Universe options per market — the toggle row rebuilds from this. */
 const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string }[]> = {
@@ -97,6 +119,10 @@ const UNIVERSES_BY_MARKET: Record<Market, { mode: UniverseMode; labelKey: string
     { mode: 'hnx', labelKey: 'picks.uni.hnx' },
     { mode: 'upcom', labelKey: 'picks.uni.upcom' },
     { mode: 'vnmarket', labelKey: 'picks.uni.vnmarket' },
+  ],
+  de: [
+    { mode: 'dax', labelKey: 'picks.uni.dax' },
+    { mode: 'deall', labelKey: 'picks.uni.deall' },
   ],
 };
 
@@ -114,8 +140,10 @@ const BENCHMARKS = ['SPY', 'QQQ'];
 /** Reverse map: symbol → its (first) sector, for annotating momentum rows (F6). */
 const SECTOR_BY_SYMBOL: Record<string, string> = (() => {
   const out: Record<string, string> = {};
-  for (const [sector, syms] of Object.entries(SECTOR_STOCKS)) {
-    for (const s of syms) if (!(s in out)) out[s] = sector;
+  for (const map of [SECTOR_STOCKS, DE_SECTOR_STOCKS]) {
+    for (const [sector, syms] of Object.entries(map)) {
+      for (const s of syms) if (!(s in out)) out[s] = sector;
+    }
   }
   return out;
 })();
@@ -132,7 +160,7 @@ function sectorForSymbol(symbol: string): string | null {
  */
 async function enrichUnknownSymbols(ctx: AppContext, symbols: readonly string[]): Promise<void> {
   if (!isCacheLoaded()) await loadSectorLabels(ctx.storage);
-  const unknown = symbols.filter((s) => !US_CURATED.has(s) && !VN_CURATED.has(s) && !getCachedSectorLabel(s));
+  const unknown = symbols.filter((s) => !US_CURATED.has(s) && !VN_CURATED.has(s) && !DE_CURATED.has(s) && !getCachedSectorLabel(s));
   if (!unknown.length) return;
   const results: Record<string, { sector: string | null; industry: string | null }> = {};
   const queue = [...unknown];
@@ -163,7 +191,8 @@ function minPriceOpts(): readonly number[] {
 function minPriceLabel(v: number): string {
   if (v === 0) return t('opt.any');
   if (picksMarket === 'vn') return v >= 1000 ? `${v / 1000}K` : String(v);
-  return `$${v}`;
+  // Xetra quotes in euros; the same small thresholds read the same way.
+  return picksMarket === 'de' ? `€${v}` : `$${v}`;
 }
 
 const MIN_AVG_VOL_OPTS = [0, 10_000, 50_000, 100_000, 200_000, 500_000, 1_000_000] as const;
@@ -226,6 +255,7 @@ export function renderPicks(ctx: AppContext): void {
   const markets: [Market, string][] = [
     ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
     ['vn', `${flagSvg('vn')} ${t('picks.market.vn')}`],
+    ['de', `${flagSvg('de')} ${t('picks.market.de')}`],
   ];
   root.innerHTML = `
     <h1>${t('picks.title')}</h1>
@@ -495,6 +525,8 @@ async function resolveUniverse(mode: UniverseMode): Promise<string[]> {
   if (mode === 'hnx') return getHnxUniverse();
   if (mode === 'upcom') return getUpcomUniverse();
   if (mode === 'vnmarket') return getAllVnMarketUniverse();
+  if (mode === 'dax') return DE_LARGE;
+  if (mode === 'deall') return DE_ALL;
   return getAllUsUniverse();
 }
 
@@ -1056,7 +1088,7 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
   }
 
   // Sector volume change map (3m vs 6m) for industry comparison context.
-  const sectorMap = picksMarket === 'vn' ? VN_SECTOR_STOCKS : SECTOR_STOCKS;
+  const sectorMap = sectorMapFor(picksMarket);
   const sectorRanks = computeSectorVolumeRank(fullMap, sectorMap);
   const sectorVolByName = new Map(sectorRanks.map((r) => [r.sector, r.volumeChangePct]));
 
@@ -1127,8 +1159,7 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
 const selectedSectors = new Set<string>();
 let screenerMarket: Market = 'us';
 
-const screenerSectorMap = (): Record<string, string[]> =>
-  screenerMarket === 'vn' ? VN_SECTOR_STOCKS : SECTOR_STOCKS;
+const screenerSectorMap = (): Record<string, string[]> => sectorMapFor(screenerMarket);
 
 /** Cache id for the current screener inputs (market + sectors + symbols + filters + asof). */
 function screenerCacheId(): string {
@@ -1145,7 +1176,7 @@ function screenerCacheId(): string {
 /** (Re)paint the sector chips for the active market and wire their toggles. */
 function renderSectorChips(): void {
   const chips = $('#sector-chips')!;
-  const sectors = screenerMarket === 'vn' ? VN_ALL_SECTORS : ALL_SECTORS;
+  const sectors = sectorListFor(screenerMarket);
   chips.innerHTML = sectors
     .map((s) => `<button class="range-btn ${selectedSectors.has(s) ? 'active' : ''}" data-sector="${s}">${s}</button>`)
     .join('');
@@ -1165,6 +1196,7 @@ export function renderScreener(ctx: AppContext): void {
   const markets: [Market, string][] = [
     ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
     ['vn', `${flagSvg('vn')} ${t('picks.market.vn')}`],
+    ['de', `${flagSvg('de')} ${t('picks.market.de')}`],
   ];
   root.innerHTML = `
     <h1>${t('screener.title')}</h1>
@@ -1181,7 +1213,7 @@ export function renderScreener(ctx: AppContext): void {
       </div>
       ${asOfControlsHtml('screener')}
       <label class="field-label">${t('screener.symbols')}</label>
-      <input id="sym-input" class="field" placeholder="${screenerMarket === 'vn' ? 'FPT.VN, HPG.VN, VCB.VN' : 'AAPL, MSFT, NVDA'}" />
+      <input id="sym-input" class="field" placeholder="${screenerMarket === 'vn' ? 'FPT.VN, HPG.VN, VCB.VN' : screenerMarket === 'de' ? 'ALV.DE, SAP.DE, SIE.DE' : 'AAPL, MSFT, NVDA'}" />
       <div style="margin-top:12px">
         <label class="field-label">${t('screener.orsectors')}</label>
         <div id="sector-chips" class="row"></div>
@@ -1438,14 +1470,12 @@ let sectorMarket: Market = 'us';
 // be computed client-side (the provider's getSectorVolume is US-only).
 let sectorData: Map<string, OHLCV> = new Map();
 
-const sectorMapFor = (m: Market): Record<string, string[]> =>
-  m === 'vn' ? VN_SECTOR_STOCKS : SECTOR_STOCKS;
-
 export function renderSectors(ctx: AppContext): void {
   const root = $('#tab-sectors')!;
   const markets: [Market, string][] = [
     ['us', `${flagSvg('us')} ${t('picks.market.us')}`],
     ['vn', `${flagSvg('vn')} ${t('picks.market.vn')}`],
+    ['de', `${flagSvg('de')} ${t('picks.market.de')}`],
   ];
   root.innerHTML = `
     <h1>${t('sectors.title')}</h1>

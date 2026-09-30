@@ -117,7 +117,7 @@ const DATE: ToolArg = opt('date', {
 const PRICE_CCY: ToolArg = opt('priceCurrency', {
   kind: 'enum',
   description:
-    'Currency the prices in this call are quoted in — the fill price and any stop or target with it. Defaults to USD, which is what a US-listed symbol trades in. Pass EUR only when the user gave a euro price.',
+    'Currency the prices in this call are quoted in — the fill price and any stop or target with it. Defaults to the symbol’s own quote currency: USD for a US listing, EUR for a euro-area one (ALV.DE, SAP.DE, AIR.PA). Pass the other one only when the user gave the price in it.',
   values: ['EUR', 'USD'],
 });
 

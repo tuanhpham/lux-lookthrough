@@ -40,8 +40,8 @@
  * is a price you type into a broker, so it has to be typeable in the currency the broker
  * quotes. So:
  *
- *   • the entry/stop/target boxes hold prices in `planCcy`, and `levelToUsd` converts them
- *     back for anything that touches BARS (the chart's overlay, and `buildBuyPlan`, which
+ *   • the entry/stop/target boxes hold prices in `planCcy`, and are set against the ticker's
+ *     quote currency (USD, or EUR for ALV.DE) for anything that touches BARS (the chart, and `buildBuyPlan`, which
  *     takes `entryCurrency` and hands its own levels back in the same currency);
  *   • money (equity, position value, risk) comes out of `buildBuyPlan` in the ACCOUNT's
  *     currency, so `planConv` converts from THAT, not from USD;
@@ -83,7 +83,7 @@ import { criteriaNoteHtml, openCriteriaAsk } from './criteriaAsk.js';
 // The exit half of the card, and the journal entry a finished plan becomes.
 import {
   autoCaseTitle, caseStudyFromPlan, closeOnOrBefore, emptyExit, exitMath, exitReasonText,
-  planChartWindow, inCurrency, type PlanExit,
+  planChartWindow, inCurrency, candleDivisor, type PlanExit,
 } from './planExit.js';
 // The reason vocabulary is the user's to extend, so it is its own module with its own editor.
 import { exitReasonOptgroupsHtml, type ExitReasonKey } from './exitReasons.js';
@@ -475,9 +475,9 @@ async function computePlans(ctx: AppContext): Promise<void> {
     const saved = stored.get(plan.symbol);
     const edit: PlanEdit = prev ?? {
       // `buildTradePlan` reads the bars, so its seed is USD; the boxes are in `planCcy`.
-      entry: usdToLevel(plan.entry),
-      stop: usdToLevel(plan.stop),
-      target: usdToLevel(plan.target),
+      entry: quoteToLevel(plan.symbol, plan.entry),
+      stop: quoteToLevel(plan.symbol, plan.stop),
+      target: quoteToLevel(plan.symbol, plan.target),
       shares: plan.shares || 0,
       // The playbook's own answer is the default. The % chips are still there, one
       // click away, but they are now the override rather than the rule.
@@ -1028,11 +1028,6 @@ function planConv(v: number): number {
   return from === 'EUR' ? v * r : v / r;
 }
 
-/** A level out of the boxes → raw USD, which is what the bars are in. */
-function levelToUsd(v: number): number {
-  const r = planRate();
-  return planCcy === 'EUR' && r > 0 ? v * r : v;
-}
 
 /**
  * The other direction, for seeding a box from a number that came off the bars.
@@ -1043,10 +1038,11 @@ function levelToUsd(v: number): number {
  * what the R multiple is then computed from. A price is quoted in cents; anything past them is the
  * storage format leaking into the form.
  */
-function usdToLevel(v: number | null | undefined): number | null {
+function quoteToLevel(symbol: string, v: number | null | undefined): number | null {
   if (v === null || v === undefined || !Number.isFinite(v)) return null;
-  const r = planRate();
-  return round2(planCcy === 'EUR' && r > 0 ? v / r : v);
+  // The bars are in the ticker's quote currency — USD for AAPL, EUR for ALV.DE.
+  const r = candleDivisor(symbol, planCcy, planRate());
+  return round2(r ? v / r : v);
 }
 
 /** A level out of the boxes → account-currency money, for the position and risk figures. */
@@ -1147,6 +1143,7 @@ function cardPlan(symbol: string, rating: ConvictionRating | null): BuyPlan | nu
     state: planState(),
     prices: planPrices(),
     bars,
+    symbol,
     entry: e.entry,
     // Whatever the boxes are in. `buildBuyPlan` converts to USD to read the bars and hands
     // its stop and target back in this same currency, so `recalcPlan` can write them straight
@@ -1733,8 +1730,8 @@ function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
  * what `exitPxSuggested` is for, and it is why the comparison is against the remembered
  * suggestion rather than against "is this box non-empty".
  *
- * Converted with `usdToLevel`, i.e. at the TRADE date's rate rather than the exit date's — every
- * other level on this card is in that same frame (`levelToUsd` draws them back onto the candles
+ * Converted with `quoteToLevel`, i.e. at the TRADE date's rate rather than the exit date's — every
+ * other level on this card is in that same frame (the chart draws them against candles converted
  * with it), and one box converted at a different rate would be a silent inconsistency exactly the
  * size of the move in EURUSD over the holding period.
  */
@@ -1744,7 +1741,7 @@ function suggestExitPrice(symbol: string): void {
   const when = e.exit.date;
   if (!when) return;
   const all = planAllBars.get(symbol) ?? planBars.get(symbol) ?? [];
-  const px = usdToLevel(closeOnOrBefore(all, when));
+  const px = quoteToLevel(symbol, closeOnOrBefore(all, when));
   if (px === null) return;
   const untouched = e.exit.price === null || e.exit.price === e.exitPxSuggested;
   if (!untouched) return;
@@ -2146,8 +2143,8 @@ function paintPlanChart(symbol: string): void {
   const e = planEdits.get(symbol);
   // The candles come into the boxes' currency — NOT the levels into the candles'. See
   // `inCurrency` for why that direction, and why one rate for the whole window.
-  const fx = planCcy === 'EUR' ? planRate() : 0;
-  const bars = inCurrency(chartBars(symbol), fx);
+  const fx = candleDivisor(symbol, planCcy, planRate());
+  const bars = inCurrency(chartBars(symbol), fx ?? 0);
   if (!box || !e) return;
   if (!bars.length) { box.innerHTML = ''; return; }
 
@@ -2164,7 +2161,7 @@ function paintPlanChart(symbol: string): void {
   // position exactly where the user put them. The FRAME is part of "the same candles" — flip the
   // currency or move the trade date (a different day's rate) and every price on the axis changes,
   // so the chart has to be rebuilt rather than have its lines nudged.
-  const span = `${bars.length}:${bars[bars.length - 1]!.date}:${planCcy}:${fx.toFixed(4)}`;
+  const span = `${bars.length}:${bars[bars.length - 1]!.date}:${planCcy}:${(fx ?? 0).toFixed(4)}`;
   const existing = planCharts.get(symbol);
   if (existing && box.firstChild && planChartSpan.get(symbol) === span) {
     existing.setOverlay(overlay);

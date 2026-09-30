@@ -1,3 +1,5 @@
+import { quoteCurrencyOf } from '@screener/core';
+
 export const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document): T | null =>
   root.querySelector<T>(sel);
 export const $$ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document): T[] =>
@@ -32,19 +34,35 @@ export const money = (v: number | null | undefined, ccy = '€'): string =>
 export const isVnSymbol = (symbol: string | null | undefined): boolean =>
   !!symbol && symbol.toUpperCase().endsWith('.VN');
 
+/** A euro-quoted ticker — Xetra `ALV.DE`, Paris `AIR.PA`… — priced in EUR. */
+export const isEurSymbol = (symbol: string | null | undefined): boolean =>
+  !!symbol && quoteCurrencyOf(symbol) === 'EUR';
+
+/** The prefix a price in this symbol's own quote currency carries: `$` or `€` (VND is a suffix). */
+export const pricePrefix = (symbol: string | null | undefined): string => (isEurSymbol(symbol) ? '€' : '$');
+
 /**
  * Format a share price for display, picking the unit from the symbol: VND for
- * `.VN` tickers (whole đồng, grouped — e.g. `58,600 ₫`) and USD otherwise
- * (`$58.60`). Centralizes the currency choice that the tables/modal hardcoded.
+ * `.VN` tickers (whole đồng, grouped — e.g. `58,600 ₫`), EUR for euro venues
+ * (`€352.10`) and USD otherwise (`$58.60`). Centralizes the currency choice that
+ * the tables/modal hardcoded.
  */
 export function fmtPrice(v: number | null | undefined, symbol?: string): string {
   if (v == null) return '—';
   if (isVnSymbol(symbol)) return Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' ₫';
-  return '$' + num(v);
+  return pricePrefix(symbol) + num(v);
 }
 
 /** Inline SVG country flag, 16×12px. Renders on all platforms (no emoji). */
-export function flagSvg(country: 'us' | 'vn'): string {
+export function flagSvg(country: 'us' | 'vn' | 'de'): string {
+  if (country === 'de') {
+    // Black, red, gold horizontal bands
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 12" width="16" height="12" style="vertical-align:middle;border-radius:2px;flex-shrink:0" aria-hidden="true">
+      <rect width="16" height="4" fill="#000"/>
+      <rect y="4" width="16" height="4" fill="#DD0000"/>
+      <rect y="8" width="16" height="4" fill="#FFCE00"/>
+    </svg>`;
+  }
   if (country === 'us') {
     // 13 stripes (7 red, 6 white) + blue canton with simplified star block
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 12" width="16" height="12" style="vertical-align:middle;border-radius:2px;flex-shrink:0" aria-hidden="true">

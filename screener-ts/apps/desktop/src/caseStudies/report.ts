@@ -7,7 +7,7 @@
 import type { Bar } from '@screener/core';
 import type { CaseStudy } from './store.js';
 import { caseSvgChart, windowBars } from './svgChart.js';
-import { inCurrency } from '../portfolio/planExit.js';
+import { candleDivisor, inCurrency } from '../portfolio/planExit.js';
 // `safeNoteHtml`, not `sanitizeNoteHtml`: this document is also built where there is no
 // `DOMParser` to sanitise with. See its comment in `ui/richNote.ts`.
 import { safeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
@@ -115,9 +115,9 @@ export function caseStudyHtml(
 ): string {
   const eur = study.currency === 'EUR';
   const money = moneyIn(eur ? '€' : '$');
-  const fx = eur && fxRate > 0 ? fxRate : 0;
-  const plottable = !eur || fx > 0;
-  const win = inCurrency(windowBars(bars, study.keyDate, study.windowMonths), fx);
+  const fx = candleDivisor(study.symbol, eur ? 'EUR' : 'USD', fxRate);
+  const plottable = fx !== null;
+  const win = inCurrency(windowBars(bars, study.keyDate, study.windowMonths), fx ?? 0);
   const svg = plottable
     ? caseSvgChart(win, { ...study, earnings }, { width: 980, height: 420 })
     : '<p class="sub" style="color:#ffb648">Chart not drawn: this study’s prices are in euros and '
