@@ -193,6 +193,24 @@ function expendable(key: string): boolean {
   return EXPENDABLE_PREFIXES.some((p) => key.startsWith(p));
 }
 
+/** Day-stamped cache a full device may go without — see `EXPENDABLE_PREFIXES`. */
+export const isExpendableKey = expendable;
+
+/**
+ * Market data this device rebuilds from the network alone (bars, FX, sector labels) and the
+ * receipts that vouch for it. A backup import SKIPS these: they were most of the file, and
+ * writing them first is how an import died on "exceeded the quota" before it reached the
+ * portfolio. `agent_audit` is local-only too, but it is a record, not a cache — not in here.
+ */
+export function isRebuildableCache(key: string): boolean {
+  return key !== 'agent_audit' && LOCAL_ONLY_PREFIXES.some((p) => key.startsWith(p));
+}
+
+/** Bookkeeping and the device's own sync identity: never carried by a backup file. */
+export function isDeviceBookkeeping(key: string): boolean {
+  return key === TS_KEY || key === SNAPSHOT_KEY || key.startsWith('sync:');
+}
+
 /**
  * A store-is-full failure, as opposed to any other write error.
  *
@@ -372,6 +390,19 @@ export function openSyncGate(): void {
   emitActivity(); // the gate is open now — 'pending' may have become 'ok'
 }
 
+/**
+ * Keys a backup import just wrote are the user's decision, not first-boot defaults.
+ *
+ * Without this, an import done while the gate is still shut — which is exactly the state of a
+ * device whose pull failed on a full store — was recorded in `preHydrationWrites`, and the next
+ * pull let the server win every one of those keys: the restore was undone, silently, by the
+ * very account it was meant to repair. Dropping them from that set lets the ordinary
+ * last-write-wins decide, and the import's "now" stamp wins it.
+ */
+export function claimAsDeliberate(keys: Iterable<string>): void {
+  for (const k of keys) preHydrationWrites.delete(k);
+}
+
 /** Re-shut the gate around a merge (entering a code mid-session). */
 function shutSyncGate(): void {
   hydrated = false;
@@ -522,6 +553,33 @@ export class SyncedStorage implements Storage {
       await this.local.delete(key).catch(() => {});
     }
     return doomed.length;
+  }
+
+  /**
+   * Write a rebuildable cache (price bars, FX) without letting a full store break the page.
+   *
+   * A plain `set` threw "exceeded the quota" straight out of the Portfolio tab and the
+   * Financial Status FX refresh, so a device near its limit showed an error where the
+   * portfolio should be, and "could not fetch the VND rate" for a rate that had in fact been
+   * fetched. On a quota error the caches go (local layer only) and the write is tried once more;
+   * if it still does not fit it is dropped — the data is refetched next time. Returns whether
+   * it was stored.
+   */
+  async setCache<T>(key: string, value: T): Promise<boolean> {
+    try {
+      await this.set(key, value);
+      return true;
+    } catch (e) {
+      if (!isQuotaError(e)) throw e;
+    }
+    await this.purgeLocalCaches().catch(() => 0);
+    try {
+      await this.set(key, value);
+      return true;
+    } catch (e) {
+      if (!isQuotaError(e)) throw e;
+      return false;
+    }
   }
 
   /**

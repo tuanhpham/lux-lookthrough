@@ -100,7 +100,8 @@ export async function refreshFx(ctx: AppContext, from: string, need: readonly We
       for (const b of whole ? [] : cached) m.set(b.date, b);
       for (const b of got.bars) m.set(b.date, b);
       const merged = [...m.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
-      await ctx.storage.set(FX_PREFIX + ccy, merged);
+      // A full store is not a failed fetch: setCache makes room or drops the cache quietly.
+      await ctx.synced.setCache(FX_PREFIX + ccy, merged);
     } catch {
       failed.push(ccy);
     }

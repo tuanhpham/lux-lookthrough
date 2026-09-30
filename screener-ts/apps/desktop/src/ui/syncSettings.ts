@@ -11,7 +11,16 @@ import {
   remoteHistory,
   remoteRestore,
 } from '../adapters/syncClient.js';
-import { pullAndMerge, isHydrated, syncActivity } from '../adapters/storage.js';
+import {
+  pullAndMerge,
+  isHydrated,
+  syncActivity,
+  isQuotaError,
+  isExpendableKey,
+  isRebuildableCache,
+  isDeviceBookkeeping,
+  claimAsDeliberate,
+} from '../adapters/storage.js';
 import { deriveSyncStatus } from '@screener/core';
 import { getLang } from './i18n.js';
 
@@ -36,7 +45,8 @@ interface BackupFile {
  * and does NOT depend on sync being enabled — this is the offline safety net.
  */
 async function exportAllData(ctx: AppContext): Promise<number> {
-  const keys = await ctx.storage.list('');
+  // The sync code stays out of the file: a backup is something people email to themselves.
+  const keys = (await ctx.storage.list('')).filter((k) => !isDeviceBookkeeping(k));
   const data: Record<string, unknown> = {};
   for (const key of keys) {
     const value = await ctx.storage.get<unknown>(key);
@@ -61,22 +71,64 @@ async function exportAllData(ctx: AppContext): Promise<number> {
   return Object.keys(data).length;
 }
 
+/** What an import did, so the message can say what was left out and why. */
+interface ImportResult {
+  restored: number;
+  /** Price bars and FX the device will fetch again by itself. */
+  cachesSkipped: number;
+  /** Past scan / calendar days that did not fit on this device. */
+  daysDropped: number;
+}
+
 /**
  * Restore a backup file into local storage. Writes each key through the normal
  * Storage.set so values are re-stamped "now" — the freshly restored data then
  * wins last-write-wins and pushes up once a valid sync code is set again.
- * Returns the number of keys restored, or throws on a malformed file.
+ * Throws on a malformed file, or when the account's own data does not fit.
+ *
+ * ── WHY THE ORDER, AND WHY CACHES ARE SKIPPED ───────────────────────────────
+ * The first version wrote the file top to bottom and stopped at the first error. A full export
+ * is mostly `pf_bars:` price history, so on a browser near its ~5 MB limit the import died on
+ * "exceeded the quota" part-way through — before it reached `accounts`. Now: rebuildable market
+ * data is not written at all, the user's own data goes first, and only then the day-stamped
+ * scan / calendar history, best-effort, newest first — the same order the sync merge uses.
  */
-async function importAllData(ctx: AppContext, text: string): Promise<number> {
+async function importAllData(ctx: AppContext, text: string): Promise<ImportResult> {
   const parsed = JSON.parse(text) as Partial<BackupFile>;
   if (!parsed || parsed.format !== 'screener-backup' || typeof parsed.data !== 'object' || !parsed.data) {
     throw new Error('not a screener backup file');
   }
-  const entries = Object.entries(parsed.data);
-  for (const [key, value] of entries) {
-    await ctx.storage.set(key, value);
+  const all = Object.entries(parsed.data).filter(([k]) => !isDeviceBookkeeping(k));
+  const wanted = all.filter(([k]) => !isRebuildableCache(k));
+  const essential = wanted.filter(([k]) => !isExpendableKey(k));
+  const optional = wanted.filter(([k]) => isExpendableKey(k)).sort((a, b) => b[0].localeCompare(a[0]));
+
+  const written: string[] = [];
+  let purged = false;
+  for (const [key, value] of essential) {
+    try {
+      await ctx.storage.set(key, value);
+    } catch (e) {
+      if (!isQuotaError(e) || purged) throw e;
+      // Out of room: this device's own caches go (local layer only, never a remote delete).
+      purged = true;
+      await ctx.synced.purgeLocalCaches().catch(() => 0);
+      await ctx.storage.set(key, value);
+    }
+    written.push(key);
   }
-  return entries.length;
+  let daysDropped = 0;
+  for (const [key, value] of optional) {
+    try {
+      await ctx.storage.set(key, value);
+      written.push(key);
+    } catch (e) {
+      if (!isQuotaError(e)) throw e;
+      daysDropped++;
+    }
+  }
+  claimAsDeliberate(written);
+  return { restored: written.length, cachesSkipped: all.length - wanted.length, daysDropped };
 }
 
 /**
@@ -315,11 +367,20 @@ export function openSyncSettings(ctx: AppContext): void {
     try {
       msg.style.color = 'var(--faint)';
       msg.textContent = vi ? 'Đang nhập…' : 'Importing…';
-      const n = await importAllData(ctx, await file.text());
+      const r = await importAllData(ctx, await file.text());
       msg.style.color = 'var(--accent)';
-      msg.textContent = vi ? `Đã khôi phục ${n} mục. Đang tải lại…` : `Restored ${n} item(s). Reloading…`;
+      msg.textContent = vi
+        ? `Đã khôi phục ${r.restored} mục` +
+          (r.cachesSkipped ? ` (bỏ qua ${r.cachesSkipped} mục dữ liệu giá — app sẽ tự tải lại)` : '') +
+          (r.daysDropped ? `, ${r.daysDropped} ngày scan/lịch cũ không đủ chỗ` : '') +
+          '. Đang tải lại…'
+        : `Restored ${r.restored} item(s)` +
+          (r.cachesSkipped ? ` (skipped ${r.cachesSkipped} price-data item(s) — the app refetches them)` : '') +
+          (r.daysDropped ? `, ${r.daysDropped} old scan/calendar day(s) did not fit` : '') +
+          '. Reloading…';
       onSyncedCb?.();
-      setTimeout(() => location.reload(), 900);
+      // Long enough to read what was skipped.
+      setTimeout(() => location.reload(), 2500);
     } catch (e) {
       msg.style.color = 'var(--danger)';
       msg.textContent = (vi ? 'Nhập thất bại: ' : 'Import failed: ') + String((e as Error)?.message ?? e);

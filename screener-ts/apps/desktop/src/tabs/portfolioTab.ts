@@ -990,7 +990,7 @@ async function loadBarCache(ctx: AppContext, accountId: string): Promise<BarCach
 }
 
 async function saveBarCache(ctx: AppContext, accountId: string, cache: BarCache): Promise<void> {
-  await ctx.storage.set(barCacheKey(accountId), cache);
+  await ctx.synced.setCache(barCacheKey(accountId), cache);
 }
 
 function mergeBars(existing: Bar[], fresh: Bar[]): Bar[] {
@@ -1005,7 +1005,7 @@ async function loadEurUsdCache(ctx: AppContext): Promise<Bar[]> {
 }
 
 async function saveEurUsdCache(ctx: AppContext, bars: Bar[]): Promise<void> {
-  await ctx.storage.set(EURUSD_CACHE_KEY, bars);
+  await ctx.synced.setCache(EURUSD_CACHE_KEY, bars);
 }
 
 /** Shortest Yahoo period covering gapDays. Capped at 5y — Yahoo silently returns
@@ -2768,7 +2768,7 @@ async function update(ctx: AppContext): Promise<void> {
     // Stamped only when every symbol came back, so one dropped request leaves the
     // automatic refresh free to try again on the next open.
     if (fetched >= needsFetch.size) {
-      await ctx.storage.set(barStampKey(st.account.id), stampSession);
+      await ctx.synced.setCache(barStampKey(st.account.id), stampSession);
     }
   }
 
