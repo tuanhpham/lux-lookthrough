@@ -1,6 +1,7 @@
 import type {
   DataProvider,
   OHLCV,
+  OhlcvOptions,
   Bar,
   Fundamentals,
   Financials,
@@ -85,9 +86,9 @@ export class VnDirectProvider implements DataProvider {
     return symbol.toUpperCase().replace(/\.(VN|HN|HNX|UP|UPCOM|HM)$/i, '');
   }
 
-  async getOHLCV(symbol: string, period: Period): Promise<OHLCV> {
+  async getOHLCV(symbol: string, period: Period, opts?: OhlcvOptions): Promise<OHLCV> {
     const key = `${symbol}:${period}`;
-    const cached = this.ohlcvCache.get(key);
+    const cached = opts?.fresh ? undefined : this.ohlcvCache.get(key);
     if (cached) return cached;
 
     const ticker = this.bare(symbol);

@@ -1,6 +1,7 @@
 import type {
   DataProvider,
   OHLCV,
+  OhlcvOptions,
   Bar,
   Fundamentals,
   Financials,
@@ -64,9 +65,9 @@ export class FinnhubProvider implements DataProvider {
     return this.apiKey ? `&token=${encodeURIComponent(this.apiKey)}` : '';
   }
 
-  async getOHLCV(symbol: string, period: Period): Promise<OHLCV> {
+  async getOHLCV(symbol: string, period: Period, opts?: OhlcvOptions): Promise<OHLCV> {
     const key = `${symbol}:${period}`;
-    const cached = this.cache.get(key);
+    const cached = opts?.fresh ? undefined : this.cache.get(key);
     if (cached) return cached;
     const { from, to } = periodToRange(period, this.clock());
     const url = `${this.base}/stock/candle?symbol=${encodeURIComponent(

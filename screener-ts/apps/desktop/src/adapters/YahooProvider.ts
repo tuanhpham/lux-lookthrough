@@ -1,6 +1,7 @@
 import type {
   DataProvider,
   OHLCV,
+  OhlcvOptions,
   Bar,
   Fundamentals,
   Financials,
@@ -121,9 +122,9 @@ export class YahooProvider implements DataProvider {
       opts.quoteBase ?? (direct ? 'https://query2.finance.yahoo.com' : '/api/yahoo');
   }
 
-  async getOHLCV(symbol: string, period: Period): Promise<OHLCV> {
+  async getOHLCV(symbol: string, period: Period, opts?: OhlcvOptions): Promise<OHLCV> {
     const key = `${symbol}:${period}`;
-    const cached = this.ohlcvCache.get(key);
+    const cached = opts?.fresh ? undefined : this.ohlcvCache.get(key);
     if (cached) return cached;
 
     const range = RANGE_BY_PERIOD[period];

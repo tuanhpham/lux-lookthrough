@@ -960,6 +960,18 @@ const EURUSD_CACHE_KEY = 'pf_eurusd_bars';
 
 function barCacheKey(accountId: string): string { return BAR_CACHE_PREFIX + accountId; }
 
+/**
+ * The settled session this account's bars were last fetched AFTER.
+ *
+ * The bars alone cannot say whether they are current. Yahoo patches today's bar in
+ * from the live price, so a fetch at 09:00 in Europe stores a bar dated today that
+ * still reads yesterday's close — and "the last bar is dated today" then looked like
+ * "nothing to fetch" to both Update and the automatic refresh, until the cache was
+ * cleared by hand. This stamp is what the automatic refresh trusts instead. Under the
+ * `pf_bars:` prefix so it stays device-local and is purged with the bars it vouches for.
+ */
+function barStampKey(accountId: string): string { return barCacheKey(accountId) + ':asof'; }
+
 async function loadBarCache(ctx: AppContext, accountId: string): Promise<BarCache> {
   return (await ctx.storage.get<BarCache>(barCacheKey(accountId))) ?? {};
 }
@@ -2402,6 +2414,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     $('#acct-clear-cache')!.addEventListener('click', async () => {
       const st2 = active();
       await saveBarCache(ctx, st2.account.id, {});
+      await ctx.storage.delete(barStampKey(st2.account.id)).catch(() => {});
       st2.snapshots = [];
       (st2 as AccountState & { _candleCache?: unknown })._candleCache = undefined;
       await save(ctx);
@@ -2717,11 +2730,17 @@ async function update(ctx: AppContext): Promise<void> {
       delete barCache[sym];
       continue;
     }
-    if (lastCached >= endDate) continue;
+    // Always re-fetch the tail, even when the last cached bar is dated today. That
+    // bar is not final: it was patched in from the live price at whatever hour the
+    // last fetch ran, and skipping it here is why Update changed nothing until the
+    // cache was cleared. The merge below overwrites it by date.
     const gapDays = Math.ceil((Date.now() - Date.parse(lastCached)) / 86_400_000);
     needsFetch.set(sym, periodForGap(gapDays));
   }
 
+  // Read BEFORE the fetch: bars fetched now are final for every session settled by now.
+  const stampSession = lastSettledSession();
+  let fetched = 0;
   if (needsFetch.size > 0) {
     // Group tickers by period to batch requests
     const byPeriod = new Map<Period, string[]>();
@@ -2731,14 +2750,22 @@ async function update(ctx: AppContext): Promise<void> {
       byPeriod.set(period, arr);
     }
     for (const [period, syms] of byPeriod) {
-      const data = await fetchMany(ctx.data, syms, period, 8);
+      // `fresh`: past the provider's 15-minute memory cache, or a second click on
+      // Update is answered with the first click's bars.
+      const data = await fetchMany(ctx.data, syms, period, 8, { fresh: true });
       for (const [sym, ohlcv] of data.entries()) {
         if (ohlcv.bars.length) {
           barCache[sym] = mergeBars(barCache[sym] ?? [], ohlcv.bars);
         }
       }
+      fetched += data.size;
     }
     await saveBarCache(ctx, st.account.id, barCache);
+    // Stamped only when every symbol came back, so one dropped request leaves the
+    // automatic refresh free to try again on the next open.
+    if (fetched >= needsFetch.size) {
+      await ctx.storage.set(barStampKey(st.account.id), stampSession);
+    }
   }
 
   // Fetch EURUSD=X rates (best-effort — don't block update on failure)
@@ -2748,15 +2775,15 @@ async function update(ctx: AppContext): Promise<void> {
     const fxGapDays = lastFxDate
       ? Math.ceil((Date.now() - Date.parse(lastFxDate)) / 86_400_000)
       : 365 * 3;
-    if (fxGapDays > 0) {
-      const fxOhlcv = await ctx.data.getOHLCV('EURUSD=X', periodForGap(fxGapDays)).catch(() => null);
-      if (fxOhlcv?.bars.length) {
-        const merged = mergeBars(cachedFx, fxOhlcv.bars);
-        await saveEurUsdCache(ctx, merged);
-        applyEurUsdBars(merged);
-      } else {
-        applyEurUsdBars(cachedFx);
-      }
+    // No "already current" skip, for the same reason as the bars: today's FX bar is
+    // a live patch, and a skipped refresh converted every EUR price at the morning rate.
+    const fxOhlcv = await ctx.data
+      .getOHLCV('EURUSD=X', periodForGap(fxGapDays), { fresh: true })
+      .catch(() => null);
+    if (fxOhlcv?.bars.length) {
+      const merged = mergeBars(cachedFx, fxOhlcv.bars);
+      await saveEurUsdCache(ctx, merged);
+      applyEurUsdBars(merged);
     } else {
       applyEurUsdBars(cachedFx);
     }
@@ -2853,6 +2880,10 @@ async function pricesBehind(
     ]),
   ];
   if (!tickers.length) return false;
+  // A bar dated `session` is not proof: it may be the live patch from a fetch made
+  // before that session closed. Only a fetch made after it settled counts.
+  const stamp = await ctx.storage.get<string>(barStampKey(st.account.id));
+  if (!stamp || stamp < session) return true;
   const cache = await loadBarCache(ctx, st.account.id);
   return tickers.some((sym) => {
     const bars = cache[sym];

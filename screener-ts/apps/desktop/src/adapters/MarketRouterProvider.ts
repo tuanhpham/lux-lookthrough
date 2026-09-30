@@ -1,6 +1,7 @@
 import type {
   DataProvider,
   OHLCV,
+  OhlcvOptions,
   Fundamentals,
   Financials,
   SectorVolumeSeries,
@@ -41,8 +42,8 @@ export class MarketRouterProvider implements DataProvider {
     return isVnTicker(symbol) && isHnxOrUpcomTicker(symbol) ? this.vn : this.us;
   }
 
-  getOHLCV(symbol: string, period: Period): Promise<OHLCV> {
-    return this.pick(symbol).getOHLCV(symbol, period);
+  getOHLCV(symbol: string, period: Period, opts?: OhlcvOptions): Promise<OHLCV> {
+    return this.pick(symbol).getOHLCV(symbol, period, opts);
   }
   getFundamentals(symbol: string): Promise<Fundamentals> {
     return this.pick(symbol).getFundamentals(symbol);
