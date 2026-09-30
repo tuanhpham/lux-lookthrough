@@ -38,9 +38,12 @@ import {
   setStop,
   type AccountState,
   type OrderType,
+  setBalance,
+  type WealthCurrency,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { accounts, addAccount, today, uuid, withAccounts } from './store.js';
+import { loadBook, saveBook } from '../wealth/store.js';
 import { accountPrices, seedPrice } from './prices.js';
 import { eurUsdForDate, hasEurUsd } from './fx.js';
 
@@ -192,6 +195,23 @@ export type WritePlan =
       threshold: PlannedPrice;
       shares: number;
       date: string;
+    }
+  | {
+      /**
+       * A Financial Status reading — NOT a portfolio write. Its account lives in the
+       * `wealth` book, so it carries its own ref rather than an `AccountRef`, and
+       * `applyWrite` routes it around `withAccounts` entirely.
+       */
+      kind: 'record_balance';
+      wealthAccount: { id: string; name: string; currency: WealthCurrency };
+      /** The balance itself, in the account's own currency. Zero and negative are real. */
+      amount: number;
+      date: string;
+      note?: string;
+      /** The latest reading before this one, so the card can show old → new. */
+      previous?: { date: string; amount: number };
+      /** A reading already exists on `date`; accepting overwrites it. */
+      replaces?: boolean;
     };
 
 /** The tool name a plan came from — what the audit log and the chips record. */
@@ -230,6 +250,25 @@ export interface WriteResult {
  * whole mutation succeeds, because `withAccounts` only saves after `mutate` returns.
  */
 export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<WriteResult> {
+  if (plan.kind === 'record_balance') {
+    // The wealth book has its own hydration guard: `saveBook` throws before the
+    // store is hydrated, the same refusal `withAccounts` gives a portfolio write.
+    const book = await loadBook(ctx);
+    const next = setBalance(
+      book,
+      {
+        accountId: plan.wealthAccount.id,
+        date: plan.date,
+        amount: plan.amount,
+        ...(plan.note ? { note: plan.note } : {}),
+      },
+      uuid,
+    );
+    await saveBook(ctx, next);
+    await appendAudit(ctx, plan);
+    announce();
+    return {};
+  }
   const result = await withAccounts(ctx, (list): WriteResult => {
     switch (plan.kind) {
       case 'create_account': {
@@ -364,7 +403,10 @@ function announce(): void {
 
 const SYM: Record<string, string> = { EUR: '€', USD: '$' };
 const money = (n: number, ccy: string): string =>
-  `${SYM[ccy] ?? ''}${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  ccy === 'VND'
+    ? // Dong has no minor unit, and a symbol-less prefix would read as dollars.
+      `${Math.round(n).toLocaleString('en-US')} ₫`
+    : `${SYM[ccy] ?? ''}${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
  * One line describing a plan, for the audit log and for the result the model reads.
@@ -406,6 +448,8 @@ export function describeWrite(plan: WritePlan): string {
       const verb = plan.amount >= 0 ? 'DEPOSIT' : 'WITHDRAW';
       return `${verb} ${money(Math.abs(plan.amount), plan.account.currency)} · ${plan.date} · ${plan.account.name}`;
     }
+    case 'record_balance':
+      return `BALANCE ${plan.wealthAccount.name} = ${money(plan.amount, plan.wealthAccount.currency)} ${plan.wealthAccount.currency} · ${plan.date}${plan.replaces ? ' (replaces that day)' : ''}`;
     case 'place_order':
       return `ORDER ${plan.type} ${plan.shares} ${plan.ticker} @ ${money(plan.threshold.stored, plan.account.currency)} · ${plan.account.name}`;
   }

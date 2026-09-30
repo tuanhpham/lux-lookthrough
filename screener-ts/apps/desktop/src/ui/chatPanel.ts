@@ -449,12 +449,30 @@ function priceCell(p: PlannedPrice, acctCcy: string): string {
   return `${given} <span class="chat-card-conv">→ ${esc(money(p.stored, sym(acctCcy)))}${rate}</span>`;
 }
 
+/** A Financial Status amount: dong has no minor unit and no symbol in `CCY_SYM`. */
+const balanceCell = (n: number, ccy: string): string =>
+  esc(ccy === 'VND' ? `${Math.round(n).toLocaleString('en-US')} ₫` : `${money(n, sym(ccy))} ${ccy}`);
+
 /** The rows for one plan: an i18n key for the label, ready HTML for the value. */
 function planRows(plan: WritePlan): Array<[string, string]> {
   const rows: Array<[string, string]> = [];
   const add = (key: string, value: string | undefined): void => {
     if (value) rows.push([key, value]);
   };
+  if (plan.kind === 'record_balance') {
+    const ccy = plan.wealthAccount.currency;
+    add('chat.write.wealthAccount', esc(plan.wealthAccount.name));
+    add('chat.write.balance', balanceCell(plan.amount, ccy));
+    add('chat.write.date', esc(plan.date) + (plan.replaces ? ` · ${t('chat.write.replaces')}` : ''));
+    // Old → new is the check that catches "4K" read as 4: a balance that moved a
+    // thousandfold overnight is visible here before anything is saved.
+    add(
+      'chat.write.lastReading',
+      plan.previous ? `${balanceCell(plan.previous.amount, ccy)} · ${esc(plan.previous.date)}` : undefined,
+    );
+    add('chat.write.note', plan.note);
+    return rows;
+  }
   if (plan.kind === 'create_account') {
     add('chat.write.capital', esc(money(plan.initialCapital, sym(plan.currency))));
     add('chat.write.currency', esc(plan.currency));
@@ -538,7 +556,11 @@ function approvalCard(e: Extract<Entry, { role: 'approval' }>): string {
            <button class="chat-card-yes" data-act="approve">${t('chat.write.accept')}</button>
          </div>`
       : `<div class="chat-card-state chat-card-state--${e.state}">${t(
-          e.state === 'accepted' ? 'chat.write.accepted' : 'chat.write.declined',
+          e.state !== 'accepted'
+            ? 'chat.write.declined'
+            : e.plan.kind === 'record_balance'
+              ? 'chat.write.acceptedWealth'
+              : 'chat.write.accepted',
         )}</div>`;
   return `<div class="chat-turn chat-turn--sys">
     <div class="chat-card${e.state === 'pending' ? ' chat-card--live' : ''}">

@@ -82,6 +82,7 @@ describe('the catalogue', () => {
       record_sell: ['account', 'ticker', 'shares', 'price', 'priceCurrency', 'date', 'note'],
       set_stop: ['account', 'ticker', 'stop', 'priceCurrency'],
       record_cash_flow: ['account', 'amount', 'date', 'note'],
+      record_balance: ['account', 'amount', 'date', 'note'],
       place_order: ['account', 'ticker', 'type', 'threshold', 'priceCurrency', 'shares', 'date'],
     });
   });
@@ -237,6 +238,10 @@ describe('validateToolArgs — refusal', () => {
     expect(issue('record_buy', buy({ price: -1 }), 'price')).toMatch(/cannot be negative/);
     expect(issue('record_cash_flow', { amount: 0 }, 'amount')).toMatch(/non-zero/);
     expect(val('record_cash_flow', { amount: '-2 500' }, 'amount')).toBe(-2500);
+    // A balance may be zero (closed) or negative (a loan); shorthand is the model's job.
+    expect(val('record_balance', { account: 'N26', amount: 0 }, 'amount')).toBe(0);
+    expect(val('record_balance', { account: 'N26', amount: '-1,250.50' }, 'amount')).toBe(-1250.5);
+    expect(issue('record_balance', { account: 'N26', amount: '4K' }, 'amount')).toMatch(/4K = 4000/);
   });
 
   it('refuses a date it cannot verify, and says to omit it instead', () => {

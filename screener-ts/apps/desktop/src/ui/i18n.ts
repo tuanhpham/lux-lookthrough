@@ -1107,6 +1107,11 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.write.title.set_stop': { en: 'Move the stop', vi: 'Đổi mức cắt lỗ' },
   'chat.write.title.record_cash_flow': { en: 'Cash movement', vi: 'Nạp / rút tiền' },
   'chat.write.title.place_order': { en: 'Place an order', vi: 'Đặt lệnh chờ' },
+  'chat.write.title.record_balance': { en: 'Record a balance', vi: 'Ghi số dư' },
+  'chat.write.wealthAccount': { en: 'Financial Status account', vi: 'Tài khoản (Tình trạng tài chính)' },
+  'chat.write.balance': { en: 'Balance', vi: 'Số dư' },
+  'chat.write.lastReading': { en: 'Last reading', vi: 'Lần ghi trước' },
+  'chat.write.replaces': { en: 'replaces the reading on that day', vi: 'thay lần ghi cùng ngày' },
   'chat.write.account': { en: 'Account', vi: 'Tài khoản' },
   'chat.write.shares': { en: 'Shares', vi: 'Số lượng' },
   'chat.write.ticker': { en: 'Symbol', vi: 'Mã' },
@@ -1135,6 +1140,10 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.write.accept': { en: 'Save it', vi: 'Lưu lại' },
   'chat.write.decline': { en: 'No', vi: 'Không' },
   'chat.write.accepted': { en: 'Saved to your portfolio.', vi: 'Đã lưu vào danh mục.' },
+  'chat.write.acceptedWealth': {
+    en: 'Saved to Financial Status.',
+    vi: 'Đã lưu vào Tình trạng tài chính.',
+  },
   'chat.write.declined': { en: 'Not saved.', vi: 'Không lưu.' },
   'chat.write.recent': {
     en: 'Recorded from chat on this device',

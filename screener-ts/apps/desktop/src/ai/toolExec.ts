@@ -773,6 +773,66 @@ function planPrice(
  * never have been opened) and the cached EUR/USD bars. Neither fetches — a chat
  * message must not start a market-data download.
  */
+/**
+ * A Financial Status reading: "N26 4K" → account N26, 4000, today.
+ *
+ * Its own planner because its account is not a portfolio account — it lives in the
+ * `wealth` book — so `resolveAccount` would answer about the wrong list. The name is
+ * matched the same way (exact, prefix, substring) and ambiguity is refused the same
+ * way: the error goes back to the model, which asks the user. It cannot create an
+ * account, since kind and currency are choices the user makes on the page.
+ */
+async function planBalance(ctx: AppContext, args: ToolArgs, date: string): Promise<PlanResult> {
+  if (date > today()) {
+    return {
+      error: `${date} is in the future. A balance reading is what an account holds on a day that has happened — ask the user which date they meant, or omit the date for today.`,
+    };
+  }
+  const book = await loadBook(ctx);
+  const name = str(args, 'account')!;
+  if (!book.accounts.length) {
+    return {
+      error:
+        'There are no Financial Status accounts yet. Tell the user to add the account on the Financial Status page first (they choose its type and currency there); you cannot create one.',
+    };
+  }
+  const wanted = name.trim().toLowerCase();
+  const exact = book.accounts.filter((a) => a.name.toLowerCase() === wanted);
+  const starts = book.accounts.filter((a) => a.name.toLowerCase().startsWith(wanted));
+  const has = book.accounts.filter((a) => a.name.toLowerCase().includes(wanted));
+  const hits = exact.length ? exact : starts.length ? starts : has;
+  const list = book.accounts.map((a) => `${a.name} (${a.currency})`).join(', ');
+  if (!hits.length) {
+    return {
+      error: `No Financial Status account named "${name}". Existing ones: ${list}. Ask the user which one they meant; if it is a new account, they add it on the Financial Status page — you cannot create it.`,
+    };
+  }
+  if (hits.length > 1) {
+    return {
+      error: `"${name}" matches more than one Financial Status account: ${hits
+        .map((a) => a.name)
+        .join(', ')}. Ask which one, or pass the full name.`,
+    };
+  }
+  const acct = hits[0]!;
+  const readings = book.balances
+    .filter((b) => b.accountId === acct.id && b.date <= date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const replaces = readings.some((b) => b.date === date);
+  const before = readings.filter((b) => b.date < date).pop();
+  return {
+    plan: {
+      kind: 'record_balance',
+      wealthAccount: { id: acct.id, name: acct.name, currency: acct.currency },
+      amount: numArg(args, 'amount')!,
+      date,
+      ...(str(args, 'note') ? { note: str(args, 'note')! } : {}),
+      ...(before ? { previous: { date: before.date, amount: before.amount } } : {}),
+      ...(replaces ? { replaces } : {}),
+    },
+  };
+}
+
 export async function planWrite(
   ctx: AppContext,
   toolName: string,
@@ -792,6 +852,8 @@ export async function planWrite(
 
   const date = str(args, 'date') ?? today();
   const ccy = ((str(args, 'priceCurrency') ?? 'USD') as 'EUR' | 'USD');
+
+  if (toolName === 'record_balance') return planBalance(ctx, args, date);
 
   if (toolName === 'create_account') {
     const name = str(args, 'name')!;

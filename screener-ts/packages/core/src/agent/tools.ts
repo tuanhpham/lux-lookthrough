@@ -43,6 +43,8 @@ export type FieldSpec =
   | { kind: 'money'; description: string }
   /** An amount whose sign carries meaning (deposit vs withdrawal). Non-zero. */
   | { kind: 'signedMoney'; description: string }
+  /** A balance reading: zero (a closed account) and negative (a loan) are both real. */
+  | { kind: 'balance'; description: string }
   /** A calendar date, `YYYY-MM-DD` only. */
   | { kind: 'date'; description: string }
   /**
@@ -337,6 +339,29 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
     ],
   },
   {
+    // Financial Status, not the portfolio: these accounts are bank / savings / cash /
+    // loan books whose history is a list of dated balance readings. "N26 4K" is the
+    // user saying what the N26 balance IS today — a new reading, never a deposit.
+    name: 'record_balance',
+    kind: 'write',
+    description:
+      "Record a balance reading on a Financial Status account (bank, savings, cash, crypto, loan…). Shorthand like 'N26 4K' means: account N26, balance 4000, dated today. It is what the balance IS now, not money added — never add it to the last reading. If the account name or the number is unclear, ask the user instead of guessing. It cannot create accounts; new ones are added on the Financial Status page.",
+    args: [
+      req('account', {
+        kind: 'text',
+        description: 'Financial Status account name, as the user said it (e.g. N26). Not a portfolio account.',
+        maxLength: 60,
+      }),
+      req('amount', {
+        kind: 'balance',
+        description:
+          "The balance, in the ACCOUNT's own currency (a VND account takes VND). Do not convert. Negative for a loan or credit card that is owed.",
+      }),
+      DATE,
+      opt('note', { kind: 'richText', description: 'Optional note for this reading.', maxLength: 240 }),
+    ],
+  },
+  {
     name: 'place_order',
     kind: 'write',
     description:
@@ -414,6 +439,7 @@ function propFor(spec: FieldSpec): JsonSchemaProp {
     case 'money':
       return { type: 'number', description: spec.description, minimum: 0 };
     case 'signedMoney':
+    case 'balance':
       return { type: 'number', description: spec.description };
     case 'int':
       return {
@@ -558,6 +584,17 @@ function coerce(spec: FieldSpec, raw: unknown): { value: string | number } | { p
       if (n === null) return { problem: `not an amount: ${JSON.stringify(raw)}` };
       if (n === 0) return { problem: 'amount must be non-zero' };
       if (Math.abs(n) > 1e12) return { problem: 'amount is implausibly large' };
+      return { value: n };
+    }
+    case 'balance': {
+      const n = parseLooseNumber(raw);
+      if (n === null) {
+        return {
+          problem: `not an amount: ${JSON.stringify(raw)}. Expand shorthand yourself (4K = 4000, 1.2M = 1200000) and pass a plain number.`,
+        };
+      }
+      // 1e13 rather than 1e12: a VND savings account legitimately runs to billions.
+      if (Math.abs(n) > 1e13) return { problem: 'amount is implausibly large' };
       return { value: n };
     }
     case 'date': {

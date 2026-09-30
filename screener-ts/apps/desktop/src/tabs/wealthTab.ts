@@ -43,6 +43,7 @@ import { drawLine, drawStacked } from '../ui/charts.js';
 import { accounts, ensureAccountsLoaded, today, uuid } from '../portfolio/store.js';
 import { isHydrated } from '../adapters/storage.js';
 import { refreshStalePrices, updateAllAccounts } from './portfolioTab.js';
+import { onAgentWrite } from '../portfolio/writes.js';
 import { loadBook, loadFx, portfolioSide, refreshFx, saveBook, type PortfolioSide } from '../wealth/store.js';
 
 let book: WealthBook = { accounts: [], balances: [] };
@@ -85,9 +86,24 @@ function colorOf(accountId: string): string {
 
 // ── Render ─────────────────────────────────────────────────────────────────
 
+let agentWired = false;
+
 export async function renderWealth(ctx: AppContext): Promise<void> {
   const root = $('#tab-wealth');
   if (!root) return;
+  if (!agentWired) {
+    agentWired = true;
+    // A balance recorded from chat. The module copy of the book is reloaded even when the
+    // page is hidden: the page's own edits build on `book`, and a stale copy would save
+    // right over the reading the user just approved.
+    onAgentWrite(() => {
+      void loadBook(ctx).then((b) => {
+        book = b;
+        const r = $('#tab-wealth');
+        if (r && !r.classList.contains('hidden')) draw(ctx);
+      });
+    });
+  }
   await ensureAccountsLoaded(ctx);
   const [b, f, done] = await Promise.all([loadBook(ctx), loadFx(ctx), ctx.storage.get<string>(AUTO_KEY)]);
   book = b;

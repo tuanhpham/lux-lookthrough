@@ -82,6 +82,14 @@ function powersSection(tools: readonly AgentToolDef[]): string {
     'A buy needs four things: which account, the symbol, how many shares and the fill price. A sell needs the same four. If one of those is missing, ask for exactly the missing ones in a single short question, then call the tool. The stop, target, setup and rating are OPTIONAL: record the trade without them rather than asking.',
     'If no date was given, leave the date out — the app uses today. Never guess a date the user did not say.',
     'Prices are taken as the currency the symbol trades in unless the user names another. The card shows the user both the price they said and what will be stored, so state prices back to them the way they said them.',
+    // Request 48: the user types "N26 4K" and expects a new dated line on the N26
+    // account. Spelled out because the shorthand is terse enough to misread in two
+    // ways — as a deposit, or as the number 4 — and both are quietly wrong.
+    ...(writes.some((t) => t.name === 'record_balance')
+      ? [
+          "An account name followed by an amount — 'N26 4K', 'Vietcombank 250tr', 'cash 300' — is a Financial Status balance reading: call record_balance with that account, the amount written out in full (4K = 4000, 1.5M = 1500000, 250tr = 250000000) and no date, so it lands today. It is the new balance, not a deposit, and it is not a portfolio account. If the account is not clearly one of the user's Financial Status accounts (check with get_wealth when unsure), or the amount could be read two ways, ask one short question instead of guessing.",
+        ]
+      : []),
     'You cannot delete anything, and you cannot undo. Deletions happen in the app.',
   ].join('\n');
 }
@@ -110,7 +118,7 @@ function appGuideSection(tools: readonly AgentToolDef[]): string {
     `- Case Studies: a journal of filed trades and examples — entry, stop, exit, R multiple, exit reason, lessons, and the plan frozen at filing.${via('list_case_studies')}`,
     `- Calendar: upcoming earnings, dividends, splits, IPOs and macro events, from a snapshot the Calendar tab builds; plus each company's last four reported quarters.${via('get_calendar')}`,
     `- Watchlist tab: the user's own named lists of symbols.${via('list_watchlists')}`,
-    `- Financial Status: net worth in EUR — the Portfolio's equity plus accounts the user records by hand (bank, savings, cash, crypto, property, loans as negatives) in EUR, USD or VND. A balance is a dated reading that holds until the next one; every date is converted at that date's rate.${via('get_wealth')}`,
+    `- Financial Status: net worth in EUR — the Portfolio's equity plus accounts the user records by hand (bank, savings, cash, crypto, property, loans as negatives) in EUR, USD or VND. A balance is a dated reading that holds until the next one; every date is converted at that date's rate.${via('get_wealth')}${has('record_balance') ? ' Record a new reading with record_balance.' : ''}`,
     '- Screener, Picks, Sectors and Backtest tabs run scans in the browser on demand; you cannot run them. For a single symbol, get_quote gives price and trend.',
     '- A tool that reports no data (sync not set up, no snapshot yet) is an answer: say which tab or button fills it in.',
   ].join('\n');

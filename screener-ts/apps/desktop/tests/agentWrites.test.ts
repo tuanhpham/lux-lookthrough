@@ -359,6 +359,75 @@ describe('planning touches nothing; approving is what writes', () => {
   });
 });
 
+/**
+ * "N26 4K" from chat: a Financial Status reading, not a portfolio write.
+ *
+ * Two N26 accounts on purpose, so a bare prefix is ambiguous while the exact name is not —
+ * the planner must pick the exact match, and refuse "n2" rather than choose one.
+ */
+function seedBook(mem: Mem): void {
+  mem.map.set('wealth', {
+    accounts: [
+      { id: 'w1', name: 'N26', kind: 'other', currency: 'EUR', createdAt: '2026-01-01' },
+      { id: 'w2', name: 'N26 Savings', kind: 'other', currency: 'EUR', createdAt: '2026-01-01' },
+      { id: 'w3', name: 'Vietcombank', kind: 'other', currency: 'VND', createdAt: '2026-01-01' },
+    ],
+    balances: [{ id: 'b1', accountId: 'w1', date: '2026-06-30', amount: 3500 }],
+  });
+}
+
+describe('record_balance — a dated reading on a Financial Status account', () => {
+  it('plans today\'s reading on the exact account, with the last one for the card', async () => {
+    const { ctx, mem, planWrite } = await load();
+    seedBook(mem);
+    const res = await planWrite(ctx, 'record_balance', args('record_balance', { account: 'n26', amount: 4000 }));
+    if (!('plan' in res) || res.plan.kind !== 'record_balance') throw new Error('expected a balance plan');
+    expect(res.plan.wealthAccount).toEqual({ id: 'w1', name: 'N26', currency: 'EUR' });
+    expect(res.plan.amount).toBe(4000);
+    expect(res.plan.previous).toEqual({ date: '2026-06-30', amount: 3500 });
+    expect(res.plan.replaces).toBeUndefined();
+    expect(mem.writes).toEqual([]);
+  });
+
+  it('asks rather than guesses when the name fits two accounts, or none', async () => {
+    const { ctx, mem, planWrite } = await load();
+    seedBook(mem);
+    const two = await planWrite(ctx, 'record_balance', args('record_balance', { account: 'n2', amount: 4000 }));
+    expect('error' in two && two.error).toMatch(/more than one.*Ask which one/);
+    const none = await planWrite(ctx, 'record_balance', args('record_balance', { account: 'Revolut', amount: 4000 }));
+    expect('error' in none && none.error).toMatch(/No Financial Status account.*N26 \(EUR\).*cannot create/);
+  });
+
+  it('refuses a future date', async () => {
+    const { ctx, mem, planWrite, store } = await load();
+    const soon = new Date(Date.parse(store.today() + 'T12:00:00Z') + 3 * 86_400_000).toISOString().slice(0, 10);
+    seedBook(mem);
+    const res = await planWrite(
+      ctx,
+      'record_balance',
+      // A few days ahead: core's date check already turns away the far future.
+      args('record_balance', { account: 'N26', amount: 4000, date: soon }),
+    );
+    expect('error' in res && res.error).toMatch(/in the future/);
+  });
+
+  it('stores an approved reading in the wealth book and leaves the portfolio alone', async () => {
+    const { ctx, mem, planWrite, applyApprovedWrite, readAuditLog } = await load();
+    seedBook(mem);
+    const res = await planWrite(
+      ctx,
+      'record_balance',
+      args('record_balance', { account: 'Vietcombank', amount: 250000000, date: '2026-09-01' }),
+    );
+    if (!('plan' in res)) throw new Error('expected a plan');
+    await applyApprovedWrite(ctx, res.plan);
+    const book = mem.map.get('wealth') as { balances: { accountId: string; date: string; amount: number }[] };
+    expect(book.balances.find((b) => b.accountId === 'w3')).toMatchObject({ date: '2026-09-01', amount: 250000000 });
+    expect(mem.writes).not.toContain('accounts');
+    expect((await readAuditLog(ctx))[0]!.line).toBe('BALANCE Vietcombank = 250,000,000 ₫ VND · 2026-09-01');
+  });
+});
+
 describe('the write tools are not reachable through the read path', () => {
   it('refuses a write tool sent to execRead and says where to make the change', async () => {
     // `runModel` only sends write tools when there is an approval callback, so this is
