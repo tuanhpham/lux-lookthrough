@@ -230,7 +230,7 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
     name: 'get_wealth',
     kind: 'read',
     description:
-      "The Financial Status tab: total net worth in EUR — the Portfolio plus the user's bank, savings, cash, crypto, property and loan accounts, each with its last recorded balance in its own currency (EUR, USD or VND), its EUR value, and the date it was recorded, plus the month-end total since the start (last 60 months).",
+      "The Financial Status tab: total net worth in EUR — the Portfolio plus the user's bank, savings, cash, crypto, property and loan accounts, each with its last recorded balance in its own currency (EUR, USD, VND or CNY), its EUR value, and the date it was recorded, plus the month-end total since the start (last 60 months).",
     args: [],
   },
   {

@@ -401,7 +401,7 @@ function announce(): void {
 
 // ── describing ───────────────────────────────────────────────────────────────
 
-const SYM: Record<string, string> = { EUR: '€', USD: '$' };
+const SYM: Record<string, string> = { EUR: '€', USD: '$', CNY: '¥' };
 const money = (n: number, ccy: string): string =>
   ccy === 'VND'
     ? // Dong has no minor unit, and a symbol-less prefix would read as dollars.

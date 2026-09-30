@@ -66,6 +66,12 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'wealth.act.edit': { en: 'Edit account', vi: 'Sửa tài khoản' },
   'wealth.act.delete': { en: 'Delete account', vi: 'Xoá tài khoản' },
   'wealth.act.delreading': { en: 'Delete this reading', vi: 'Xoá lần ghi này' },
+  'wealth.act.editreading': { en: 'Edit this reading', vi: 'Sửa lần ghi này' },
+  'wealth.sort.hint': { en: 'Sort by this column — click again to reverse', vi: 'Sắp xếp theo cột này — bấm lần nữa để đảo chiều' },
+  'wealth.confirm.replace': {
+    en: 'There is already a reading on {date} ({v}). Replace it with this one?',
+    vi: 'Ngày {date} đã có một lần ghi ({v}). Thay bằng lần ghi này?',
+  },
   'wealth.ccy.locked': { en: 'fixed once a balance is recorded', vi: 'cố định khi đã có số dư' },
   'wealth.badamount': { en: 'Not a number: {v}', vi: 'Không phải số: {v}' },
   'wealth.confirm.delete': { en: 'Delete “{name}” and its {n} reading(s)?', vi: 'Xoá “{name}” cùng {n} lần ghi?' },

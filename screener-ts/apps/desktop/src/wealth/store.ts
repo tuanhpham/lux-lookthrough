@@ -11,7 +11,7 @@
  * Save again a second later, which is recoverable; the other outcome is not.
  *
  * ── THE RATES ARE THIS DEVICE'S ─────────────────────────────────────────────
- * EURUSD and EURVND daily bars live under `wealth_fx:`, which is local-only (see
+ * EURUSD, EURVND and EURCNY daily bars live under `wealth_fx:`, which is local-only (see
  * `LOCAL_ONLY_PREFIXES`): market data, re-fetchable in one request each. EURUSD is seeded
  * from the Portfolio's own `pf_eurusd_bars` when this cache is empty, so a device that
  * has pressed Portfolio Update can convert dollars before its first Wealth Update.
@@ -36,7 +36,9 @@ export const WEALTH_KEY = 'wealth';
 const FX_PREFIX = 'wealth_fx:';
 const PF_EURUSD_KEY = 'pf_eurusd_bars';
 /** Yahoo quotes both as units per EUR, which is what `makeFxTable` expects. */
-const FX_SYMBOL: Record<Exclude<WealthCurrency, 'EUR'>, string> = { USD: 'EURUSD=X', VND: 'EURVND=X' };
+type FxCcy = Exclude<WealthCurrency, 'EUR'>;
+const FX_SYMBOL: Record<FxCcy, string> = { USD: 'EURUSD=X', VND: 'EURVND=X', CNY: 'EURCNY=X' };
+const FX_CCYS = Object.keys(FX_SYMBOL) as FxCcy[];
 
 export async function loadBook(ctx: AppContext): Promise<WealthBook> {
   return normalizeBook(await ctx.storage.get<unknown>(WEALTH_KEY));
@@ -47,7 +49,7 @@ export async function saveBook(ctx: AppContext, book: WealthBook): Promise<void>
   await ctx.storage.set(WEALTH_KEY, book);
 }
 
-async function cachedBars(ctx: AppContext, ccy: 'USD' | 'VND'): Promise<Bar[]> {
+async function cachedBars(ctx: AppContext, ccy: FxCcy): Promise<Bar[]> {
   const own = (await ctx.storage.get<Bar[]>(FX_PREFIX + ccy)) ?? [];
   if (own.length || ccy !== 'USD') return own;
   return (await ctx.storage.get<Bar[]>(PF_EURUSD_KEY)) ?? [];
@@ -55,8 +57,8 @@ async function cachedBars(ctx: AppContext, ccy: 'USD' | 'VND'): Promise<Bar[]> {
 
 /** The rate table from what this device already has. No network. */
 export async function loadFx(ctx: AppContext): Promise<FxTable> {
-  const [USD, VND] = await Promise.all([cachedBars(ctx, 'USD'), cachedBars(ctx, 'VND')]);
-  return makeFxTable({ USD, VND });
+  const bars = await Promise.all(FX_CCYS.map((c) => cachedBars(ctx, c)));
+  return makeFxTable(Object.fromEntries(FX_CCYS.map((c, i) => [c, bars[i]!])));
 }
 
 type Period = '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y';
@@ -82,7 +84,7 @@ function periodFor(days: number): Period {
 export async function refreshFx(ctx: AppContext, from: string, need: readonly WealthCurrency[]): Promise<WealthCurrency[]> {
   const failed: WealthCurrency[] = [];
   const now = Date.now();
-  for (const ccy of ['USD', 'VND'] as const) {
+  for (const ccy of FX_CCYS) {
     if (!need.includes(ccy)) continue;
     try {
       const cached = await cachedBars(ctx, ccy);

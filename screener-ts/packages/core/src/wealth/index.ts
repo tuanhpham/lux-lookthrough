@@ -28,7 +28,7 @@
 
 import type { Bar } from '../types/index.js';
 
-export const WEALTH_CURRENCIES = ['EUR', 'USD', 'VND'] as const;
+export const WEALTH_CURRENCIES = ['EUR', 'USD', 'VND', 'CNY'] as const;
 export type WealthCurrency = (typeof WEALTH_CURRENCIES)[number];
 
 /**
@@ -153,6 +153,38 @@ export function setBalance(
   };
 }
 
+/**
+ * Correct a reading already recorded: its date, amount or note.
+ *
+ * Moving it onto a date where the same account already has a reading REPLACES that one, for
+ * the reason `setBalance` does: two values on one day would leave the chart to pick by array
+ * order. The page asks before doing it; this function only keeps the book consistent. The
+ * reading keeps its id, so an open history row still points at it.
+ */
+export function editBalance(
+  book: WealthBook,
+  balanceId: string,
+  patch: { date: string; amount: number; note?: string },
+): WealthBook {
+  const row = book.balances.find((b) => b.id === balanceId);
+  if (!row) throw new Error('unknown reading');
+  if (!ISO.test(patch.date)) throw new Error('date must be YYYY-MM-DD');
+  if (!Number.isFinite(patch.amount)) throw new Error('amount must be a number');
+  const edited: WealthBalance = {
+    id: row.id,
+    accountId: row.accountId,
+    date: patch.date,
+    amount: patch.amount,
+    ...(patch.note ? { note: patch.note } : {}),
+  };
+  return {
+    accounts: book.accounts,
+    balances: book.balances
+      .filter((b) => b.id === row.id || b.accountId !== row.accountId || b.date !== patch.date)
+      .map((b) => (b.id === row.id ? edited : b)),
+  };
+}
+
 export function removeBalance(book: WealthBook, balanceId: string): WealthBook {
   return { accounts: book.accounts, balances: book.balances.filter((b) => b.id !== balanceId) };
 }
@@ -206,7 +238,7 @@ export function balanceOn(sorted: readonly WealthBalance[], date: string): Wealt
  * is not a number, rather than a 0 that would be saved as a real balance.
  */
 export function parseAmount(input: string): number | null {
-  let s = input.trim().replace(/[\s  '’]/g, '').replace(/(EUR|USD|VND|€|\$|₫|đ)/gi, '');
+  let s = input.trim().replace(/[\s  '’]/g, '').replace(/(EUR|USD|VND|CNY|RMB|€|\$|₫|đ|¥|元)/gi, '');
   let neg = false;
   if (/^\(.*\)$/.test(s)) {
     neg = true;

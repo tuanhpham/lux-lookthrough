@@ -3,6 +3,7 @@ import {
   accountStatus,
   balanceOn,
   balancesOf,
+  editBalance,
   emptyBook,
   makeFxTable,
   normalizeBook,
@@ -57,6 +58,13 @@ describe('parseAmount', () => {
     expect(parseAmount("1'000'000")).toBe(1_000_000);
   });
 
+  it('ignores yuan signs and codes', () => {
+    expect(parseAmount('¥12,500.50')).toBe(12500.5);
+    expect(parseAmount('8000 CNY')).toBe(8000);
+    expect(parseAmount('RMB 3.000')).toBe(3000);
+    expect(parseAmount('500元')).toBe(500);
+  });
+
   it('refuses what is not a number instead of saving a zero', () => {
     for (const s of ['', 'abc', '1,23,4', '1.2.3,4,5', '-', '.']) expect(parseAmount(s)).toBeNull();
   });
@@ -72,6 +80,35 @@ describe('the book', () => {
   it('refuses a reading for an account that does not exist, or a bad date', () => {
     expect(() => setBalance(book(), { accountId: 'nope', date: '2026-03-31', amount: 1 }, id)).toThrow();
     expect(() => setBalance(book(), { accountId: 'n26', date: '31/03/2026', amount: 1 }, id)).toThrow();
+  });
+
+  it('corrects a reading in place: new date, amount and note, same id', () => {
+    const b = setBalance(book(), { accountId: 'n26', date: '2026-03-31', amount: 100, note: 'typo' }, id);
+    const rid = b.balances[0]!.id;
+    const e = editBalance(b, rid, { date: '2026-03-30', amount: 110 });
+    expect(balancesOf(e, 'n26')).toEqual([{ id: rid, accountId: 'n26', date: '2026-03-30', amount: 110 }]);
+  });
+
+  it('moving a reading onto a date that has one replaces that one, and only in the same account', () => {
+    let b = setBalance(book(), { accountId: 'n26', date: '2026-03-31', amount: 100 }, id);
+    b = setBalance(b, { accountId: 'n26', date: '2026-04-30', amount: 200 }, id);
+    b = setBalance(b, { accountId: 'vcb', date: '2026-04-30', amount: 9 }, id);
+    const march = balancesOf(b, 'n26')[0]!.id;
+    const e = editBalance(b, march, { date: '2026-04-30', amount: 150 });
+    expect(balancesOf(e, 'n26').map((x) => [x.id, x.amount])).toEqual([[march, 150]]);
+    expect(balancesOf(e, 'vcb').map((x) => x.amount)).toEqual([9]);
+  });
+
+  it('refuses to edit a reading that is not there, or onto a bad date', () => {
+    const b = setBalance(book(), { accountId: 'n26', date: '2026-03-31', amount: 1 }, id);
+    expect(() => editBalance(b, 'nope', { date: '2026-03-31', amount: 1 })).toThrow();
+    expect(() => editBalance(b, b.balances[0]!.id, { date: '31/03/2026', amount: 1 })).toThrow();
+    expect(() => editBalance(b, b.balances[0]!.id, { date: '2026-03-31', amount: NaN })).toThrow();
+  });
+
+  it('keeps a CNY account a CNY account when the book is read back', () => {
+    const b = normalizeBook({ accounts: [{ id: 'icbc', name: 'ICBC', kind: 'bank', currency: 'CNY', createdAt: '2026-01-01' }], balances: [] });
+    expect(b.accounts[0]!.currency).toBe('CNY');
   });
 
   it('drops an account together with its readings', () => {

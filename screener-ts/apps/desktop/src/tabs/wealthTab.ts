@@ -18,6 +18,7 @@ import {
   accountStatus,
   balanceOn,
   balancesOf,
+  editBalance,
   lastSettledSession,
   pointOn,
   removeBalance,
@@ -29,6 +30,7 @@ import {
   WEALTH_KINDS,
   type FxTable,
   type WealthAccount,
+  type WealthBalance,
   type WealthBook,
   type WealthCurrency,
   type WealthKind,
@@ -54,6 +56,17 @@ let range: 'all' | '2y' | '1y' | '6m' = 'all';
 const openHistory = new Set<string>();
 /** A foreign account's own chart: in its own currency (what the bank statement says) or in EUR. */
 const chartMode = new Map<string, 'native' | 'eur'>();
+/**
+ * How the accounts table is ordered. Remembered in `wealth_sort`, which syncs like the book:
+ * it is a choice the user made, and the same page on the phone should open the same way.
+ * The Portfolio row is not part of it — it stays first, as the row the others are measured against.
+ */
+type SortKey = 'name' | 'kind' | 'ccy' | 'eur' | 'asof' | 'change';
+const SORT_STORE = 'wealth_sort';
+const SORT_KEYS: readonly SortKey[] = ['name', 'kind', 'ccy', 'eur', 'asof', 'change'];
+/** First click on a column: A→Z for words, biggest / newest first for numbers and dates. */
+const FIRST_DIR: Record<SortKey, 1 | -1> = { name: 1, kind: 1, ccy: 1, eur: -1, asof: -1, change: -1 };
+let sort: { key: SortKey; dir: 1 | -1 } = { key: 'eur', dir: -1 };
 /** The Portfolio row's key in `openHistory` — no wealth account can have it, ids are uuids. */
 const PF_ROW = '__portfolio__';
 let busy = false;
@@ -74,9 +87,11 @@ function fmt(v: number, ccy: WealthCurrency, cents = true): string {
   const a = Math.abs(v);
   if (ccy === 'VND') return `${sign}${Math.round(a).toLocaleString('en-US')} ₫`;
   const body = a.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
-  return `${sign}${ccy === 'EUR' ? '€' : '$'}${body}`;
+  return `${sign}${SYMBOL[ccy]}${body}`;
 }
 const eur = (v: number): string => fmt(v, 'EUR', false);
+/** Used by `fmt` and the account charts. Dong is written after the number, in `fmt`. */
+const SYMBOL: Record<WealthCurrency, string> = { EUR: '€', USD: '$', VND: '₫', CNY: '¥' };
 const tone = (v: number): string => (v >= 0 ? 'var(--accent)' : 'var(--danger)');
 
 function colorOf(accountId: string): string {
@@ -105,10 +120,16 @@ export async function renderWealth(ctx: AppContext): Promise<void> {
     });
   }
   await ensureAccountsLoaded(ctx);
-  const [b, f, done] = await Promise.all([loadBook(ctx), loadFx(ctx), ctx.storage.get<string>(AUTO_KEY)]);
+  const [b, f, done, srt] = await Promise.all([
+    loadBook(ctx),
+    loadFx(ctx),
+    ctx.storage.get<string>(AUTO_KEY),
+    ctx.storage.get<{ key?: unknown; dir?: unknown }>(SORT_STORE),
+  ]);
   book = b;
   fx = f;
   autoDone = done ?? null;
+  if (srt && SORT_KEYS.includes(srt.key as SortKey)) sort = { key: srt.key as SortKey, dir: srt.dir === 1 ? 1 : -1 };
   draw(ctx);
   // Draw from what is cached first, then catch up — the page never waits on Yahoo.
   void autoUpdate(ctx);
@@ -293,15 +314,57 @@ function accountsTable(now: WealthSeries['points'][number] | null, side: Portfol
       <td>${side.asOf ?? '—'}</td><td class="muted">${t('wealth.pf.auto')}</td>
       <td><button class="pf-icon-btn" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}">${openHistory.has(PF_ROW) ? '▴' : '▾'}</button></td>
     </tr>${openHistory.has(PF_ROW) ? `<tr class="w-hist"><td colspan="9"><div class="w-acct-chart" data-w-chart="${PF_ROW}"></div></td></tr>` : ''}`;
-  const rows = [...book.accounts]
-    .sort((a, b) => (now?.byAccount[b.id] ?? 0) - (now?.byAccount[a.id] ?? 0))
+  const rows = sortedAccounts(now)
     .map((a) => accountRow(a, now))
     .join('');
+  // Balance and Share order by the EUR value too: balances in different currencies do not compare.
+  const head = (label: string, key: SortKey): string => {
+    const on = sort.key === key;
+    return `<th data-w-sort="${key}" title="${t('wealth.sort.hint')}" style="cursor:pointer;user-select:none;white-space:nowrap${on ? ';color:var(--accent)' : ''}">${label}${on ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</th>`;
+  };
   return `<table>
-      <thead><tr><th>${t('wealth.col.name')}</th><th>${t('wealth.col.kind')}</th><th>${t('wealth.col.ccy')}</th><th>${t('wealth.col.balance')}</th><th>${t('wealth.col.eur')}</th><th>${t('wealth.col.share')}</th><th>${t('wealth.col.asof')}</th><th>${t('wealth.col.change')}</th><th></th></tr></thead>
+      <thead><tr>${head(t('wealth.col.name'), 'name')}${head(t('wealth.col.kind'), 'kind')}${head(t('wealth.col.ccy'), 'ccy')}${head(t('wealth.col.balance'), 'eur')}${head(t('wealth.col.eur'), 'eur')}${head(t('wealth.col.share'), 'eur')}${head(t('wealth.col.asof'), 'asof')}${head(t('wealth.col.change'), 'change')}<th></th></tr></thead>
       <tbody>${pfRow}${rows}</tbody>
     </table>
     ${book.accounts.length ? '' : `<p class="muted" style="margin:10px 4px">${t('wealth.empty')}</p>`}`;
+}
+
+/**
+ * The accounts in the table's order. An account with nothing to sort by (no reading yet, one
+ * reading so no change, a currency with no rate) goes to the bottom in BOTH directions:
+ * flipping to ascending should bring up the smallest balances, not the empty rows.
+ * Ties fall back to the name, so the order does not shuffle between two redraws.
+ */
+function sortedAccounts(now: WealthSeries['points'][number] | null): WealthAccount[] {
+  const value = (a: WealthAccount): string | number | null => {
+    switch (sort.key) {
+      case 'name':
+        return a.name.toLocaleLowerCase();
+      case 'kind':
+        return t('wealth.kind.' + a.kind).toLocaleLowerCase();
+      case 'ccy':
+        return a.currency;
+      case 'eur':
+        return accountStatus(book, a.id, today()).latest ? (now?.byAccount[a.id] ?? 0) : null;
+      case 'asof':
+        return accountStatus(book, a.id, today()).latest?.date ?? null;
+      case 'change': {
+        // In EUR at the reading's date, so a dong change does not outrank every euro one.
+        const st = accountStatus(book, a.id, today());
+        const r = st.latest ? fx?.perEur(a.currency, st.latest.date) : null;
+        return st.change == null || !r ? null : st.change / r;
+      }
+    }
+  };
+  const byName = (a: WealthAccount, b: WealthAccount): number => a.name.localeCompare(b.name);
+  return [...book.accounts]
+    .map((a) => ({ a, v: value(a) }))
+    .sort((x, y) => {
+      if (x.v == null || y.v == null) return x.v == null && y.v == null ? byName(x.a, y.a) : x.v == null ? 1 : -1;
+      const c = typeof x.v === 'number' && typeof y.v === 'number' ? x.v - y.v : String(x.v).localeCompare(String(y.v));
+      return c ? c * sort.dir : byName(x.a, y.a);
+    })
+    .map((x) => x.a);
 }
 
 function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null): string {
@@ -331,7 +394,7 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
     ? hist
         .map((b) => {
           const r = fx?.perEur(a.currency, b.date);
-          return `<tr><td>${b.date}</td><td>${fmt(b.amount, a.currency)}</td><td class="muted">${r ? eur(b.amount / r) : '—'}</td><td class="muted">${b.note ? esc(b.note) : ''}</td><td><button class="pf-icon-btn" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">✕</button></td></tr>`;
+          return `<tr><td>${b.date}</td><td>${fmt(b.amount, a.currency)}</td><td class="muted">${r ? eur(b.amount / r) : '—'}</td><td class="muted">${b.note ? esc(b.note) : ''}</td><td style="white-space:nowrap"><button class="pf-icon-btn" data-w-baledit="${b.id}" title="${t('wealth.act.editreading')}">✎</button><button class="pf-icon-btn" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">✕</button></td></tr>`;
         })
         .join('')
     : `<tr><td colspan="5" class="muted">${t('wealth.noreading')}</td></tr>`;
@@ -363,7 +426,6 @@ function inRange(s: WealthSeries): WealthSeries['points'] {
   return s.points.filter((p) => p.date >= cutoff);
 }
 
-const SYMBOL: Record<WealthCurrency, string> = { EUR: '€', USD: '$', VND: '₫' };
 
 /**
  * One account's own line, on the same dates as the main chart.
@@ -521,6 +583,34 @@ async function recordAllFlow(ctx: AppContext): Promise<void> {
   if (n) await commit(ctx, next);
 }
 
+/**
+ * Correct a recorded reading: date, amount, note.
+ *
+ * The amount is shown grouped (`250,000,000`) so a dong balance can be read, and is only
+ * re-parsed when the user changed it. `parseAmount` cannot tell 1.234 (a decimal) from
+ * 1.234 (a thousand), so round-tripping an untouched value through it could turn a
+ * €1.234 reading into €1,234.
+ */
+async function editReadingFlow(ctx: AppContext, a: WealthAccount, b: WealthBalance): Promise<void> {
+  const shown = b.amount.toLocaleString('en-US', { maximumFractionDigits: 8 });
+  const res = await formDialog(`${t('wealth.act.editreading')} · ${esc(a.name)} · ${a.currency}`, [
+    { key: 'date', label: t('wealth.col.date'), type: 'date', value: b.date },
+    { key: 'amount', label: t('wealth.col.balance'), raw: true, value: shown },
+    { key: 'note', label: t('wealth.col.note'), value: esc(b.note ?? '') },
+  ]);
+  if (!res || !res.date) return;
+  const typed = (res.amount ?? '').trim();
+  const amount = typed === shown ? b.amount : parseOrWarn(typed);
+  if (amount == null) return;
+  const clash = book.balances.find((x) => x.accountId === b.accountId && x.date === res.date && x.id !== b.id);
+  if (clash && !confirm(t('wealth.confirm.replace').replace('{date}', res.date).replace('{v}', fmt(clash.amount, a.currency)))) return;
+  try {
+    await commit(ctx, editBalance(book, b.id, { date: res.date, amount, note: res.note?.trim() || undefined }));
+  } catch (e) {
+    setStatus($('#tab-wealth')!, errChip((e as Error).message));
+  }
+}
+
 async function editFlow(ctx: AppContext, a: WealthAccount): Promise<void> {
   const hasReadings = book.balances.some((b) => b.accountId === a.id);
   const res = await formDialog(t('wealth.act.edit'), [
@@ -648,6 +738,21 @@ function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
       if (!confirm(t('wealth.confirm.delete').replace('{name}', a.name).replace('{n}', String(n)))) return;
       openHistory.delete(a.id);
       void commit(ctx, removeWealthAccount(book, a.id));
+    }),
+  );
+  root.querySelectorAll<HTMLElement>('[data-w-sort]').forEach((th) =>
+    th.addEventListener('click', () => {
+      const key = th.dataset.wSort as SortKey;
+      sort = sort.key === key ? { key, dir: sort.dir === 1 ? -1 : 1 } : { key, dir: FIRST_DIR[key] };
+      void ctx.storage.set(SORT_STORE, sort).catch(() => {});
+      draw(ctx);
+    }),
+  );
+  root.querySelectorAll<HTMLElement>('[data-w-baledit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const row = book.balances.find((x) => x.id === b.dataset.wBaledit);
+      const a = row && byId(row.accountId);
+      if (row && a) void editReadingFlow(ctx, a, row);
     }),
   );
   root.querySelectorAll<HTMLElement>('[data-w-baldel]').forEach((b) =>

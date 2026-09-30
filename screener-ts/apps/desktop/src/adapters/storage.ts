@@ -165,7 +165,7 @@ const LOCAL_ONLY_PREFIXES = [
   // all day, every day, on any device that had run short of room. A receipt must not
   // outlive the thing it is a receipt for.
   'calendar_sweep_log',
-  // EURUSD / EURVND for the Financial Status page. Market data, like `pf_eurusd_bars`:
+  // EURUSD / EURVND / EURCNY for the Financial Status page. Market data, like `pf_eurusd_bars`:
   // the balances they convert are in `wealth`, which syncs.
   'wealth_fx:',
 ];
