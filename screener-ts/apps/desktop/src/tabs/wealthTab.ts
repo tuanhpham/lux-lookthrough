@@ -84,6 +84,15 @@ let shown: WealthCurrency = 'EUR';
 /** The Portfolio row's key in `openHistory` — no wealth account can have it, ids are uuids. */
 const PF_ROW = '__portfolio__';
 let busy = false;
+/**
+ * The accounts table's filter: the search box and the account picker. Page-local, like
+ * `openHistory`: "only these three today" is a glance, not a setting, so it is not synced and
+ * a reload shows every row again. It hides table rows only; the KPIs and charts stay whole.
+ */
+let query = '';
+/** Rows ticked in the picker; empty = no pick, every row. Account ids, and `PF_ROW`. */
+const picked = new Set<string>();
+let pickCloseWired = false;
 
 /**
  * Colours. The portfolio has its own. Every other account takes the colour of its CURRENCY:
@@ -97,6 +106,19 @@ const PF_COLOR = '#18d89a';
 const CCY_COLOR: Record<WealthCurrency, string> = { EUR: '#4f8cff', USD: '#f5a524', VND: '#f43f5e', CNY: '#a78bfa' };
 /** Shade steps for the 2nd, 3rd… account in one currency: + toward white, − toward black. */
 const SHADES = [0, 0.35, -0.3, 0.6, -0.5, 0.2, -0.15, 0.75];
+/** The by-type allocation bars. Loans are red: theirs is the negative bar. */
+const KIND_COLOR: Record<WealthKind, string> = {
+  bank: '#4f8cff',
+  savings: '#22d3ee',
+  cash: '#a3e635',
+  broker: '#f5a524',
+  crypto: '#a78bfa',
+  gold: '#facc15',
+  property: '#fb923c',
+  pension: '#2dd4bf',
+  loan: '#f43f5e',
+  other: '#94a3b8',
+};
 /** A reading older than this is flagged: the total is quietly using an old statement. */
 const STALE_DAYS = 100;
 
@@ -117,6 +139,10 @@ const eur = (v: number): string => fmt(v, shown, false);
 /** Used by `fmt` and the account charts. Dong is written after the number, in `fmt`. */
 const SYMBOL: Record<WealthCurrency, string> = { EUR: '€', USD: '$', VND: '₫', CNY: '¥' };
 const tone = (v: number): string => (v >= 0 ? 'var(--accent)' : 'var(--danger)');
+/** An amount as it is put back in an input: grouped, all its decimals. See `saveReading`. */
+const grouped = (v: number): string => v.toLocaleString('en-US', { maximumFractionDigits: 8 });
+/** The currency as a chip in that currency's colour — the colour the dots and charts use. */
+const ccyChip = (c: WealthCurrency): string => `<span class="w-ccy" style="--c:${CCY_COLOR[c]}">${c}</span>`;
 
 function shade(hex: string, f: number): string {
   const n = parseInt(hex.slice(1), 16);
@@ -271,6 +297,8 @@ function neededCurrencies(): WealthCurrency[] {
 
 function draw(ctx: AppContext): void {
   const root = $('#tab-wealth')!;
+  // A deleted account left ticked would hide every row behind an empty pick.
+  for (const id of picked) if (id !== PF_ROW && !book.accounts.some((a) => a.id === id)) picked.delete(id);
   const side = portfolioSide(accounts);
   const series = inDisplay(wealthSeries({ book, portfolio: side.lines, fx: fx!, today: today() }));
   root.innerHTML = pageHtml(side, series);
@@ -363,6 +391,7 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
     </div>
 
     ${sectionHead(t('wealth.accounts'), [countChip(book.accounts.length + 1, undefined, t('pf.unit.accounts'))], { sub: tc('wealth.accounts.sub') })}
+    ${filterHtml()}
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       ${accountsTable(now, side)}
     </div>`;
@@ -380,23 +409,132 @@ function allocationHtml(now: NonNullable<WealthSeries['points'][number]>): strin
     .sort((a, b) => b.v - a.v)
     .map((p) => `<span class="kpi-key"><span class="kpi-dot" style="background:${p.color}"></span>${esc(p.name)} <span class="muted">${((p.v / gross) * 100).toFixed(1)}%</span></span>`)
     .join('');
+  const pf = { label: t('nav.portfolio'), color: PF_COLOR, v: now.portfolio };
+  const byCcy = groupBars(t('wealth.alloc.ccy'), [
+    pf,
+    ...book.accounts.map((a) => ({ label: a.currency, color: CCY_COLOR[a.currency], v: now.byAccount[a.id] ?? 0 })),
+  ], t('wealth.alloc.pfnote'));
+  const byKind = groupBars(t('wealth.alloc.kind'), [
+    { ...pf, label: t('wealth.kind.portfolio') },
+    ...book.accounts.map((a) => ({ label: t('wealth.kind.' + a.kind), color: KIND_COLOR[a.kind], v: now.byAccount[a.id] ?? 0 })),
+  ]);
   return `<div class="card" style="margin-bottom:14px;padding:10px 12px">
       <div class="w-alloc">${bar}</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12px">${keys}</div>
       ${currencyLegend()}
+    </div>
+    ${byCcy || byKind ? `<div class="w-ggrid">${byCcy}${byKind}</div>` : ''}`;
+}
+
+/**
+ * One horizontal bar per group (a currency, an account type), the accounts in it summed:
+ * every bank account is one "Bank account" bar. Shares are of the gross assets, so the
+ * positive bars add up to 100% and a loan shows as a red, negative share of them — netting
+ * it in would let a big debt make every other share look larger than the money is.
+ * The Portfolio is its own group in both: it is one figure here, not a list of holdings.
+ */
+function groupBars(title: string, rows: { label: string; color: string; v: number }[], foot = ''): string {
+  const by = new Map<string, { label: string; color: string; v: number }>();
+  for (const r of rows) {
+    const g = by.get(r.label);
+    if (g) g.v += r.v;
+    else by.set(r.label, { ...r });
+  }
+  const groups = [...by.values()].filter((g) => Math.abs(g.v) > 1e-9).sort((a, b) => b.v - a.v);
+  const gross = groups.reduce((x, g) => x + Math.max(g.v, 0), 0);
+  if (gross <= 0) return '';
+  const lines = groups
+    .map((g) => {
+      const p = (g.v / gross) * 100;
+      const neg = g.v < 0;
+      return `<div class="w-gbar">
+          <span class="w-gbar-l" title="${esc(g.label)}"><span class="kpi-dot" style="background:${g.color}"></span>${esc(g.label)}</span>
+          <span class="w-gbar-t"><span style="width:${Math.min(Math.abs(p), 100).toFixed(2)}%;background:${neg ? 'var(--danger)' : g.color}"></span></span>
+          <span class="w-gbar-v"${neg ? ' style="color:var(--danger)"' : ''}>${eur(g.v)}</span>
+          <span class="w-gbar-p"${neg ? ' style="color:var(--danger)"' : ''}>${p.toFixed(1)}%</span>
+        </div>`;
+    })
+    .join('');
+  return `<div class="card w-gcard">
+      <div class="section-title" style="margin:0 0 8px">${title}</div>${lines}
+      ${foot ? `<div class="muted" style="font-size:11px;margin-top:6px">${foot}</div>` : ''}
     </div>`;
+}
+
+/** The search box, the account picker, and the "3/7 shown · €…" line `applyFilter` fills. */
+function filterHtml(): string {
+  if (!book.accounts.length) return '';
+  const opts = [
+    { id: PF_ROW, name: t('nav.portfolio'), color: PF_COLOR },
+    ...[...book.accounts].sort((a, b) => a.name.localeCompare(b.name)).map((a) => ({ id: a.id, name: a.name, color: colorOf(a.id) })),
+  ];
+  return `<div class="w-filter">
+      <input class="field w-search" id="w-q" type="search" autocomplete="off" placeholder="${t('wealth.filter.search')}" value="${esc(query)}">
+      <details class="w-pick">
+        <summary class="btn-outline" id="w-pick-label">${pickLabel()}</summary>
+        <div class="w-pick-menu">
+          <div class="w-pick-acts"><button class="range-btn" data-w-pickall>${t('wealth.filter.all')}</button></div>
+          ${opts
+            .map(
+              (o) => `<label class="w-pick-opt"><input type="checkbox" data-w-pick="${o.id}"${picked.has(o.id) ? ' checked' : ''}><span class="kpi-dot" style="background:${o.color}"></span>${esc(o.name)}</label>`,
+            )
+            .join('')}
+        </div>
+      </details>
+      <span class="muted" id="w-shown" style="font-size:12px"></span>
+    </div>`;
+}
+
+const pickLabel = (): string =>
+  `${t('wealth.filter.pick')}: ${picked.size ? String(picked.size) : t('wealth.filter.all')} ▾`;
+
+/** Whether a table row passes the picker and the search (name, note, type, currency). */
+function rowVisible(id: string): boolean {
+  if (picked.size && !picked.has(id)) return false;
+  const q = query.trim().toLocaleLowerCase();
+  if (!q) return true;
+  const a = book.accounts.find((x) => x.id === id);
+  const hay = id === PF_ROW ? `${t('nav.portfolio')} ${t('wealth.kind.portfolio')}` : a ? `${a.name} ${a.note ?? ''} ${t('wealth.kind.' + a.kind)} ${a.currency}` : '';
+  return hay.toLocaleLowerCase().includes(q);
+}
+
+/**
+ * Hide the filtered-out rows in place — no redraw, so the search box keeps its focus and
+ * caret while typing — and say how many are shown and what they add up to.
+ */
+function applyFilter(root: HTMLElement, now: WealthSeries['points'][number] | null): void {
+  const ids = [PF_ROW, ...book.accounts.map((a) => a.id)];
+  let n = 0;
+  let sum = 0;
+  for (const id of ids) {
+    const on = rowVisible(id);
+    root.querySelectorAll<HTMLElement>(`[data-w-row="${id}"]`).forEach((r) => r.classList.toggle('hidden', !on));
+    if (!on) continue;
+    n++;
+    sum += id === PF_ROW ? (now?.portfolio ?? 0) : (now?.byAccount[id] ?? 0);
+  }
+  const out = root.querySelector<HTMLElement>('#w-shown');
+  if (out)
+    out.innerHTML =
+      picked.size || query.trim()
+        ? t('wealth.filter.shown').replace('{n}', String(n)).replace('{m}', String(ids.length)).replace('{v}', now ? eur(sum) : '—')
+        : '';
+  const label = root.querySelector<HTMLElement>('#w-pick-label');
+  if (label) label.textContent = pickLabel();
 }
 
 function accountsTable(now: WealthSeries['points'][number] | null, side: PortfolioSide): string {
   const total = now?.total ?? 0;
   const share = (v: number): string => (total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '—');
-  const pfRow = `<tr>
-      <td><span class="kpi-dot" style="background:${PF_COLOR};margin-right:6px"></span><a href="#" class="link-ticker" id="w-open-pf"><strong>${t('nav.portfolio')}</strong></a></td>
-      <td>${t('wealth.kind.portfolio')}</td><td>${shown}</td>
+  const pfOpen = openHistory.has(PF_ROW);
+  const pfRow = `<tr data-w-row="${PF_ROW}">
+      <td><a href="#" class="link-ticker w-toggle" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}"><span class="w-caret">${pfOpen ? '▾' : '▸'}</span><span class="kpi-dot" style="background:${PF_COLOR}"></span><strong>${t('nav.portfolio')}</strong></a>
+        <a href="#" class="muted w-note" id="w-open-pf" style="display:block">${t('wealth.pf.open')} →</a></td>
+      <td>${t('wealth.kind.portfolio')}</td><td>${ccyChip(shown)}</td>
       <td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? share(now.portfolio) : '—'}</td>
       <td>${side.asOf ?? '—'}</td><td class="muted">${t('wealth.pf.auto')}</td>
-      <td><button class="pf-icon-btn" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}">${openHistory.has(PF_ROW) ? '▴' : '▾'}</button></td>
-    </tr>${openHistory.has(PF_ROW) ? `<tr class="w-hist"><td colspan="9"><div class="w-acct-chart" data-w-chart="${PF_ROW}"></div></td></tr>` : ''}`;
+      <td><button class="pf-icon-btn${pfOpen ? ' active' : ''}" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}">${pfOpen ? '▴' : '▾'}</button></td>
+    </tr>${pfOpen ? `<tr class="w-hist" data-w-row="${PF_ROW}"><td colspan="9"><div class="w-acct-chart" data-w-chart="${PF_ROW}"></div></td></tr>` : ''}`;
   const rows = sortedAccounts(now)
     .map((a) => accountRow(a, now))
     .join('');
@@ -456,9 +594,11 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
   const stale = (st.ageDays ?? 0) > STALE_DAYS;
   const total = now?.total ?? 0;
   const age = st.latest ? `${st.latest.date} <span class="muted">(${st.ageDays}d)</span>` : `<span class="muted">${t('wealth.noreading')}</span>`;
-  const row = `<tr>
-      <td><span class="kpi-dot" style="background:${colorOf(a.id)};margin-right:6px"></span><a href="#" class="link-ticker" data-w-hist="${a.id}"><strong>${esc(a.name)}</strong></a>${a.note ? `<div class="muted" style="font-size:11px">${esc(a.note)}</div>` : ''}</td>
-      <td>${t('wealth.kind.' + a.kind)}</td><td>${a.currency}</td>
+  const open = openHistory.has(a.id);
+  const count = book.balances.filter((b) => b.accountId === a.id).length;
+  const row = `<tr data-w-row="${a.id}">
+      <td><a href="#" class="link-ticker w-toggle" data-w-hist="${a.id}" title="${t('wealth.act.history')}"><span class="w-caret">${open ? '▾' : '▸'}</span><span class="kpi-dot" style="background:${colorOf(a.id)}"></span><strong>${esc(a.name)}</strong></a>${a.note ? `<div class="muted w-note">${esc(a.note)}</div>` : ''}</td>
+      <td>${t('wealth.kind.' + a.kind)}</td><td>${ccyChip(a.currency)}</td>
       <td>${st.latest ? fmt(st.latest.amount, a.currency) : '—'}</td>
       <td>${st.latest ? eur(v) : '—'}</td>
       <td>${st.latest && total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '—'}</td>
@@ -466,22 +606,12 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
       <td>${st.change == null ? '—' : `<span style="color:${tone(st.change)}">${st.change >= 0 ? '+' : ''}${fmt(st.change, a.currency)}</span>`}</td>
       <td style="white-space:nowrap">
         <button class="pf-icon-btn" data-w-bal="${a.id}" title="${t('wealth.act.balance')}">＋</button>
-        <button class="pf-icon-btn" data-w-hist="${a.id}" title="${t('wealth.act.history')}">${openHistory.has(a.id) ? '▴' : '▾'}</button>
+        <button class="pf-icon-btn w-hist-btn${open ? ' active' : ''}" data-w-hist="${a.id}" title="${t('wealth.act.history')}">${count} ${open ? '▴' : '▾'}</button>
         <button class="pf-icon-btn" data-w-edit="${a.id}" title="${t('wealth.act.edit')}">✎</button>
         <button class="pf-icon-btn" data-w-del="${a.id}" title="${t('wealth.act.delete')}">✕</button>
       </td>
     </tr>`;
-  if (!openHistory.has(a.id)) return row;
-  const hist = balancesOf(book, a.id).reverse();
-  const inner = hist.length
-    ? hist
-        .map((b) => {
-          const r = fx?.perEur(a.currency, b.date);
-          const then = r ? fromEur(b.amount / r, b.date) : null;
-          return `<tr><td>${b.date}</td><td>${fmt(b.amount, a.currency)}</td><td class="muted">${then == null ? '—' : eur(then)}</td><td class="muted">${b.note ? esc(b.note) : ''}</td><td style="white-space:nowrap"><button class="pf-icon-btn" data-w-baledit="${b.id}" title="${t('wealth.act.editreading')}">✎</button><button class="pf-icon-btn" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">✕</button></td></tr>`;
-        })
-        .join('')
-    : `<tr><td colspan="5" class="muted">${t('wealth.noreading')}</td></tr>`;
+  if (!open) return row;
   const mode = chartMode.get(a.id) ?? 'native';
   const modes =
     a.currency === shown
@@ -489,10 +619,58 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
       : `<div class="toolbar" style="margin:0 0 4px;gap:4px">${(['native', 'eur'] as const)
           .map((m) => `<button class="range-btn${mode === m ? ' active' : ''}" data-w-cmode="${a.id}" data-mode="${m}">${m === 'native' ? a.currency : shown}</button>`)
           .join('')}</div>`;
-  return `${row}<tr class="w-hist"><td colspan="9">
+  return `${row}<tr class="w-hist" data-w-row="${a.id}"><td colspan="9">
       ${modes}<div class="w-acct-chart" data-w-chart="${a.id}"></div>
-      <table class="w-hist-t"><thead><tr><th>${t('wealth.col.date')}</th><th>${t('wealth.col.balance')}</th><th>${tc('wealth.col.eurthen')}</th><th>${t('wealth.col.note')}</th><th></th></tr></thead><tbody>${inner}</tbody></table>
+      ${readingsHtml(a)}
     </td></tr>`;
+}
+
+/**
+ * An account's readings, newest first, each one editable where it stands: date, amount and
+ * note are inputs. Typing marks the row (amber edge) and lights its ✓; Enter or ✓ saves,
+ * Esc throws the edit away. Not saved on blur — moving from the amount to the note would
+ * otherwise redraw the page under the cursor. The top row adds a reading.
+ *
+ * "Change" is against the reading before it, in the account's own currency: what the
+ * statement moved by, without the exchange rate in it.
+ */
+function readingsHtml(a: WealthAccount): string {
+  const asc = balancesOf(book, a.id);
+  const latest = asc[asc.length - 1];
+  const body = asc
+    .map((b, i) => ({ b, prev: asc[i - 1] }))
+    .reverse()
+    .map(({ b, prev }) => {
+      const r = fx?.perEur(a.currency, b.date);
+      const then = r ? fromEur(b.amount / r, b.date) : null;
+      const d = prev ? b.amount - prev.amount : null;
+      return `<tr data-w-reading="${b.id}" title="${t('wealth.act.editreading')}">
+          <td><input type="date" class="field w-in w-in-date" data-f="date" value="${b.date}"></td>
+          <td><input class="field w-in w-in-amt" data-f="amount" inputmode="decimal" value="${grouped(b.amount)}"></td>
+          <td class="w-delta">${d == null ? '<span class="muted">—</span>' : `<span style="color:${tone(d)}">${d >= 0 ? '+' : ''}${fmt(d, a.currency)}</span>`}</td>
+          <td class="muted w-delta">${then == null ? '—' : eur(then)}</td>
+          <td><input class="field w-in w-in-note" data-f="note" value="${esc(b.note ?? '')}" placeholder="${t('wealth.col.note')}"></td>
+          <td style="white-space:nowrap">
+            <button class="pf-icon-btn w-save" data-w-balsave="${b.id}" title="${t('wealth.act.save')}" disabled>✓</button>
+            <button class="pf-icon-btn" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">✕</button>
+          </td>
+        </tr>`;
+    })
+    .join('');
+  const add = `<tr class="w-add-row" data-w-newfor="${a.id}">
+      <td><input type="date" class="field w-in w-in-date" data-f="date" value="${today()}"></td>
+      <td><input class="field w-in w-in-amt" data-f="amount" inputmode="decimal" placeholder="${latest ? grouped(latest.amount) : '0'}"></td>
+      <td colspan="2" class="muted" style="font-size:11px">${t('wealth.readings.new')}</td>
+      <td><input class="field w-in w-in-note" data-f="note" placeholder="${t('wealth.col.note')}"></td>
+      <td><button class="btn w-add-btn" data-w-baladd="${a.id}" title="${t('wealth.act.balance')}">＋</button></td>
+    </tr>`;
+  return `<div class="w-readings" style="--c:${colorOf(a.id)}">
+      <div class="w-readings-h"><strong>${t('wealth.readings')}</strong> ${ccyChip(a.currency)} <span class="muted">${asc.length} · ${t('wealth.readings.hint')}</span></div>
+      <table class="w-hist-t">
+        <thead><tr><th>${t('wealth.col.date')}</th><th>${t('wealth.col.balance')}</th><th>${t('wealth.col.delta')}</th><th>${tc('wealth.col.eurthen')}</th><th>${t('wealth.col.note')}</th><th></th></tr></thead>
+        <tbody>${add}${body || `<tr><td colspan="6" class="muted">${t('wealth.noreading')}</td></tr>`}</tbody>
+      </table>
+    </div>`;
 }
 
 // ── Chart ──────────────────────────────────────────────────────────────────
@@ -668,31 +846,34 @@ async function recordAllFlow(ctx: AppContext): Promise<void> {
 }
 
 /**
- * Correct a recorded reading: date, amount, note.
+ * Save an inline edit of a recorded reading: date, amount, note.
  *
- * The amount is shown grouped (`250,000,000`) so a dong balance can be read, and is only
- * re-parsed when the user changed it. `parseAmount` cannot tell 1.234 (a decimal) from
+ * The amount input holds the value grouped (`250,000,000`) so a dong balance can be read, and
+ * is only re-parsed when the user changed it. `parseAmount` cannot tell 1.234 (a decimal) from
  * 1.234 (a thousand), so round-tripping an untouched value through it could turn a
  * €1.234 reading into €1,234.
  */
-async function editReadingFlow(ctx: AppContext, a: WealthAccount, b: WealthBalance): Promise<void> {
-  const shown = b.amount.toLocaleString('en-US', { maximumFractionDigits: 8 });
-  const res = await formDialog(`${t('wealth.act.editreading')} · ${esc(a.name)} · ${a.currency}`, [
-    { key: 'date', label: t('wealth.col.date'), type: 'date', value: b.date },
-    { key: 'amount', label: t('wealth.col.balance'), raw: true, value: shown },
-    { key: 'note', label: t('wealth.col.note'), value: esc(b.note ?? '') },
-  ]);
-  if (!res || !res.date) return;
-  const typed = (res.amount ?? '').trim();
-  const amount = typed === shown ? b.amount : parseOrWarn(typed);
+async function saveReading(ctx: AppContext, a: WealthAccount, b: WealthBalance, date: string, typed: string, note: string): Promise<void> {
+  if (!date) return;
+  const amount = typed === grouped(b.amount) ? b.amount : parseOrWarn(typed);
   if (amount == null) return;
-  const clash = book.balances.find((x) => x.accountId === b.accountId && x.date === res.date && x.id !== b.id);
-  if (clash && !confirm(t('wealth.confirm.replace').replace('{date}', res.date).replace('{v}', fmt(clash.amount, a.currency)))) return;
+  const clash = book.balances.find((x) => x.accountId === b.accountId && x.date === date && x.id !== b.id);
+  if (clash && !confirm(t('wealth.confirm.replace').replace('{date}', date).replace('{v}', fmt(clash.amount, a.currency)))) return;
   try {
-    await commit(ctx, editBalance(book, b.id, { date: res.date, amount, note: res.note?.trim() || undefined }));
+    await commit(ctx, editBalance(book, b.id, { date, amount, note: note || undefined }));
   } catch (e) {
     setStatus($('#tab-wealth')!, errChip((e as Error).message));
   }
+}
+
+/** The readings panel's top row: a new reading, asking first if that date already has one. */
+async function addReading(ctx: AppContext, a: WealthAccount, date: string, raw: string, note: string): Promise<void> {
+  if (!date || !raw.trim()) return;
+  const amount = parseOrWarn(raw);
+  if (amount == null) return;
+  const clash = book.balances.find((x) => x.accountId === a.id && x.date === date);
+  if (clash && !confirm(t('wealth.confirm.replace').replace('{date}', date).replace('{v}', fmt(clash.amount, a.currency)))) return;
+  await commit(ctx, setBalance(book, { accountId: a.id, date, amount, note: note || undefined }, uuid));
 }
 
 async function editFlow(ctx: AppContext, a: WealthAccount): Promise<void> {
@@ -852,13 +1033,68 @@ function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
       draw(ctx);
     }),
   );
-  root.querySelectorAll<HTMLElement>('[data-w-baledit]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const row = book.balances.find((x) => x.id === b.dataset.wBaledit);
+  const field = (tr: HTMLElement, f: string): string => tr.querySelector<HTMLInputElement>(`[data-f="${f}"]`)?.value.trim() ?? '';
+  root.querySelectorAll<HTMLElement>('tr[data-w-reading]').forEach((tr) => {
+    const save = tr.querySelector<HTMLButtonElement>('[data-w-balsave]');
+    const go = (): void => {
+      const row = book.balances.find((x) => x.id === tr.dataset.wReading);
       const a = row && byId(row.accountId);
-      if (row && a) void editReadingFlow(ctx, a, row);
+      if (row && a) void saveReading(ctx, a, row, field(tr, 'date'), field(tr, 'amount'), field(tr, 'note'));
+    };
+    tr.querySelectorAll<HTMLInputElement>('input').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        tr.classList.add('w-dirty');
+        if (save) save.disabled = false;
+      });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          go();
+        } else if (e.key === 'Escape') draw(ctx);
+      });
+    });
+    save?.addEventListener('click', go);
+  });
+  root.querySelectorAll<HTMLElement>('tr[data-w-newfor]').forEach((tr) => {
+    const a = byId(tr.dataset.wNewfor);
+    if (!a) return;
+    const go = (): void => void addReading(ctx, a, field(tr, 'date'), field(tr, 'amount'), field(tr, 'note'));
+    tr.querySelector('[data-w-baladd]')?.addEventListener('click', go);
+    tr.querySelectorAll<HTMLInputElement>('input').forEach((inp) =>
+      inp.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        go();
+      }),
+    );
+  });
+
+  const now = s.points[s.points.length - 1] ?? null;
+  applyFilter(root, now);
+  root.querySelector<HTMLInputElement>('#w-q')?.addEventListener('input', (e) => {
+    query = (e.target as HTMLInputElement).value;
+    applyFilter(root, now);
+  });
+  root.querySelectorAll<HTMLInputElement>('[data-w-pick]').forEach((cb) =>
+    cb.addEventListener('change', () => {
+      if (cb.checked) picked.add(cb.dataset.wPick!);
+      else picked.delete(cb.dataset.wPick!);
+      applyFilter(root, now);
     }),
   );
+  root.querySelector('[data-w-pickall]')?.addEventListener('click', () => {
+    picked.clear();
+    root.querySelectorAll<HTMLInputElement>('[data-w-pick]').forEach((cb) => (cb.checked = false));
+    applyFilter(root, now);
+  });
+  if (!pickCloseWired) {
+    pickCloseWired = true;
+    // The picker is a <details>: close it on a click anywhere outside, as a dropdown does.
+    document.addEventListener('click', (e) => {
+      const d = document.querySelector<HTMLDetailsElement>('#tab-wealth .w-pick[open]');
+      if (d && !d.contains(e.target as Node)) d.open = false;
+    });
+  }
   root.querySelectorAll<HTMLElement>('[data-w-baldel]').forEach((b) =>
     b.addEventListener('click', () => {
       const row = book.balances.find((x) => x.id === b.dataset.wBaldel);
