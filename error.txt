@@ -5805,3 +5805,24 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 
 ### C. Kiem tra
 — typecheck 0, 420 test, vite build OK. Chup headless Chrome: desktop toi/sang, VI, mobile 390px (qua iframe vi Chrome headless khong thu cua so hep hon ~500px).
+
+
+## CHAT-55 — Giao dien Kraken Pro (toi) + liquid glass (sang) (980c8cac)
+
+### A. Yeu cau
+— Thich giao dien pro.kraken.com: bo cuc, dark mode. Light mode dung liquid glass (anh mau glasseffect.jpg), sang hon.
+
+### B. Da lam
+— Token toi: nen #0d0d12, panel #16161e, vien #272733, accent tim #8b6cff (chu tren nen accent: trang). Radius 10/7/5.
+— Tach --accent (thuong hieu) va --up (lai/tot, xanh #18d89a / #0b8f69). 33 ternary TS `>= 0 ? accent : danger` -> var(--up). Mau lai moi: LUON dung var(--up).
+— Font IBM Plex Sans (co tieng Viet); so lieu dung --font-num (Plex, tabular) thay JetBrains Mono. Doi lai --font-num = var(--font-mono) neu muon kieu terminal.
+— Ghi de lop "cinematic" serif trong #main: h1, th, .stat .k, .section-title thanh sans. Story / landing / wordmark giu serif.
+— Thanh tren dac 56px + vien duoi. >=1100px: #nav-groups (4 nhom tu PAGE_GROUPS/PAGES, ve trong paintCrumb), dropdown khi hover hoac bam, nhom hien tai gach chan tim. Nut #nav-theme doi sang/toi.
+— Sang = kinh: .card / .stat / nut vien la trang trong suot + vien trang + bong; nen body::before la gradient am kieu phong mo. Chi lop noi (thanh tren, menu, dropdown, Ctrl K, modal) co backdrop-filter that (card tren nen tinh thi blur khong khac gi, nen bo de nhe).
+— Sua: nut tim mobile hien "Ctrl K" (.nav-search kbd thang .nav-search-k), "Update All" hai icon.
+
+### C. Chua lam
+— Bo cuc dang luoi widget keo tha nhu Kraken, thanh tab duoi tren mobile.
+
+### D. Kiem tra
+— typecheck 0, 420 test, build OK. Chup headless: Portfolio/Financial Status/Scanner toi + sang desktop, mobile 390px hai giao dien.
