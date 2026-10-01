@@ -252,7 +252,7 @@ function paletteItems(): { pages: PaletteItem[]; actions: PaletteItem[]; deep: P
   });
   const actions: PaletteItem[] = [
     action('sync', '☁️', vi ? 'Đồng bộ & mã truy cập' : 'Sync & access code', () => openSyncSettings(ctx), 'sync backup export import dong bo'),
-    action('ai', '🔑', t('ai.menu'), () => void openLlmSettings(ctx), 'ai api key llm'),
+    action('ai', '🔑', vi ? 'Khóa AI (API key)' : 'AI key & model', () => void openLlmSettings(ctx), 'ai api key llm'),
     action('chat', '💬', t('chat.title'), () => void openChatPanel(ctx), 'assistant chat ai tro ly'),
     action('theme', light ? '🌙' : '☀️',
       vi ? (light ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng') : light ? 'Switch to dark theme' : 'Switch to light theme',
@@ -406,53 +406,82 @@ function discoverFromStory(trigger?: Element): void {
 const CHAT_ICON = ORB_MARK;
 
 // ── App cinematic menu overlay ────────────────────────────────────────────────
+
+/** Line icons for the menu, drawn in currentColor so both themes come for free. */
+const AM_PATHS = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  home: '<path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  cloud: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l1.8 1.8"/>',
+  market: '<path d="M4 19h16"/><path d="m5 15 4-5 4 3 6-7"/><path d="M15 6h4v4"/>',
+  trade: '<path d="M7 4v16M17 4v16"/><rect x="4.5" y="8" width="5" height="7" rx="1"/><rect x="14.5" y="6" width="5" height="9" rx="1"/>',
+  money: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 15h2"/>',
+  know: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5"/>',
+} as const;
+const GROUP_ICON: Record<(typeof PAGE_GROUPS)[number]['id'], keyof typeof AM_PATHS> = {
+  market: 'market', trade: 'trade', money: 'money', know: 'know',
+};
+function amIcon(name: keyof typeof AM_PATHS, size = 16): string {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${AM_PATHS[name]}</svg>`;
+}
+
 function buildAppMenu(): HTMLElement {
   const lang = getLang();
+  const vi = lang === 'vi';
   const isLight = document.documentElement.classList.contains('light');
   const el = document.createElement('div');
   el.id = 'app-menu';
+  el.className = 'app-menu--grouped';
   el.innerHTML = `
     <header class="sl-menu-header">
       <button class="sl-menu-brand" id="app-menu-brand">The Professional</button>
       <button id="app-menu-close" aria-label="Close menu">✕</button>
     </header>
     <nav class="app-menu-nav app-menu-nav--grouped">
-      <div class="app-menu-grid">${PAGE_GROUPS.map(
-        (g) => `<div class="app-menu-group">
-          <div class="app-menu-gh">${g.title[lang]}</div>
-          ${PAGES.filter((p) => p.group === g.id)
-            .map(
-              (p) => `<button class="sl-menu-item app-menu-page" data-amtab="${p.id}">
-                <span class="amp-name">${t(`nav.${p.id}`)}</span><span class="amp-desc">${p.desc[lang]}</span></button>`,
-            )
-            .join('')}
-        </div>`,
-      ).join('')}</div>
-    </nav>
-    <div class="sl-menu-items app-menu-footer">
-      <button class="sl-menu-ctrl" id="app-menu-home">${t('nav.home')}</button>
-      <button class="sl-menu-ctrl" id="app-menu-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        ${lang === 'vi' ? 'Tìm' : 'Search'} <kbd class="amp-kbd">${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
-      </button>
-      <div class="sl-menu-controls">
-        <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-aml="en">EN</button>
-        <button class="sl-menu-ctrl${lang === 'vi' ? ' active' : ''}" data-aml="vi">VI</button>
+      <div class="am-wrap">
+        <button type="button" class="am-search" id="app-menu-search">
+          ${amIcon('search', 18)}
+          <span>${vi ? 'Tìm trang, mục hướng dẫn, thao tác…' : 'Search pages, guides, actions…'}</span>
+          <kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+        </button>
+        <div class="app-menu-grid">${PAGE_GROUPS.map((g, gi) => {
+          const pages = PAGES.filter((p) => p.group === g.id);
+          return `<section class="app-menu-group">
+            <header class="app-menu-gh">
+              <span class="amg-ic">${amIcon(GROUP_ICON[g.id], 17)}</span>
+              <span class="amg-t">${g.title[lang]}</span>
+              <span class="amg-n">${String(gi + 1).padStart(2, '0')}</span>
+            </header>
+            <div class="amg-list">${pages
+              .map(
+                (p) => `<button type="button" class="app-menu-page" data-amtab="${p.id}">
+                  <span class="amp-ic" aria-hidden="true">${p.icon}</span>
+                  <span class="amp-txt"><span class="amp-name">${t(`nav.${p.id}`)}</span><span class="amp-desc">${p.desc[lang]}</span></span>
+                </button>`,
+              )
+              .join('')}</div>
+          </section>`;
+        }).join('')}</div>
       </div>
-      <button class="sl-menu-ctrl" id="app-menu-theme">${isLight ? '☀️' : '🌙'}</button>
-      <button class="sl-menu-ctrl" id="app-menu-sync">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-        Sync
-      </button>
-      <button class="sl-menu-ctrl" id="app-menu-ai">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 3v2m0 14v2m-9-9h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8-1.4 1.4m-10 10-1.4 1.4"/><circle cx="12" cy="12" r="3.5"/></svg>
-        ${t('ai.menu')}
-      </button>
-      <button class="sl-menu-ctrl" id="app-menu-chat">
-        ${CHAT_ICON}
-        ${t('chat.title')}
-      </button>
-    </div>`;
+    </nav>
+    <footer class="am-bar">
+      <div class="am-bar-in">
+        <button type="button" class="am-btn" id="app-menu-home">${amIcon('home')}<span>${t('nav.home')}</span></button>
+        <span class="am-bar-gap"></span>
+        <div class="am-seg" role="group" aria-label="${vi ? 'Ngôn ngữ' : 'Language'}">
+          <button type="button" class="${lang === 'en' ? 'active' : ''}" data-aml="en" aria-pressed="${lang === 'en'}">EN</button>
+          <button type="button" class="${lang === 'vi' ? 'active' : ''}" data-aml="vi" aria-pressed="${lang === 'vi'}">VI</button>
+        </div>
+        <button type="button" class="am-btn" id="app-menu-theme" title="${vi ? 'Đổi giao diện sáng / tối' : 'Switch light / dark'}">
+          ${amIcon(isLight ? 'moon' : 'sun')}<span>${isLight ? (vi ? 'Giao diện tối' : 'Dark') : vi ? 'Giao diện sáng' : 'Light'}</span>
+        </button>
+        <button type="button" class="am-btn" id="app-menu-sync">${amIcon('cloud')}<span>Sync</span></button>
+        <button type="button" class="am-btn" id="app-menu-ai">${amIcon('key')}<span>${vi ? 'Khóa AI' : 'AI key'}</span></button>
+        <button type="button" class="am-btn am-btn-accent" id="app-menu-chat">${CHAT_ICON}<span>${t('chat.title')}</span></button>
+      </div>
+    </footer>`;
   document.body.appendChild(el);
   return el;
 }
