@@ -79,6 +79,7 @@ import { drawLine, drawCandles } from '../ui/charts.js';
 // One heading builder for every page — see `ui/sectionHead.ts` for why the rule
 // belongs to the block and why a chip's number is set in mono.
 import { countChip, sectionHead } from '../ui/sectionHead.js';
+import { cbIcon } from '../ui/commandBar.js';
 import { formDialog } from '../ui/forms.js';
 import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { attachCombobox } from '../ui/combobox.js';
@@ -1225,22 +1226,22 @@ function toolbarHtml(): string {
 
   const fx = latestEurUsd();
   const fxTitle = fx ? ` · EURUSD ${fx.toFixed(4)}` : '';
-  return `<div class="pf-toolbar-wrap">
+  return `<div class="pf-toolbar-wrap cb">
     <div class="pf-toolbar-nav">
       <button class="pf-nav-btn${isOverview ? ' active' : ''}" data-acct="${OVERVIEW_ID}">${t('pf.overview')}</button>
       <select id="pf-acct-select" class="pf-acct-select${!isOverview ? ' active' : ''}">
         <option value="" ${isOverview ? 'selected' : ''} disabled>${t('pf.selectacct')}</option>
         ${acctOptions}
       </select>
-      <button id="acct-new"    class="pf-icon-btn" title="New account">＋</button>
-      <button id="acct-edit"   class="pf-icon-btn"${isOverview ? ' disabled' : ''} title="Edit account">✎</button>
-      <button id="acct-delete" class="pf-icon-btn"${isOverview ? ' disabled' : ''} title="Delete account">✕</button>
+      <button id="acct-new"    class="pf-icon-btn" title="New account">${cbIcon('plus', 15)}</button>
+      <button id="acct-edit"   class="pf-icon-btn"${isOverview ? ' disabled' : ''} title="Edit account">${cbIcon('edit', 15)}</button>
+      <button id="acct-delete" class="pf-icon-btn pf-icon-danger"${isOverview ? ' disabled' : ''} title="Delete account">${cbIcon('trash', 15)}</button>
     </div>
     <div class="pf-toolbar-actions">
       ${!isOverview
-        ? `<button id="acct-update"      class="pf-action-btn pf-action-btn--primary">${t('pf.update')}</button>
-           <button id="acct-clear-cache" class="pf-action-btn">${t('pf.clearcache')}</button>`
-        : `<button id="acct-update-all"  class="pf-action-btn pf-action-btn--primary">${t('pf.updateall')}</button>`}
+        ? `<button id="acct-update"      class="cb-btn cb-primary">${cbIcon('refresh')}<span>${t('pf.update')}</span></button>
+           <button id="acct-clear-cache" class="cb-btn">${cbIcon('broom')}<span>${t('pf.clearcache')}</span></button>`
+        : `<button id="acct-update-all"  class="cb-btn cb-primary">${cbIcon('refresh')}<span>${t('pf.updateall')}</span></button>`}
       <button id="pf-ccy-toggle" class="pf-ccy-btn${displayCurrency === 'USD' ? ' usd' : ''}"
         title="Toggle display currency${fxTitle}">
         ${displayCurrency === 'EUR' ? '€ EUR' : '$ USD'}

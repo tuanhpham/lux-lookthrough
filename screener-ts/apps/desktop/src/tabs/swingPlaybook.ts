@@ -1719,7 +1719,8 @@ function s16(lang: Lang): string {
 
 // ── page assembly ───────────────────────────────────────────────────────────
 
-const NAV: [string, Bi][] = [
+/** Also the search palette's index of the playbook (main.ts). */
+export const NAV: [string, Bi][] = [
   ['funnel', { en: 'Principles', vi: 'Nguyên tắc' }],
   ['regime', { en: 'Regime', vi: 'Regime' }],
   ['vol', { en: 'Volatility', vi: 'Biến động' }],

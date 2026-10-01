@@ -22,6 +22,7 @@ import {
 } from '../caseStudies/store.js';
 import { caseSvgChart, windowBars } from '../caseStudies/svgChart.js';
 import { countChip, sectionHead } from '../ui/sectionHead.js';
+import { cbButton, commandBar } from '../ui/commandBar.js';
 import { caseStudyHtml } from '../caseStudies/report.js';
 import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import {
@@ -135,9 +136,10 @@ async function renderList(ctx: AppContext): Promise<void> {
         ? 'Ghi lại các thiết lập trong quá khứ: ngày then chốt, mức mua/cắt lỗ/mục tiêu, chất xúc tác và ghi chú — kèm biểu đồ và xuất báo cáo.'
         : 'Document past setups: the key date, entry/stop/target, catalysts and notes — with a chart and a downloadable report.'
     }</p>
-    <div class="row" style="margin-bottom:16px">
-      <button id="cs-new" class="btn">${vi ? '＋ Hồ sơ mới' : '＋ New case study'}</button>
-    </div>
+    ${commandBar({
+      actions: [cbButton({ id: 'cs-new', label: vi ? 'Hồ sơ mới' : 'New case study', icon: 'plus', primary: true })],
+      meta: `<span class="cb-hint">${idx.length} ${vi ? 'hồ sơ' : idx.length === 1 ? 'study' : 'studies'}</span>`,
+    })}
     <div id="cs-list"></div>`;
 
   $('#cs-new')!.addEventListener('click', () => openEditor(ctx, blankCase(todayIso())));

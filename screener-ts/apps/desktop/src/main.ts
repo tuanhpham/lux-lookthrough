@@ -27,6 +27,12 @@ import { openChatPanel, closeChatPanel, isChatOpen } from './ui/chatPanel.js';
 import { ORB_MARK } from './ui/emblem.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
 import { pullAndMerge, openSyncGate, isHydrated } from './adapters/storage.js';
+import { PAGES, PAGE_GROUPS, pageInfo, noteVisit, recentPages } from './ui/pages.js';
+import { openPalette, isPaletteOpen, type PaletteItem } from './ui/commandPalette.js';
+import { SECTIONS as GUIDE_SECTIONS, GROUPS as GUIDE_GROUPS } from './tabs/settingsGuide.js';
+import { openSettingsAt } from './tabs/settingsTab.js';
+import { NAV as PLAYBOOK_NAV } from './tabs/swingPlaybook.js';
+import { jumpToLearn } from './ui/stickyToc.js';
 
 // Surface a FATAL init failure visibly (a blank screen hides the cause). This is
 // only used for the synchronous init below — we deliberately do NOT trap every
@@ -165,7 +171,119 @@ function show(tab: Tab): void {
     more.classList.toggle('has-active', activeInMore);
   }
   syncHash(tab);
+  noteVisit(tab);
+  paintCrumb();
   renderTab(tab);
+}
+
+/**
+ * Where you are, beside the wordmark: "Money / Financial Status". With fourteen pages
+ * behind one menu, the page title scrolls away and the closed menu does not say it.
+ */
+function paintCrumb(): void {
+  const el = $('#nav-crumb');
+  if (!el) return;
+  const info = pageInfo(currentTab);
+  const lang = getLang();
+  const group = info ? PAGE_GROUPS.find((g) => g.id === info.group)?.title[lang] : '';
+  el.innerHTML = info
+    ? `<span class="nav-crumb-g">${group}</span><span class="nav-crumb-sep">/</span><span class="nav-crumb-p">${info.icon} ${t(`nav.${info.id}`)}</span>`
+    : '';
+  const label = $('#nav-search .nav-search-l');
+  if (label) label.textContent = lang === 'vi' ? 'Tìm trang, mục…' : 'Search pages…';
+  const kbd = $('#nav-search .nav-search-k');
+  if (kbd) kbd.textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
+  $('#nav-search')?.setAttribute('aria-label', lang === 'vi' ? 'Tìm kiếm' : 'Search');
+}
+
+// ── Search palette ───────────────────────────────────────────────────────────
+
+/** Open a Learn section: show the tab if it is not the one on screen, then jump. */
+function openLearnAt(id: string): void {
+  if (currentTab !== 'learn') enterApp('learn');
+  requestAnimationFrame(() => jumpToLearn(id));
+}
+
+const LEARN_PARTS: [string, string, { en: string; vi: string }][] = [
+  ['lb-part-1', '📘', { en: 'The swing-trading playbook', vi: 'Cẩm nang swing trading' }],
+  ['lb-part-2', '🗺', { en: 'Working the platform, page by page', vi: 'Dùng nền tảng, từng trang' }],
+  ['lb-part-3', '🎯', { en: 'How the score is computed', vi: 'Điểm số được tính thế nào' }],
+  ['lb-part-4', '🔤', { en: 'Glossary', vi: 'Thuật ngữ' }],
+];
+
+function paletteItems(): { pages: PaletteItem[]; actions: PaletteItem[]; deep: PaletteItem[] } {
+  const lang = getLang();
+  const vi = lang === 'vi';
+  const pages: PaletteItem[] = PAGES.map((p) => ({
+    id: `p:${p.id}`,
+    icon: p.icon,
+    title: t(`nav.${p.id}`),
+    sub: p.desc[lang],
+    group: vi ? 'Trang' : 'Pages',
+    tag: PAGE_GROUPS.find((g) => g.id === p.group)?.title[lang],
+    words: `${p.id} ${p.words ?? ''} ${p.desc.en} ${p.desc.vi}`,
+    run: () => enterApp(p.id as Tab),
+  }));
+  const guides: PaletteItem[] = GUIDE_SECTIONS.map((s) => ({
+    id: `s:${s.id}`,
+    icon: s.icon,
+    title: s.title[lang],
+    sub: GUIDE_GROUPS[s.group][lang],
+    group: t('nav.settings'),
+    tag: t('nav.settings'),
+    words: `${s.title.en} ${s.title.vi}`,
+    run: () => openSettingsAt(s.id),
+  }));
+  const learn: PaletteItem[] = [
+    ...LEARN_PARTS.map(([id, icon, title]) => ({
+      id: `l:${id}`, icon, title: title[lang], group: t('nav.learn'), tag: t('nav.learn'),
+      words: `${title.en} ${title.vi}`, run: () => openLearnAt(id),
+    })),
+    ...PLAYBOOK_NAV.map(([id, label]) => ({
+      id: `l:swp-${id}`, icon: '📗', title: label[lang],
+      sub: vi ? 'Cẩm nang swing trading' : 'Swing-trading playbook',
+      group: t('nav.learn'), tag: t('nav.learn'), words: `playbook cam nang ${label.en} ${label.vi}`,
+      run: () => openLearnAt(`swp-${id}`),
+    })),
+  ];
+  const light = document.documentElement.classList.contains('light');
+  const action = (id: string, icon: string, title: string, run: () => void, words = ''): PaletteItem => ({
+    id: `a:${id}`, icon, title, group: vi ? 'Thao tác' : 'Actions', tag: vi ? 'Thao tác' : 'Action', words, run,
+  });
+  const actions: PaletteItem[] = [
+    action('sync', '☁️', vi ? 'Đồng bộ & mã truy cập' : 'Sync & access code', () => openSyncSettings(ctx), 'sync backup export import dong bo'),
+    action('ai', '🔑', t('ai.menu'), () => void openLlmSettings(ctx), 'ai api key llm'),
+    action('chat', '💬', t('chat.title'), () => void openChatPanel(ctx), 'assistant chat ai tro ly'),
+    action('theme', light ? '🌙' : '☀️',
+      vi ? (light ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng') : light ? 'Switch to dark theme' : 'Switch to light theme',
+      () => applyTheme(light ? 'dark' : 'light'), 'theme dark light'),
+    action('lang', '🌐', vi ? 'Switch to English' : 'Chuyển sang tiếng Việt', () => setLang(vi ? 'en' : 'vi'), 'language ngon ngu english vietnamese'),
+    action('home', '🏠', t('nav.home'), () => goToLanding(), 'home landing trang chu'),
+  ];
+  return { pages, actions, deep: [...guides, ...learn] };
+}
+
+function openSearch(): void {
+  if ($('#app')!.classList.contains('hidden')) return;
+  closeAppMenu();
+  const vi = getLang() === 'vi';
+  openPalette({
+    lang: getLang,
+    items: () => {
+      const { pages, actions, deep } = paletteItems();
+      return [...pages, ...deep, ...actions];
+    },
+    idle: () => {
+      const { pages, actions } = paletteItems();
+      const recent = recentPages()
+        .filter((id) => id !== currentTab)
+        .map((id) => pages.find((p) => p.id === `p:${id}`))
+        .filter((p): p is PaletteItem => !!p)
+        .slice(0, 4)
+        .map((p) => ({ ...p, group: vi ? 'Mở gần đây' : 'Recent' }));
+      return [...recent, ...pages, ...actions];
+    },
+  });
 }
 
 /**
@@ -298,28 +416,25 @@ function buildAppMenu(): HTMLElement {
       <button class="sl-menu-brand" id="app-menu-brand">The Professional</button>
       <button id="app-menu-close" aria-label="Close menu">✕</button>
     </header>
-    <nav class="app-menu-nav">
-      <div class="app-menu-col">
-        <button class="sl-menu-item" id="app-menu-home">${t('nav.home')}</button>
-        <button class="sl-menu-item" data-amtab="portfolio">${t('nav.portfolio')}</button>
-        <button class="sl-menu-item" data-amtab="wealth">${t('nav.wealth')}</button>
-        <button class="sl-menu-item" data-amtab="picks">${t('nav.picks')}</button>
-        <button class="sl-menu-item" data-amtab="screener">${t('nav.screener')}</button>
-        <button class="sl-menu-item" data-amtab="watchlist">${t('nav.watchlist')}</button>
-        <button class="sl-menu-item" data-amtab="sectors">${t('nav.sectors')}</button>
-        <button class="sl-menu-item" data-amtab="calendar">${t('nav.calendar')}</button>
-      </div>
-      <div class="app-menu-col">
-        <button class="sl-menu-item" data-amtab="backtest">${t('nav.backtest')}</button>
-        <button class="sl-menu-item" data-amtab="playbook">${t('nav.playbook')}</button>
-        <button class="sl-menu-item" data-amtab="casestudies">${t('nav.casestudies')}</button>
-        <button class="sl-menu-item" data-amtab="scanner">${t('nav.scanner')}</button>
-        <button class="sl-menu-item" data-amtab="learn">${t('nav.learn')}</button>
-        <button class="sl-menu-item" data-amtab="about">${t('nav.about')}</button>
-        <button class="sl-menu-item" data-amtab="settings">${t('nav.settings')}</button>
-      </div>
+    <nav class="app-menu-nav app-menu-nav--grouped">
+      <div class="app-menu-grid">${PAGE_GROUPS.map(
+        (g) => `<div class="app-menu-group">
+          <div class="app-menu-gh">${g.title[lang]}</div>
+          ${PAGES.filter((p) => p.group === g.id)
+            .map(
+              (p) => `<button class="sl-menu-item app-menu-page" data-amtab="${p.id}">
+                <span class="amp-name">${t(`nav.${p.id}`)}</span><span class="amp-desc">${p.desc[lang]}</span></button>`,
+            )
+            .join('')}
+        </div>`,
+      ).join('')}</div>
     </nav>
     <div class="sl-menu-items app-menu-footer">
+      <button class="sl-menu-ctrl" id="app-menu-home">${t('nav.home')}</button>
+      <button class="sl-menu-ctrl" id="app-menu-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        ${lang === 'vi' ? 'Tìm' : 'Search'} <kbd class="amp-kbd">${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+      </button>
       <div class="sl-menu-controls">
         <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-aml="en">EN</button>
         <button class="sl-menu-ctrl${lang === 'vi' ? ' active' : ''}" data-aml="vi">VI</button>
@@ -416,6 +531,7 @@ function wireAppMenu(): void {
     closeAppMenu();
     void openLlmSettings(ctx);
   });
+  menu.querySelector('#app-menu-search')?.addEventListener('click', () => openSearch());
   menu.querySelector('#app-menu-chat')?.addEventListener('click', () => {
     closeAppMenu();
     void openChatPanel(ctx);
@@ -462,6 +578,17 @@ $('#menu-toggle')?.addEventListener('click', () => {
     openAppMenu();
   }
 });
+// Ctrl K / ⌘K from anywhere in the app; "/" too, unless the reader is typing.
+window.addEventListener('keydown', (e) => {
+  if ($('#app')!.classList.contains('hidden') || isPaletteOpen() || document.querySelector('.dialog-host')) return;
+  const typing = (e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]');
+  const ctrlK = (e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey) && !e.altKey;
+  const slash = e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey;
+  if (!ctrlK && !slash) return;
+  e.preventDefault();
+  openSearch();
+});
+$('#nav-search')?.addEventListener('click', () => openSearch());
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   closeAppMenu();
@@ -501,6 +628,7 @@ function reRenderCurrentPage(): void {
 onLangChange(() => {
   if (appMenuEl) { appMenuEl.remove(); appMenuEl = null; }
   reRenderCurrentPage();
+  paintCrumb();
 });
 
 // Re-render the open tab on theme switch so charts pick up the new CSS colors.

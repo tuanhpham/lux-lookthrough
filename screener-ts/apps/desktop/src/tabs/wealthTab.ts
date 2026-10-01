@@ -41,6 +41,7 @@ import { $, pct } from '../ui/dom.js';
 import { t } from '../ui/i18n.js';
 import { formDialog } from '../ui/forms.js';
 import { countChip, sectionHead } from '../ui/sectionHead.js';
+import { cbButton, cbIcon, cbSegment, commandBar } from '../ui/commandBar.js';
 import { drawLine, drawStacked } from '../ui/charts.js';
 import { accounts, ensureAccountsLoaded, today, uuid } from '../portfolio/store.js';
 import { isHydrated } from '../adapters/storage.js';
@@ -353,18 +354,23 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
   return `
     <h1>${t('wealth.title')}</h1>
     <p class="subtitle">${tc('wealth.sub')}</p>
-    <div class="toolbar" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
-      <button class="btn" id="w-add">+ ${t('wealth.add')}</button>
-      <button class="btn-outline" id="w-record"${book.accounts.length ? '' : ' disabled'}>${t('wealth.record')}</button>
-      <button class="btn-outline" id="w-update">${t('wealth.update')}</button>
-      <span class="toolbar" style="margin:0;gap:4px" title="${t('wealth.display.hint')}">
-        <span class="muted" style="font-size:12px">${t('wealth.display')}</span>
-        ${WEALTH_CURRENCIES.map((c) => `<button class="range-btn${display === c ? ' active' : ''}" data-w-disp="${c}">${SYMBOL[c]} ${c}</button>`).join('')}
-      </span>
-      <span id="w-status"></span>
-      <span class="muted" style="font-size:12px">${t('wealth.auto.hint')}${autoDone ? ` · ${t('wealth.auto.last').replace('{session}', autoDone)}` : ''}</span>
-    </div>
-    ${warnings.map((w) => `<div class="status-chip status-chip--muted" style="display:block;white-space:normal;margin-bottom:8px;color:var(--warn)">${w}</div>`).join('')}
+    ${commandBar({
+      actions: [
+        cbButton({ id: 'w-add', label: t('wealth.add.btn'), icon: 'plus', primary: true }),
+        cbButton({ id: 'w-record', label: t('wealth.record'), icon: 'ledger', disabled: !book.accounts.length, title: t('wealth.record.btn') }),
+        cbButton({ id: 'w-update', label: t('wealth.update'), icon: 'refresh', title: t('wealth.auto.hint') }),
+      ],
+      controls: [
+        cbSegment({
+          label: t('wealth.display'),
+          title: t('wealth.display.hint'),
+          items: WEALTH_CURRENCIES.map((c) => ({ label: `${SYMBOL[c]} ${c}`, active: display === c, attrs: `data-w-disp="${c}"` })),
+        }),
+      ],
+      meta: `<span id="w-status"></span><span class="cb-hint" title="${t('wealth.auto.hint')}">${cbIcon('clock', 13)}${
+        autoDone ? t('wealth.auto.last').replace('{session}', autoDone) : t('wealth.auto.short')}</span>`,
+    })}
+    ${warnings.length ? `<div class="cb-warns">${warnings.map((w) => `<div class="cb-warn"><span aria-hidden="true">⚠</span><div>${w}</div></div>`).join('')}</div>` : ''}
 
     <div class="grid kpi-stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:14px">
       <div class="stat"><div class="k">${t('wealth.kpi.total')}</div><div class="v">${now ? eur(now.total) : '—'}</div></div>
@@ -650,10 +656,10 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
       <td${stale ? ' style="color:var(--warn)"' : ''}>${age}</td>
       <td>${st.change == null ? '—' : `<span style="color:${tone(st.change)}">${st.change >= 0 ? '+' : ''}${fmt(st.change, a.currency)}</span>`}</td>
       <td style="white-space:nowrap">
-        <button class="pf-icon-btn" data-w-bal="${a.id}" title="${t('wealth.act.balance')}">＋</button>
+        <button class="pf-icon-btn" data-w-bal="${a.id}" title="${t('wealth.act.balance')}">${cbIcon('plus', 14)}</button>
         <button class="pf-icon-btn w-hist-btn${open ? ' active' : ''}" data-w-hist="${a.id}" title="${t('wealth.act.history')}">${count} ${open ? '▴' : '▾'}</button>
-        <button class="pf-icon-btn" data-w-edit="${a.id}" title="${t('wealth.act.edit')}">✎</button>
-        <button class="pf-icon-btn" data-w-del="${a.id}" title="${t('wealth.act.delete')}">✕</button>
+        <button class="pf-icon-btn" data-w-edit="${a.id}" title="${t('wealth.act.edit')}">${cbIcon('edit', 14)}</button>
+        <button class="pf-icon-btn pf-icon-danger" data-w-del="${a.id}" title="${t('wealth.act.delete')}">${cbIcon('trash', 14)}</button>
       </td>
     </tr>`;
   if (!open) return row;
@@ -697,7 +703,7 @@ function readingsHtml(a: WealthAccount): string {
           <td><input class="field w-in w-in-note" data-f="note" value="${esc(b.note ?? '')}" placeholder="${t('wealth.col.note')}"></td>
           <td style="white-space:nowrap">
             <button class="pf-icon-btn w-save" data-w-balsave="${b.id}" title="${t('wealth.act.save')}" disabled>✓</button>
-            <button class="pf-icon-btn" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">✕</button>
+            <button class="pf-icon-btn pf-icon-danger" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">${cbIcon('trash', 14)}</button>
           </td>
         </tr>`;
     })
@@ -952,7 +958,10 @@ async function updateFlow(ctx: AppContext, root: HTMLElement, s: WealthSeries): 
   }
   busy = true;
   const btn = root.querySelector<HTMLButtonElement>('#w-update');
-  if (btn) btn.disabled = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('cb-busy');
+  }
   const loading = (msg: string): string => `<span class="status-chip status-chip--loading"><span class="spinner"></span>${msg}</span>`;
   const problems: string[] = [];
   try {
