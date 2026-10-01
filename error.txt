@@ -5983,3 +5983,13 @@ CHAT-68 (2026-10-02) - Top Picks mat nut Run scan, Top Picks vs Screener, link S
   - Khong gop Top Picks va Screener: Top Picks = chien luoc co san tren ca universe; Screener = danh sach/nganh tu chon, cot QM+momentum+volume, loc, xuat CSV.
 - Kiem tra: tsc OK, vitest 420/420, anh headless Top Picks thay lai nut Run scan.
 - Chua thu tren thiet bi that.
+
+CHAT-69 (2026-10-02) - Screener: nut Dung va thanh tien trinh
+- Yeu cau: khong gop Top Picks va Screener; them nut Stop va thanh tien trinh cho Screener.
+- Code: b8dfa8a2.
+  - runScreen tai theo lo 40 ma (fetchMany concurrency 8), cap nhat #screen-bar va "Dang quet n/N" sau moi lo.
+  - screenRunSeq (huy) + screenActive (lan chay giu nut Run/Stop); cancelScreen() cho nut Dung, screenSector va doi thi truong, tra Run ngay.
+  - paintScreenRun() ve vao DOM hien tai: sang tab khac roi quay lai van thay tien trinh, khong bi cache de len.
+  - Bo loc va cache id doc luc bat dau; CSS #picks-bar dung chung cho #screen-bar.
+- Kiem tra: tsc OK, vitest 420/420, vite build OK, anh headless: dang chay (Stop + Scanning 0/52 + thanh), bam Stop (Run quay lai, Stopped.), chay xong (Run quay lai, khong con thanh).
+- Chua thu tren thiet bi that.
