@@ -5881,3 +5881,12 @@ CHAT-59 (2026-10-01) - Landing page kinh long, cong tac sang/toi, qua cau Vao, f
   - Scanner: #main .scan-connect.card margin-bottom 16px (trang thai chua co ma).
 - Kiem tra: tsc 0, vitest 420/420 (2 file timeout khi may ban, chay lai rieng deu qua), build OK. Chup headless landing toi/sang 1440 + 500, Scanner chua co ma (mo tu link footer - xac nhan openPage chay).
 - Chua thu tren thiet bi that.
+
+CHAT-60 (2026-10-01) - Trang Cau chuyen (About) kinh long nhu landing
+- Yeu cau: lam moi trang story cho dep va chuyen nghiep nhu landing, ca toi va sang.
+- Code: 5ba6df11.
+  - ui/story.ts: tieu de 5 chuong (EN/VI), moi chuong mot panel .sl-ch-glass co so + ten, mau --c theo orb; buildStoryRail, buildStoryCue; wireCinematic nhan rail, dat data-ch va sl-wrap--exit tren hop story.
+  - tabs/aboutTab.ts: them thanh chuong, goi y cuon; nut Kham pha la .cl-orb (giu id about-exit-btn) + dong "Het - tiep theo la nen tang".
+  - styles.css: khoi Request 64 cuoi file; .about-story trong suot, anh nen tan bang mask, trich dan the kinh, dong ket san khau kinh, man chan va veil mau canvas.
+- Kiem tra: tsc 0, vitest 420/420 (2 file timeout chay lai qua), build OK; anh chup toi/sang 1440 va mobile 500; 5 chuong deu cao 749px o 1440x900.
+- Chua thu tren thiet bi that.
