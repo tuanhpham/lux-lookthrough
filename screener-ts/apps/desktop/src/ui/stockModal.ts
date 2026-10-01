@@ -1,3 +1,4 @@
+import { cbIcon } from './commandBar.js';
 import {
   scanQm,
   computeMomentumScore,
@@ -342,7 +343,7 @@ function renderDetail(
   if (q) {
     const rr = q.vcp.pivot != null && q.levels.riskReward != null ? num(q.levels.riskReward, 1) + 'R' : '—';
     patternBlock = `
-      <div class="row" style="margin-bottom:10px">
+      <div class="row sm-pattern-head" style="margin-bottom:10px">
         ${setupBadge(q.setupType)} ${mom ? classBadge(mom.classification) : ''}
         <div style="margin-left:auto" class="row">
           <span class="muted" style="font-size:11px">${t('detail.quality')}</span>
@@ -350,7 +351,7 @@ function renderDetail(
           <strong style="color:${scoreColor(q.qualityScore)};font-size:18px">${num(q.qualityScore, 0)}</strong>
         </div>
       </div>
-      <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="grid sm-kpis" style="grid-template-columns:repeat(4,1fr)">
         ${stat('Entry', fmtPrice(q.levels.entryPrice, symbol), 'entry')}
         ${stat('Stop', fmtPrice(q.levels.stopLoss, symbol), 'stop')}
         ${stat('Target', fmtPrice(q.levels.targetPrice, symbol), 'target')}
@@ -382,8 +383,8 @@ function renderDetail(
         <div id="detail-subtitle" class="muted" style="font-size:12px">${f.sector ?? ''}${f.industry ? ' · ' + f.industry : ''}</div>
       </div>
       <div class="row" style="margin-left:auto;gap:8px">
-        <button id="sm-plan" class="btn-outline" style="padding:7px 12px" title="${t('wl.plan.here')}">📋 ${t('wl.plan')}</button>
-        <button id="wl-toggle" class="btn-outline" style="padding:7px 12px">☆ Watchlist</button>
+        <button id="sm-plan" class="btn-outline sm-act sm-act--plan" title="${t('wl.plan.here')}">${cbIcon('clipboard', 15)}<span>${t('wl.plan')}</span></button>
+        <button id="wl-toggle" class="btn-outline sm-act sm-act--wl">☆ Watchlist</button>
       </div>
     </div>
     <div id="wl-picker" class="card hidden" style="margin-bottom:12px;background:var(--surface)"></div>

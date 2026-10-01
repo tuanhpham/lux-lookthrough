@@ -8010,3 +8010,77 @@ html.light .rep-frame { color-scheme: light; background: transparent; border-col
   .rep-actions .seg .range-btn { flex: 1 1 0; }
   .rep-actions .btn-outline, .rep-actions .btn { width: 100%; min-width: 0; padding-left: 8px; padding-right: 8px; }
 }
+
+/* ── Request 69: the stock page's figures and actions stand off the glass. ──
+   The stat tiles were a translucent wash of the panel they sit on (50% white on a white panel),
+   so in light mode Entry/Stop/… read as part of the background. Inside the stock modal and the
+   Trade Planner they are now solid raised tiles with a hairline and a soft drop. */
+html.light .modal-panel .stat, html.light #main .tp-statgrid .stat {
+  background: #fff; border: 1px solid rgba(60, 45, 90, .1);
+  box-shadow: 0 1px 2px rgba(40, 30, 60, .06), 0 10px 22px -16px rgba(60, 45, 90, .42);
+}
+html.light .modal-panel .stat:hover, html.light #main .tp-statgrid .stat:hover { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+html.light .modal-panel .stat .k, html.light #main .tp-statgrid .stat .k { color: var(--subtext); }
+html:not(.light) .modal-panel .stat, html:not(.light) #main .tp-statgrid .stat {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .085), rgba(255, 255, 255, .035));
+  border: 1px solid rgba(255, 255, 255, .13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 12px 26px -20px rgba(0, 0, 0, .9);
+}
+.modal-panel .sm-kpis .stat .v { font-family: var(--font-num, var(--font-mono)); font-size: 16px; }
+@media (max-width: 620px) { .modal-panel .sm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+
+/* Trade plan / Watchlist: the page's two actions, not two outlines lost beside the price. */
+.sm-act {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 11px;
+  font-weight: 700; font-size: 13px; white-space: nowrap;
+}
+.sm-act .cb-ic { flex: none; }
+html button.btn-outline.sm-act--plan {
+  color: #fff; border: 1px solid transparent;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 10px 22px -12px color-mix(in srgb, var(--accent) 90%, transparent);
+}
+html button.btn-outline.sm-act--plan:hover { filter: brightness(1.07); border-color: transparent; color: #fff; }
+html button.btn-outline.sm-act--plan.active { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5), 0 10px 22px -12px color-mix(in srgb, var(--accent) 90%, transparent); }
+html.light .sm-act--wl { background: #fff; border-color: rgba(60, 45, 90, .14); color: var(--text); box-shadow: 0 1px 2px rgba(40, 30, 60, .06), 0 8px 18px -14px rgba(60, 45, 90, .45); }
+html:not(.light) .sm-act--wl { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .16); color: var(--text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); }
+.sm-act--wl:hover { border-color: color-mix(in srgb, var(--warn, #ffb648) 60%, transparent); }
+
+/* Ask ChatGPT / View plan / Print plan: a tool row of real buttons, pushed right of the label. */
+.tp-tools { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.tp-tool {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px;
+  font-weight: 700; font-size: 12px; line-height: 1.2; cursor: pointer; white-space: nowrap; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  transition: background .15s ease, border-color .15s ease, transform .12s ease;
+}
+.tp-tool:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-1px); }
+.tp-tool--ask { color: #fff; border-color: transparent; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent)); box-shadow: 0 8px 18px -12px color-mix(in srgb, var(--accent) 95%, transparent); }
+.tp-tool--ask:hover { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent)); border-color: transparent; }
+html.light .tp-tool:not(.tp-tool--ask) { background: #fff; box-shadow: 0 1px 2px rgba(40, 30, 60, .06); }
+@media (max-width: 620px) { .tp-tools { margin-left: 0; width: 100%; } .tp-tool { flex: 1 1 0; justify-content: center; padding: 8px 6px; } }
+
+/* "How it ended": a violet bar you can see, not a dashed hairline only its author knew about. */
+.tp-exit {
+  margin: 4px 0 12px; border: 1px solid color-mix(in srgb, var(--violet) 34%, transparent); border-radius: 14px; overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--violet) 10%, transparent), color-mix(in srgb, var(--violet) 4%, transparent));
+}
+html.light .tp-exit { background: linear-gradient(180deg, color-mix(in srgb, var(--violet) 9%, #fff), #fff); box-shadow: 0 10px 24px -18px rgba(60, 45, 90, .45); }
+.tp-exit-head { gap: 10px; padding: 10px 12px; }
+.tp-exit-head:hover { background: color-mix(in srgb, var(--violet) 8%, transparent); }
+.tp-exit-ic {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 9px; color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 16%, transparent); border: 1px solid color-mix(in srgb, var(--violet) 34%, transparent);
+}
+.tp-exit-label { font-size: 13px; letter-spacing: .02em; text-transform: none; color: var(--text); }
+.tp-exit-head:hover .tp-exit-label { color: var(--violet); }
+.tp-exit-opt { padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, transparent); }
+.tp-exit-caret { margin-left: auto; font-size: 12px; color: var(--violet); }
+.tp-exit-body { padding: 2px 12px 12px; border-top: 1px solid color-mix(in srgb, var(--violet) 20%, transparent); }
+.tp-exit-lead { margin-top: 10px; color: var(--subtext); }
+
+/* The plan note read larger than everything around it (13px against 11.5–12px labels). */
+.tp-note { font-size: 12.5px; line-height: 1.6; }
+.tp-note h3, .tp-note h4 { font-size: 13px; margin: 8px 0 4px; }
+.tp-note > :first-child { margin-top: 0; }
+.tp-note-label { margin-right: 2px; }

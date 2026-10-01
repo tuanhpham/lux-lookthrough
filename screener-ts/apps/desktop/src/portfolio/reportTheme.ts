@@ -85,7 +85,9 @@ export const REPORT_CSS = `  :root { color-scheme: dark; }
   .gbar-fill { border-radius:999px; }
   .gbar-n { color:#8d88a3; }
 
-  .notes { border-radius:14px; padding:16px 18px; line-height:1.75; }
+  .notes { border-radius:14px; padding:16px 18px; font-size:13px; line-height:1.65; }
+  .notes h3, .notes h4 { font-size:13.5px; font-weight:700; margin:12px 0 4px; }
+  .notes p { margin:0 0 8px; } .notes ul, .notes ol { margin:4px 0 8px; padding-left:20px; } .notes li { margin:2px 0; }
   .notes > :first-child { margin-top:0; } .notes > :last-child { margin-bottom:0; }
   .why { border-radius:14px; padding:12px 16px; margin:0 0 18px; background:linear-gradient(180deg, rgba(232,121,249,.08), rgba(232,121,249,.02)); border-color:rgba(232,121,249,.22); }
   .why .k { color:#e9a6f7; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; margin-bottom:3px; }

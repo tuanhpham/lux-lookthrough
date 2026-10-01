@@ -60,6 +60,7 @@ import {
   type ConvictionRating, type PriceMap, type SetupKey,
   type GradeAnswers, type GradeResult,
 } from '@screener/core';
+import { cbIcon } from '../ui/commandBar.js';
 import type { AppContext } from '../context.js';
 import { num } from '../ui/dom.js';
 // One rule table, one set of words: the Buy form and this planner size and explain the
@@ -586,12 +587,14 @@ async function computePlans(ctx: AppContext): Promise<void> {
         <div class="tp-note-head">
           <span class="tp-note-label">${t('wl.plan.note')}</span>
           <button type="button" class="note-btn has-note" data-tp-noteedit="${S}" title="${t('pf.note.edit')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button type="button" class="btn-outline mini-btn" data-tp-ask="${S}"
-            title="${t('wl.plan.asktitle')}">🤖 ${t('wl.plan.ask')}</button>
-          <button type="button" class="btn-outline mini-btn" data-tp-view="${S}"
-            title="${t('plan.viewtitle')}">👁 ${t('plan.view')}</button>
-          <button type="button" class="btn-outline mini-btn" data-tp-print="${S}"
-            title="${t('plan.printtitle')}">⎙ ${t('plan.print')}</button>
+          <span class="tp-tools">
+            <button type="button" class="tp-tool tp-tool--ask" data-tp-ask="${S}"
+              title="${t('wl.plan.asktitle')}">${cbIcon('spark', 14)}<span>${t('wl.plan.ask')}</span></button>
+            <button type="button" class="tp-tool" data-tp-view="${S}"
+              title="${t('plan.viewtitle')}">${cbIcon('eye', 14)}<span>${t('plan.view')}</span></button>
+            <button type="button" class="tp-tool" data-tp-print="${S}"
+              title="${t('plan.printtitle')}">${cbIcon('print', 14)}<span>${t('plan.print')}</span></button>
+          </span>
         </div>
         <div class="tp-note note-html" data-tp-note="${S}">${edit.note ?? ''}</div>
       </div>`;
@@ -1675,11 +1678,12 @@ async function askCriteria(symbol: string, btn: HTMLElement): Promise<void> {
 function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
   const x = edit.exit;
   return `
-    <div class="tp-exit">
+    <div class="tp-exit${edit.exitOpen ? ' open' : ''}">
       <button type="button" class="tp-exit-head" data-tp-exittoggle="${S}">
-        <span class="tp-exit-caret">${edit.exitOpen ? '▾' : '▸'}</span>
+        <span class="tp-exit-ic" aria-hidden="true">${cbIcon('flag', 15)}</span>
         <span class="tp-exit-label">${t('wl.plan.exit')}</span>
         <span class="tp-exit-opt">${t('wl.plan.exit.opt')}</span>
+        <span class="tp-exit-caret">${edit.exitOpen ? '▾' : '▸'}</span>
       </button>
       <div class="tp-exit-body${edit.exitOpen ? '' : ' hidden'}" data-tp-exitbody="${S}">
         <p class="tp-exit-lead">${t('wl.plan.exit.lead')}</p>
@@ -2379,6 +2383,7 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
       if (!e) return;
       e.exitOpen = !e.exitOpen;
       root.querySelector(`[data-tp-exitbody="${CSS.escape(sym)}"]`)?.classList.toggle('hidden', !e.exitOpen);
+      b.closest('.tp-exit')?.classList.toggle('open', e.exitOpen);
       const caret = b.querySelector('.tp-exit-caret');
       if (caret) caret.textContent = e.exitOpen ? '▾' : '▸';
     });
