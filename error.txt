@@ -5852,3 +5852,18 @@ CHAT-57 (2026-10-01) - Learn gop Playbook, nen liquid hon, muc luc va cau hinh c
   - Settings & Guides: nhom moi "Giao dich" > Cau hinh cam nang: 4 o tom tat song (thi truong, rui ro moi lenh, setup da sua, sua khac) + nut mo hop + nut doc cam nang. openPlaybookSettingsHere tu chon tai khoan (chi 1 -> no; Overview -> khong, hop bao chua chon tai khoan).
 - Kiem tra: tsc 0, build OK, vitest 420/420 (lan dau 2 timeout 5s khi may dang chay Chrome + build, chay lai qua). Chup headless Learn bia / muc 15 / Settings / hop cau hinh, toi + sang, desktop 1440 + mobile 500 (Chrome headless khong nho hon 500px); khong co phan tu tran ngang o 500px.
 - Chua thu tren thiet bi that (iPhone 390px).
+
+
+CHAT-58 (2026-10-01) - Top Picks, Screener, Sectors, Scanner cung chat lieu kinh voi Learn/Settings
+- Yeu cau: lam moi Top Picks, Screener, Sectors (panel), Scanner cho chuyen nghiep va dep nhu cac trang khac, nhat la Scanner voi kieu noi dung moi.
+- Code: 8d9134fa.
+  - ui/pageHero.ts: hero chung cho 4 trang (icon co mau rieng --c, kicker, tieu de, mo ta, o phai, chan).
+  - Top Picks / Sectors: bang cau hinh kinh, hang danh so bang CSS counter (hang an khong tinh so). Loi cu: #main .card dem 20px 22px de len .picks-config padding 0 -> luoi va dai nut bi lech vao trong; da sua.
+  - Checkbox pre-filter tu ve (native trang tren nen toi). Dong "Chua quet hom nay" thanh ghi chu kinh vien gach.
+  - Screener: form 3 nhom danh so. Quy tac mobile cu nham style*="margin-top:14px" cua hang Run -> thay bang .scr-run.
+  - Regime + nganh nong/lanh: chip mau thay vi cau xam (rotationChips dung chung cho Picks va Sectors).
+  - Sectors: moi nganh mot the kinh, vach mau RS ben trai (--tone), huy hieu hang mau.
+  - Scanner: hero chua thanh trang thai + 6 o tong quan (01 Hom nay, 02 Nganh top N, 03 Watch list, 04 Chay dem, 06 Trang thai, 09 Canh bao), so = so muc, bam -> mo va cuon toi muc (data-ov, khong dung data-jump de khong lam hong scroll-spy). 10 muc thanh the kinh, thanh nhay kinh mo. Chua co ma: 3 buoc danh so + nut.
+  - Mobile: hang as-of khong con moi nut mot dong.
+- Kiem tra: tsc 0, vitest 420/420, build OK. Chup headless toi/sang, 1440 + 500: Scanner voi du lieu gia (harness chen fetch gia /api/scanner/pull, chi tren may nay, khong commit), Scanner chua co ma, Picks, Screener, Sectors voi du lieu that (Yahoo).
+- Chua thu tren thiet bi that; Top Picks co ket qua (bang) chua chup vi quet rat lau.
