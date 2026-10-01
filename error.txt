@@ -5826,3 +5826,14 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 
 ### D. Kiem tra
 — typecheck 0, 420 test, build OK. Chup headless: Portfolio/Financial Status/Scanner toi + sang desktop, mobile 390px hai giao dien.
+
+
+CHAT-56 (2026-10-01) - Darkmode cung co liquid glass
+- Yeu cau: light mode hoan hao; dark mode cung muon liquid glass vi content con hoi kho nhin.
+- Code: e8b60bbc (chi styles.css). Khoi "Liquid glass for dark too (request 60)" cuoi file, tat ca selector la html:not(.light).
+  - Nen: anh sang tim / xanh duong / teal / hong rat mo (alpha <= .3) tren gan den; khong co cho nao sang du de lam chu kho doc.
+  - Card / stat / o nhap / nut vien: kinh toi rgba(255,255,255,.04-.075), vien trang .1, mep tren sang. Khong blur (nen tinh).
+  - Blur that chi o lop noi: thanh tren, dropdown nhom, Ctrl K, modal, menu; do dac .94-.98 de chu phia sau khong hien qua.
+  - Token dark: --text #f2f2f8, --subtext #b4b3c8, --faint #8584a0, --border #2d2d3b (truoc toi hon -> kho doc).
+- Kiem tra: tsc, vite build OK; vitest 420/420 (1 lan timeout 5s o syncMerge "timestamp map once per batch" khi may tai nang, chay lai qua; khong lien quan CSS).
+- Chua thu tren thiet bi that.
