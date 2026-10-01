@@ -10,6 +10,7 @@ import { closeTradePlanner, openTradePlanner } from '../portfolio/tradePlanner.j
 import { openStock } from '../ui/stockModal.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { sectionHead } from '../ui/sectionHead.js';
+import { pageHero } from '../ui/pageHero.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
@@ -33,14 +34,26 @@ export function renderWatchlist(ctx: AppContext): void {
   // The line below drops every node in this tab, including the planner's host and the charts
   // inside it. Scoped to this root so a planner open in the stock modal is left alone.
   closeTradePlanner(root);
+  const vi = getLang() === 'vi';
   root.innerHTML = `
-    <h1>${t('wl.title')}</h1>
-    <p class="subtitle">${t('wl.sub')}</p>
-    <div class="toolbar" id="wl-tabs"></div>
-    <div class="card" style="margin-bottom:14px">
-      <div class="row">
-        <input id="wl-symbol" class="field" style="flex:1" placeholder="Add symbol e.g. AMD" autocomplete="off" />
-        <button id="wl-add" class="btn">${t('wl.add')}</button>
+    ${pageHero({
+      icon: '⭐', tone: 'var(--blue)',
+      kicker: vi ? 'Giao dịch · Danh sách' : 'Trading · Lists',
+      title: t('wl.title'), sub: t('wl.sub'),
+    })}
+    <div class="picks-config card pg-panel">
+      <div class="picks-config-row">
+        <span class="picks-config-label">${vi ? 'Danh sách' : 'Lists'}</span>
+        <div class="picks-pill-group" id="wl-tabs"></div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${vi ? 'Thêm mã' : 'Add symbol'}</span>
+        <div class="picks-pill-group">
+          <input id="wl-symbol" class="field pg-field-wide" placeholder="${vi ? 'Thêm mã, ví dụ AMD' : 'Add symbol e.g. AMD'}" autocomplete="off" />
+          <button id="wl-add" class="btn">${t('wl.add')}</button>
+        </div>
+      </div>
+      <div class="picks-config-actions">
         <button id="wl-refresh" class="btn-outline">↻ ${t('wl.refresh')}</button>
         <button id="wl-plan" class="btn-outline">📋 ${t('wl.plan')}</button>
         <button id="wl-export" class="btn-outline" title="${t('wl.export.tip')}">⬇ ${t('wl.export')}</button>

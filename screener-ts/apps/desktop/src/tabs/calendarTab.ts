@@ -39,6 +39,7 @@ import {
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el, fmtBig } from '../ui/dom.js';
+import { pageHero } from '../ui/pageHero.js';
 import { t, getLang } from '../ui/i18n.js';
 import { openStock } from '../ui/stockModal.js';
 import { formDialog } from '../ui/forms.js';
@@ -153,8 +154,11 @@ export function renderCalendar(ctx: AppContext): void {
   appCtx = ctx;
   const root = $('#tab-calendar')!;
   root.innerHTML = `
-    <h1>${t('cal.title')}</h1>
-    <p class="subtitle">${t('cal.sub')}</p>
+    ${pageHero({
+      icon: '📅', tone: 'var(--warn)',
+      kicker: getLang() === 'vi' ? 'Thị trường · Sự kiện' : 'Market · Events',
+      title: t('cal.title'), sub: t('cal.sub'),
+    })}
     <div id="cal-controls"></div>
     <div id="cal-status"></div>
     <div id="cal-risk"></div>

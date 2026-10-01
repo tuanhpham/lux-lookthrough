@@ -80,6 +80,7 @@ import { drawLine, drawCandles } from '../ui/charts.js';
 // belongs to the block and why a chip's number is set in mono.
 import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { cbIcon } from '../ui/commandBar.js';
+import { pageHero } from '../ui/pageHero.js';
 import { formDialog } from '../ui/forms.js';
 import { richNoteDialog, richEditorHtml, wireRichEditor, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { attachCombobox } from '../ui/combobox.js';
@@ -1273,8 +1274,11 @@ function draw(ctx: AppContext): void {
   const cache = (st as AccountState & { _candleCache?: ReturnType<typeof buildCandleSeries> })._candleCache;
 
   root.innerHTML = `
-    <h1>${t('pf.title')}</h1>
-    <p class="subtitle">${t('pf.sub')}</p>
+    ${pageHero({
+      icon: '💼', tone: 'var(--accent)',
+      kicker: getLang() === 'vi' ? 'Tiền · Tài khoản' : 'Money · Accounts',
+      title: t('pf.title'), sub: t('pf.sub'),
+    })}
     ${toolbarHtml()}
     <div id="update-status" class="muted" style="margin-bottom:10px"></div>
 
@@ -3345,8 +3349,11 @@ function buildOverviewHtml(): string {
   const avgHoldDays = holdShares > 0 ? holdSum / holdShares : 0;
 
   return `
-    <h1>${t('pf.title')}</h1>
-    <p class="subtitle">${t('pf.sub.overview')}</p>
+    ${pageHero({
+      icon: '💼', tone: 'var(--accent)',
+      kicker: getLang() === 'vi' ? 'Tiền · Tài khoản' : 'Money · Accounts',
+      title: t('pf.title'), sub: t('pf.sub.overview'),
+    })}
     ${toolbarHtml()}
     <div id="overview-update-status" style="margin-bottom:10px"></div>
 

@@ -20,7 +20,8 @@ import { drawLine } from '../ui/charts.js';
 import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { downloadCsv, downloadHtml } from '../ui/exportFile.js';
 import { openStock } from '../ui/stockModal.js';
-import { t } from '../ui/i18n.js';
+import { t, getLang } from '../ui/i18n.js';
+import { pageHero } from '../ui/pageHero.js';
 
 type BtStrategy = 'vcp' | 'momentum';
 let btStrategy: BtStrategy = 'vcp';
@@ -54,35 +55,47 @@ const PERIOD_PRESETS: { mode: PeriodMode; label: string }[] = [
 export function renderBacktest(ctx: AppContext): void {
   const root = $('#tab-backtest')!;
   root.innerHTML = `
-    <h1>${t('backtest.title')}</h1>
-    <p class="subtitle">${t('backtest.sub')}</p>
+    ${pageHero({
+      icon: '⏱', tone: '#18bea8',
+      kicker: getLang() === 'vi' ? 'Giao dịch · Mô phỏng' : 'Trading · Simulation',
+      title: t('backtest.title'), sub: t('backtest.sub'),
+    })}
     <div class="notice" style="margin-bottom:14px">${t('backtest.note')}</div>
-    <div class="card" style="margin-bottom:16px">
-      <div style="margin-bottom:12px">
-        <label class="field-label">${t('backtest.strategy')}</label>
-        <div class="toolbar" style="margin:0;gap:6px">
+    <div class="picks-config card pg-panel">
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('backtest.strategy')}</span>
+        <div class="picks-pill-group">
           <button class="range-btn ${btStrategy === 'vcp' ? 'active' : ''}" data-btstrat="vcp">${t('backtest.strat.vcp')}</button>
           <button class="range-btn ${btStrategy === 'momentum' ? 'active' : ''}" data-btstrat="momentum">${t('backtest.strat.momentum')}</button>
+          <p id="bt-strat-desc" class="muted pg-row-note">${stratDesc(btStrategy)}</p>
         </div>
-        <p id="bt-strat-desc" class="muted" style="font-size:12px;margin:6px 0 0;line-height:1.5">${stratDesc(btStrategy)}</p>
       </div>
-      <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">
-        <div><label class="field-label">${t('backtest.symbols')}</label>
-          <input id="bt-symbols" class="field" placeholder="AAPL, NVDA, MSFT" /></div>
-        <div><label class="field-label">${t('backtest.risk')}</label>
-          <input id="bt-risk" class="field" type="number" value="1" step="0.25" /></div>
-        <div><label class="field-label">${t('backtest.capital')}</label>
-          <input id="bt-capital" class="field" type="number" value="100000" step="10000" /></div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('backtest.symbols')}</span>
+        <div class="picks-pill-group">
+          <input id="bt-symbols" class="field pg-field-wide" placeholder="AAPL, NVDA, MSFT" />
+        </div>
       </div>
-      <div style="margin-bottom:12px">
-        <label class="field-label">${t('backtest.period')}</label>
-        <div class="toolbar" style="margin:0;gap:5px" id="bt-period-row">
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('backtest.risk')}</span>
+        <div class="picks-pill-group">
+          <input id="bt-risk" class="field pg-field-num" type="number" value="1" step="0.25" />
+        </div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('backtest.capital')}</span>
+        <div class="picks-pill-group">
+          <input id="bt-capital" class="field pg-field-num" type="number" value="100000" step="10000" />
+        </div>
+      </div>
+      <div class="picks-config-row">
+        <span class="picks-config-label">${t('backtest.period')}</span>
+        <div class="picks-pill-group" id="bt-period-row">
           ${PERIOD_PRESETS.map(
             (p) =>
               `<button class="range-btn ${p.mode === periodMode ? 'active' : ''}" data-btperiod="${p.mode}">${p.label}</button>`,
           ).join('')}
-        </div>
-        <div id="bt-custom-dates" class="${periodMode === 'custom' ? '' : 'hidden'}" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div id="bt-custom-dates" class="${periodMode === 'custom' ? '' : 'hidden'}" style="flex-basis:100%;margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
           <div>
             <label class="field-label">${t('backtest.from')}</label>
             <input id="bt-from" class="field" type="date" style="width:160px"
@@ -94,8 +107,9 @@ export function renderBacktest(ctx: AppContext): void {
               value="${today()}" max="${today()}" />
           </div>
         </div>
+        </div>
       </div>
-      <div class="row" style="margin-top:14px">
+      <div class="picks-config-actions">
         <button id="bt-run" class="btn">${t('backtest.run')}</button>
         <span id="bt-status" class="muted"></span>
       </div>

@@ -23,6 +23,7 @@ import {
 import { caseSvgChart, windowBars } from '../caseStudies/svgChart.js';
 import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { cbButton, commandBar } from '../ui/commandBar.js';
+import { pageHero } from '../ui/pageHero.js';
 import { caseStudyHtml } from '../caseStudies/report.js';
 import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import {
@@ -130,12 +131,14 @@ async function renderList(ctx: AppContext): Promise<void> {
   const idx = await loadCaseIndex(ctx);
 
   root.innerHTML = `
-    <h1>${vi ? 'Hồ sơ Setup' : 'Case Studies'}</h1>
-    <p class="subtitle">${
-      vi
+    ${pageHero({
+      icon: '🗂', tone: 'var(--violet)',
+      kicker: vi ? 'Giao dịch · Nhật ký' : 'Trading · Journal',
+      title: vi ? 'Hồ sơ Setup' : 'Case Studies',
+      sub: vi
         ? 'Ghi lại các thiết lập trong quá khứ: ngày then chốt, mức mua/cắt lỗ/mục tiêu, chất xúc tác và ghi chú — kèm biểu đồ và xuất báo cáo.'
-        : 'Document past setups: the key date, entry/stop/target, catalysts and notes — with a chart and a downloadable report.'
-    }</p>
+        : 'Document past setups: the key date, entry/stop/target, catalysts and notes — with a chart and a downloadable report.',
+    })}
     ${commandBar({
       actions: [cbButton({ id: 'cs-new', label: vi ? 'Hồ sơ mới' : 'New case study', icon: 'plus', primary: true })],
       meta: `<span class="cb-hint">${idx.length} ${vi ? 'hồ sơ' : idx.length === 1 ? 'study' : 'studies'}</span>`,
@@ -154,7 +157,7 @@ async function renderList(ctx: AppContext): Promise<void> {
 
   for (const m of idx) {
     const card = el(`
-      <div class="card cs-card" style="margin-bottom:10px;cursor:pointer">
+      <div class="card cs-card" style="--tone:${OUTCOME_COLOR[m.outcome]}">
         <div class="row" style="justify-content:space-between;align-items:center">
           <div>
             <strong style="font-size:15px">${m.symbol}</strong>

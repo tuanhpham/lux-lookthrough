@@ -1,10 +1,11 @@
 /**
- * The page hero for the market pages (Top Picks, Screener, Sectors, Scanner).
+ * The page head every working page opens with (Calendar, the market pages, the
+ * trading and money pages).
  *
- * The same material as the Learn cover and the Settings tiles: a glass band with a
- * tinted icon badge, a small kicker line saying which group the page belongs to, the
- * real title and one sentence. `--c` is the page's own colour — it tints the badge
- * and the glow in the corner, so four pages that share a layout still read apart.
+ * The Event Calendar's head — the title and one sentence straight on the canvas, no
+ * band — with one piece of the glass kept: a small tinted pill above the title, the
+ * page's icon and the group it belongs to. `--c` is the page's own colour and only
+ * tints that pill, so pages that share a layout still read apart.
  *
  * Every string is trusted HTML from the caller (i18n text and flag SVGs); nothing a
  * user typed goes through here.
@@ -18,16 +19,15 @@ export interface HeroOpts {
   tone?: string;
   /** Right-hand slot on the title row (a status strip, a button). */
   side?: string;
-  /** Under the title row, inside the band (overview tiles). */
+  /** Under the title row (overview tiles). */
   foot?: string;
 }
 
 export function pageHero(o: HeroOpts): string {
   return `<header class="pg-hero"${o.tone ? ` style="--c:${o.tone}"` : ''}>
     <div class="pg-hero-row">
-      <span class="pg-hero-ic" aria-hidden="true">${o.icon}</span>
       <div class="pg-hero-text">
-        <span class="pg-hero-kicker">${o.kicker}</span>
+        <span class="pg-hero-kicker"><i class="pg-hero-ic" aria-hidden="true">${o.icon}</i>${o.kicker}</span>
         <h1>${o.title}</h1>
         <p class="subtitle">${o.sub}</p>
       </div>

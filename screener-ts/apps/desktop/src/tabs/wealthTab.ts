@@ -38,7 +38,8 @@ import {
 } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, pct } from '../ui/dom.js';
-import { t } from '../ui/i18n.js';
+import { t, getLang } from '../ui/i18n.js';
+import { pageHero } from '../ui/pageHero.js';
 import { formDialog } from '../ui/forms.js';
 import { countChip, sectionHead } from '../ui/sectionHead.js';
 import { cbButton, cbIcon, cbSegment, commandBar } from '../ui/commandBar.js';
@@ -352,8 +353,11 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
   if (stale.length) warnings.push(t('wealth.warn.stale').replace('{n}', String(STALE_DAYS)).replace('{names}', esc(stale.map((a) => a.name).join(', '))));
 
   return `
-    <h1>${t('wealth.title')}</h1>
-    <p class="subtitle">${tc('wealth.sub')}</p>
+    ${pageHero({
+      icon: '🏦', tone: 'var(--blue)',
+      kicker: getLang() === 'vi' ? 'Tiền · Tài sản' : 'Money · Net worth',
+      title: t('wealth.title'), sub: tc('wealth.sub'),
+    })}
     ${commandBar({
       actions: [
         cbButton({ id: 'w-add', label: t('wealth.add.btn'), icon: 'plus', primary: true }),

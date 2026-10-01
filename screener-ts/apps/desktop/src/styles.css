@@ -7444,3 +7444,136 @@ html.light .sl-exit-cap { background: rgba(255, 255, 255, .7); border: 1px solid
   .sl-rail-stop span { display: none; }
   .sl-cue { bottom: 14px; }
 }
+
+/* ══ Request 65: one page head, one body, one table header ══════════════════════════
+   Appended last, after request 64's story block, so it wins the ties.
+
+   1. The page head is the Event Calendar's: the title and its sentence straight on the
+      canvas, no band, no glow. Request 62's hero keeps one thing, its tinted kicker,
+      now a small pill above the title holding the page icon and group. ui/pageHero.ts
+      builds it for every working page.
+   2. Backtest and Watchlist get the Top Picks body: their form is a `.picks-config.pg-panel`
+      with numbered rows. Case Study cards get the Sectors card's coloured edge.
+   3. Table headers are one tinted band in both themes. The colour comes from a variable
+      so the background rule stays at `#main th` specificity. Tables with their own head
+      (`table.scan-gt`, `table.wl-chk`, ...) still win with `#main table.x th`. */
+
+/* ── 1. the page head ── */
+.pg-hero, html:not(.light) .pg-hero, html.light .pg-hero {
+  margin: 0 0 24px; padding: 0; border: 0; border-radius: 0; overflow: visible;
+  background: none; box-shadow: none;
+}
+.pg-hero::before { display: none; }
+.pg-hero-row { align-items: flex-end; gap: 16px; }
+.pg-hero-kicker {
+  display: inline-flex; align-items: center; gap: 7px; margin: 0 0 10px; padding: 3px 11px 3px 4px;
+  border-radius: 999px; font: 700 10.5px var(--font-ui); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+}
+.pg-hero-ic {
+  flex: none; width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center;
+  font-size: 11.5px; font-style: normal; letter-spacing: 0; line-height: 1;
+  background: color-mix(in srgb, var(--c) 18%, transparent); border: 0; box-shadow: none;
+}
+#main .pg-hero h1 { margin: 0 0 4px; }
+#main .pg-hero .subtitle { margin: 0; max-width: 110ch; font-size: 13px; line-height: 1.55; }
+@media (max-width: 720px) {
+  .pg-hero, html:not(.light) .pg-hero, html.light .pg-hero { padding: 0; margin-bottom: 18px; }
+  .pg-hero-text { flex-basis: 100%; }
+  .pg-hero-ic { width: 20px; height: 20px; border-radius: 999px; font-size: 11.5px; }
+  #main .pg-hero .subtitle { font-size: 12.5px; }
+}
+
+/* ── 2. the Top Picks body on Backtest, Watchlist and Case Studies ── */
+.picks-pill-group .pg-row-note { flex-basis: 100%; margin: 2px 0 0; font-size: 12px; line-height: 1.5; }
+.picks-pill-group .pg-field-wide { flex: 1 1 260px; width: auto; max-width: 520px; }
+.picks-pill-group .pg-field-num { flex: none; width: 170px; }
+.picks-pill-group .field { padding-top: 7px; padding-bottom: 7px; font-size: 13.5px; }
+#tab-backtest .picks-config, #tab-watchlist .picks-config { margin-bottom: 18px; }
+#tab-backtest .picks-config-actions, #tab-watchlist .picks-config-actions { flex-wrap: wrap; gap: 8px 10px; }
+
+#main .cs-card.card {
+  --tone: var(--faint);
+  position: relative; margin-bottom: 10px; padding: 14px 18px 14px 20px; border-radius: 14px; cursor: pointer;
+  transition: transform .2s cubic-bezier(.22, 1, .36, 1), border-color .2s ease;
+}
+.cs-card::before {
+  content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--tone);
+}
+.cs-card::after {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 140px; pointer-events: none; border-radius: inherit;
+  background: radial-gradient(100% 90% at 0% 50%, color-mix(in srgb, var(--tone) 12%, transparent), transparent 75%);
+}
+.cs-card > * { position: relative; z-index: 1; }
+#main .cs-card.card:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--tone) 45%, transparent); }
+
+/* Portfolio: the KPI tiles take the Scanner overview's coloured edge */
+#tab-portfolio .kpi-stat-grid .stat { position: relative; overflow: hidden; }
+#tab-portfolio .kpi-stat-grid .stat::before {
+  content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--accent-line);
+}
+
+/* ── 3. table headers ── */
+html:not(.light) {
+  --th-bg: linear-gradient(180deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .03)), rgb(23, 21, 35);
+  --th-edge: color-mix(in srgb, var(--accent) 38%, rgba(255, 255, 255, .1));
+  --th-hi: inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+html.light {
+  --th-bg: linear-gradient(180deg, #fffdfa, #f3eee6);
+  --th-edge: color-mix(in srgb, var(--accent) 30%, rgba(60, 45, 25, .12));
+  --th-hi: inset 0 1px 0 #fff;
+}
+#main th, .modal-body th {
+  font: 650 10.5px var(--font-ui); letter-spacing: .075em; text-transform: uppercase;
+  color: var(--subtext); padding: 10px 12px 9px; vertical-align: bottom;
+  background: var(--th-bg); box-shadow: var(--th-hi);
+  border-bottom: 1px solid var(--th-edge);
+}
+#main th.sortable:hover, .modal-body th.sortable:hover { color: var(--text); }
+#main th.sorted, .modal-body th.sorted {
+  color: var(--accent);
+  box-shadow: var(--th-hi), inset 0 -2px 0 var(--accent);
+}
+
+/* ── the story: no more frosted blur, and every chapter a full-bleed photograph ──
+   The chapter panels are glass now and blur what is behind them, so the older blurs
+   are removed. That means the veil flash, the frosted ring of the ending, and the
+   blurred photo on phones. Chapters 0–3 fill the screen with their photo the way
+   chapter 4 does, under the same canvas-coloured wash. It is lighter than chapter
+   4's because a glass panel, not bare text, sits on top. */
+.about-story .sl-veil { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.about-story .sl-exit::after { display: none; }
+.about-story .sl-chapter > .sl-ch-bg {
+  inset: 0; width: 100%; height: 100%; opacity: 1; filter: none; transform: none;
+  -webkit-mask-image: none; mask-image: none;
+}
+.about-story .sl-ch-bg--left { background-position: left center; }
+.about-story .sl-ch-bg--right { background-position: right center; }
+html.light .about-story .sl-chapter > .sl-ch-bg { filter: saturate(.92) brightness(1.04); }
+.about-story .sl-chapter .sl-ch-bg::before {
+  display: block; content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(60% 55% at 50% 50%, color-mix(in srgb, var(--c, var(--accent)) 12%, transparent), transparent 75%),
+    linear-gradient(to bottom,
+      color-mix(in srgb, var(--bg) 88%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 42%, transparent) 26%,
+      color-mix(in srgb, var(--bg) 42%, transparent) 74%,
+      color-mix(in srgb, var(--bg) 92%, transparent) 100%);
+}
+html.light .about-story .sl-chapter .sl-ch-bg::before {
+  background:
+    radial-gradient(60% 55% at 50% 50%, color-mix(in srgb, var(--c, var(--accent)) 9%, transparent), transparent 75%),
+    linear-gradient(to bottom,
+      color-mix(in srgb, var(--bg) 90%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 50%, transparent) 26%,
+      color-mix(in srgb, var(--bg) 50%, transparent) 74%,
+      color-mix(in srgb, var(--bg) 94%, transparent) 100%);
+}
+@media (max-width: 700px) {
+  .about-story .sl-chapter .sl-ch-bg::before { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+  html.light .about-story .sl-chapter .sl-ch-bg::before { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+}
