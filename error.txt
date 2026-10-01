@@ -5960,3 +5960,15 @@ CHAT-66 (2026-10-01) - Tai chinh 26 tai khoan, bang tren mobile, chart khong bat
   - i18n.ts: 500 chuoi vi viet lai; giu Scanner/Screener/Watchlist/Playbook/Trade plan/setup/entry/stop/target/size/chart/sync; Danh muc = Portfolio, KQKD = earnings. Chuoi vi inline o file khac chua doi.
 - Kiem tra: tsc, vitest 420/420 (--testTimeout=30000), vite build; anh headless Financial Status 26 tai khoan 1300 va 500 (expand all, sang/toi).
 - Chua thu tren thiet bi that.
+
+CHAT-67 (2026-10-01) - Nut prompt dong bo, Hoi Tro ly, tieng Viet tu nhien moi trang
+- Yeu cau: tieng Viet chuan cho tat ca cac trang; Ask ChatGPT / Copy / Show prompt cung kich thuoc (va cho tuong tu); them nut Ask Assistant (chat bot rieng) o moi noi co Ask ChatGPT.
+- Code: 14aa036b.
+  - ui/promptActions.ts: promptActsHtml/paBtn, mot hang nut 34px (gpt / Tro ly / Copy / Xem prompt), 2x2 tren mobile; nhan nam trong span [data-lbl] nen thong bao "Da copy" khong xoa icon.
+  - Hoi Tro ly: trang co phieu (prompt nghien cuu), Case Study, thu vien prompt Playbook, hop hoi tieu chi va hang cong cu Trade plan.
+  - chatPanel.askInChat: mo khung chat, bat dau cuoc tro chuyen moi, hien nhan ngan + prompt day du gap ben duoi. Doi sang noi tiep chat cu: bo startNewState() trong askInChat.
+  - chatPanel.askAssistantText: hop tieu chi cho Tro ly tra loi thang vao o dan, bam lan nua de dung; khong co key thi bao vao ⚙ hoac dung Ask ChatGPT.
+  - Viet lai chu tieng Viet trong ~50 file ngoai i18n.ts (scannerGuide, playbook, glossary, settingsGuide, Case Study, sync...) va prompt tieng Viet trong packages/core; giu nguyen token ma parser doc.
+  - exitReasons: OLD_VI giu nhan cu de case study cu van map ve dung key; BO hien la "Breakout"; nut ⚙ Playbook dong bo trong huong dan.
+- Kiem tra: tsc OK (desktop + core); vitest desktop 420/420, core 833/833; vite build OK; chup man hinh hang nut Case Study desktop + mobile 500px.
+- Chua thu tren thiet bi that.
