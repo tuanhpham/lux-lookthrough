@@ -5739,3 +5739,30 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 
 ### D. Kiem tra
 — typecheck exit 0, desktop 413 test, vite build OK. Chua xem tren dien thoai that.
+
+
+## CHAT-52 — Popover chon tai khoan, mo/thu gon tat ca, mat du lieu nhieu thiet bi, trang Cai dat & Huong dan (f452e197, 8770ce4e)
+
+### A. Yeu cau
+— Dropdown chon tai khoan bi che duoi bang: lam dep, chuyen nghiep hon. Them nut mo/thu gon tat ca tai khoan.
+— Hay mat du lieu khi dung nhieu thiet bi: cach de nhat de khoi phuc ve mot thoi diem, va mot trang kieu Settings viet tung buoc, moi buoc co nut copy. Gom ca build local, deploy, va van hanh scanner; muc luc; tap trung mot cho.
+
+### B. Nguyen nhan mat du lieu
+— pullAndMerge chi chay luc khoi dong (va khi thu lai). Portfolio `ensureAccountsLoaded` khong doc lai sau khi `loadedAt === 'hydrated'`.
+— Mot tab de mo lau (vd laptop) giu ban cu; sua mot cho la ghi ca blob `accounts` / `wealth` voi updated_at = bay gio -> de len sua doi cua thiet bi khac. Ban cu van con trong kv_history.
+— Sua: main.ts `pullOnReturn` khi tab hien lai / focus, toi da moi REPULL_MS = 60s, chi khi sync bat va da hydrate. Co thay doi thi `invalidateAccounts()` va ve lai tab.
+
+### C. Da lam
+— f452e197: popover chon tai khoan noi tren bang, nut mo/thu gon tat ca.
+— API `POST /api/sync/restore-at {at, dryRun?, keys?}`: gia tri cua moi key tai `at` = su kien dau tien sau `at` trong kv_history/kv_trash. Key tao sau `at` giu nguyen, khong xoa gi. Ban hien tai duoc luu vao kv_history truoc (cung mot DB.batch) -> hoan tac = khoi phuc ve `done - 1000`. SQL da thu bang sqlite 3.50.
+— `GET history?lite=1`: chi kich thuoc, khong tai gia tri (truoc co the toi 20 MB).
+— Tab moi "Cai dat & Huong dan" (#settings, menu ☰): muc luc dinh (mobile: dai chip), the tung buoc, moi lenh la mot "terminal" ghi ro chay o dau (PC / VM / crontab / Cloudflare / app), nut chep, <PLACEHOLDER> mau vang. Muc: du lieu & sync, khoi phuc ve thoi diem (chon gio hoac goi y tu lich su accounts/wealth, xem truoc, tick key, cache bo tick san), vi sao mat du lieu, D1 time travel, chay local, deploy, VM scanner (ket noi, service & log, cron, su co, cau hinh), quy tac an toan.
+— Hop thoai ☁️ co nut "⏪ Khoi phuc moi thu ve mot thoi diem". Tab Scanner co dai "Van hanh VM" dan sang tung muc.
+— Clipboard: neu navigator.clipboard bi tu choi thi dung execCommand('copy').
+— Huong dan chi co placeholder: khong IP VM, khong ma, khong SCANNER_PUSH_URL.
+
+### D. Can lam o may kia
+— PHAI deploy server moi co restore-at va lite: `npm run build`, roi trong apps/desktop `npx wrangler pages deploy dist --project-name the-professional`. Truoc do dung 🕘 Xem phien ban cu.
+
+### E. Kiem tra
+— typecheck exit 0, desktop 413 test, vite build OK. Chua thu restore-at tren D1 that (wrangler bi chan o may nay).
