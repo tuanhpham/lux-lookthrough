@@ -1258,8 +1258,9 @@ export function renderScreener(ctx: AppContext): void {
           <option value="relativeStrength">RS</option></select></div>
       </div>
       </div>
-      <div class="row scr-run"><button id="run-screen" class="btn">${t('screener.run')}</button><span id="screen-status" class="muted"></span></div>
+      <div class="row scr-run"><button id="run-screen" class="btn">${t('screener.run')}</button><button id="screen-stop" class="btn-outline hidden">${t('picks.stop')}</button><span id="screen-status" class="muted"></span></div>
     </div>
+    <div id="screen-progress" class="picks-progress hidden"><div id="screen-bar"></div></div>
     <div id="screen-results"></div>`;
 
   renderSectorChips();
@@ -1270,13 +1271,20 @@ export function renderScreener(ctx: AppContext): void {
       screenerMarket = m;
       // Sector sets differ between markets — clear stale selections.
       selectedSectors.clear();
+      cancelScreen();
       renderScreener(ctx);
     }),
   );
   wireAsOfControls('screener', root, () => applyHistoricalFlag('screener', root));
   applyHistoricalFlag('screener', root);
   $('#run-screen')!.addEventListener('click', () => void runScreen(ctx));
-  void showScreen(ctx);
+  $('#screen-stop')!.addEventListener('click', () => {
+    cancelScreen();
+    $('#screen-status')!.textContent = `${t('picks.stopped')}.`;
+  });
+  // A scan keeps going while you look at another tab; coming back shows its bar, not the cache.
+  if (screenActive) paintScreenRun();
+  else void showScreen(ctx);
 }
 
 /** Toggle the .historical-mode class on a tab root so its results edge tints
@@ -1307,6 +1315,8 @@ async function showScreen(ctx: AppContext): Promise<void> {
 /** Programmatic entry used by the Sectors tab "Screen stocks" button.
  * Checks cache first — only runs a live scan if no results exist for today. */
 export function screenSector(ctx: AppContext, sector: string): void {
+  // A new sector is a new question: the scan still running for the old one stops.
+  cancelScreen();
   // Keep the Screener's market aligned with the Sectors tab so the sector exists.
   screenerMarket = sectorMarket;
   renderScreener(ctx);
@@ -1325,22 +1335,61 @@ export function screenSector(ctx: AppContext, sector: string): void {
   });
 }
 
-/** Bumped per Screener run: a slower, older run (Sectors → "Screen stocks" twice) must not paint over a newer one. */
+/** Bumped per Screener run and by every cancel: a run whose number no longer matches stops at its next check. */
 let screenRunSeq = 0;
+/** The run that owns Run/Stop and the bar; 0 when idle. */
+let screenActive = 0;
+/** Where the running scan is, so a re-rendered tab can paint it again. */
+let screenPct = 0;
+let screenMsg = '';
+
+/** Paint the running scan into whatever Screener DOM is current — the tab may have been re-rendered since it began. */
+function paintScreenRun(): void {
+  const busy = screenActive !== 0;
+  $('#run-screen')?.classList.toggle('hidden', busy);
+  $('#screen-stop')?.classList.toggle('hidden', !busy);
+  $('#screen-progress')?.classList.toggle('hidden', !busy);
+  const bar = $('#screen-bar');
+  if (bar) bar.style.width = `${screenPct}%`;
+  const status = $('#screen-status');
+  if (busy && status) status.innerHTML = screenMsg;
+}
+
+function screenProgress(run: number, pct: number, msg: string): void {
+  if (run !== screenActive) return;
+  screenPct = pct;
+  screenMsg = msg;
+  paintScreenRun();
+}
+
+/** Stop the running scan (Stop, a new sector, a market switch) and hand Run back now, not after its batch lands. */
+function cancelScreen(): void {
+  if (!screenActive) return;
+  screenRunSeq++;
+  screenActive = 0;
+  paintScreenRun();
+}
 
 async function runScreen(ctx: AppContext): Promise<void> {
   const run = ++screenRunSeq;
+  screenActive = run;
+  screenPct = 0;
+  screenMsg = `<span class="spinner"></span> ${t('msg.scanning')}…`;
+  paintScreenRun();
   try {
     await runScreenOnce(ctx, run);
   } catch (e) {
     // A failed fetch used to leave the spinner turning forever.
     if (run === screenRunSeq) $('#screen-status')!.textContent = `${t('picks.stopped')} — ${String(e).slice(0, 200)}`;
+  } finally {
+    if (run === screenActive) {
+      screenActive = 0;
+      paintScreenRun();
+    }
   }
 }
 
 async function runScreenOnce(ctx: AppContext, run: number): Promise<void> {
-  const status = $('#screen-status')!;
-  const out = $('#screen-results')!;
   const symInput = ($('#sym-input') as HTMLInputElement).value
     .split(',')
     .map((s) => s.trim().toUpperCase())
@@ -1349,32 +1398,50 @@ async function runScreenOnce(ctx: AppContext, run: number): Promise<void> {
   const sectorMap = screenerSectorMap();
   const universe = [...new Set([...symInput, ...sectors.flatMap((s) => sectorMap[s] ?? [])])];
   if (!universe.length) {
-    status.textContent = 'Enter symbols or pick a sector.';
+    screenActive = 0;
+    paintScreenRun();
+    $('#screen-status')!.textContent = L('Enter symbols or pick a sector.', 'Nhập mã hoặc chọn một ngành.');
     return;
   }
   const asOf = getAsOf('screener').date;
-  status.innerHTML = `<span class="spinner"></span> ${t('msg.scanning')} ${universe.length}…${
-    asOf ? ` (${asOfLabel('screener')})` : ''
-  }`;
-  out.innerHTML = '';
-  // Historical mode fetches a longer range so EMA200 etc. are defined before the
-  // as-of date, then slices each series to that date.
-  const fetchPeriod = fetchPeriodFor('screener', PERIOD);
-  const rawData = await fetchMany(ctx.data, universe, fetchPeriod, 8);
-  const data = sliceMap(rawData, asOf);
+  const asOfNote = asOf ? ` (${asOfLabel('screener')})` : '';
+  $('#screen-results')!.innerHTML = '';
 
-  // New QM + Momentum filters.
+  // Every input is read now: the tab can be re-rendered (and its fields reset) while the fetch runs.
   const setupFilter = ($('#setup-filter') as HTMLSelectElement).value as QmSetupType | '';
   const minQualityRaw = ($('#min-quality') as HTMLInputElement).value.trim();
   const minQuality = minQualityRaw === '' ? -Infinity : Number(minQualityRaw);
   const momentumFilter = ($('#momentum-filter') as HTMLSelectElement).value as MomentumClassification | '';
   const sortBy = ($('#sort-by') as HTMLSelectElement).value as ScreenerSortKey;
   const classRank: Record<MomentumClassification, number> = { Weak: 1, Building: 2, Strong: 3, Explosive: 4 };
+  const cacheId = screenerCacheId();
+
+  // Historical mode fetches a longer range so EMA200 etc. are defined before the
+  // as-of date, then slices each series to that date. In batches, so the bar moves and Stop
+  // lands between two of them instead of after the whole list.
+  const fetchPeriod = fetchPeriodFor('screener', PERIOD);
+  const BATCH = 40;
+  const rawData = new Map<string, OHLCV>();
+  screenProgress(run, 0, `<span class="spinner"></span> ${t('msg.scanning')} 0/${universe.length}${asOfNote}`);
+  for (let i = 0; i < universe.length; i += BATCH) {
+    const got = await fetchMany(ctx.data, universe.slice(i, i + BATCH), fetchPeriod, 8);
+    if (run !== screenRunSeq) return;
+    for (const [sym, series] of got) rawData.set(sym, series);
+    const done = Math.min(i + BATCH, universe.length);
+    screenProgress(run, Math.round((done / universe.length) * 100),
+      `<span class="spinner"></span> ${t('msg.scanning')} ${done}/${universe.length}${asOfNote}`);
+  }
+  const data = sliceMap(rawData, asOf);
 
   // Benchmark (SPY) for relative strength, sliced to the as-of date too.
   const { spy: spyRaw } = await fetchBenchmarks(ctx, fetchPeriod, screenerMarket);
   const spy = spyRaw ? sliceSeries(spyRaw, asOf) : null;
   if (run !== screenRunSeq) return;
+  // Fetching is done: hand Run back before the results paint, so the bar does not linger over them.
+  screenActive = 0;
+  paintScreenRun();
+  const status = $('#screen-status')!;
+  const out = $('#screen-results')!;
 
   // Sector volume ranks for industry comparison in each row.
   const screenerSectorStocks = screenerSectorMap();
@@ -1422,7 +1489,7 @@ async function runScreenOnce(ctx: AppContext, run: number): Promise<void> {
     }),
   );
   // Persist results so coming back (or switching from Sectors) is instant.
-  await saveScan<ScreenerRow>(ctx, screenerCacheId(), top, scanned);
+  await saveScan<ScreenerRow>(ctx, cacheId, top, scanned);
   void enrichUnknownSymbols(ctx, top.map((r) => r.symbol));
   renderScanBannerInto('#screen-status', Date.now(), scanned, () => void runScreen(ctx), t('screener.run'));
 }
