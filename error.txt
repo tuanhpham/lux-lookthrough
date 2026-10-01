@@ -5927,3 +5927,12 @@ CHAT-63 (2026-10-01) - Chatbot, popup va Case Study kinh long; xem/in ke hoach d
   - Sua loi cu: .dialog dung keyframe modalIn co translateX(50%) cua stock modal nen popup truot tu nua phai man hinh; nay co dialogIn rieng. Luoi bieu do case study o theme sang khong con mau den.
 - Kiem tra: tsc, vitest 420/420, vite build; anh headless danh sach/chi tiet Case Study sang toi, popup ke hoach, chatbot sang toi.
 - Chua thu tren thiet bi that.
+
+CHAT-64 (2026-10-01) - Popup ke hoach vua man hinh dien thoai, Man hinh/Giay theo theme, kinh long
+- Yeu cau: (1) "View plan" tren mobile bi khuat ben phai; (2) 2 nut Tai HTML / In - Luu PDF bi khuat o duoi, khong cuon duoc; (3) nen popup trade plan tu theo theme: toi = Man hinh, sang = Giay; (4) Man hinh va Giay phai kinh long, khong qua toi hay qua sang.
+- Code: a390a13b.
+  - Nguyen nhan (1)(2): .dialog-host co padding 14px ma tam ke hoach mobile lai 100vw x 100dvh, nen bi day lech phai va xuong duoi. Nay host bo padding cho .dialog--report, tam day 100% host, padding duoi them env(safe-area-inset-bottom); nut thanh luoi 2 cot, seg Man hinh/Giay chiem ca hang.
+  - Mo popup: theme sang tu chon Giay, theme toi tu chon Man hinh (doc html.light luc mo); bam seg van doi duoc. Seg khong con mac dinh active o Man hinh.
+  - Kinh: iframe .rep-frame nen trong suot; iframe chi trong suot khi color-scheme cua goc iframe khop color-scheme cua the iframe, nen .rep-frame dat color-scheme theo theme va goc iframe nhan class host-dark/host-light. REPORT_CSS them khoi @media screen cho html.embedded: Man hinh = tim than mo, the kinh blur; Giay = trang mo 60%, vien trang, bong nhe. Khi in van nen dac nhu cu.
+- Kiem tra: tsc, vitest 420/420 (--testTimeout=30000; may cham lam 2-3 test import timeout 5s, ca khi chua sua), vite build; anh headless popup ke hoach toi (Man hinh) va sang (Giay), mobile 390.
+- Chua thu tren thiet bi that.
