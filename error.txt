@@ -5766,3 +5766,25 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 
 ### E. Kiem tra
 — typecheck exit 0, desktop 413 test, vite build OK. Chua thu restore-at tren D1 that (wrangler bi chan o may nay).
+
+
+## CHAT-53 — Learn co cot muc luc va thu gon, thanh lenh Financial Status, tim kiem Ctrl K (a4d62cea)
+
+### A. Yeu cau
+— Muc luc kieu trang Cai dat cho Learn tren man hinh lon; moi phan mo/thu gon duoc neu qua dai.
+— Financial Status: + Account, Record balance, Update kho nhin -> lam dep hon, ap dung cho cac trang khac.
+— Qua nhieu trang: tim phuong an dieu huong tot nhat.
+
+### B. Da lam
+— ui/stickyToc.ts viet lai: >=1100px co cot `.lr-rail` (phan / chuong; muc con cua cam nang chi hien khi dang o chuong do; % da doc; nut doc tiep); <1100px giu thanh `.lt-toc`. Cung mot danh sach tim tu DOM.
+— Thu gon: chuong (h2 la con truc tiep cua .card / .lb-gloss-group) va tung muc `.swp-sec`; bam tieu de; Mo tat ca / Thu gon tat ca; khoa `learn:<id>` trong ui_collapsed, ap dung dong bo luc dung trang. Moi cu nhay (muc luc, bia, chip cam nang, Ctrl K) deu mo dich truoc khi cuon. Mac dinh: mo.
+— ui/commandBar.ts: `.cb` the chung (nut chinh to mau, nut icon SVG, segment, meta ben phai). Dung o Financial Status, Case Studies; Portfolio giu cau truc, chi doi icon va chieu cao 34px.
+— ui/pages.ts: danh ba trang (icon, nhom thi truong / giao dich / tai chinh / kien thuc, mo ta). Tab moi phai them o TABS, index.html VA pages.ts (test navigation bat loi nay).
+— ui/commandPalette.ts: Ctrl K / Cmd K / "/" / nut tim tren thanh tren. Tim trang, 11 muc Cai dat, 4 phan + 16 muc cam nang Learn, thao tac (sync, AI, tro ly, giao dien, ngon ngu, trang chu). Bo dau tieng Viet khi so khop. "Mo gan day" luu localStorage `nav:recent` (theo thiet bi).
+— Menu ☰ chia 4 cot nhom co mo ta mot dong; Trang chu va Tim chuyen xuong chan menu. Canh ten thuong hieu co duong dan nhom / trang.
+
+### C. Chua lam
+— Watchlist, Backtest, Screener chua chuyen sang thanh lenh moi.
+
+### D. Kiem tra
+— typecheck exit 0, desktop 420 test (them tests/navigation.test.ts), vite build OK. Chua xem tren trinh duyet that o may nay.
