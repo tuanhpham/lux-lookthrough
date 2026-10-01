@@ -36,6 +36,7 @@ import {
   type WealthKind,
   type WealthSeries,
 } from '@screener/core';
+import { openAttrShut, wireCollapse } from '../ui/collapse.js';
 import type { AppContext } from '../context.js';
 import { $, pct } from '../ui/dom.js';
 import { t, getLang } from '../ui/i18n.js';
@@ -56,6 +57,12 @@ let view: 'total' | 'stack' = 'total';
 let range: 'all' | '2y' | '1y' | '6m' = 'all';
 /** Accounts whose chart and reading history are unfolded. Page-local: a list, not a setting. */
 const openHistory = new Set<string>();
+/** The allocation bar names this many holdings before the rest become one "Other (n)". */
+const ALLOC_TOP = 8;
+const OTHER_COLOR = '#8a8f9c';
+const ALLOC_FOLD = 'wealth:alloc-all';
+/** Draws account charts as they near the viewport; replaced on every render. */
+let chartIo: IntersectionObserver | null = null;
 /** A foreign account's own chart: in its own currency (what the bank statement says) or in EUR. */
 const chartMode = new Map<string, 'native' | 'eur'>();
 /**
@@ -414,11 +421,33 @@ function allocationHtml(now: NonNullable<WealthSeries['points'][number]>): strin
   ].filter((p) => p.v > 0);
   const gross = parts.reduce((x, p) => x + p.v, 0);
   if (gross <= 0) return '';
-  const bar = parts.map((p) => `<span title="${esc(p.name)} · ${eur(p.v)}" style="flex:${p.v};background:${p.color}"></span>`).join('');
-  const keys = parts
-    .sort((a, b) => b.v - a.v)
-    .map((p) => `<span class="kpi-key"><span class="kpi-dot" style="background:${p.color}"></span>${esc(p.name)} <span class="muted">${((p.v / gross) * 100).toFixed(1)}%</span></span>`)
+  parts.sort((a, b) => b.v - a.v);
+  // 26 accounts made 26 slivers and a legend of 26 chips. The bar keeps the biggest few and
+  // lumps the tail into one grey "Other (n)"; the full ranked list sits in a fold below it.
+  const head = parts.length > ALLOC_TOP + 1 ? parts.slice(0, ALLOC_TOP) : parts;
+  const tail = parts.slice(head.length);
+  const segs = tail.length
+    ? [...head, { name: t('wealth.alloc.other').replace('{n}', String(tail.length)), color: OTHER_COLOR, v: tail.reduce((x, p) => x + p.v, 0) }]
+    : head;
+  const pct = (v: number): string => `${((v / gross) * 100).toFixed(1)}%`;
+  const bar = segs.map((p) => `<span title="${esc(p.name)} · ${eur(p.v)} · ${pct(p.v)}" style="flex:${p.v};background:${p.color}"></span>`).join('');
+  const keys = segs
+    .map((p) => `<span class="w-akey"><span class="kpi-dot" style="background:${p.color}"></span><span class="w-akey-n">${esc(p.name)}</span><span class="w-akey-p">${pct(p.v)}</span><span class="muted w-akey-v">${eur(p.v)}</span></span>`)
     .join('');
+  const top = parts[0]!.v;
+  const all = tail.length
+    ? `<details class="w-alloc-all" data-collapse="${ALLOC_FOLD}"${openAttrShut(ALLOC_FOLD)}>
+        <summary>${t('wealth.alloc.all').replace('{n}', String(parts.length))}</summary>
+        <div class="w-alloc-list">${parts
+          .map((p) => `<div class="w-gbar">
+            <span class="w-gbar-l" title="${esc(p.name)}"><span class="kpi-dot" style="background:${p.color}"></span>${esc(p.name)}</span>
+            <span class="w-gbar-t"><span style="width:${((p.v / top) * 100).toFixed(2)}%;background:${p.color}"></span></span>
+            <span class="w-gbar-v">${eur(p.v)}</span>
+            <span class="w-gbar-p">${pct(p.v)}</span>
+          </div>`)
+          .join('')}</div>
+      </details>`
+    : '';
   const pf = { label: t('nav.portfolio'), color: PF_COLOR, v: now.portfolio };
   const byCcy = groupBars(t('wealth.alloc.ccy'), [
     pf,
@@ -430,7 +459,8 @@ function allocationHtml(now: NonNullable<WealthSeries['points'][number]>): strin
   ]);
   return `<div class="card" style="margin-bottom:14px;padding:10px 12px">
       <div class="w-alloc">${bar}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12px">${keys}</div>
+      <div class="w-akeys">${keys}</div>
+      ${all}
       ${currencyLegend()}
     </div>
     ${byCcy || byKind ? `<div class="w-ggrid">${byCcy}${byKind}</div>` : ''}`;
@@ -598,7 +628,7 @@ function accountsTable(now: WealthSeries['points'][number] | null, side: Portfol
     const on = sort.key === key;
     return `<th data-w-sort="${key}" title="${t('wealth.sort.hint')}" style="cursor:pointer;user-select:none;white-space:nowrap${on ? ';color:var(--accent)' : ''}">${label}${on ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</th>`;
   };
-  return `<table>
+  return `<table class="w-acct-t">
       <thead><tr>${head(t('wealth.col.name'), 'name')}${head(t('wealth.col.kind'), 'kind')}${head(t('wealth.col.ccy'), 'ccy')}${head(t('wealth.col.balance'), 'eur')}${head(tc('wealth.col.eur'), 'eur')}${head(t('wealth.col.share'), 'eur')}${head(t('wealth.col.asof'), 'asof')}${head(t('wealth.col.change'), 'change')}<th></th></tr></thead>
       <tbody>${pfRow}${rows}</tbody>
     </table>
@@ -993,10 +1023,29 @@ async function updateFlow(ctx: AppContext, root: HTMLElement, s: WealthSeries): 
 
 function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
   const chartEl = root.querySelector<HTMLElement>('#wealth-chart');
+  // Lazily: "expand all" opens a chart per account (26 for one user), and drawing them all
+  // at once on a phone is 26 canvases before the first one is even on screen. Each is drawn
+  // as it scrolls near the viewport; re-observing redraws the visible ones straight away.
+  chartIo?.disconnect();
+  const io = (chartIo = new IntersectionObserver(
+    (entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        io.unobserve(en.target);
+        const c = en.target as HTMLElement;
+        drawAccountChart(c, c.dataset.wChart!, s);
+      }
+    },
+    { rootMargin: '240px 0px' },
+  ));
   const drawAccountCharts = (): void =>
-    root.querySelectorAll<HTMLElement>('[data-w-chart]').forEach((c) => drawAccountChart(c, c.dataset.wChart!, s));
+    root.querySelectorAll<HTMLElement>('[data-w-chart]').forEach((c) => {
+      io.unobserve(c);
+      io.observe(c);
+    });
   if (chartEl) drawChart(chartEl, s);
   drawAccountCharts();
+  wireCollapse(root);
 
   root.querySelector('#w-add')?.addEventListener('click', () => void addAccountFlow(ctx, s.start));
   root.querySelector('#w-record')?.addEventListener('click', () => void recordAllFlow(ctx));

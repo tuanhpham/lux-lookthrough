@@ -39,6 +39,31 @@ const EARN = '#a855f7';
  * colour and an EMA in that colour: #c084fc is the EMA-10, #a855f7 is an earnings mark. */
 const EXIT = '#e879f9';
 
+/**
+ * Line and stacked charts live in containers the pages rebuild with innerHTML, and clearing a
+ * container does not dispose the chart that was in it: its canvases, listeners and observer
+ * stayed alive. Financial Status redraws the whole page on every toggle, so "expand all" on 26
+ * accounts piled up a chart per account per click until mobile Safari killed the tab (the
+ * "page keeps resetting"). Every new chart now disposes the one it replaces and any whose
+ * container has left the document.
+ */
+const live = new Map<HTMLElement, IChartApi>();
+function claim(container: HTMLElement): void {
+  for (const [el, c] of live) {
+    if (el === container || !el.isConnected) {
+      live.delete(el);
+      try { c.remove(); } catch { /* already disposed */ }
+    }
+  }
+}
+
+/**
+ * Equity curves and balance charts are for reading, not panning: with lightweight-charts'
+ * default handlers a stray click-drag or wheel scrolled the series off its fitted range and the
+ * wheel stopped scrolling the page while the pointer sat on the chart. Crosshair and tooltip stay.
+ */
+const READ_ONLY = { handleScroll: false, handleScale: false } as const;
+
 function themeOptions() {
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   return {
@@ -100,7 +125,8 @@ export function drawCandles(
   const { noVolume = false, height = 280, maxLine = false, minLine = false } = opts;
   container.innerHTML = '';
   const w = container.clientWidth || container.offsetWidth || 600;
-  const chart = createChart(container, { ...themeOptions(), width: w, height });
+  // Vertical swipes on a phone scroll the page, not the price axis.
+  const chart = createChart(container, { ...themeOptions(), width: w, height, handleScroll: { vertTouchDrag: false } });
   const candle = chart.addCandlestickSeries({
     upColor: UP, downColor: DOWN, borderVisible: false,
     wickUpColor: UP, wickDownColor: DOWN,
@@ -275,11 +301,13 @@ export function drawLine(
   options: LineOptions = {},
 ): IChartApi {
   const { baseline, maxLine = false, minLine = false, currentLine = false, volume = false, money = false, currency = '€', height = 240 } = options;
+  claim(container);
   container.innerHTML = '';
   const base = themeOptions();
   const w = container.clientWidth || container.offsetWidth || 600;
   const chart = createChart(container, {
     ...base,
+    ...READ_ONLY,
     width: w,
     height,
     // Money mode: format the y-axis as compact currency so labels are readable.
@@ -322,6 +350,7 @@ export function drawLine(
     }
   }
   chart.timeScale().fitContent();
+  live.set(container, chart);
   // Self-disconnecting observer: if the chart was disposed (container re-rendered
   // or detached), stop instead of throwing "Object is disposed".
   const ro = new ResizeObserver(() => {
@@ -360,10 +389,12 @@ export function drawStacked(
   options: { currency?: string; height?: number } = {},
 ): IChartApi {
   const { currency = '€', height = 260 } = options;
+  claim(container);
   container.innerHTML = '';
   const base = themeOptions();
   const chart = createChart(container, {
     ...base,
+    ...READ_ONLY,
     width: container.clientWidth || container.offsetWidth || 600,
     height,
     localization: { priceFormatter: (v: number) => compactMoney(v, currency) },
@@ -392,6 +423,7 @@ export function drawStacked(
     s.setData(cumulative[k]!);
   }
   chart.timeScale().fitContent();
+  live.set(container, chart);
   const ro = new ResizeObserver(() => {
     if (!container.isConnected) {
       ro.disconnect();
