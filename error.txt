@@ -5788,3 +5788,20 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 
 ### D. Kiem tra
 — typecheck exit 0, desktop 420 test (them tests/navigation.test.ts), vite build OK. Chua xem tren trinh duyet that o may nay.
+
+
+## CHAT-54 — Menu ☰ chuyen nghiep hon, thanh duoi gon, mobile + sang/toi (ffa0c81a)
+
+### A. Yeu cau
+— Ten nhom (Market, Trading, Money, Learn & system) qua nho; can chuyen nghiep hon.
+— Hang Home, Search... o duoi lon xon.
+— Thuc su lam cho mobile, ca giao dien sang va toi.
+
+### B. Da lam
+— main.ts buildAppMenu: o tim `.am-search` (Ctrl K) o tren; `.app-menu-grid` 4 panel `.app-menu-group`, moi panel co icon SVG (`amIcon`, `AM_PATHS`, `GROUP_ICON`), tieu de 16.5px, so 01-04.
+— Moi trang `.app-menu-page`: icon / ten / mo ta (2 dong). Trang dang mo: nen accent-wash.
+— Thanh duoi `.am-bar`: Trang chu ben trai; EN/VI `.am-seg`, Giao dien, Sync, Khoa AI, Tro ly ben phai (`.am-btn`). Nut khoa AI co nhan rieng "Khoa AI / AI key" (truoc trung "Tro ly").
+— CSS chi dung token theme -> giao dien sang cung bo cuc. <=1080px: 2 cot; <=720px: 1 cot, trang thanh o 2 cot, thanh duoi 5 o icon tren chu (chu xuong 2 dong), EN/VI full hang.
+
+### C. Kiem tra
+— typecheck 0, 420 test, vite build OK. Chup headless Chrome: desktop toi/sang, VI, mobile 390px (qua iframe vi Chrome headless khong thu cua so hep hon ~500px).
