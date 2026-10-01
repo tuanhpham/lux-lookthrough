@@ -9,6 +9,16 @@
  */
 
 const EN = {
+  /** One title per chapter — the chapter heading and the rail's labels. */
+  titles: [
+    `Where it began`,
+    `Repeat, until it is yours`,
+    `A season at a time`,
+    `Choosing the craft`,
+    `The professional's art`,
+  ],
+  chapter: `Chapter`,
+  cue: `Scroll to begin`,
   s1: [
     `Some people are born knowing exactly what they want.`,
     `TA wasn't.`,
@@ -51,10 +61,19 @@ const EN = {
     `that those who start slow, and stay long enough, are often the ones who go the furthest.`,
     `He calls it — <em>the professional's art.</em>`,
   ],
-  final: `"True mastery is the birthplace of artistry —<br>and I call it the professional's art."<br><span class="story-attr">— T.A.</span>`,
+  final: `“True mastery is the birthplace of artistry —<br>and I call it the professional's art.”<br><span class="story-attr">— T.A.</span>`,
 };
 
 const VI: typeof EN = {
+  titles: [
+    `Điểm khởi đầu`,
+    `Lặp lại, đến khi thấm`,
+    `Từng mùa một`,
+    `Chọn nghề`,
+    `The professional's art`,
+  ],
+  chapter: `Chương`,
+  cue: `Cuộn để bắt đầu`,
   s1: [
     `Có những người sinh ra đã biết mình muốn gì.`,
     `Còn anh thì không.`,
@@ -97,26 +116,49 @@ const VI: typeof EN = {
     `những ai bắt đầu chậm, và ở lại đủ lâu, thường là những người đi xa nhất.`,
     `Thứ mà anh gọi là — <em>the professional's art.</em>`,
   ],
-  final: `"True mastery is the birthplace of artistry —<br>and I call it the professional's art."<br><span class="story-attr">— T.A.</span>`,
+  final: `“True mastery is the birthplace of artistry —<br>and I call it the professional's art.”<br><span class="story-attr">— T.A.</span>`,
 };
 
 export function storyCopy(lang: 'en' | 'vi'): typeof EN {
   return lang === 'vi' ? VI : EN;
 }
 
-/** The five chapters, `data-ch="0"`…`"4"` — the per-chapter CSS keys off those. */
+/**
+ * Each chapter's own colour — the hues of the landing page's orb, in its order, so
+ * the story walks once round the same wheel the front door spins.
+ */
+const TONES = ['var(--blue)', 'var(--accent)', '#18bea8', '#e246a8', 'var(--violet)'];
+
+const two = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * The five chapters, `data-ch="0"`…`"4"` — the per-chapter CSS keys off those.
+ *
+ * The text of a chapter sits in one glass panel (`.sl-ch-glass`) headed by its number
+ * and title; the closing line is a stage of its own below the last panel. Every
+ * `.reveal` is staggered by the engine in document order, so the heading arrives
+ * first and the panel fills in under it.
+ */
 export function buildStoryChapters(c: typeof EN): string {
   const p = (text: string) => `<p class="story-p reveal">${text}</p>`;
+  // The card draws its own opening mark, so the copy's straight quotes come off.
   const q = (text: string) =>
-    `<div class="story-quote"><span class="reveal">${text}</span></div>`;
+    `<div class="story-quote"><span class="reveal">${text.replace(/^"|"$/g, '')}</span></div>`;
   const block = (paras: string[], cls = '') =>
     `<div class="story-block${cls ? ' ' + cls : ''}">${paras.map(p).join('')}</div>`;
+  const head = (idx: number) =>
+    `<header class="sl-ch-head reveal">
+      <span class="sl-ch-n">${two(idx + 1)}</span>
+      <span class="sl-ch-k">${c.chapter} ${two(idx + 1)} <i>/ ${two(c.titles.length)}</i></span>
+      <span class="sl-ch-t">${c.titles[idx]}</span>
+    </header>`;
   // sl-ch-body centres the content group as a whole unit inside the chapter
-  const body = (inner: string) => `<div class="sl-ch-body">${inner}</div>`;
-  const chapter = (idx: number, inner: string, photo?: string, side: 'left' | 'right' = 'left') =>
-    `<section class="sl-chapter" data-ch="${idx}">
+  const body = (idx: number, inner: string, after = '') =>
+    `<div class="sl-ch-body"><div class="sl-ch-glass">${head(idx)}${inner}</div>${after}</div>`;
+  const chapter = (idx: number, inner: string, photo?: string, side: 'left' | 'right' = 'left', after = '') =>
+    `<section class="sl-chapter" data-ch="${idx}" style="--c:${TONES[idx]}">
       ${photo ? `<div class="sl-ch-bg sl-ch-bg--${side}" style="background-image:url('${photo}')"></div>` : ''}
-      ${body(inner)}
+      ${body(idx, inner, after)}
     </section>`;
 
   return [
@@ -124,12 +166,26 @@ export function buildStoryChapters(c: typeof EN): string {
     chapter(1, block(c.s3), '/images/2.webp', 'right'),
     chapter(2, q(c.q1) + block(c.s4), '/images/3.webp', 'left'),
     chapter(3, q(c.q2) + block(c.s5), '/images/4.webp', 'right'),
-    chapter(4,
-      q(c.q3) +
-      block(c.s6) +
-      `<div class="story-final reveal">${c.final}</div>`
-    ),
+    chapter(4, q(c.q3) + block(c.s6), undefined, 'left',
+      `<div class="story-final reveal">${c.final}</div>`),
   ].join('\n');
+}
+
+/**
+ * The chapter rail — one glass pill of five stops, beside the chapters rather than
+ * in them, so it stays put while they move. `wireCinematic` marks the current stop
+ * and turns a click into the same animated move a scroll makes.
+ */
+export function buildStoryRail(c: typeof EN): string {
+  return `<nav class="sl-rail" aria-label="${c.chapter}">${c.titles.map((title, i) =>
+    `<button class="sl-rail-stop" data-rail="${i}" style="--c:${TONES[i]}" aria-label="${two(i + 1)} · ${title}">
+      <i></i><span><b>${two(i + 1)}</b>${title}</span>
+    </button>`).join('')}</nav>`;
+}
+
+/** The hint under the first chapter that there is more below it. */
+export function buildStoryCue(c: typeof EN): string {
+  return `<div class="sl-cue" aria-hidden="true"><span class="sl-cue-mouse"><i></i></span>${c.cue}</div>`;
 }
 
 export interface CinematicOpts {
@@ -149,6 +205,8 @@ export interface CinematicOpts {
    * Optional — without it the last chapter is simply the end.
    */
   exit?: HTMLElement;
+  /** The chapter rail from `buildStoryRail`. Optional — no rail, no stops to mark. */
+  rail?: HTMLElement;
 }
 
 /**
@@ -159,7 +217,10 @@ export interface CinematicOpts {
  * against the scroll, and that needs the position to be ours.
  */
 export function wireCinematic(opts: CinematicOpts): void {
-  const { snap, veil, exit } = opts;
+  const { snap, veil, exit, rail } = opts;
+  // The story box: it carries the current chapter (`data-ch`) and `sl-wrap--exit`,
+  // which is what the rail and the scroll cue read to know when to step aside.
+  const host = snap.parentElement;
 
   requestAnimationFrame(() => {
     const chapters = Array.from(snap.querySelectorAll<HTMLElement>('.sl-chapter'));
@@ -195,8 +256,11 @@ export function wireCinematic(opts: CinematicOpts): void {
       return best;
     };
 
+    const stops = Array.from(rail?.querySelectorAll<HTMLElement>('[data-rail]') ?? []);
     const revealAt = (idx: number) => {
       if (idx === activeIdx) return;
+      if (host) host.dataset.ch = String(idx);
+      stops.forEach((b, i) => b.classList.toggle('is-on', i === idx));
       chapters[idx]?.classList.add('sl-ch--revealed');
       // scrolling back up — hide the chapter below the one we returned to
       if (activeIdx >= 0 && idx < activeIdx) {
@@ -261,11 +325,13 @@ export function wireCinematic(opts: CinematicOpts): void {
       if (exitVisible || !exit) return;
       exitVisible = true;
       exit.classList.add('sl-exit--in');
+      host?.classList.add('sl-wrap--exit');
     };
     const hideExit = () => {
       if (!exitVisible || !exit) return;
       exitVisible = false;
       exit.classList.remove('sl-exit--in');
+      host?.classList.remove('sl-wrap--exit');
     };
 
     // Intercept wheel only at chapter boundaries; allow free scroll within tall chapters
@@ -335,6 +401,11 @@ export function wireCinematic(opts: CinematicOpts): void {
         animateTo(targetIdx + (goingDown ? 1 : -1));
       }
     }, { passive: true });
+
+    stops.forEach((b) => b.addEventListener('click', () => {
+      hideExit();
+      animateTo(Number(b.dataset.rail));
+    }));
 
     revealAt(0);
   });

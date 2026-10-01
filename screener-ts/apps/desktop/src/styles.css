@@ -7162,3 +7162,285 @@ html.light .cl-foot-link:hover { background: rgba(255, 255, 255, .7); }
   .cl-orb { width: 128px; height: 128px; }
   .cl-footer-panel { padding: 22px 18px 14px; border-radius: 20px; }
 }
+
+
+/* ══ Request 64: the story in the same glass ══════════════════════════════════════
+   The About tab was the last screen still painted on the old flat #242424: an opaque
+   `.sl-wrap`, photos fading into a hard-coded grey, text set straight on top. Here the
+   story box is clear so the liquid canvas runs behind it, the photos dissolve by mask
+   (into whatever is behind them, in either theme), and each chapter's text is one
+   glass panel with a numbered heading. `--c` is the chapter's own colour, set inline
+   by ui/story.ts — the orb's hues, in its order. */
+
+.about-story.sl-wrap { background: transparent; }
+/* a chapter has to fit one screen with its panel, so less air above and below it */
+.about-story .sl-ch-body { padding-top: 34px; padding-bottom: 34px; }
+
+/* ── scenery: masked, not painted over ── */
+@media (min-width: 701px) {
+  .about-story .sl-ch-bg::before { display: none; }
+  .about-story .sl-ch-bg {
+    opacity: .92;
+    -webkit-mask-image: linear-gradient(to var(--fade-to, right), #000 0%, #000 34%, transparent 86%), linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%);
+    mask-image: linear-gradient(to var(--fade-to, right), #000 0%, #000 34%, transparent 86%), linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
+  }
+  .about-story .sl-ch-bg--right { --fade-to: left; }
+  html.light .about-story .sl-ch-bg { opacity: .85; filter: saturate(.92) brightness(1.04); }
+
+  /* the text column: wider than the old 35%, and over the photo's dissolving edge */
+  .about-story .sl-chapter[data-ch="0"] .sl-ch-body,
+  .about-story .sl-chapter[data-ch="2"] .sl-ch-body { padding-left: 49%; padding-right: 7%; }
+  .about-story .sl-chapter[data-ch="1"] .sl-ch-body,
+  .about-story .sl-chapter[data-ch="3"] .sl-ch-body { padding-right: 49%; padding-left: 7%; }
+}
+
+/* the last chapter's full-bleed photo, washed in the canvas colour instead of grey */
+.about-story .sl-chapter[data-ch="4"]::before {
+  background:
+    radial-gradient(60% 55% at 50% 50%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%),
+    linear-gradient(to bottom,
+      color-mix(in srgb, var(--bg) 92%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 62%, transparent) 30%,
+      color-mix(in srgb, var(--bg) 62%, transparent) 70%,
+      color-mix(in srgb, var(--bg) 94%, transparent) 100%);
+}
+html.light .about-story .sl-chapter[data-ch="4"]::before {
+  background:
+    radial-gradient(60% 55% at 50% 50%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 75%),
+    linear-gradient(to bottom,
+      color-mix(in srgb, var(--bg) 94%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 70%, transparent) 30%,
+      color-mix(in srgb, var(--bg) 70%, transparent) 70%,
+      color-mix(in srgb, var(--bg) 96%, transparent) 100%);
+}
+
+/* ── the glass panel a chapter's text sits in ── */
+.sl-ch-glass {
+  position: relative; isolation: isolate; overflow: hidden;
+  width: 100%; max-width: 620px; padding: 26px 34px 30px; border-radius: 26px;
+  -webkit-backdrop-filter: blur(20px) saturate(1.35); backdrop-filter: blur(20px) saturate(1.35);
+}
+.sl-ch-glass::before {
+  content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(70% 45% at 0% 0%, color-mix(in srgb, var(--c) 20%, transparent), transparent 72%),
+    radial-gradient(50% 40% at 100% 100%, color-mix(in srgb, var(--c) 10%, transparent), transparent 70%);
+}
+html.light .sl-ch-glass::before {
+  background:
+    radial-gradient(70% 45% at 0% 0%, color-mix(in srgb, var(--c) 12%, transparent), transparent 72%),
+    radial-gradient(50% 40% at 100% 100%, color-mix(in srgb, var(--c) 7%, transparent), transparent 70%);
+}
+html.light .sl-story .sl-ch-glass .story-quote span { background: color-mix(in srgb, var(--c) 6%, rgba(255, 255, 255, .5)); }
+html:not(.light) .sl-ch-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .035)), rgba(13, 12, 22, .5);
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 30px 70px -34px rgba(0, 0, 0, .95);
+}
+html.light .sl-ch-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .6));
+  border: 1px solid rgba(255, 255, 255, .95);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(60, 45, 25, .06), 0 28px 60px -28px rgba(60, 45, 25, .36);
+}
+.sl-chapter[data-ch="4"] .sl-ch-glass { max-width: 660px; text-align: left; }
+
+/* inside a panel the blocks no longer carry their own column padding */
+.sl-story .sl-ch-glass .story-block,
+.sl-story .sl-ch-glass .story-quote {
+  max-width: none; margin: 0; padding: 0;
+}
+.sl-ch-glass .story-block + .story-block { margin-top: 18px; }
+.sl-ch-glass .story-quote + .story-block { margin-top: 22px; }
+.sl-ch-glass .story-p { font-size: 16px; line-height: 1.74; margin-bottom: 12px; }
+.sl-chapter[data-ch="4"] .sl-ch-glass .story-p { margin-bottom: 8px; }
+.sl-ch-glass .story-p:last-child { margin-bottom: 0; }
+
+/* the heading: number badge, "Chapter 02 / 05", title */
+.sl-ch-head {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: center;
+  margin: 0 0 18px; padding-bottom: 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 22%, var(--border-soft));
+}
+.sl-ch-n {
+  grid-row: span 2; width: 46px; height: 46px; border-radius: 15px; display: grid; place-items: center;
+  font: 600 14px var(--font-mono); color: var(--c);
+  background: color-mix(in srgb, var(--c) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 36%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 0 24px -6px color-mix(in srgb, var(--c) 55%, transparent);
+}
+.sl-ch-k {
+  font: 700 10.5px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--c);
+}
+.sl-ch-k i { font-style: normal; color: var(--faint); letter-spacing: .08em; }
+.sl-ch-t {
+  font: 400 24px/1.2 var(--font-serif); letter-spacing: -.01em; color: var(--text);
+}
+
+/* the opening line of the whole story */
+.sl-ch-glass .story-open .story-p:first-child {
+  font: 300 30px/1.28 var(--font-serif); letter-spacing: -.015em; margin-bottom: 14px; text-shadow: none;
+}
+html:not(.light) .sl-ch-glass .story-open .story-p:first-child { color: #fff; }
+
+/* a line that is only an <em>: an accent bar in the chapter's colour */
+.sl-story .sl-ch-glass .story-p:has(> em:only-child) {
+  margin: 18px 0; padding: 10px 16px; font-size: 17.5px; border-left: 2px solid var(--c);
+  border-radius: 0 12px 12px 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 12%, transparent), transparent 85%);
+}
+
+/* pull quotes: a card of their own inside the panel, with the opening mark drawn */
+.sl-story .sl-ch-glass .story-quote span {
+  position: relative; margin: 0; padding: 18px 20px 18px 58px; border: 0; border-radius: 18px;
+  font-size: 18.5px; line-height: 1.6;
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 26%, transparent);
+}
+.sl-ch-glass .story-quote span::before {
+  content: '\201C'; position: absolute; left: 16px; top: 4px;
+  font: 400 54px/1 var(--font-serif); color: var(--c); opacity: .85;
+}
+html:not(.light) .sl-story .sl-ch-glass .story-quote span { color: rgba(255, 255, 255, .9); }
+html.light .sl-story .sl-ch-glass .story-quote span { color: rgba(20, 16, 10, .86); }
+
+/* ── the closing line: a stage below the last panel ── */
+.about-story .sl-chapter[data-ch="4"] .story-final {
+  position: relative; isolation: isolate; overflow: hidden;
+  width: 100%; max-width: 660px; margin: 14px auto 0; padding: 20px 34px 18px; border-radius: 26px;
+  font-size: 19px; line-height: 1.55;
+}
+.about-story .sl-chapter[data-ch="4"] .story-final::before {
+  content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(60% 90% at 50% 120%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
+    radial-gradient(40% 60% at 0% 0%, color-mix(in srgb, var(--blue) 12%, transparent), transparent 70%),
+    radial-gradient(40% 60% at 100% 0%, color-mix(in srgb, #e246a8 10%, transparent), transparent 70%);
+}
+html:not(.light) .about-story .sl-chapter[data-ch="4"] .story-final {
+  color: rgba(255, 255, 255, .92);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .03)), rgba(13, 12, 22, .55);
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 30px 70px -34px rgba(0, 0, 0, .95);
+}
+html.light .about-story .sl-chapter[data-ch="4"] .story-final {
+  color: rgba(20, 16, 10, .88);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .84), rgba(255, 255, 255, .62));
+  border: 1px solid rgba(255, 255, 255, .95);
+  box-shadow: inset 0 1px 0 #fff, 0 28px 60px -28px rgba(60, 45, 25, .36);
+}
+.about-story .sl-chapter[data-ch="4"] .story-final .story-attr {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 4px 14px; border-radius: 999px;
+  font: 600 11.5px var(--font-mono); letter-spacing: .14em; color: var(--accent);
+  background: var(--accent-wash); border: 1px solid var(--accent-line);
+}
+
+/* ── the chapter rail ── */
+.sl-rail {
+  position: absolute; z-index: 55; right: 22px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 7px; border-radius: 999px;
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  transition: opacity .6s ease;
+}
+html:not(.light) .sl-rail { background: rgba(20, 19, 32, .55); border: 1px solid rgba(255, 255, 255, .12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
+html.light .sl-rail { background: rgba(255, 255, 255, .7); border: 1px solid rgba(255, 255, 255, .95); box-shadow: inset 0 1px 0 #fff, 0 12px 30px -16px rgba(60, 45, 25, .35); }
+.sl-rail-stop {
+  position: relative; display: grid; place-items: center; width: 22px; height: 22px; padding: 0;
+  border: 0; border-radius: 999px; background: none; cursor: pointer;
+}
+.sl-rail-stop i {
+  width: 7px; height: 7px; border-radius: 999px; background: var(--faint);
+  transition: height .35s cubic-bezier(.22, 1, .36, 1), background .3s ease, box-shadow .3s ease;
+}
+.sl-rail-stop:hover i { background: var(--c); }
+.sl-rail-stop.is-on i { height: 18px; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent), 0 0 14px var(--c); }
+/* the label slides out to the left on hover */
+.sl-rail-stop span {
+  position: absolute; right: calc(100% + 14px); top: 50%; transform: translate(6px, -50%);
+  display: flex; gap: 8px; align-items: center; white-space: nowrap; padding: 6px 12px; border-radius: 999px;
+  font: 600 12px var(--font-ui); color: var(--text); opacity: 0; pointer-events: none;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.sl-rail-stop span b { font: 600 10.5px var(--font-mono); color: var(--c); }
+html:not(.light) .sl-rail-stop span { background: rgba(20, 19, 32, .9); border: 1px solid rgba(255, 255, 255, .12); }
+html.light .sl-rail-stop span { background: rgba(255, 255, 255, .95); border: 1px solid rgba(60, 45, 25, .1); box-shadow: 0 10px 24px -14px rgba(60, 45, 25, .4); }
+.sl-rail-stop:hover span, .sl-rail-stop:focus-visible span { opacity: 1; transform: translate(0, -50%); }
+.sl-rail-stop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── the scroll cue, on the first chapter only ── */
+.sl-cue {
+  position: absolute; z-index: 55; left: 50%; bottom: 22px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; padding: 7px 15px 7px 9px; border-radius: 999px;
+  font: 600 10.5px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--subtext);
+  pointer-events: none; opacity: 0; transition: opacity .6s ease;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+html:not(.light) .sl-cue { background: rgba(20, 19, 32, .5); border: 1px solid rgba(255, 255, 255, .1); }
+html.light .sl-cue { background: rgba(255, 255, 255, .65); border: 1px solid rgba(255, 255, 255, .95); }
+.sl-wrap[data-ch="0"]:not(.sl-wrap--exit) .sl-cue { opacity: 1; }
+.sl-cue-mouse {
+  position: relative; width: 16px; height: 24px; border-radius: 9px; border: 1.5px solid currentColor; opacity: .8;
+}
+.sl-cue-mouse i {
+  position: absolute; left: 50%; top: 5px; width: 3px; height: 5px; margin-left: -1.5px; border-radius: 2px;
+  background: var(--accent); animation: slCue 1.8s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+@keyframes slCue { 0% { transform: translateY(0); opacity: 1; } 70% { transform: translateY(7px); opacity: 0; } 100% { opacity: 0; } }
+.sl-wrap--exit .sl-rail { opacity: 0; pointer-events: none; }
+
+/* ── the veil between chapters: a tinted frost, not a grey one ── */
+.about-story .sl-veil {
+  background:
+    radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 80%),
+    color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+/* ── the ending: the vignette in the canvas colour, and the landing's orb ── */
+.about-story .sl-exit { flex-direction: column; gap: 40px; }
+.about-story .sl-exit::before {
+  background:
+    radial-gradient(28% 34% at 50% 50%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 80%),
+    radial-gradient(ellipse at center,
+      color-mix(in srgb, var(--bg) 42%, transparent) 0%, color-mix(in srgb, var(--bg) 30%, transparent) 26%,
+      color-mix(in srgb, var(--bg) 60%, transparent) 58%,
+      color-mix(in srgb, var(--bg) 92%, transparent) 100%);
+}
+.sl-exit-orb { margin: 0; z-index: 1; }
+.sl-exit.sl-exit--in .sl-exit-orb { pointer-events: auto; }
+.sl-exit-cap {
+  position: relative; z-index: 1; margin: 0; padding: 6px 14px; border-radius: 999px;
+  font: 600 10.5px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--subtext);
+}
+html:not(.light) .sl-exit-cap { background: rgba(20, 19, 32, .55); border: 1px solid rgba(255, 255, 255, .1); }
+html.light .sl-exit-cap { background: rgba(255, 255, 255, .7); border: 1px solid rgba(255, 255, 255, .95); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-cue-mouse i { animation: none; }
+}
+@media (max-width: 1100px) and (min-width: 701px) {
+  .about-story .sl-chapter[data-ch="0"] .sl-ch-body,
+  .about-story .sl-chapter[data-ch="2"] .sl-ch-body { padding-left: 40%; padding-right: 64px; }
+  .about-story .sl-chapter[data-ch="1"] .sl-ch-body,
+  .about-story .sl-chapter[data-ch="3"] .sl-ch-body { padding-right: 40%; padding-left: 40px; }
+}
+@media (max-width: 700px) {
+  .about-story .sl-chapter .sl-ch-body { padding: 26px 14px 70px; }
+  .about-story .sl-chapter[data-ch="4"] .sl-ch-body { padding-left: 14px; padding-right: 14px; }
+  .about-story .sl-ch-bg--left::before,
+  .about-story .sl-ch-bg--right::before {
+    background: color-mix(in srgb, var(--bg) 50%, transparent);
+  }
+  .sl-ch-glass { padding: 20px 18px 22px; border-radius: 20px; }
+  .sl-ch-head { gap: 2px 12px; margin-bottom: 16px; padding-bottom: 14px; }
+  .sl-ch-n { width: 38px; height: 38px; border-radius: 12px; font-size: 12.5px; }
+  .sl-ch-t { font-size: 19px; }
+  .sl-ch-glass .story-p { font-size: 15px; line-height: 1.7; }
+  .sl-ch-glass .story-open .story-p:first-child { font-size: 24px; }
+  .sl-story .sl-ch-glass .story-quote span { padding: 14px 14px 14px 44px; font-size: 16px; }
+  .sl-ch-glass .story-quote span::before { left: 11px; font-size: 42px; }
+  .about-story .sl-chapter[data-ch="4"] .story-final { padding: 22px 18px; font-size: 17px; border-radius: 20px; }
+  .sl-rail { right: 6px; padding: 8px 4px; gap: 3px; }
+  .sl-rail-stop { width: 16px; height: 18px; }
+  .sl-rail-stop span { display: none; }
+  .sl-cue { bottom: 14px; }
+}

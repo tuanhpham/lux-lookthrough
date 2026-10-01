@@ -1,6 +1,6 @@
 import { $ } from '../ui/dom.js';
 import { getLang, t } from '../ui/i18n.js';
-import { buildStoryChapters, storyCopy, wireCinematic } from '../ui/story.js';
+import { buildStoryChapters, buildStoryCue, buildStoryRail, storyCopy, wireCinematic } from '../ui/story.js';
 
 /**
  * About = the story. Nothing else.
@@ -21,17 +21,26 @@ import { buildStoryChapters, storyCopy, wireCinematic } from '../ui/story.js';
  */
 export function renderAbout(onDiscover?: (trigger?: Element) => void): void {
   const root = $('#tab-about')!;
+  const copy = storyCopy(getLang());
+  const arrow = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>`;
 
   root.innerHTML = `
     <div class="about-page">
       <section class="about-story sl-wrap">
         <div class="sl-snap about-snap">
-          <div class="sl-story">${buildStoryChapters(storyCopy(getLang()))}</div>
+          <div class="sl-story">${buildStoryChapters(copy)}</div>
         </div>
+        ${buildStoryRail(copy)}
+        ${buildStoryCue(copy)}
         <div class="sl-veil about-veil"></div>
         ${onDiscover ? `
         <div class="sl-exit about-exit">
-          <button class="sl-exit-btn" id="about-exit-btn"><span>${t('story.discover')}</span></button>
+          <button class="cl-orb sl-exit-orb" id="about-exit-btn" aria-label="${t('story.discover')}">
+            <span class="cl-orb-halo" aria-hidden="true"></span>
+            <span class="cl-orb-ring" aria-hidden="true"></span>
+            <span class="cl-orb-core"><b>${t('story.discover')}</b>${arrow}</span>
+          </button>
+          <p class="sl-exit-cap">${getLang() === 'vi' ? 'Hết · tiếp theo là nền tảng' : 'The end · the platform is next'}</p>
         </div>` : ''}
       </section>
     </div>`;
@@ -47,5 +56,6 @@ export function renderAbout(onDiscover?: (trigger?: Element) => void): void {
     snap: root.querySelector<HTMLElement>('.about-snap')!,
     veil: root.querySelector<HTMLElement>('.about-veil')!,
     exit,
+    rail: root.querySelector<HTMLElement>('.sl-rail') ?? undefined,
   });
 }
