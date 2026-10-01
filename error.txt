@@ -5867,3 +5867,17 @@ CHAT-58 (2026-10-01) - Top Picks, Screener, Sectors, Scanner cung chat lieu kinh
   - Mobile: hang as-of khong con moi nut mot dong.
 - Kiem tra: tsc 0, vitest 420/420, build OK. Chup headless toi/sang, 1440 + 500: Scanner voi du lieu gia (harness chen fetch gia /api/scanner/pull, chi tren may nay, khong commit), Scanner chua co ma, Picks, Screener, Sectors voi du lieu that (Yahoo).
 - Chua thu tren thiet bi that; Top Picks co ket qua (bang) chua chup vi quet rat lau.
+
+CHAT-59 (2026-10-01) - Landing page kinh long, cong tac sang/toi, qua cau Vao, footer kinh; Scanner them khoang cach
+- Yeu cau: Scanner panel 2 va 3 dinh nhau; landing khong co kinh long o ca hai che do, noi dung cu, "Ben trong co gi" can noi bat; bo nut Vao goc phai thay bang cong tac sang/toi; nav Platform/Learn/Story qua tron; nut hero chuyen nghiep hon; nut Vao cuoi trang kieu nghe thuat nhu nut cuoi Story; footer chuyen nghiep hon.
+- Code: 7e6f36ca.
+  - Nguyen nhan mat kinh: .cl-wrap to nen dac var(--bg) che lop body::before. Nay trong suot; moi the tren trang dung cong thuc kinh cua request 62. #landing nam ngoai #main nen moi quy tac viet rieng.
+  - Nav: thanh kinh mo, Platform/Learn/Story thanh vien thuoc co icon, EN/VI thanh nut doan. Cong tac sang/toi (cl-theme): ve ca hai icon, CSS doc class cua <html> nen bam khong can render lai, giu vi tri cuon. Nut menu chi hien <=900px.
+  - Nut hero: Vao = gradient tim, vet sang luot qua khi re chuot, mui ten trong vong tron; Doc cau chuyen = kinh mo co icon.
+  - "Ben trong co gi": the kinh lon, lay tu ui/pages.ts (13 trang, 4 nhom), 2 hang chay nguoc chieu, chip co icon + mo ta, mau theo nhom, chu giai nhom. So 13 o o thong ke cung lay tu PAGES.length.
+  - 6 the tinh nang (them Trade planner, Danh muc & Financial Status, Learn gop Playbook + Settings & Guides), EN + VI.
+  - Cuoi trang: san khau kinh + qua cau "Vao" (quang mau xoay, vong dut net xoay nguoc, dom sang tren mat kinh), chu thich Ctrl K.
+  - Footer: mot tam kinh; cot thuong hieu + chon ngon ngu/giao dien; cot Kham pha + 3 nhom menu, moi trang mot link (openPage trong main.ts, qua cong ma nhu openLearn); khung canh bao rui ro; (c) nam + Len dau trang.
+  - Scanner: #main .scan-connect.card margin-bottom 16px (trang thai chua co ma).
+- Kiem tra: tsc 0, vitest 420/420 (2 file timeout khi may ban, chay lai rieng deu qua), build OK. Chup headless landing toi/sang 1440 + 500, Scanner chua co ma (mo tu link footer - xac nhan openPage chay).
+- Chua thu tren thiet bi that.
