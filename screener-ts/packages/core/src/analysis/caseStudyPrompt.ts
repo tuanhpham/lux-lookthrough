@@ -93,8 +93,8 @@ export function caseContextBlock(
   };
 
   add(vi ? 'Mã' : 'Symbol', c.symbol.toUpperCase());
-  add(vi ? 'Ngày then chốt tôi đã ghi' : 'Key date I recorded', c.keyDate);
-  if (c.setupType) add(vi ? 'Loại mẫu hình' : 'Pattern type', c.setupType);
+  add(vi ? 'Key date tôi đã ghi' : 'Key date I recorded', c.keyDate);
+  if (c.setupType) add(vi ? 'Loại setup' : 'Pattern type', c.setupType);
   if (c.title) add(vi ? 'Tiêu đề hồ sơ' : 'Case title', c.title);
 
   const lv: string[] = [];
@@ -105,7 +105,7 @@ export function caseContextBlock(
     const ccy = c.currency && c.currency !== 'USD'
       ? ` (${vi ? 'bằng' : 'in'} ${c.currency}${vi ? ', không phải USD' : ', not USD'})`
       : '';
-    add(vi ? 'Mức tôi đã ghi' : 'Levels I recorded', lv.join(' / ') + ccy);
+    add(vi ? 'Các mức giá tôi đã ghi' : 'Levels I recorded', lv.join(' / ') + ccy);
   }
 
   if (c.exitDate || fin(c.exitPrice)) {
@@ -114,9 +114,9 @@ export function caseContextBlock(
       `${c.exitDate ?? '?'} @ ${fin(c.exitPrice) ? c.exitPrice : '?'}`,
     );
   }
-  if (fin(c.rMultiple)) add(vi ? 'Kết quả R' : 'Realized R', `${c.rMultiple}R`);
+  if (fin(c.rMultiple)) add(vi ? 'R thực tế' : 'Realized R', `${c.rMultiple}R`);
   if (c.outcome) add(vi ? 'Kết quả' : 'Outcome', c.outcome);
-  if (c.rating) add(vi ? 'Tôi tự xếp hạng' : 'My own grade', c.rating);
+  if (c.rating) add(vi ? 'Tôi tự chấm' : 'My own grade', c.rating);
 
   if (c.catalysts?.length) {
     // Filter on the STRIPPED text, not on the assembled line: an editor that saved
@@ -143,7 +143,7 @@ export function caseContextBlock(
   }
 
   const head = vi
-    ? 'DỮ LIỆU TÔI ĐÃ GHI TRONG HỒ SƠ (hãy kiểm chứng, đừng tin ngay — nếu số liệu thực tế khác, hãy nói rõ)'
+    ? 'DỮ LIỆU TÔI ĐÃ GHI TRONG HỒ SƠ (hãy kiểm chứng, đừng mặc định là đúng — nếu số liệu thực tế khác, cứ nói thẳng)'
     : 'WHAT MY JOURNAL RECORDS (verify it, do not take it on trust — if the real data differs, say so)';
   return `${head}\n${L.join('\n')}`;
 }
@@ -206,47 +206,46 @@ ${c.symbol.toUpperCase()} · ${c.setupType || 'breakout'} · key date ${c.keyDat
 ${caseContextBlock(c, 'en')}`;
 
 const VI = (c: CaseStudyPromptContext): string => `# ROLE
-Bạn là một trợ lý phân tích kỹ thuật chuyên sâu về mẫu hình breakout theo trường
-phái Minervini (VCP) và O'Neil (CAN SLIM). Nhiệm vụ của bạn là phân tích một case
-study cổ phiếu cụ thể một cách khách quan, dựa trên DỮ LIỆU THỰC TẾ tra cứu được,
-không suy đoán.
+Bạn là trợ lý phân tích kỹ thuật, chuyên về breakout theo trường phái Minervini
+(VCP) và O'Neil (CAN SLIM). Việc của bạn là phân tích khách quan một case study
+cổ phiếu cụ thể, dựa trên DỮ LIỆU THỰC TẾ tra cứu được, không suy đoán.
 
 # INPUT
 ${c.symbol.toUpperCase()} · ${c.setupType || 'breakout'} · key date ${c.keyDate}
 
-# QUY TRÌNH BẮT BUỘC (thực hiện tuần tự)
+# QUY TRÌNH BẮT BUỘC (làm lần lượt từng bước)
 1. TRA CỨU DỮ LIỆU THỰC: Luôn dùng công cụ tìm kiếm/truy cập web để lấy dữ liệu
-   thật quanh key date. KHÔNG được bịa số liệu. Nếu key date nằm sau mốc kiến thức
-   của bạn, phải tra cứu bắt buộc.
+   thật quanh key date. KHÔNG được bịa số liệu. Nếu key date nằm sau mốc dữ liệu
+   huấn luyện của bạn thì bắt buộc phải tra cứu.
    - Lấy dữ liệu giá & khối lượng theo ngày cho khoảng: từ ~10 phiên TRƯỚC key date
      đến ~5 phiên SAU key date (ưu tiên nguồn có bảng OHLCV theo ngày như StatMuse,
      Macrotrends, Stockanalysis).
-   - Tra cứu catalyst: tin tức công ty, earnings, deal/hợp đồng, sự kiện ngành
+   - Tra cứu catalyst: tin tức công ty, KQKD, deal/hợp đồng, sự kiện ngành
      (CES, GTC...), thay đổi lãnh đạo, nâng/hạ giá mục tiêu của analyst — kèm NGÀY
      chính xác của từng tin.
 2. XÁC MINH & HIỆU CHỈNH: Nếu ngày breakout thực tế lệch với key date tôi đưa, hãy
    nói rõ và giải thích (ví dụ breakout kéo dài nhiều phiên, hoặc catalyst đến
-   sau). Kiểm tra các yếu tố gây méo dữ liệu: stock split, reverse split, spin-off.
+   sau). Kiểm tra những yếu tố làm méo dữ liệu: stock split, reverse split, spin-off.
 
 # CÁC CHỈ SỐ PHẢI TÍNH
 - Mức tăng giá phiên breakout (close-to-close %).
 - Khối lượng phiên breakout so với: (a) phiên liền trước, (b) trung bình ~5–7 phiên
   trước đó → ghi thành tỷ lệ "Nx".
-- Nhận diện phiên volume dry-up thấp nhất trong nền (pivot).
-- Chất lượng follow-through: volume các phiên sau tăng dần, giảm đều, hay sụp mạnh?
+- Xác định phiên volume dry-up thấp nhất trong base (pivot).
+- Chất lượng follow-through: volume các phiên sau tăng dần, giảm đều, hay tụt hẳn?
 
 # ĐÁNH GIÁ CHẤT LƯỢNG (bắt buộc nêu)
 Phân loại case theo các trục:
 - Cấu trúc: nổ 1 phiên / momentum dần / breakout kéo dài nhiều phiên.
-- Chất lượng nền tảng: leader ngành đang tăng trưởng vs turnaround/event-driven.
+- Chất lượng doanh nghiệp: leader ngành đang tăng trưởng vs turnaround/event-driven.
 - Timing catalyst: trùng ngày breakout / catalyst đến sau / thematic đã biết trước.
-- Tính "đón đầu được" (front-runnable): có thể vào watchlist trước không, hay chỉ
-  theo sau được?
+- Có "đón đầu được" không (front-runnable): có thể đưa vào watchlist từ trước, hay
+  chỉ đuổi theo được?
 - Nêu rõ CỜ ĐỎ nếu có: reverse split, thanh khoản mỏng, analyst vẫn hoài nghi,
   thiếu institutional accumulation, giá quá extended so với pivot (rủi ro entry cao).
 
-# ĐỊNH DẠNG ĐẦU RA
-Trình bày gồm:
+# ĐỊNH DẠNG TRẢ LỜI
+Gồm các phần:
 1. Bảng dữ liệu giá & khối lượng theo ngày (cột: Ngày | Đóng cửa | Khối lượng |
    Ghi chú), đánh dấu rõ phiên pivot và phiên breakout.
 2. Đánh giá chất lượng VCP (volume dry-up, tỷ lệ volume, price thrust,
@@ -257,14 +256,14 @@ Trình bày gồm:
    các case đó.
 
 # NGUYÊN TẮC
-- Luôn dựa trên số liệu thật; nếu không tra được, nói thẳng
-  "không tìm thấy dữ liệu" thay vì đoán.
+- Luôn dựa trên số liệu thật; tra không ra thì nói thẳng
+  "không tìm thấy dữ liệu", đừng đoán.
 - Khách quan: nêu cả điểm yếu/cờ đỏ, không chỉ tô hồng case thành công (tránh
   survivorship bias).
-- Nhắc ngắn gọn: đây là phân tích giáo dục về mẫu hình,
+- Nhắc ngắn gọn: đây là phân tích mẫu hình để học hỏi,
   KHÔNG phải khuyến nghị đầu tư; AI không phải cố vấn tài chính; nhấn mạnh quản trị
   rủi ro (stop-loss, position sizing).
-- Nếu tôi yêu cầu, xuất thêm bản tóm tắt tiếng Anh để lưu case study.
+- Nếu tôi yêu cầu, viết thêm bản tóm tắt tiếng Anh để lưu vào case study.
 
 ${caseContextBlock(c, 'vi')}`;
 

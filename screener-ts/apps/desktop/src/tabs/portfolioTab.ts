@@ -192,7 +192,7 @@ function wirePriceHint(
     if (quote === null) {
       // London quotes in pence, Zurich in francs… — no rate here converts those into the account.
       hintEl.innerHTML = `<span class="muted">${getLang() === 'vi'
-        ? 'Sàn này chưa được hỗ trợ: ứng dụng chỉ đổi được giá Mỹ (USD), khu vực euro (.DE, .PA…) và Việt Nam.'
+        ? 'Chưa hỗ trợ sàn này: app chỉ quy đổi được giá Mỹ (USD), khối euro (.DE, .PA…) và Việt Nam.'
         : 'This market is not supported yet: the app converts only US (USD), euro-area (.DE, .PA…) and Vietnamese prices.'}</span>`;
       return;
     }
@@ -371,7 +371,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
     // not about the plan.
     if (kept.length) {
       lines.push(
-        `<span class="muted">${vi ? 'Giữ nguyên số bạn đã nhập' : 'Kept what you typed'}: ${kept.join(', ')} · ` +
+        `<span class="muted">${vi ? 'Giữ số đã nhập' : 'Kept what you typed'}: ${kept.join(', ')} · ` +
         `<a href="#" data-apply>${vi ? 'dùng gợi ý' : 'use the suggestion'}</a></span>`,
       );
     }
@@ -386,14 +386,14 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
 
   const apply = (plan: BuyPlan): void => {
     const kept: string[] = [];
-    if (!put(stopEl, String(plan.stop), filled.stop)) kept.push(vi ? 'cắt lỗ' : 'stop');
+    if (!put(stopEl, String(plan.stop), filled.stop)) kept.push(vi ? 'stop' : 'stop');
     else filled.stop = String(plan.stop);
 
     // A number we put there and the new plan no longer stands behind has to GO, not
     // linger. Leaving yesterday's 250 shares in the box after the heat limit cut the
     // plan to zero would place exactly the trade the plan just refused.
     if (plan.target !== null) {
-      if (!put(targetEl, String(plan.target), filled.target)) kept.push(vi ? 'mục tiêu' : 'target');
+      if (!put(targetEl, String(plan.target), filled.target)) kept.push(vi ? 'target' : 'target');
       else filled.target = String(plan.target);
     } else if (filled.target && mine(targetEl, filled.target)) {
       targetEl.value = '';
@@ -487,12 +487,12 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
   const waitingFor = (): string | null => {
     if (!setupEl.value || !isSetupKey(setupEl.value)) {
       return vi
-        ? 'Chọn <b>Loại thiết lập</b> để tự tính cắt lỗ, mục tiêu và số cổ.'
+        ? 'Chọn <b>Loại setup</b> để tự tính stop, target và số cổ.'
         : 'Pick a <b>Setup</b> to get the stop, target and share count.';
     }
     const missing: string[] = [];
     if (!tickerEl.value.trim()) missing.push(vi ? 'mã' : 'the symbol');
-    if (!(Number(priceEl.value.replace(',', '.')) > 0)) missing.push(vi ? 'giá vào' : 'the entry price');
+    if (!(Number(priceEl.value.replace(',', '.')) > 0)) missing.push(vi ? 'giá entry' : 'the entry price');
     if (!missing.length) return null;
     return `${vi ? 'Đang chờ' : 'Waiting for'} ${missing.join(vi ? ' và ' : ' and ')}…`;
   };
@@ -572,7 +572,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
       if (me !== token) return;
       if (!bars.length) {
         hintEl.innerHTML = `<span class="muted">${vi
-          ? 'Không tải được dữ liệu giá — hãy tự đặt cắt lỗ và mục tiêu.'
+          ? 'Không tải được dữ liệu giá — tự đặt stop và target nhé.'
           : 'Could not load price data — set the stop and target yourself.'}</span>`;
         grade = null;
         paintPanel();
@@ -594,7 +594,7 @@ function wireBuyPlan(ctx: AppContext, onFilled: () => void): void {
       const levels = buildBuyPlan({ ...common, rating: null });
       if (!levels) {
         hintEl.innerHTML = `<span class="muted">${vi
-          ? 'Không tìm được mốc cắt lỗ nào dưới giá vào cho thiết lập này.'
+          ? 'Không tìm được mức stop nào dưới giá entry cho setup này.'
           : 'No stop level below the entry for this setup.'}</span>`;
         grade = null;
         paintPanel();
@@ -897,11 +897,11 @@ type Rating = ConvictionRating;
 const SETUP_TYPES: { value: string; en: string; vi: string }[] = [
   { value: '', en: '— None', vi: '— Không' },
   { value: 'VCP', en: 'VCP', vi: 'VCP' },
-  { value: 'EP', en: 'Episodic Pivot', vi: 'Điểm xoay đột biến' },
-  { value: 'Mean Reversion', en: 'Mean Reversion', vi: 'Hồi quy trung bình' },
-  { value: 'Breakout', en: 'Breakout', vi: 'Bứt phá' },
-  { value: 'Pullback', en: 'Pullback', vi: 'Điều chỉnh' },
-  { value: 'Surge', en: 'Surge', vi: 'Tăng vọt' },
+  { value: 'EP', en: 'Episodic Pivot', vi: 'Episodic Pivot' },
+  { value: 'Mean Reversion', en: 'Mean Reversion', vi: 'Mean Reversion' },
+  { value: 'Breakout', en: 'Breakout', vi: 'Breakout' },
+  { value: 'Pullback', en: 'Pullback', vi: 'Pullback' },
+  { value: 'Surge', en: 'Surge', vi: 'Surge' },
   { value: 'Other', en: 'Other', vi: 'Khác' },
 ];
 const RATINGS: ('' | Rating)[] = ['', ...RATING_KEYS];
@@ -1439,15 +1439,15 @@ function draw(ctx: AppContext): void {
             title="${t('pf.buy.resettitle')}">✕ ${t('pf.buy.reset')}</button>
           <button id="b-playbook-cfg" class="btn-outline mini-btn"
             title="${getLang() === 'vi'
-              ? 'Đổi các con số mặc định của cẩm nang: cắt lỗ, mục tiêu, cỡ vị thế theo từng thiết lập'
+              ? 'Chỉnh các số mặc định của Playbook: stop, target, size theo từng setup'
               : 'Change the playbook’s default numbers: stops, targets and size per setup'}"
-          >${getLang() === 'vi' ? '⚙ Cẩm nang' : '⚙ Playbook'}</button>
+          >${getLang() === 'vi' ? '⚙ Playbook' : '⚙ Playbook'}</button>
           <!-- Beside the playbook rather than inside the Sell dialog: formDialog is a fixed list
                of fields with nowhere to put a button, and a settings corner is where a user looks
                for a list they can edit. The reasons themselves are picked in the Sell dialog. -->
           <button id="b-exitreasons" class="btn-outline mini-btn"
             title="${getLang() === 'vi'
-              ? 'Quản lý danh sách lý do bán — tự thêm lý do, sẽ hiện trong ô lý do khi bán và trong Trade Planner'
+              ? 'Quản lý danh sách lý do bán — lý do tự thêm sẽ hiện ở ô Vì sao bán và trong Trade Planner'
               : 'Manage the exit-reason list — add your own, and they show up when you sell and in the Trade Planner'}"
           >${getLang() === 'vi' ? '🏷 Lý do bán' : '🏷 Exit reasons'}</button>
           </div>
@@ -1462,7 +1462,7 @@ function draw(ctx: AppContext): void {
           <input id="b-date" class="field" type="date" value="${today()}" /></div>
         <div id="b-pricehint" class="price-hint"></div>
         <div class="row" style="margin-top:8px">
-          <div style="flex:1"><label class="field-label" style="margin-bottom:4px">${getLang() === 'vi' ? 'Loại thiết lập' : 'Setup'}</label>
+          <div style="flex:1"><label class="field-label" style="margin-bottom:4px">${getLang() === 'vi' ? 'Loại setup' : 'Setup'}</label>
             <select id="b-setup" class="field" style="width:100%">${SETUP_TYPES.map((s) => `<option value="${s.value}">${getLang() === 'vi' ? s.vi : s.en}</option>`).join('')}</select></div>
           <div style="width:150px"><label class="field-label" style="margin-bottom:4px">${t('pf.buy.gradeover')}</label>
             <select id="b-rating" class="field" style="width:100%">${RATINGS.map((r) => `<option value="${r}">${r === '' ? t('pf.buy.gradeauto') : r}</option>`).join('')}</select></div>
@@ -2090,7 +2090,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           // Grouped and optional. A required reason would get the first option picked to get past
           // it, and a journal of thirty "Stop hit"s that were nothing of the kind is worse than
           // one with blanks in it.
-          { key: 'why', label: svi ? 'Lý do bán (không bắt buộc)' : 'Why you got out (optional)',
+          { key: 'why', label: svi ? 'Vì sao bán (không bắt buộc)' : 'Why you got out (optional)',
             type: 'select', value: '',
             options: exitReasonFieldOptions(svi, svi ? '— chọn lý do' : '— pick a reason') },
           { key: '_note', label: 'Note (optional)', type: 'info', value: richEditorHtml('sell-note', '', { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 }) },
@@ -2552,7 +2552,7 @@ function transactionHistoryHtml(st: AccountState): string {
     if (!r.lotId) return `<td>—</td>`;
     const label = r.setupType ? escapeHtml(setupLabel(r.setupType, vi)) : `<span class="muted">—</span>`;
     return `<td style="white-space:nowrap">${label} ${ratingBadgeHtml(r.rating)}
-      <button class="note-btn${r.setupType || r.rating ? ' has-note' : ''}" data-setup-lot="${r.lotId}" title="${vi ? 'Sửa thiết lập & xếp hạng' : 'Edit setup & rating'}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></td>`;
+      <button class="note-btn${r.setupType || r.rating ? ' has-note' : ''}" data-setup-lot="${r.lotId}" title="${vi ? 'Sửa setup & xếp hạng' : 'Edit setup & rating'}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></td>`;
   };
   /**
    * The exit reason, inside the Sell-date cell.

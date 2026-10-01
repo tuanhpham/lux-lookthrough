@@ -26,6 +26,8 @@ import { cbButton, cbIcon, commandBar } from '../ui/commandBar.js';
 import { setupName } from '../portfolio/planWords.js';
 import type { SetupKey } from '@screener/core';
 import { pageHero } from '../ui/pageHero.js';
+import { askInChat } from '../ui/chatPanel.js';
+import { lblOf, promptActsHtml } from '../ui/promptActions.js';
 import { caseStudyHtml } from '../caseStudies/report.js';
 import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import {
@@ -60,11 +62,11 @@ const todayIso = (): string => new Date().toISOString().slice(0, 10);
  * build the auto title (e.g. "Feb 2024 VCP Breakout"). */
 const SETUP_TYPES: { value: string; en: string; vi: string; phrase: string }[] = [
   { value: 'VCP', en: 'VCP', vi: 'VCP', phrase: 'VCP Breakout' },
-  { value: 'EP', en: 'Episodic Pivot', vi: 'Điểm xoay đột biến', phrase: 'Episodic Pivot' },
-  { value: 'Mean Reversion', en: 'Mean Reversion', vi: 'Hồi quy trung bình', phrase: 'Mean Reversion' },
-  { value: 'Breakout', en: 'Breakout', vi: 'Bứt phá', phrase: 'Breakout' },
-  { value: 'Pullback', en: 'Pullback', vi: 'Điều chỉnh', phrase: 'Pullback' },
-  { value: 'Surge', en: 'Surge', vi: 'Tăng vọt', phrase: 'Surge' },
+  { value: 'EP', en: 'Episodic Pivot', vi: 'Episodic Pivot', phrase: 'Episodic Pivot' },
+  { value: 'Mean Reversion', en: 'Mean Reversion', vi: 'Mean Reversion', phrase: 'Mean Reversion' },
+  { value: 'Breakout', en: 'Breakout', vi: 'Breakout', phrase: 'Breakout' },
+  { value: 'Pullback', en: 'Pullback', vi: 'Pullback', phrase: 'Pullback' },
+  { value: 'Surge', en: 'Surge', vi: 'Surge', phrase: 'Surge' },
   { value: 'Other', en: 'Other', vi: 'Khác', phrase: 'Setup' },
 ];
 
@@ -130,14 +132,14 @@ async function renderList(ctx: AppContext): Promise<void> {
     ${pageHero({
       icon: '🗂', tone: 'var(--violet)',
       kicker: vi ? 'Giao dịch · Nhật ký' : 'Trading · Journal',
-      title: vi ? 'Hồ sơ Setup' : 'Case Studies',
+      title: vi ? 'Case Studies' : 'Case Studies',
       sub: vi
-        ? 'Ghi lại các thiết lập trong quá khứ: ngày then chốt, mức mua/cắt lỗ/mục tiêu, chất xúc tác và ghi chú — kèm biểu đồ và xuất báo cáo.'
+        ? 'Ghi lại các setup đã qua: ngày then chốt, giá vào/cắt lỗ/mục tiêu, catalyst và ghi chú — kèm chart và báo cáo tải về.'
         : 'Document past setups: the key date, entry/stop/target, catalysts and notes — with a chart and a downloadable report.',
     })}
     ${commandBar({
-      actions: [cbButton({ id: 'cs-new', label: vi ? 'Hồ sơ mới' : 'New case study', icon: 'plus', primary: true })],
-      meta: `<span class="cb-hint">${idx.length} ${vi ? 'hồ sơ' : idx.length === 1 ? 'study' : 'studies'}</span>`,
+      actions: [cbButton({ id: 'cs-new', label: vi ? 'Case Study mới' : 'New case study', icon: 'plus', primary: true })],
+      meta: `<span class="cb-hint">${idx.length} ${vi ? 'case study' : idx.length === 1 ? 'study' : 'studies'}</span>`,
     })}
     <div id="cs-list"></div>`;
 
@@ -146,7 +148,7 @@ async function renderList(ctx: AppContext): Promise<void> {
   const list = $('#cs-list')!;
   if (!idx.length) {
     list.innerHTML = `<div class="card muted" style="text-align:center;padding:30px">${
-      vi ? 'Chưa có hồ sơ nào. Bấm “＋ Hồ sơ mới” để bắt đầu.' : 'No case studies yet. Click “＋ New case study” to start.'
+      vi ? 'Chưa có case study nào. Bấm “＋ Case Study mới” để bắt đầu.' : 'No case studies yet. Click “＋ New case study” to start.'
     }</div>`;
     return;
   }
@@ -175,7 +177,7 @@ async function renderList(ctx: AppContext): Promise<void> {
           <span class="cs-meta">${meta}</span>
         </span>
         <span class="cs-chips">
-          ${m.hasPlan ? `<span class="cs-chip cs-chip--plan" title="${vi ? 'Có kế hoạch giao dịch đóng băng' : 'Has a frozen trade plan'}">${cbIcon('file', 12)}${vi ? 'Kế hoạch' : 'Plan'}</span>` : ''}
+          ${m.hasPlan ? `<span class="cs-chip cs-chip--plan" title="${vi ? 'Có trade plan đã chốt' : 'Has a frozen trade plan'}">${cbIcon('file', 12)}${vi ? 'Kế hoạch' : 'Plan'}</span>` : ''}
           ${m.rating ? `<span class="cs-chip" style="--c:${RATING_COLOR[m.rating]}">${vi ? 'Hạng' : 'Grade'} ${m.rating}</span>` : ''}
           <span class="cs-chip cs-chip--out" style="--c:${OUTCOME_COLOR[m.outcome]}"><i></i>${outcomeLabel(m.outcome, vi)}</span>
         </span>
@@ -230,10 +232,10 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   root.innerHTML = `
     ${pageHero({
       icon: '🗂', tone: oc,
-      kicker: vi ? 'Hồ sơ setup' : 'Case study',
+      kicker: vi ? 'Case Study' : 'Case study',
       title: `${escapeAttr(study.symbol)}<span class="cs-hero-chips"><span class="cs-chip cs-chip--out" style="--c:${oc}"><i></i>${outcomeLabel(study.outcome, vi)}</span>${
         study.rating ? `<span class="cs-chip" style="--c:${RATING_COLOR[study.rating]}">${vi ? 'Hạng' : 'Grade'} ${study.rating}</span>` : ''}${
-        study.plan ? `<span class="cs-chip cs-chip--plan">${cbIcon('file', 12)}${vi ? 'Có kế hoạch' : 'Plan filed'}</span>` : ''}</span>`,
+        study.plan ? `<span class="cs-chip cs-chip--plan">${cbIcon('file', 12)}${vi ? 'Đã lưu plan' : 'Plan filed'}</span>` : ''}</span>`,
       sub: subBits,
     })}
     ${commandBar({
@@ -243,7 +245,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
           ? [cbButton({
             id: 'cs-plan', label: vi ? 'Xem kế hoạch' : 'View plan', icon: 'eye', primary: true,
             title: vi
-              ? 'Xem kế hoạch giao dịch đã được đóng băng khi lưu hồ sơ này — hạng, bảng tiêu chí và các mức giá lúc đó'
+              ? 'Xem trade plan đã chốt lúc lưu case study này — hạng, bảng tiêu chí và các mức giá khi đó'
               : 'Read the trade plan frozen when this study was filed — the grade, the scorecard and the levels as they stood',
           })]
           : []),
@@ -254,7 +256,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     })}
     <div class="card cs-chart-card">
       <div class="cs-chart-bar">
-        <span class="cs-k">${vi ? 'Biểu đồ' : 'Chart'}</span>
+        <span class="cs-k">${vi ? 'Chart' : 'Chart'}</span>
         <div class="seg">${[1, 3, 6].map((mo) => `<button class="range-btn ${mo === study.windowMonths ? 'active' : ''}" data-win="${mo}">±${mo}M</button>`).join('')}</div>
       </div>
       <div id="cs-chart">${vi ? 'Đang tải…' : 'Loading…'}</div>
@@ -263,7 +265,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
       <section class="cs-stat-group">
         <div class="cs-k">${vi ? 'Kế hoạch' : 'The plan'}</div>
         <div class="cs-stats">
-          ${detailStat(vi ? 'Mua' : 'Entry', money(study.entry, sym), '#5b8cff')}
+          ${detailStat(vi ? 'Giá vào' : 'Entry', money(study.entry, sym), '#5b8cff')}
           ${detailStat(vi ? 'Cắt lỗ' : 'Stop', money(study.stop, sym), 'var(--danger)')}
           ${detailStat(vi ? 'Mục tiêu' : 'Target', money(study.target, sym), 'var(--up)')}
           ${detailStat('R:R', plannedRr(study))}
@@ -272,23 +274,23 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
       <section class="cs-stat-group">
         <div class="cs-k">${vi ? 'Kết quả' : 'The result'}</div>
         <div class="cs-stats">
-          ${detailStat(vi ? 'Ngày thoát' : 'Exit date', study.exitDate ?? '—')}
-          ${detailStat(vi ? 'Giá thoát' : 'Exit price', money(study.exitPrice, sym))}
+          ${detailStat(vi ? 'Ngày bán' : 'Exit date', study.exitDate ?? '—')}
+          ${detailStat(vi ? 'Giá bán' : 'Exit price', money(study.exitPrice, sym))}
           ${detailStat(vi ? 'Kết quả R' : 'Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? 'var(--up)' : 'var(--danger)') : undefined)}
-          ${detailStat(vi ? 'Xếp hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
+          ${detailStat(vi ? 'Hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
         </div>
       </section>
     </div>
     ${study.exitReason
       ? `<div class="card cs-why">
           <span class="cs-why-ic" aria-hidden="true">${cbIcon('clipboard', 16)}</span>
-          <div><div class="cs-k">${vi ? 'Lý do thoát' : 'Why it was closed'}</div>
+          <div><div class="cs-k">${vi ? 'Vì sao bán' : 'Why it was closed'}</div>
           <div class="cs-why-t">${escapeAttr(study.exitReason)}</div></div>
         </div>`
       : ''}
-    ${sectionHead(vi ? '📋 Kế hoạch giao dịch' : '📋 Trade plan')}
+    ${sectionHead(vi ? '📋 Trade plan' : '📋 Trade plan')}
     ${planSectionHtml(study, vi)}
-    ${sectionHead(vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news', [countChip(study.catalysts.length, undefined, vi ? 'mốc' : 'dated')])}
+    ${sectionHead(vi ? '📅 Catalyst & tin tức' : '📅 Catalysts & news', [countChip(study.catalysts.length, undefined, vi ? 'mốc' : 'dated')])}
     <div class="card cs-cats">${catalystListHtml(study, vi)}</div>
     ${sectionHead(vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons')}
     <div class="card note-html cs-notes">${!isNoteEmpty(study.notes) ? sanitizeNoteHtml(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>
@@ -297,7 +299,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   $('#cs-back')!.addEventListener('click', () => void renderList(ctx));
   $('#cs-edit')!.addEventListener('click', () => openEditor(ctx, study));
   $('#cs-delete')!.addEventListener('click', async () => {
-    if (!confirm(vi ? `Xóa hồ sơ ${study.symbol}?` : `Delete case study for ${study.symbol}?`)) return;
+    if (!confirm(vi ? `Xóa case study ${study.symbol}?` : `Delete case study for ${study.symbol}?`)) return;
     await deleteCase(ctx, id);
     void renderList(ctx);
   });
@@ -320,7 +322,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     if (caseDiv === null) {
       $('#cs-chart')!.innerHTML = `<p class="muted" style="margin:0">${
         vi
-          ? 'Không vẽ được đồ thị: hồ sơ này ghi giá bằng EUR nhưng chưa có tỷ giá EUR/USD của ngày then chốt trong bộ nhớ.'
+          ? 'Không vẽ được chart: case study này ghi giá bằng EUR nhưng trong cache chưa có tỷ giá EUR/USD của ngày then chốt.'
           : 'No chart: this study’s prices are in EUR and no cached EUR/USD rate for the key date was found.'
       }</p>`;
       return;
@@ -506,15 +508,11 @@ async function renderAskSection(
       <div class="card" style="padding:12px">
         <p class="muted" style="margin:0 0 10px;font-size:12px;line-height:1.55">${
           vi
-            ? 'Gửi hồ sơ này cho ChatGPT để nó tra dữ liệu giá/khối lượng thật quanh ngày then chốt, tính tỷ lệ volume breakout, dựng chuỗi chất xúc tác theo ngày và nêu cả điểm mạnh lẫn cờ đỏ.'
+            ? 'Gửi case study này cho ChatGPT để tra giá/khối lượng thật quanh ngày then chốt, tính tỷ lệ volume breakout, dựng lại chuỗi catalyst theo ngày và chỉ ra cả điểm mạnh lẫn cờ đỏ.'
             : 'Send this case to ChatGPT so it looks up the real price/volume around the key date, computes the breakout volume ratios, reconstructs the dated catalyst chain, and names the red flags as well as the strengths.'
         }</p>
         ${gptBadgeHtml()}
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <button class="btn" id="cs-ask-go">${t('prompts.ask')}</button>
-          <button class="btn-outline" id="cs-ask-copy">${t('prompts.copy')}</button>
-          <button class="range-btn" id="cs-ask-show">${t('prompts.show')}</button>
-        </div>
+        ${promptActsHtml({ ask: 'id="cs-ask-go"', assistant: 'id="cs-ask-bot"', copy: 'id="cs-ask-copy"', show: 'id="cs-ask-show"' })}
         <pre id="cs-ask-text" class="hidden" style="white-space:pre-wrap;font-size:11px;line-height:1.5;
           background:var(--surface);border-radius:8px;padding:10px;margin:10px 0 0;max-height:280px;overflow:auto">${escapeAttr(prompt)}</pre>
         <p class="muted" style="font-size:10px;margin:8px 0 0;line-height:1.5">${t('prompts.ask.hint')}</p>
@@ -524,13 +522,16 @@ async function renderAskSection(
     $('#cs-ask-go')!.addEventListener('click', (e) =>
       askChatGpt(prompt, e.currentTarget as HTMLElement),
     );
+    $('#cs-ask-bot')!.addEventListener('click', () =>
+      void askInChat(ctx, prompt, `${study.symbol} · ${study.title || study.keyDate}`),
+    );
     $('#cs-ask-copy')!.addEventListener('click', (e) =>
       void copyToClipboard(prompt, e.currentTarget as HTMLElement),
     );
     $('#cs-ask-show')!.addEventListener('click', (e) => {
       const btn = e.currentTarget as HTMLElement;
       const hidden = $('#cs-ask-text')!.classList.toggle('hidden');
-      btn.textContent = hidden ? t('prompts.show') : t('prompts.hide');
+      lblOf(btn).textContent = hidden ? t('prompts.show') : t('prompts.hide');
     });
     wireGptBadge(host, ctx, paint);
   };
@@ -548,14 +549,14 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
   root.innerHTML = `
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
       <button id="cs-cancel" class="btn-outline">← ${vi ? 'Hủy' : 'Cancel'}</button>
-      <button id="cs-save" class="btn">${vi ? 'Lưu hồ sơ' : 'Save case study'}</button>
+      <button id="cs-save" class="btn">${vi ? 'Lưu case study' : 'Save case study'}</button>
     </div>
-    <h1>${study.symbol ? (vi ? 'Sửa hồ sơ' : 'Edit case study') : vi ? 'Hồ sơ mới' : 'New case study'}</h1>
+    <h1>${study.symbol ? (vi ? 'Sửa case study' : 'Edit case study') : vi ? 'Case Study mới' : 'New case study'}</h1>
     <div class="card" style="margin-bottom:14px">
       <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
         <div><label class="field-label">${vi ? 'Mã' : 'Symbol'}</label><input id="f-symbol" class="field" value="${escapeAttr(study.symbol)}" placeholder="NVDA" /></div>
         <div><label class="field-label">${vi ? 'Ngày then chốt' : 'Key date'}</label><input id="f-keydate" class="field" type="date" max="${todayIso()}" value="${study.keyDate}" /></div>
-        <div><label class="field-label">${vi ? 'Loại thiết lập' : 'Setup type'}</label><select id="f-setup" class="field pf-acct-select">${
+        <div><label class="field-label">${vi ? 'Loại setup' : 'Setup type'}</label><select id="f-setup" class="field pf-acct-select">${
           SETUP_TYPES.map((s) => `<option value="${s.value}" ${s.value === study.setupType ? 'selected' : ''}>${vi ? s.vi : s.en}</option>`).join('')
         }${SETUP_TYPES.some((s) => s.value === study.setupType) ? '' : `<option value="${escapeAttr(study.setupType)}" selected>${escapeAttr(study.setupType)}</option>`}</select></div>
         <div style="grid-column:span 3"><label class="field-label">${vi ? 'Tiêu đề' : 'Title'} <span class="muted" style="font-weight:400">${vi ? '(tự động — có thể sửa)' : '(auto — editable)'}</span></label>
@@ -565,25 +566,25 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         <div><label class="field-label">${vi ? 'Xếp hạng' : 'Rating'}</label><select id="f-rating" class="field">${RATINGS.map((r) => `<option value="${r}" ${r === (study.rating ?? '') ? 'selected' : ''}>${r === '' ? (vi ? '— Chưa xếp' : '— Ungraded') : r}</option>`).join('')}</select></div>
         <div><label class="field-label" title="${
           vi
-            ? 'Đồng tiền của các mức giá bên dưới. Chọn EUR thì đồ thị được quy đổi theo tỷ giá ngày then chốt, chứ không phải đổi giá của anh.'
+            ? 'Đơn vị tiền của các mức giá bên dưới. Chọn EUR thì CHART được quy đổi theo tỷ giá ngày then chốt — giá bạn nhập vẫn giữ nguyên.'
             : 'The currency of the prices below. Choose EUR and the CHART is converted at the key date’s rate — your prices are left exactly as typed.'
-        }">${vi ? 'Đồng tiền' : 'Currency'}</label><select id="f-ccy" class="field">${
+        }">${vi ? 'Tiền tệ' : 'Currency'}</label><select id="f-ccy" class="field">${
           (['USD', 'EUR'] as const).map((c) =>
             `<option value="${c}" ${c === (study.currency ?? 'USD') ? 'selected' : ''}>${c === 'EUR' ? '€ EUR' : '$ USD'}</option>`).join('')
         }</select></div>
-        <div><label class="field-label">${vi ? 'Mua' : 'Entry'}</label><input id="f-entry" class="field" type="number" step="any" value="${study.entry ?? ''}" /></div>
+        <div><label class="field-label">${vi ? 'Giá vào' : 'Entry'}</label><input id="f-entry" class="field" type="number" step="any" value="${study.entry ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Cắt lỗ' : 'Stop'}</label><input id="f-stop" class="field" type="number" step="any" value="${study.stop ?? ''}" /></div>
         <div><label class="field-label">${vi ? 'Mục tiêu' : 'Target'}</label><input id="f-target" class="field" type="number" step="any" value="${study.target ?? ''}" /></div>
-        <div><label class="field-label">${vi ? 'Ngày thoát' : 'Exit date'}</label><input id="f-exitdate" class="field" type="date" max="${todayIso()}" value="${study.exitDate ?? ''}" /></div>
-        <div><label class="field-label">${vi ? 'Giá thoát' : 'Exit price'}</label><input id="f-exitprice" class="field" type="number" step="any" value="${study.exitPrice ?? ''}" /></div>
-        <div><label class="field-label" title="${vi ? '(exitPrice − entry) / (entry − stop). Tự động tính nếu để trống.' : '(exitPrice − entry) / (entry − stop). Auto-calculated if left blank.'}">${vi ? 'Kết quả R' : 'Result R'} <span class="muted" style="font-size:10px">${vi ? '(tự động)' : '(auto)'}</span></label><input id="f-rmult" class="field" type="number" step="any" value="${study.rMultiple ?? ''}" placeholder="${vi ? 'tự động' : 'auto'}" /></div>
+        <div><label class="field-label">${vi ? 'Ngày bán' : 'Exit date'}</label><input id="f-exitdate" class="field" type="date" max="${todayIso()}" value="${study.exitDate ?? ''}" /></div>
+        <div><label class="field-label">${vi ? 'Giá bán' : 'Exit price'}</label><input id="f-exitprice" class="field" type="number" step="any" value="${study.exitPrice ?? ''}" /></div>
+        <div><label class="field-label" title="${vi ? '(exitPrice − entry) / (entry − stop). Để trống thì tự tính.' : '(exitPrice − entry) / (entry − stop). Auto-calculated if left blank.'}">${vi ? 'Kết quả R' : 'Result R'} <span class="muted" style="font-size:10px">${vi ? '(tự động)' : '(auto)'}</span></label><input id="f-rmult" class="field" type="number" step="any" value="${study.rMultiple ?? ''}" placeholder="${vi ? 'tự động' : 'auto'}" /></div>
         <div style="grid-column:span 3"><label class="field-label" title="${
           vi
-            ? 'Vì sao đã đóng vị thế. Chọn một lý do có sẵn rồi viết thêm, hoặc tự viết hẳn.'
+            ? 'Vì sao đóng vị thế. Chọn một lý do có sẵn rồi viết thêm, hoặc tự viết.'
             : 'Why the position was closed. Pick one of the listed reasons and add to it, or write your own.'
-        }">${vi ? 'Lý do thoát' : 'Why it was closed'}</label>
+        }">${vi ? 'Vì sao bán' : 'Why it was closed'}</label>
           <input id="f-exitreason" class="field" list="f-exitreason-list" value="${escapeAttr(study.exitReason ?? '')}" placeholder="${
-            vi ? 'VD: Chạm cắt lỗ — nhảy gap qua luôn sau tin lợi nhuận' : 'e.g. Stop hit — gapped straight through it on earnings'
+            vi ? 'VD: Chạm cắt lỗ — gap xuyên qua luôn sau KQKD' : 'e.g. Stop hit — gapped straight through it on earnings'
           }" />
           <datalist id="f-exitreason-list">${
             // The same vocabulary the planner offers — shipped rows plus the user's own — as
@@ -599,12 +600,12 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
     <!-- No count chip on this one, unlike the read view: the editor's list is a DRAFT that
          renderCatRows() repaints on its own, so a number baked into the heading would go
          stale the moment a row is added or deleted. -->
-    ${sectionHead(vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news')}
+    ${sectionHead(vi ? '📅 Catalyst & tin tức' : '📅 Catalysts & news')}
     <div class="card" style="margin-bottom:14px">
       <div id="cs-cat-rows"></div>
       <div class="row" style="margin-top:8px;gap:8px;align-items:flex-start">
         <input id="cs-cat-date" class="field" type="date" max="${todayIso()}" style="width:160px" />
-        <div class="cs-cat-input note-html field" id="cs-cat-text" contenteditable="true" data-placeholder="${vi ? 'Tin tức / lợi nhuận / chất xúc tác… (định dạng được)' : 'News / earnings / catalyst… (formatting supported)'}" style="flex:1;min-height:38px"></div>
+        <div class="cs-cat-input note-html field" id="cs-cat-text" contenteditable="true" data-placeholder="${vi ? 'Tin tức / KQKD / catalyst… (định dạng được)' : 'News / earnings / catalyst… (formatting supported)'}" style="flex:1;min-height:38px"></div>
         <button id="cs-cat-add" class="btn-outline">${vi ? '＋ Thêm' : '＋ Add'}</button>
       </div>
     </div>
@@ -612,7 +613,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
     ${sectionHead(vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons')}
     <div class="card" style="margin-bottom:14px">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span class="muted" style="font-size:12px">${vi ? 'Hỗ trợ định dạng (đậm, danh sách, màu…)' : 'Rich text (bold, lists, color…)'}</span>
+        <span class="muted" style="font-size:12px">${vi ? 'Định dạng được (đậm, danh sách, màu…)' : 'Rich text (bold, lists, color…)'}</span>
         <button id="f-notes-edit" type="button" class="note-btn has-note" title="${vi ? 'Sửa ghi chú' : 'Edit note'}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <div id="f-notes" class="note-html cs-notes-view">${isNoteEmpty(study.notes) ? `<span class="muted">${vi ? 'Chưa có ghi chú — bấm ✎ để thêm.' : 'No notes — click ✎ to add.'}</span>` : sanitizeNoteHtml(study.notes)}</div>
@@ -621,7 +622,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
   const catRowsEl = $('#cs-cat-rows')!;
   const renderCatRows = () => {
     if (!catalysts.length) {
-      catRowsEl.innerHTML = `<p class="muted" style="margin:0">${vi ? 'Chưa có chất xúc tác.' : 'No catalysts yet.'}</p>`;
+      catRowsEl.innerHTML = `<p class="muted" style="margin:0">${vi ? 'Chưa có catalyst nào.' : 'No catalysts yet.'}</p>`;
       return;
     }
     catRowsEl.innerHTML = '';
@@ -642,7 +643,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
           renderCatRows();
         });
         row.querySelector('.cs-cat-edit')!.addEventListener('click', async () => {
-          const res = await richNoteDialog(vi ? 'Chất xúc tác' : 'Catalyst', cat.text, { lang: vi ? 'vi' : 'en' });
+          const res = await richNoteDialog(vi ? 'Catalyst' : 'Catalyst', cat.text, { lang: vi ? 'vi' : 'en' });
           if (res === null) return;
           cat.text = res;
           renderCatRows();
@@ -771,9 +772,9 @@ function planSectionHtml(study: CaseStudy, vi: boolean): string {
     return `<div class="card cs-plan cs-plan--none">
       <span class="cs-plan-grade" aria-hidden="true">${cbIcon('file', 20)}</span>
       <div class="cs-plan-body">
-        <b>${vi ? 'Hồ sơ này không kèm kế hoạch giao dịch' : 'No trade plan was filed with this study'}</b>
+        <b>${vi ? 'Case study này không kèm trade plan' : 'No trade plan was filed with this study'}</b>
         <p>${vi
-          ? 'Chỉ hồ sơ được tạo bằng nút <b>“Lưu thành case study”</b> trong Trade Planner (trang cổ phiếu) mới đóng băng kế hoạch — hạng, bảng tiêu chí và các mức giá. Hồ sơ tạo bằng “Hồ sơ mới” thì không có.'
+          ? 'Chỉ case study lưu bằng nút <b>“Lưu thành case study”</b> trong Trade Planner (trang cổ phiếu) mới chốt lại plan — hạng, bảng tiêu chí và các mức giá. Case study tạo bằng “Case Study mới” thì không có.'
           : 'Only a study filed with <b>“Save as case study”</b> in the Trade Planner (stock page) freezes its plan — the grade, the scorecard and the levels. One made with “New case study” has none.'}</p>
       </div>
     </div>`;
@@ -786,13 +787,13 @@ function planSectionHtml(study: CaseStudy, vi: boolean): string {
   return `<div class="card cs-plan" style="--c:${col}">
     <span class="cs-plan-grade" title="${vi ? 'Hạng đang áp dụng' : 'Letter in force'}">${letter}</span>
     <div class="cs-plan-body">
-      <b>${vi ? 'Kế hoạch đóng băng ngày' : 'Plan frozen on'} <span class="mono">${p.date}</span>${p.plan.setup ? ` · ${setupName(p.plan.setup as SetupKey, vi)}` : ''}</b>
+      <b>${vi ? 'Plan chốt ngày' : 'Plan frozen on'} <span class="mono">${p.date}</span>${p.plan.setup ? ` · ${setupName(p.plan.setup as SetupKey, vi)}` : ''}</b>
       <p>${p.grade
-        ? `${vi ? 'Điểm' : 'Score'} <b class="mono">${p.grade.score.toFixed(0)}</b>/100 · ${vi ? 'cỡ lệnh' : 'size'} <b class="mono">${p.pctOfFull}%</b>`
-        : `<span style="color:var(--warn,#ffb648)">${vi ? 'Chưa chấm điểm khi lưu' : 'Never graded when filed'}</span> · ${vi ? 'cỡ lệnh' : 'size'} <b class="mono">${p.pctOfFull}%</b>`}${
-        p.shares > 0 ? ` · <b class="mono">${p.shares}</b> ${vi ? 'cổ phiếu' : 'shares'}` : ''}</p>
+        ? `${vi ? 'Điểm' : 'Score'} <b class="mono">${p.grade.score.toFixed(0)}</b>/100 · ${vi ? 'size' : 'size'} <b class="mono">${p.pctOfFull}%</b>`
+        : `<span style="color:var(--warn,#ffb648)">${vi ? 'Chưa chấm điểm khi lưu' : 'Never graded when filed'}</span> · ${vi ? 'size' : 'size'} <b class="mono">${p.pctOfFull}%</b>`}${
+        p.shares > 0 ? ` · <b class="mono">${p.shares}</b> ${vi ? 'cổ' : 'shares'}` : ''}</p>
       <div class="cs-plan-lvs">
-        ${lv(vi ? 'Mua' : 'Entry', p.levels.entry, '#5b8cff')}
+        ${lv(vi ? 'Giá vào' : 'Entry', p.levels.entry, '#5b8cff')}
         ${lv(vi ? 'Cắt lỗ' : 'Stop', p.levels.stop, 'var(--danger)')}
         ${lv(vi ? 'Mục tiêu' : 'Target', p.levels.target, 'var(--up)')}
       </div>
@@ -823,7 +824,7 @@ function plannedRr(s: CaseStudy): string {
   return ((s.target - s.entry) / (s.entry - s.stop)).toFixed(1) + 'R';
 }
 function catalystListHtml(study: CaseStudy, vi: boolean): string {
-  if (!study.catalysts.length) return `<p class="muted" style="margin:0">${vi ? 'Chưa có chất xúc tác.' : 'No catalysts recorded.'}</p>`;
+  if (!study.catalysts.length) return `<p class="muted" style="margin:0">${vi ? 'Chưa ghi catalyst nào.' : 'No catalysts recorded.'}</p>`;
   return study.catalysts
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : 1))

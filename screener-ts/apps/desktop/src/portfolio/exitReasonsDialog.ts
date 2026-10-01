@@ -43,9 +43,9 @@ function esc(s: string): string {
 }
 
 const WORDS = {
-  ttl: { vi: '🏷 Lý do thoát lệnh', en: '🏷 Exit reasons' },
+  ttl: { vi: '🏷 Lý do bán', en: '🏷 Exit reasons' },
   lead: {
-    vi: 'Danh sách dưới đây là những lý do app tặng sẵn — xem được, không sửa được, vì mỗi lý do là một mã đã nằm trên các lệnh bạn ghi trước đây; đổi tên nó là đổi luôn ý nghĩa của cả một năm ghi chép. Phần bạn tự thêm nằm ở dưới cùng và xuất hiện ngay trong ô "lý do thoát" của Trade Planner và của phần Bán.',
+    vi: 'Các lý do dưới đây có sẵn trong app — xem được nhưng không sửa được, vì mỗi lý do là một key đã gắn vào các lệnh ghi trước đây; đổi tên là đổi luôn ý nghĩa của cả năm nhật ký. Lý do tự thêm nằm ở cuối và hiện ngay trong ô "Vì sao bán" của Trade Planner và phần Bán.',
     en: 'The list below is what the app ships — readable, not editable, because each row is a key already stored on trades you filed earlier, and renaming one would rewrite what a year of records say happened. Your own rows are at the bottom and show up straight away in the exit-reason field of the Trade Planner and of Sell.',
   },
   builtin: { vi: 'Có sẵn', en: 'Shipped' },
@@ -54,7 +54,7 @@ const WORDS = {
   newLabel: { vi: 'Lý do mới…', en: 'New reason…' },
   group: { vi: 'Nhóm', en: 'Group' },
   del: { vi: 'Xóa', en: 'Delete' },
-  empty: { vi: 'Bạn chưa thêm lý do nào.', en: 'You have not added any reasons yet.' },
+  empty: { vi: 'Chưa có lý do tự thêm nào.', en: 'You have not added any reasons yet.' },
   cancel: { vi: 'Hủy', en: 'Cancel' },
   save: { vi: 'Lưu', en: 'Save' },
   dupe: { vi: 'Lý do này đã có trong danh sách.', en: 'That reason is already on the list.' },

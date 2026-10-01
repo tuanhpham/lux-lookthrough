@@ -357,18 +357,18 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
 
   // ── QM Quality Score rubric (weights total 100). ──
   const qmIntro = vi
-    ? `Bộ lọc <b>Qullamaggie (QM)</b> tìm các thiết lập có xác suất cao: mẫu hình <b>co thắt biến động (VCP)</b> sau một nhịp tăng mạnh, và <b>điểm xoay đột biến (Episodic Pivot)</b> — cú gap theo tin tức/lợi nhuận. Mỗi mã được chấm <b>điểm chất lượng 0–100</b> theo trọng số dưới đây.`
+    ? `Bộ lọc <b>Qullamaggie (QM)</b> tìm các setup xác suất cao: mẫu hình <b>co thắt biến động (VCP)</b> sau một nhịp tăng mạnh, và <b>Episodic Pivot</b> — cú gap nhờ tin tức/KQKD. Mỗi mã nhận <b>điểm chất lượng 0–100</b> theo trọng số dưới đây.`
     : `The <b>Qullamaggie (QM)</b> screen finds high-probability setups: <b>Volatility Contraction Patterns (VCP)</b> after a strong advance, and <b>Episodic Pivots</b> — news/earnings gaps. Each stock gets a <b>Quality Score 0–100</b> from the weighted components below.`;
 
   const qmRows: [string, string, string][] = vi
     ? [
         ['Xu hướng (Trend)', '20', 'Giá > EMA50 > EMA150 > EMA200 và EMA200 đang lên.'],
-        ['Nhịp tăng trước', '10', 'Nhịp tăng dẫn vào nền càng mạnh càng tốt (≥ 30%).'],
-        ['Chất lượng VCP', '25', 'Số lần co thắt, độ chặt và độ co biến động của nền.'],
-        ['Cạn thanh khoản', '15', 'Volume cạn dần trong nền.'],
-        ['Sức mạnh tương đối (RS)', '15', 'Hiệu suất so với thị trường (SPY).'],
-        ['Thanh khoản', '10', 'Giá trị giao dịch (giá × khối lượng) đủ lớn.'],
-        ['Gần điểm bứt phá', '5', 'Càng sát pivot càng cao.'],
+        ['Nhịp tăng trước', '10', 'Nhịp tăng trước khi vào base càng mạnh càng tốt (≥ 30%).'],
+        ['Chất lượng VCP', '25', 'Số lần co thắt, độ chặt và mức co biến động của base.'],
+        ['Cạn thanh khoản', '15', 'Volume cạn dần trong base.'],
+        ['Sức mạnh tương đối (RS)', '15', 'Mạnh/yếu so với thị trường (SPY).'],
+        ['Thanh khoản', '10', 'Giá trị giao dịch (giá × volume) đủ lớn.'],
+        ['Gần pivot', '5', 'Càng sát pivot càng cao.'],
       ]
     : [
         ['Trend', '20', 'Price > EMA50 > EMA150 > EMA200 with EMA200 rising.'],
@@ -389,18 +389,18 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
 
   // ── Momentum engine. ──
   const momIntro = vi
-    ? `Bộ lọc <b>Động lượng (Momentum)</b> trả lời "mã nào đang chạy?". Điểm động lượng 0–100 kết hợp lợi nhuận <b>1 tháng (15)</b>, <b>3 tháng (25)</b>, <b>6 tháng (25)</b>, <b>RS so với SPY (25)</b> và <b>thanh khoản (10)</b>. Theo phân vị, mỗi mã được xếp loại: <b>Weak → Building → Strong → Explosive</b>.`
+    ? `Bộ lọc <b>Momentum</b> trả lời câu hỏi "mã nào đang chạy?". Điểm momentum 0–100 gộp mức tăng <b>1 tháng (15)</b>, <b>3 tháng (25)</b>, <b>6 tháng (25)</b>, <b>RS so với SPY (25)</b> và <b>thanh khoản (10)</b>. Theo phân vị, mỗi mã rơi vào một nhóm: <b>Weak → Building → Strong → Explosive</b>.`
     : `The <b>Momentum</b> screen answers "what's running right now?". A 0–100 momentum score blends <b>1-month (15)</b>, <b>3-month (25)</b>, <b>6-month (25)</b> returns, <b>RS vs SPY (25)</b> and <b>liquidity (10)</b>. By percentile each name is classed <b>Weak → Building → Strong → Explosive</b>.`;
 
   // ── Surge screen. ──
   const surgeIntro = vi
-    ? `Bộ lọc <b>Surge</b> tìm các mã đang <i>bứt tốc ngay bây giờ</i> — không cần hình thành mẫu hình VCP hay điểm xoay. Nó thu hẹp kết quả của Momentum xuống những mã thoả cả hai điều kiện:`
+    ? `Bộ lọc <b>Surge</b> tìm các mã đang <i>bứt tốc ngay lúc này</i> — không cần có VCP hay pivot. Nó lọc tiếp kết quả Momentum, chỉ giữ mã thoả cả hai điều kiện:`
     : `The <b>Surge</b> screen finds stocks that are <i>surging right now</i> — no VCP or pivot pattern required. It narrows the Momentum result down to names passing both conditions:`;
 
   const surgeConditions = vi
     ? [
-        `<b>Giữ trên EMA5 cả tuần:</b> mỗi phiên trong 5 ngày giao dịch gần nhất đều đóng cửa ≥ EMA5 — không ngày nào bị gãy xu hướng ngắn hạn.`,
-        `<b>Tăng &gt;20% trong 2 tuần:</b> giá hiện tại cao hơn giá 10 nến trước ít nhất 20% — chứng tỏ đà bứt phá mạnh.`,
+        `<b>Giữ trên EMA5 cả tuần:</b> 5 phiên gần nhất đều đóng cửa ≥ EMA5 — không phiên nào gãy xu hướng ngắn hạn.`,
+        `<b>Tăng &gt;20% trong 2 tuần:</b> giá hiện tại cao hơn giá 10 nến trước ít nhất 20% — đà bứt phá rõ ràng.`,
       ]
     : [
         `<b>Held above EMA5 all week:</b> every close of the last 5 trading days is ≥ EMA5 — no single day broke the short-term trend.`,
@@ -408,15 +408,15 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
       ];
 
   const surgeWhen = vi
-    ? `<b>Khi nào dùng Surge?</b> Khi bạn muốn bắt các mã đang vào đà sớm nhất — chúng thường nằm trên EMA5 và EMA10, chưa kịp hình thành nền VCP hoàn chỉnh. Đây là "cánh cửa hẹp" — ít mã pass hơn Momentum nhưng tín hiệu trực tiếp hơn.`
+    ? `<b>Khi nào dùng Surge?</b> Khi muốn bắt mã vừa vào đà sớm nhất — chúng thường nằm trên EMA5 và EMA10, chưa kịp tạo base VCP hoàn chỉnh. Đây là "cửa hẹp" — ít mã pass hơn Momentum nhưng tín hiệu thẳng hơn.`
     : `<b>When to use Surge?</b> When you want to catch names early in a move — they're typically riding their EMA5/EMA10, not yet forming a full VCP base. It's a tighter filter — fewer names pass than Momentum but the signal is more immediate.`;
 
   // ── Market regime + sector rotation. ──
   const layers = vi
     ? [
-        `<b>Bối cảnh thị trường (Regime)</b>: dùng SPY/QQQ để xác định <b>BULL / TRANSITION / BEAR</b> và cờ risk-on/off — biết <i>khi nào</i> nên mạnh tay.`,
-        `<b>Luân chuyển ngành (Sector rotation)</b>: xếp hạng ngành theo lợi nhuận 1M/3M và RS, nêu bật ngành <b>nóng/lạnh</b> — biết <i>tiền đang chảy về đâu</i>.`,
-        `<b>Pre-filter động lượng</b>: bộ lọc QM/VCP có thể thu hẹp vũ trụ về nhóm động lượng mạnh nhất trước khi quét mẫu hình.`,
+        `<b>Bối cảnh thị trường (Regime)</b>: dựa vào SPY/QQQ để xác định <b>BULL / TRANSITION / BEAR</b> và cờ risk-on/off — biết <i>lúc nào</i> nên mạnh tay.`,
+        `<b>Xoay vòng ngành (Sector rotation)</b>: xếp hạng ngành theo mức tăng 1M/3M và RS, làm nổi ngành <b>nóng/lạnh</b> — biết <i>dòng tiền đang chảy về đâu</i>.`,
+        `<b>Pre-filter momentum</b>: bộ lọc QM/VCP có thể thu hẹp rổ về nhóm momentum mạnh nhất trước khi quét mẫu hình.`,
       ]
     : [
         `<b>Market regime</b>: SPY/QQQ define <b>BULL / TRANSITION / BEAR</b> and a risk-on/off flag — knowing <i>when</i> to be aggressive.`,
@@ -435,7 +435,7 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
       </table>
     </div>
 
-    ${sectionHead(vi ? '🚀 Động lượng (Momentum)' : '🚀 Momentum')}
+    ${sectionHead(vi ? '🚀 Momentum' : '🚀 Momentum')}
     <p class="muted" style="line-height:1.65;margin:0">${momIntro}</p>
 
     ${sectionHead(vi ? '⚡ Surge (bứt tốc)' : '⚡ Surge')}
@@ -443,12 +443,12 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
     <ul class="analysis-list" style="margin:0 0 8px">${surgeConditions.map((c) => `<li>${c}</li>`).join('')}</ul>
     <p class="muted" style="line-height:1.65;margin:0;font-size:12px">${surgeWhen}</p>
 
-    ${sectionHead(vi ? '🧭 Bối cảnh & luân chuyển' : '🧭 Regime & rotation')}
+    ${sectionHead(vi ? '🧭 Bối cảnh & xoay vòng ngành' : '🧭 Regime & rotation')}
     <ul class="analysis-list">${layers.map((i) => `<li>${i}</li>`).join('')}</ul>
 
     <div class="muted" style="font-size:11px;margin-top:14px">${
       vi
-        ? 'Mang tính giáo dục — không phải lời khuyên đầu tư.'
+        ? 'Chỉ để học — không phải khuyến nghị đầu tư.'
         : 'Educational use only — not financial advice.'
     }</div>
   </div>`;
@@ -457,53 +457,53 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
 function backtestGuideHtml(lang: 'en' | 'vi'): string {
   const vi = lang === 'vi';
   return `<div class="card analysis-card" style="margin-bottom:22px">
-    <h2 style="font-size:15px;margin:0 0 10px">⏱ ${vi ? 'Hướng dẫn Backtest — tại sao kết quả 0 giao dịch?' : 'Backtest guide — why do I get 0 trades?'}</h2>
+    <h2 style="font-size:15px;margin:0 0 10px">⏱ ${vi ? 'Hướng dẫn Backtest — vì sao ra 0 giao dịch?' : 'Backtest guide — why do I get 0 trades?'}</h2>
     <p class="muted" style="line-height:1.65;margin:0 0 10px">
       ${vi
-        ? 'Backtest mô phỏng chiến lược trên dữ liệu ngày lịch sử mà <b>không nhìn trước</b>. Dưới đây là những lý do phổ biến nhất khiến kết quả trả về 0 giao dịch:'
+        ? 'Backtest chạy thử chiến lược trên dữ liệu ngày trong quá khứ, <b>không nhìn trước tương lai</b>. Đây là những lý do hay gặp nhất khiến kết quả ra 0 giao dịch:'
         : 'The backtest simulates a strategy on historical daily bars with <b>no lookahead</b>. Here are the most common reasons you see 0 trades:'}
     </p>
     <table class="playbook-table">
       <thead><tr>
         <th>${vi ? 'Vấn đề' : 'Issue'}</th>
         <th>${vi ? 'Nguyên nhân' : 'Cause'}</th>
-        <th>${vi ? 'Giải pháp' : 'Fix'}</th>
+        <th>${vi ? 'Cách xử lý' : 'Fix'}</th>
       </tr></thead>
       <tbody>
         <tr>
           <td><b>${vi ? 'VCP hiếm trên 1 mã' : 'VCP is rare on 1 symbol'}</b></td>
-          <td>${vi ? 'VCP cần: nhịp tăng 30%+, rồi ≥2 lần co thắt biến động với volume cạn dần. Một mã điển hình chỉ hình thành 0–2 VCP/năm.' : 'VCP requires: a 30%+ prior advance, then ≥2 contracting pullbacks with drying volume. A typical stock forms 0–2 VCPs per year.'}</td>
-          <td>${vi ? 'Nhập 5–10 mã đang trong xu hướng tăng mạnh. Dùng "Max" hoặc "5Y" để có đủ dữ liệu.' : 'Enter 5–10 strong-trending stocks. Use "Max" or "5Y" for sufficient history.'}</td>
+          <td>${vi ? 'VCP cần: một nhịp tăng 30%+, rồi ≥2 lần co thắt với volume cạn dần. Một mã thường chỉ tạo 0–2 VCP mỗi năm.' : 'VCP requires: a 30%+ prior advance, then ≥2 contracting pullbacks with drying volume. A typical stock forms 0–2 VCPs per year.'}</td>
+          <td>${vi ? 'Nhập 5–10 mã đang tăng mạnh. Chọn "Max" hoặc "5Y" cho đủ dữ liệu.' : 'Enter 5–10 strong-trending stocks. Use "Max" or "5Y" for sufficient history.'}</td>
         </tr>
         <tr>
           <td><b>${vi ? 'Không đủ dữ liệu' : 'Insufficient data'}</b></td>
-          <td>${vi ? 'VCP cần ≥100 nến (để tính EMA200 và phát hiện swing). Nếu chọn "2Y" nhưng mã chỉ có dữ liệu 1 năm, nó bị bỏ qua.' : 'VCP needs ≥100 bars (for EMA200 and swing detection). If you pick "2Y" but the stock only has 1Y of data, it is skipped.'}</td>
-          <td>${vi ? 'Chọn "5Y" hoặc "Max". Xem thông báo skip trong dòng trạng thái.' : 'Use "5Y" or "Max". Check the skip notice in the status line.'}</td>
+          <td>${vi ? 'VCP cần ≥100 nến (để tính EMA200 và dò swing). Chọn "2Y" mà mã chỉ có 1 năm dữ liệu thì mã đó bị bỏ qua.' : 'VCP needs ≥100 bars (for EMA200 and swing detection). If you pick "2Y" but the stock only has 1Y of data, it is skipped.'}</td>
+          <td>${vi ? 'Chọn "5Y" hoặc "Max". Xem thông báo skip ở dòng trạng thái.' : 'Use "5Y" or "Max". Check the skip notice in the status line.'}</td>
         </tr>
         <tr>
           <td><b>${vi ? '"Max" đôi khi ít hơn "5Y"' : '"Max" sometimes gives fewer trades than "5Y"'}</b></td>
-          <td>${vi ? 'API Yahoo trả về dữ liệu thưa hơn ở khoảng thời gian xa (split-adjusted, thiếu nến). Càng về xa, chất lượng bar càng kém.' : 'The Yahoo API returns sparser data for older periods (split-adjusted, missing bars). Data quality degrades further back in time.'}</td>
-          <td>${vi ? 'Dùng "5Y" cho kết quả ổn định nhất. "Max" hữu ích khi mã còn mới (IPO trong 3–4 năm).' : 'Use "5Y" for most stable results. "Max" is useful for recent IPOs (3–4 years old).'}</td>
+          <td>${vi ? 'API Yahoo trả dữ liệu thưa hơn ở các giai đoạn xa (split-adjusted, thiếu nến). Càng lùi xa, dữ liệu càng kém.' : 'The Yahoo API returns sparser data for older periods (split-adjusted, missing bars). Data quality degrades further back in time.'}</td>
+          <td>${vi ? '"5Y" cho kết quả ổn định nhất. "Max" hợp với mã mới (IPO trong 3–4 năm).' : 'Use "5Y" for most stable results. "Max" is useful for recent IPOs (3–4 years old).'}</td>
         </tr>
         <tr>
           <td><b>${vi ? 'Mã trong downtrend cả kỳ' : 'Stock was in a downtrend the whole period'}</b></td>
-          <td>${vi ? 'VCP yêu cầu giá > EMA50 và nhịp tăng 30%+ trước đó. Mã đang rơi suốt sẽ không bao giờ kích hoạt điều kiện này.' : 'VCP requires price > EMA50 and a 30%+ prior advance. A stock in a sustained decline never meets these conditions.'}</td>
-          <td>${vi ? 'Chọn mã trong bull market (AAPL, NVDA, MSFT trong 2019–2023 là ví dụ tốt).' : 'Pick stocks in bull markets (AAPL, NVDA, MSFT during 2019–2023 are good examples).'}</td>
+          <td>${vi ? 'VCP cần giá > EMA50 và một nhịp tăng 30%+ trước đó. Mã rơi suốt kỳ thì không bao giờ thoả.' : 'VCP requires price > EMA50 and a 30%+ prior advance. A stock in a sustained decline never meets these conditions.'}</td>
+          <td>${vi ? 'Chọn mã trong bull market (AAPL, NVDA, MSFT giai đoạn 2019–2023 là ví dụ tốt).' : 'Pick stocks in bull markets (AAPL, NVDA, MSFT during 2019–2023 are good examples).'}</td>
         </tr>
         <tr>
           <td><b>${vi ? 'Chiến lược Momentum không entry' : 'Momentum strategy does not enter'}</b></td>
-          <td>${vi ? 'Cần điểm momentum ≥65 VÀ giá > EMA50. Mã sideway hay downtrend cho điểm thấp hơn.' : 'Requires momentum score ≥65 AND price > EMA50. Sideways or downtrending stocks score below the threshold.'}</td>
-          <td>${vi ? 'Thêm nhiều mã hơn, hoặc chọn giai đoạn khi mã đang tăng mạnh.' : 'Add more symbols, or choose a period when the stock was strongly trending.'}</td>
+          <td>${vi ? 'Cần điểm momentum ≥65 VÀ giá > EMA50. Mã sideway hay downtrend sẽ dưới ngưỡng.' : 'Requires momentum score ≥65 AND price > EMA50. Sideways or downtrending stocks score below the threshold.'}</td>
+          <td>${vi ? 'Thêm mã, hoặc chọn giai đoạn mã đang tăng mạnh.' : 'Add more symbols, or choose a period when the stock was strongly trending.'}</td>
         </tr>
         <tr>
-          <td><b>${vi ? 'Vị thế bị chặn bởi risk limits' : 'Position blocked by risk limits'}</b></td>
-          <td>${vi ? 'Ngay cả khi có tín hiệu entry, vị thế bị bỏ qua nếu tính ra 0 cổ phiếu (rủi ro/cổ phiếu quá lớn so với vốn).' : 'Even when entry signals fire, a position is skipped if share count rounds down to 0 (risk per share too large relative to capital).'}</td>
-          <td>${vi ? 'Tăng vốn ban đầu hoặc tăng % rủi ro/lệnh.' : 'Increase capital or raise the risk %/trade.'}</td>
+          <td><b>${vi ? 'Lệnh bị chặn vì risk limits' : 'Position blocked by risk limits'}</b></td>
+          <td>${vi ? 'Dù có tín hiệu entry, lệnh vẫn bị bỏ nếu size làm tròn ra 0 cổ phiếu (rủi ro mỗi cổ quá lớn so với vốn).' : 'Even when entry signals fire, a position is skipped if share count rounds down to 0 (risk per share too large relative to capital).'}</td>
+          <td>${vi ? 'Tăng vốn ban đầu hoặc nâng % rủi ro mỗi lệnh.' : 'Increase capital or raise the risk %/trade.'}</td>
         </tr>
       </tbody>
     </table>
     <div class="muted" style="font-size:11px;margin-top:12px">
-      ${vi ? 'Gợi ý: thử NVDA, AAPL, MSFT với chiến lược VCP, chu kỳ 5Y — điển hình cho 3–6 giao dịch mỗi mã.' : 'Tip: try NVDA, AAPL, MSFT with VCP strategy, 5Y period — typically 3–6 trades per stock.'}
+      ${vi ? 'Gợi ý: thử NVDA, AAPL, MSFT với chiến lược VCP, kỳ 5Y — thường ra 3–6 giao dịch mỗi mã.' : 'Tip: try NVDA, AAPL, MSFT with VCP strategy, 5Y period — typically 3–6 trades per stock.'}
     </div>
   </div>`;
 }
@@ -512,16 +512,16 @@ function backtestGuideHtml(lang: 'en' | 'vi'): string {
 function asOfGuideHtml(lang: 'en' | 'vi'): string {
   const vi = lang === 'vi';
   const intro = vi
-    ? `Mặc định, mọi bộ lọc dùng dữ liệu <b>thời gian thực</b> (nến mới nhất là "hôm nay"). Chế độ <b>Tính đến ngày</b> cho phép bạn chọn một ngày trong quá khứ và coi ngày đó là "hôm nay" — bộ lọc chỉ dùng dữ liệu <i>tới và bao gồm</i> ngày đó. Tuyệt vời để nghiên cứu xem một mẫu hình trông như thế nào tại thời điểm trong quá khứ.`
+    ? `Mặc định, mọi bộ lọc dùng dữ liệu <b>realtime</b> (nến mới nhất là "hôm nay"). Chế độ <b>Tính đến ngày</b> cho phép chọn một ngày trong quá khứ và coi đó là "hôm nay" — bộ lọc chỉ dùng dữ liệu <i>đến hết</i> ngày đó. Rất hợp để xem lại một mẫu hình trông thế nào vào đúng thời điểm ấy.`
     : `By default every screen uses <b>real-time</b> data (the latest bar is "today"). <b>As-of-date</b> mode lets you pick a past date and treat it as "now" — the screen uses only data <i>up to and including</i> that date. Ideal for studying what a setup looked like at a moment in the past.`;
 
   const points = vi
     ? [
-        `<b>Có ở đâu:</b> Top Picks, Screener và Sectors — mỗi tab có bộ chọn ngày riêng. Đặt ngày, hoặc bấm <b>Trực tiếp</b> để quay lại dữ liệu thời gian thực.`,
-        `<b>Độ sâu lịch sử (2/5/10 năm/Max):</b> chọn lượng dữ liệu tải về <i>trước</i> ngày đã chọn, để các chỉ báo như EMA200 đủ dữ liệu. Đây là lượng dữ liệu tải, không phải giới hạn ngày chọn.`,
-        `<b>Cờ "Chế độ lịch sử":</b> khi bật, một nhãn vàng và viền kết quả giúp bạn không nhầm với dữ liệu trực tiếp. Kết quả quét lịch sử được lưu riêng (không lẫn với quét trực tiếp).`,
-        `<b>Trang chi tiết mã:</b> mở một mã từ kết quả lịch sử thì biểu đồ, EMA, điểm QM/động lượng, phân tích và các mức mua/dừng/mục tiêu <i>đều</i> tính đến ngày đó. Lưới chỉ số cơ bản dùng số liệu <b>năm gần nhất trước ngày</b> (được ghi rõ).`,
-        `<b>Giao dịch mô phỏng:</b> ô ngày trên form Mua/Bán cho phép ghi lệnh trong quá khứ — gợi ý giá sẽ tự lấy giá đóng cửa <i>của ngày đó</i>.`,
+        `<b>Có ở đâu:</b> Top Picks, Screener và Sectors — mỗi tab có ô chọn ngày riêng. Chọn ngày, hoặc bấm <b>Trực tiếp</b> để quay về dữ liệu realtime.`,
+        `<b>Độ sâu dữ liệu (2/5/10 năm/Max):</b> lượng dữ liệu tải về <i>trước</i> ngày đã chọn, để chỉ báo như EMA200 có đủ nến. Đây là lượng dữ liệu tải, không giới hạn ngày được chọn.`,
+        `<b>Cờ "Chế độ xem quá khứ":</b> khi bật, nhãn vàng và viền quanh kết quả giúp không nhầm với dữ liệu trực tiếp. Kết quả quét quá khứ lưu riêng, không lẫn với lần quét trực tiếp.`,
+        `<b>Trang chi tiết mã:</b> mở một mã từ kết quả quá khứ thì chart, EMA, điểm QM/momentum, phần phân tích và các mức entry/stop/target <i>đều</i> tính đến ngày đó. Bảng chỉ số cơ bản dùng số liệu <b>năm gần nhất trước ngày đó</b> (có ghi rõ).`,
+        `<b>Giao dịch giả lập:</b> ô ngày trên form Mua/Bán cho phép ghi lệnh với ngày trong quá khứ — giá gợi ý tự lấy giá đóng cửa <i>của ngày đó</i>.`,
       ]
     : [
         `<b>Where:</b> Top Picks, Screener and Sectors — each tab has its own date picker. Set a date, or press <b>Live</b> to return to real-time data.`,
@@ -532,7 +532,7 @@ function asOfGuideHtml(lang: 'en' | 'vi'): string {
       ];
 
   const caveat = vi
-    ? `<b>Lưu ý về số liệu cơ bản:</b> Yahoo chỉ cung cấp chỉ số TTM/trực tiếp của <i>hôm nay</i>, nên ở chế độ lịch sử ta dùng báo cáo <b>năm gần nhất trước ngày</b> cho P/E, EPS, biên lợi nhuận… Vốn hóa, ROE và tỷ suất cổ tức không tái dựng được cho quá khứ nên hiển thị "—". Mọi thứ tính từ giá (xu hướng, mẫu hình, mức giao dịch) thì hoàn toàn chính xác theo thời điểm.`
+    ? `<b>Lưu ý về số liệu cơ bản:</b> Yahoo chỉ có chỉ số TTM/hiện tại của <i>hôm nay</i>, nên khi xem quá khứ app dùng báo cáo <b>năm gần nhất trước ngày đó</b> cho P/E, EPS, biên lợi nhuận… Vốn hóa, ROE và tỷ suất cổ tức không dựng lại được cho quá khứ nên hiện "—". Còn mọi thứ tính từ giá (xu hướng, mẫu hình, các mức giá) thì đúng chính xác theo thời điểm.`
     : `<b>Note on fundamentals:</b> Yahoo only exposes <i>today's</i> live/TTM figures, so historical mode uses the <b>latest annual statement before the date</b> for P/E, EPS, margin, etc. Market cap, ROE and dividend yield can't be reconstructed for the past, so they show "—". Everything price-derived (trend, patterns, trade levels) is exact for the point in time.`;
 
   return `<div class="card analysis-card" style="margin-bottom:22px">
@@ -564,7 +564,7 @@ export function renderLearn(ctx: AppContext): void {
       icon: '📘',
       title: vi ? 'Cẩm nang swing trading' : 'The swing-trading playbook',
       blurb: vi
-        ? 'Từ môi trường thị trường xuống đến điểm vào lệnh, cùng checklist hằng tối và thư viện prompt.'
+        ? 'Từ bối cảnh thị trường đến điểm entry, kèm checklist mỗi tối và thư viện prompt.'
         : 'From the market environment down to the entry, with the evening checklist and the prompt library.',
     },
     {
@@ -573,7 +573,7 @@ export function renderLearn(ctx: AppContext): void {
       icon: '🗺',
       title: vi ? 'Dùng nền tảng' : 'Working the platform',
       blurb: vi
-        ? 'Đi lại trong app, từng trang theo nhóm, lọc theo một ngày trong quá khứ, và backtest.'
+        ? 'Cách đi lại trong app, từng trang theo nhóm, lọc theo một ngày trong quá khứ, và backtest.'
         : 'Getting around, every page by group, screening a past date, and the backtest.',
     },
     {
@@ -582,7 +582,7 @@ export function renderLearn(ctx: AppContext): void {
       icon: '🎯',
       title: vi ? 'Điểm số được tính thế nào' : 'How the score is computed',
       blurb: vi
-        ? 'Mở nắp máy: từng thành phần làm nên điểm QM và momentum.'
+        ? 'Mổ xẻ từng thành phần tạo nên điểm QM và momentum.'
         : 'The lid off: every component that makes up the QM and momentum score.',
     },
     {
@@ -591,7 +591,7 @@ export function renderLearn(ctx: AppContext): void {
       icon: '🔤',
       title: vi ? 'Thuật ngữ' : 'Glossary',
       blurb: vi
-        ? 'Mọi chỉ số và thuật ngữ, xếp theo nhóm — phần tra cứu ở cuối sách.'
+        ? 'Mọi chỉ số và thuật ngữ, xếp theo nhóm — phần tra cứu cuối sách.'
         : 'Every metric and term, grouped — the back of the book.',
     },
   ];
@@ -600,7 +600,7 @@ export function renderLearn(ctx: AppContext): void {
     lang,
     vi ? 'Tìm hiểu' : 'Learn',
     vi
-      ? 'Một cuốn sổ tay: cẩm nang giao dịch trước, rồi hướng dẫn từng trang, cách tính điểm, và cuối cùng là thuật ngữ.'
+      ? 'Một cuốn sổ tay: cẩm nang giao dịch trước, rồi hướng dẫn từng trang, cách tính điểm, cuối cùng là thuật ngữ.'
       : 'One handbook: the trading playbook first, then the platform page by page, how the score is built, and the glossary at the back.',
     parts,
   );

@@ -238,7 +238,7 @@ export function buildPositionsDigest(
 
   const warn: string[] = [];
   if (noStopSyms > 0) {
-    warn.push(`${noStopSyms} mã đang mở không có mức cắt lỗ nào — không thể cảnh báo`);
+    warn.push(`${noStopSyms} mã đang mở không có mức cắt lỗ nào — không cảnh báo được`);
   }
   if (eur > 0) {
     // Two different situations for the reader, so two different sentences: with a
@@ -250,10 +250,10 @@ export function buildPositionsDigest(
   if (mixed > 0) {
     // A rate does not rescue MIXED: the row's own numbers are in two units, so
     // there is no single starting currency to convert FROM.
-    warn.push(`${mixed} mã có lô lưu bằng cả EUR và USD — tỷ giá không giúp được, phải tách tài khoản`);
+    warn.push(`${mixed} mã có lô lưu bằng cả EUR và USD — tỷ giá không cứu được, phải tách tài khoản`);
   }
   if (droppedOrders > 0) {
-    warn.push(`${droppedOrders} mã có lệnh chờ cắt lỗ tính theo báo giá USD, không gửi kèm vì các số còn lại của mã đó không phải USD`);
+    warn.push(`${droppedOrders} mã có lệnh chờ cắt lỗ tính theo giá USD, không gửi kèm vì các số còn lại của mã đó không tính bằng USD`);
   }
 
   const out: PositionsDigest = { ts: now.toISOString(), n: rows.length, rows, warn };

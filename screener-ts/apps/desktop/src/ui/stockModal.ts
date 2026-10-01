@@ -402,7 +402,7 @@ function renderDetail(
           // button must show what the chart is actually drawing.
           (e) => `<button class="range-btn ${emaState[e.period] ? 'active' : ''}" data-ema="${e.period}">EMA${e.period}</button>`,
         ).join('')}
-        <button class="range-btn ${showEarnings ? 'active' : ''}" data-earn="1" title="${vi ? 'Ngày báo cáo lợi nhuận' : 'Earnings report dates'}">⬤ E</button>
+        <button class="range-btn ${showEarnings ? 'active' : ''}" data-earn="1" title="${vi ? 'Ngày công bố KQKD' : 'Earnings report dates'}">⬤ E</button>
       </div>
       <div id="detail-chart" class="chart"></div>
       <div id="detail-earn" class="muted" style="font-size:10.5px;margin:6px 6px 2px"></div>
@@ -422,7 +422,7 @@ function renderDetail(
         </div>`,
       })}</div>
       <div id="fund-chart" class="chart" style="height:160px"></div>
-      <p class="muted" style="font-size:10px;margin:4px 6px 0">${vi ? 'Biểu đồ: giá trị từng kỳ báo cáo (năm tài chính hoặc quý). Lưới chỉ số bên dưới dùng số liệu TTM (12 tháng gần nhất) nên có thể khác.' : 'Chart: per-period reported values (fiscal year or quarter). The stat grid below uses trailing twelve-month (TTM) figures and will typically differ.'}</p>
+      <p class="muted" style="font-size:10px;margin:4px 6px 0">${vi ? 'Chart: số liệu từng kỳ báo cáo (năm tài chính hoặc quý). Bảng chỉ số bên dưới dùng số TTM (12 tháng gần nhất) nên thường sẽ lệch.' : 'Chart: per-period reported values (fiscal year or quarter). The stat grid below uses trailing twelve-month (TTM) figures and will typically differ.'}</p>
     </div>
     ${sectionHead(t('detail.fundamentals'),
       // As-of mode: the grid is reading a report filed before that date, and which
@@ -445,7 +445,7 @@ function renderDetail(
  * "only four dots" is a property of the free data, not a bug.
  */
 function earnLegendHtml(rows: EarningsReport[], on: boolean, vi: boolean): string {
-  const head = vi ? '⬤ E = ngày báo cáo KQKD' : '⬤ E = earnings report';
+  const head = vi ? '⬤ E = ngày công bố KQKD' : '⬤ E = earnings report';
   if (!rows.length)
     return `<span style="opacity:.75">${head} — ${
       vi
@@ -540,9 +540,9 @@ function qmOverlay(q: QmScanResult | null): import('./charts.js').TradeOverlay |
 
 const SETUP_PHRASE: Record<string, [string, string]> = {
   VCP: ['a Volatility Contraction Pattern (VCP)', 'mẫu hình co thắt biến động (VCP)'],
-  EPISODIC_PIVOT: ['an episodic pivot (news/earnings gap)', 'điểm xoay đột biến (tin tức/lợi nhuận)'],
-  BOTH: ['a VCP that is also gapping on a catalyst', 'một VCP đồng thời gap theo chất xúc tác'],
-  NONE: ['no actionable QM setup yet', 'chưa có thiết lập QM rõ ràng'],
+  EPISODIC_PIVOT: ['an episodic pivot (news/earnings gap)', 'Episodic Pivot (gap nhờ tin tức/KQKD)'],
+  BOTH: ['a VCP that is also gapping on a catalyst', 'VCP đồng thời gap nhờ catalyst'],
+  NONE: ['no actionable QM setup yet', 'chưa có setup QM nào đáng vào'],
 };
 
 /** Professional bullet-point analysis for the QM + momentum model. Bilingual. */
@@ -555,15 +555,15 @@ function analysisHtml(q: QmScanResult, mom: MomentumResult | null): string {
   const [setupEn, setupVi] = SETUP_PHRASE[q.setupType] ?? SETUP_PHRASE.NONE!;
   items.push(
     vi
-      ? `<b>${setupVi}</b> · điểm chất lượng ${hl(num(q.qualityScore, 0) + '/100')} · bộ lọc xu hướng ${q.trend.passed ? hl('đạt') : 'chưa đạt'}`
+      ? `<b>${setupVi}</b> · điểm chất lượng ${hl(num(q.qualityScore, 0) + '/100')} · lọc xu hướng ${q.trend.passed ? hl('đạt') : 'chưa đạt'}`
       : `<b>${setupEn}</b> · quality ${hl(num(q.qualityScore, 0) + '/100')} · trend filter ${q.trend.passed ? hl('passed') : 'not passed'}`,
   );
 
   if (q.vcp.previousAdvancePct > 0) {
     items.push(
       vi
-        ? `Nhịp tăng trước nền ${hl(num(q.vcp.previousAdvancePct, 1) + '%')}, ${hl(String(q.vcp.contractions) + ' lần co thắt')}` +
-          (q.vcp.volumeContractionPct > 0 ? `, thanh khoản cạn ${hl(num(q.vcp.volumeContractionPct, 1) + '%')}` : '')
+        ? `Nhịp tăng trước base ${hl(num(q.vcp.previousAdvancePct, 1) + '%')}, ${hl(String(q.vcp.contractions) + ' lần co thắt')}` +
+          (q.vcp.volumeContractionPct > 0 ? `, volume cạn ${hl(num(q.vcp.volumeContractionPct, 1) + '%')}` : '')
         : `Prior advance ${hl(num(q.vcp.previousAdvancePct, 1) + '%')} into a base with ${hl(String(q.vcp.contractions) + ' contraction' + (q.vcp.contractions !== 1 ? 's' : ''))}` +
           (q.vcp.volumeContractionPct > 0 ? `, volume contracted ${hl(num(q.vcp.volumeContractionPct, 1) + '%')}` : ''),
     );
@@ -572,7 +572,7 @@ function analysisHtml(q: QmScanResult, mom: MomentumResult | null): string {
   if (q.ep.isEp) {
     items.push(
       vi
-        ? `Gap ${hl(num(q.ep.gapPct, 1) + '%')} với khối lượng tương đối ${hl(num(q.ep.relativeVolume, 1) + '×')}${q.ep.catalyst ? ` — ${q.ep.catalyst}` : ''}`
+        ? `Gap ${hl(num(q.ep.gapPct, 1) + '%')}, volume tương đối ${hl(num(q.ep.relativeVolume, 1) + '×')}${q.ep.catalyst ? ` — ${q.ep.catalyst}` : ''}`
         : `Gapped ${hl(num(q.ep.gapPct, 1) + '%')} on ${hl(num(q.ep.relativeVolume, 1) + '×')} relative volume${q.ep.catalyst ? ` — ${q.ep.catalyst}` : ''}`,
     );
   }
@@ -580,7 +580,7 @@ function analysisHtml(q: QmScanResult, mom: MomentumResult | null): string {
   if (mom) {
     items.push(
       vi
-        ? `Động lượng ${hl(num(mom.momentumScore, 0) + '/100')} (${mom.classification}) · 1M ${hl(num(mom.returns.oneMonth, 1) + '%')} · 3M ${hl(num(mom.returns.threeMonth, 1) + '%')} · 6M ${hl(num(mom.returns.sixMonth, 1) + '%')} · RS ${hl(num(mom.relativeStrength, 1))}`
+        ? `Momentum ${hl(num(mom.momentumScore, 0) + '/100')} (${mom.classification}) · 1M ${hl(num(mom.returns.oneMonth, 1) + '%')} · 3M ${hl(num(mom.returns.threeMonth, 1) + '%')} · 6M ${hl(num(mom.returns.sixMonth, 1) + '%')} · RS ${hl(num(mom.relativeStrength, 1))}`
         : `Momentum ${hl(num(mom.momentumScore, 0) + '/100')} (${mom.classification}) · 1M ${hl(num(mom.returns.oneMonth, 1) + '%')} · 3M ${hl(num(mom.returns.threeMonth, 1) + '%')} · 6M ${hl(num(mom.returns.sixMonth, 1) + '%')} · RS ${hl(num(mom.relativeStrength, 1))}`,
     );
   }
@@ -589,13 +589,13 @@ function analysisHtml(q: QmScanResult, mom: MomentumResult | null): string {
     const rr = q.levels.riskReward ? num(q.levels.riskReward, 1) + 'R' : '—';
     items.push(
       vi
-        ? `Kế hoạch: pivot ${hl(px(q.vcp.pivot))}, mua ${hl(px(q.levels.entryPrice))}, cắt lỗ ${hl(px(q.levels.stopLoss))}${q.levels.targetPrice ? `, mục tiêu ${hl(px(q.levels.targetPrice))}` : ''} (${hl(rr)})`
+        ? `Kế hoạch: pivot ${hl(px(q.vcp.pivot))}, entry ${hl(px(q.levels.entryPrice))}, stop ${hl(px(q.levels.stopLoss))}${q.levels.targetPrice ? `, target ${hl(px(q.levels.targetPrice))}` : ''} (${hl(rr)})`
         : `Plan: pivot ${hl(px(q.vcp.pivot))}, buy ${hl(px(q.levels.entryPrice))}, stop ${hl(px(q.levels.stopLoss))}${q.levels.targetPrice ? `, target ${hl(px(q.levels.targetPrice))}` : ''} (${hl(rr)})`,
     );
   }
 
   const note = vi
-    ? 'Phân tích tự động mang tính giáo dục — không phải lời khuyên đầu tư.'
+    ? 'Phân tích tự động, chỉ để học — không phải khuyến nghị đầu tư.'
     : 'Automated, educational read — not financial advice.';
   return `<ul class="analysis-list">${items.map((i) => `<li>${i}</li>`).join('')}</ul>
     <div class="muted" style="font-size:11px;margin-top:6px">${note}</div>`;

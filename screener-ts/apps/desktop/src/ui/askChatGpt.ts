@@ -27,6 +27,7 @@ import {
   DEFAULT_CHATGPT_URL,
 } from '@screener/core';
 import type { AppContext } from '../context.js';
+import { lblOf } from './promptActions.js';
 import { t, getLang } from './i18n.js';
 import { formDialog } from './forms.js';
 
@@ -102,23 +103,24 @@ export async function copyToClipboard(
   btn: HTMLElement,
   sent?: boolean,
 ): Promise<void> {
-  const old = btn.textContent ?? '';
+  const lbl = lblOf(btn);
+  const old = lbl.textContent ?? '';
   const vi = getLang() === 'vi';
   try {
     // `navigator.clipboard` is missing on plain http (a LAN address, an old WebView) and
     // can be refused; the hidden-textarea copy still works in both, so try it second.
     if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
     else legacyCopy(text);
-    btn.textContent =
+    lbl.textContent =
       sent === undefined ? t('prompts.copied') : sent ? t('prompts.sent') : t('prompts.toolong');
   } catch {
     // The URL still carries the prompt when `sent`, so a copy failure is harmless
     // there; when it doesn't, this is the path where the user is left with nothing
     // and has to be told to open the prompt and select it by hand.
-    btn.textContent = sent ? t('prompts.sent') : vi ? 'Không chép được' : 'Copy failed';
+    lbl.textContent = sent ? t('prompts.sent') : vi ? 'Không copy được' : 'Copy failed';
   }
   setTimeout(() => {
-    btn.textContent = old;
+    lbl.textContent = old;
   }, 1800);
 }
 

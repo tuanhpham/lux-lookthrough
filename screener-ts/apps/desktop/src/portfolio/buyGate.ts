@@ -57,7 +57,7 @@ export function buyGate(i: GateInput): BuyBlock {
 export function ackLabel(graded: boolean, grade: ConvictionRating | null, vi: boolean): string {
   if (!graded) {
     return vi
-      ? 'Mua mà không có kế hoạch được chấm điểm'
+      ? 'Mua dù không có kế hoạch chấm điểm'
       : 'Buy with no graded plan';
   }
   // The letter goes in the label on purpose. A tick that reads "I have read this plan" next
@@ -71,17 +71,17 @@ export function gateWords(block: BuyBlock, graded: boolean, vi: boolean): string
   switch (block) {
     case 'fields':
       return vi
-        ? 'Nhập mã, số cổ và giá để kế hoạch được chấm điểm.'
+        ? 'Nhập mã, số cổ phiếu và giá để chấm điểm kế hoạch.'
         : 'Enter the symbol, share count and price to get the plan graded.';
     case 'planning':
       return vi ? 'Đang chấm điểm kế hoạch…' : 'Grading the plan…';
     case 'ack':
       return graded
         ? (vi
-          ? 'Xem kế hoạch ở trên, rồi tích vào ô xác nhận để mở nút Mua.'
+          ? 'Xem kế hoạch phía trên rồi tick ô xác nhận để mở nút Mua.'
           : 'Read the plan above, then tick the box to unlock Buy.')
         : (vi
-          ? 'Chọn <b>Loại thiết lập</b> để chấm điểm — hoặc tích vào ô để ghi lệnh mua không có kế hoạch.'
+          ? 'Chọn <b>Loại setup</b> để chấm điểm — hoặc tick ô để ghi lệnh mua không cần kế hoạch.'
           : 'Pick a <b>Setup</b> to get a grade — or tick the box to record a buy with no plan.');
     case null:
       return '';

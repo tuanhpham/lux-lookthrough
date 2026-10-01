@@ -73,7 +73,7 @@ function providerBlurb(providerId: string): string {
   if (p.trainsOnFreeTier && !p.note) {
     bits.push(
       vi
-        ? 'Bậc miễn phí có thể dùng dữ liệu của bạn để huấn luyện.'
+        ? 'Gói miễn phí có thể lấy dữ liệu của bạn để train model.'
         : 'The free tier may train on the data you send.',
     );
   }
@@ -218,7 +218,7 @@ export async function openLlmSettings(ctx: AppContext): Promise<void> {
       icon: KEY_ICON,
       sub:
         getLang() === 'vi'
-          ? `Nối trợ lý với tài khoản AI của bạn · ${provider.label}`
+          ? `Kết nối Trợ lý với tài khoản AI · ${provider.label}`
           : `Connect the assistant to your own AI account · ${provider.label}`,
       onChange: (values) =>
         values.provider !== cfg.providerId ? { blurb: t('ai.provider.switch') } : undefined,

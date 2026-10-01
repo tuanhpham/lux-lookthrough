@@ -32,11 +32,11 @@ import { regimeStale } from './playbook.js';
  */
 export const SETUP_NAMES: Record<SetupKey, [string, string]> = {
   VCP: ['VCP', 'VCP'],
-  EP: ['Điểm xoay đột biến', 'Episodic Pivot'],
-  'Mean Reversion': ['Hồi quy trung bình', 'Mean Reversion'],
-  Breakout: ['Bứt phá', 'Breakout'],
-  Pullback: ['Điều chỉnh', 'Pullback'],
-  Surge: ['Tăng vọt', 'Surge'],
+  EP: ['Episodic Pivot', 'Episodic Pivot'],
+  'Mean Reversion': ['Mean Reversion', 'Mean Reversion'],
+  Breakout: ['Breakout', 'Breakout'],
+  Pullback: ['Pullback', 'Pullback'],
+  Surge: ['Surge', 'Surge'],
   Other: ['Khác', 'Other'],
 };
 
@@ -46,69 +46,69 @@ export function setupName(k: SetupKey, vi: boolean): string {
 
 /** Where the suggested stop is hanging, in words. */
 export const ANCHOR_MEANS: Record<string, [string, string]> = {
-  pullbackLow: ['dưới đáy của nhịp điều chỉnh', 'below the pullback low'],
-  contractionLow: ['dưới đáy của lần nén cuối', 'below the last contraction low'],
-  breakoutBarLow: ['dưới đáy nến bứt phá', 'below the breakout bar’s low'],
+  pullbackLow: ['dưới đáy nhịp pullback', 'below the pullback low'],
+  contractionLow: ['dưới đáy nhịp co cuối cùng', 'below the last contraction low'],
+  breakoutBarLow: ['dưới đáy nến breakout', 'below the breakout bar’s low'],
   signalBarLow: ['dưới đáy nến tín hiệu', 'below the signal bar’s low'],
-  gapBarLow: ['dưới đáy nến nhảy khoảng', 'below the gap bar’s low'],
+  gapBarLow: ['dưới đáy nến gap', 'below the gap bar’s low'],
   recentLow: ['dưới đáy gần nhất', 'below the recent low'],
-  atrOnly: ['theo ATR, vì thiết lập này không có mốc cấu trúc', 'by ATR — this setup has no structural mark'],
+  atrOnly: ['theo ATR — setup này không có mốc cấu trúc', 'by ATR — this setup has no structural mark'],
 };
 
 export const LEVEL_WARN: Record<string, [string, string]> = {
   // Deliberately phrased as a consequence, not as an error: the wide stop is CORRECT
   // and the smaller position is the right response to it.
   stopWiderThanAtr: [
-    'Cấu trúc đặt cắt lỗ xa hơn thước đo ATR — đúng thì vẫn là đúng, nên số cổ nhỏ đi thay vì kéo cắt lỗ lại gần.',
+    'Cấu trúc chart đặt cắt lỗ xa hơn mức ATR gợi ý — mức đó vẫn đúng, nên giảm số cổ chứ không kéo cắt lỗ lại gần.',
     'Structure puts the stop wider than the ATR guide — that stands, so the share count shrinks instead of the stop moving in.',
   ],
   // The only warning in this table that says a number was CHANGED, so it says which rule
   // changed it and where to go and argue with that rule.
   stopCappedByMax: [
-    'Đáy cấu trúc nằm sâu hơn mức cắt lỗ tối đa (EMA / ATR) nên cắt lỗ đã được kéo lên đúng mức đó — sửa ở ⚙ Cẩm nang nếu bạn muốn giữ nguyên đáy.',
+    'Đáy cấu trúc sâu hơn mức cắt lỗ tối đa (EMA / ATR) nên cắt lỗ đã kéo lên đúng mức đó — muốn giữ nguyên đáy thì đổi ở ⚙ Playbook.',
     'The structural low sat deeper than the maximum stop (EMA / ATR), so the stop was pulled up to it — change that in ⚙ Playbook if you would rather keep the low.',
   ],
   belowMinRR: [
-    'Dưới mức R:R tối thiểu. Cẩm nang: bỏ qua, bất kể mẫu hình đẹp đến đâu.',
+    'Dưới R:R tối thiểu. Theo Playbook: bỏ qua, mẫu hình đẹp mấy cũng vậy.',
     'Under the minimum R:R. The book: skip it, however pretty the pattern.',
   ],
   fellBackToAtr: [
-    'Không có đáy nào dưới giá vào để neo — đã dùng ATR thay thế.',
+    'Không có đáy nào dưới giá vào để neo — dùng ATR thay thế.',
     'No low below the entry to anchor on — used ATR instead.',
   ],
   emaTargetBelowEntry: [
-    'EMA chốt lời chưa nằm trên giá vào, nên chưa có mục tiêu để đặt.',
+    'EMA chốt lời vẫn nằm dưới giá vào, nên chưa đặt được mục tiêu.',
     'The exit EMA is not above the entry yet, so there is no target to set.',
   ],
   measuredMoveTooSmall: [
-    'Chiều cao nền nhỏ hơn R:R tối thiểu — đã dùng bội số R.',
+    'Chiều cao nền chưa đủ R:R tối thiểu — dùng bội số R thay thế.',
     'The base height came out under the minimum R:R — used the R multiple.',
   ],
 };
 
 export const SIZE_WARN: Record<string, [string, string]> = {
   heatExceeded: [
-    'Tổng rủi ro đang mở đã chạm hạn mức — đóng hoặc nâng cắt lỗ một vị thế trước.',
+    'Tổng rủi ro đang mở đã chạm hạn mức — đóng bớt hoặc nâng cắt lỗ một vị thế trước đã.',
     'Total open risk is already at the limit — close or tighten something first.',
   ],
   noNewLongs: ['Thị trường ở xu hướng giảm: không mở lệnh mua mới.', 'Downtrend: no new longs.'],
   tooManyPositions: [
-    'Đã đủ số vị thế cho bậc rủi ro hiện tại.',
+    'Đã đủ số vị thế tối đa của bậc rủi ro hiện tại.',
     'Already at the position count for this risk rung.',
   ],
-  notEnoughCash: ['Tiền còn lại không đủ mua một cổ.', 'Not enough cash for a single share.'],
+  notEnoughCash: ['Tiền mặt còn lại không đủ mua nổi một cổ.', 'Not enough cash for a single share.'],
 };
 
 export const SIZE_LIMIT: Record<string, [string, string]> = {
   risk: ['rủi ro mỗi lệnh', 'risk per trade'],
-  cash: ['tiền còn lại', 'cash on hand'],
+  cash: ['tiền mặt còn lại', 'cash on hand'],
   concentration: ['tỷ trọng tối đa một mã', 'max weight in one name'],
   heat: ['tổng rủi ro đang mở', 'total open risk'],
 };
 
 export const REGIME_SHORT: Record<string, [string, string]> = {
   UPTREND: ['tăng', 'uptrend'],
-  UPTREND_UNDER_STRESS: ['tăng nhưng căng', 'uptrend under stress'],
+  UPTREND_UNDER_STRESS: ['tăng nhưng chịu áp lực', 'uptrend under stress'],
   RANGE: ['đi ngang', 'range'],
   DOWNTREND: ['giảm', 'downtrend'],
 };
@@ -116,11 +116,11 @@ export const REGIME_SHORT: Record<string, [string, string]> = {
 /** Why each cut applied, for the "risk for this trade" line. */
 export const CUT_SHORT: Record<string, [string, string]> = {
   regimeDowntrend: ['thị trường giảm', 'downtrend'],
-  volExpanded: ['biến động giãn ra', 'volatility expanded'],
-  regimeStress: ['xu hướng tăng đang căng', 'uptrend under stress'],
+  volExpanded: ['biến động mở rộng', 'volatility expanded'],
+  regimeStress: ['xu hướng tăng đang chịu áp lực', 'uptrend under stress'],
   regimeRange: ['thị trường đi ngang', 'range'],
-  losingStreak: ['lỗ liên tiếp', 'losing streak'],
-  flooredAtMin: ['chạm sàn rủi ro', 'hit the risk floor'],
+  losingStreak: ['chuỗi lỗ liên tiếp', 'losing streak'],
+  flooredAtMin: ['đã chạm mức rủi ro tối thiểu', 'hit the risk floor'],
   // No `rating` entry, and that is the point: the grade is not one of the ladder's cuts
   // any more. It scales the finished position, so it gets its own line with the
   // subtraction spelled out rather than a word in a list of penalties.
@@ -134,10 +134,10 @@ export const CUT_SHORT: Record<string, [string, string]> = {
  * "C → 50% of the budget" is a decision the user can disagree with.
  */
 export const RATING_MEANS: Record<string, [string, string]> = {
-  A: ['đúng cái mình muốn — cỡ đầy đủ', 'exactly what you wanted — full size'],
-  B: ['tốt nhưng có điểm chưa hoàn hảo', 'good, with something not quite right'],
+  A: ['đúng thứ mình muốn — vào đủ size', 'exactly what you wanted — full size'],
+  B: ['tốt, nhưng còn điểm chưa ổn', 'good, with something not quite right'],
   C: ['tạm được — vào nhỏ', 'acceptable — go small'],
-  D: ['yếu; cân nhắc bỏ qua hẳn', 'weak; consider skipping it altogether'],
+  D: ['yếu; nên cân nhắc bỏ hẳn', 'weak; consider skipping it altogether'],
 };
 
 export interface PlanWordOpts {
@@ -174,8 +174,8 @@ const ROW_LABEL: Record<string, [string, string]> = {
   target: ['Mục tiêu', 'Target'],
   shares: ['Số cổ', 'Shares'],
   risk: ['Rủi ro', 'Risk'],
-  grade: ['Xếp hạng', 'Grade'],
-  cuts: ['Cỡ bị giảm vì', 'Size cut by'],
+  grade: ['Hạng', 'Grade'],
+  cuts: ['Giảm size vì', 'Size cut by'],
   market: ['Thị trường', 'Market'],
 };
 
@@ -216,7 +216,7 @@ export function planRows(plan: BuyPlan, opts: PlanWordOpts): PlanRow[] {
   const capped = plan.levels.warnings.includes('stopCappedByMax');
   const anchor = ANCHOR_MEANS[plan.levels.rule.means];
   const stopWhy = capped
-    ? (vi ? 'đã kéo lên mức chặn tối đa (EMA / ATR)' : 'pulled up to the maximum stop (EMA / ATR)')
+    ? (vi ? 'đã kéo lên mức cắt lỗ tối đa (EMA / ATR)' : 'pulled up to the maximum stop (EMA / ATR)')
     : (vi ? anchor![0] : anchor![1]);
   rows.push({
     k: L('stop'),
@@ -243,7 +243,7 @@ export function planRows(plan: BuyPlan, opts: PlanWordOpts): PlanRow[] {
   rows.push({
     k: L('shares'),
     v: `<b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}` +
-      (limit ? ` ${mu(`· ${vi ? 'cỡ đầy bị chặn bởi' : 'full size bound by'} ${vi ? limit[0] : limit[1]}`)}` : ''),
+      (limit ? ` ${mu(`· ${vi ? 'size đầy đủ bị giới hạn bởi' : 'full size bound by'} ${vi ? limit[0] : limit[1]}`)}` : ''),
   });
   // Split off the share count, because it answers a different question: not "how big is this
   // position" but "how much of the account is at stake if the stop is hit". The two used to run
@@ -276,9 +276,9 @@ export function planRows(plan: BuyPlan, opts: PlanWordOpts): PlanRow[] {
       v: `<b>${plan.rating}</b>` +
         (means ? ` — ${mu(vi ? means[0] : means[1])}` : '') +
         (scaled
-          ? ` · ${mu(vi ? 'cỡ đầy' : 'full size')} ${fullShares} ${vi ? 'cổ' : 'sh'}${money(fullPositionValue)}` +
+          ? ` · ${mu(vi ? 'size đầy đủ' : 'full size')} ${fullShares} ${vi ? 'cổ' : 'sh'}${money(fullPositionValue)}` +
             ` → ${Math.round(gradeScale * 100)}% → <b>${plan.shares}</b> ${vi ? 'cổ' : 'sh'}${money(positionValue)}`
-          : ` ${mu(`(${vi ? 'không giảm cỡ' : 'no size cut'})`)}`),
+          : ` ${mu(`(${vi ? 'không giảm size' : 'no size cut'})`)}`),
     });
   }
 
@@ -312,7 +312,7 @@ export function planRows(plan: BuyPlan, opts: PlanWordOpts): PlanRow[] {
     rows.push({
       k: '',
       v: mu(vi
-        ? 'Cẩm nang không có dòng cho thiết lập này — các con số là suy ra, nên xem lại.'
+        ? 'Playbook không có dòng cho setup này — các con số chỉ là suy ra, nên xem lại.'
         : 'The book has no row for this setup — these numbers are extrapolated, worth a look.'),
     });
   }

@@ -362,7 +362,7 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
   return `
     ${pageHero({
       icon: '🏦', tone: 'var(--blue)',
-      kicker: getLang() === 'vi' ? 'Tiền · Tài sản' : 'Money · Net worth',
+      kicker: getLang() === 'vi' ? 'Tiền · Tổng tài sản' : 'Money · Net worth',
       title: t('wealth.title'), sub: tc('wealth.sub'),
     })}
     ${commandBar({

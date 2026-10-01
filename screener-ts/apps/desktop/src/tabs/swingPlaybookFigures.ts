@@ -32,11 +32,11 @@ const VIOLET = 'var(--violet)';
 const MUTE = 'var(--faint)';
 
 const L = {
-  entry: { en: 'entry', vi: 'vào' },
+  entry: { en: 'entry', vi: 'entry' },
   buy: { en: 'BUY', vi: 'MUA' },
   sell: { en: 'SELL', vi: 'BÁN' },
   stop: { en: 'STOP', vi: 'STOP' },
-  target: { en: 'TARGET', vi: 'MỤC TIÊU' },
+  target: { en: 'TARGET', vi: 'TARGET' },
   resistance: { en: 'RESISTANCE', vi: 'KHÁNG CỰ' },
 } satisfies Record<string, Bi>;
 
@@ -141,10 +141,10 @@ export function regimeFigure(lang: Lang): string {
     );
   }).join('');
   return figure({
-    title: lang === 'vi' ? '📈 Hình 1 — Bốn trạng thái thị trường trông như thế nào' : '📈 Figure 1 — What the four market states look like',
+    title: lang === 'vi' ? '📈 Hình 1 — Bốn trạng thái thị trường trên chart' : '📈 Figure 1 — What the four market states look like',
     caption:
       lang === 'vi'
-        ? 'Cùng một cách đọc: vị trí giá so với 50MA/200MA, cộng với độ dốc của 50MA.'
+        ? 'Lần nào cũng đọc một kiểu: giá nằm đâu so với 50MA/200MA, cộng độ dốc của 50MA.'
         : 'One reading, every time: where price sits against the 50MA/200MA, plus the slope of the 50MA.',
     body: `<div class="swp-grid swp-g2">${cells}</div>`,
     legend: [
@@ -201,11 +201,11 @@ export function volFigure(lang: Lang): string {
   return figure({
     title:
       lang === 'vi'
-        ? '📊 Hình 2 — Cùng một tỷ lệ rủi ro, hai môi trường biến động'
+        ? '📊 Hình 2 — Cùng % rủi ro, hai mức biến động'
         : '📊 Figure 2 — Same risk percentage, two volatility regimes',
     caption:
       lang === 'vi'
-        ? 'Bên trái: ATR thấp, stop gần → mua được nhiều. Bên phải: ATR cao, stop xa → phải mua ít lại. <b>Số tiền mất nếu sai là như nhau.</b>'
+        ? 'Bên trái: ATR thấp, stop gần → mua được nhiều cổ hơn. Bên phải: ATR cao, stop xa → phải mua ít đi. <b>Nếu sai, số tiền mất vẫn y như nhau.</b>'
         : 'Left: low ATR, tight stop → more shares. Right: high ATR, wide stop → fewer shares. <b>The money lost if wrong is identical.</b>',
     body: `<div class="swp-grid swp-g2">
       ${cell(lang === 'vi' ? 'ATR THẤP · stop 3% · size 100%' : 'LOW ATR · 3% stop · 100% size', BLUE, left)}
@@ -273,11 +273,11 @@ export function rotationFigure(lang: Lang): string {
   return figure({
     title:
       lang === 'vi'
-        ? '🔄 Hình 3 — Biểu đồ xoay vòng thứ hạng sector (90 phiên)'
+        ? '🔄 Hình 3 — Xoay vòng thứ hạng sector (90 phiên)'
         : '🔄 Figure 3 — Sector rank rotation (90 sessions)',
     caption:
       lang === 'vi'
-        ? 'Trục dọc là thứ hạng (1 ở trên cùng). Điều đáng nhìn không phải ai đang đứng đầu, mà <b>đường nào đang đi lên</b>. XLK và XLI đang hút dòng tiền; XLU leo vào top là tín hiệu phòng thủ.'
+        ? 'Trục dọc là thứ hạng (1 ở trên cùng). Cái cần nhìn không phải ai đang dẫn đầu, mà <b>đường nào đang leo lên</b>. XLK và XLI đang hút dòng tiền; XLU leo vào top là tín hiệu phòng thủ.'
         : 'The vertical axis is rank (1 at the top). What matters is not who leads but <b>which line is climbing</b>. XLK and XLI are pulling money in; XLU climbing into the top is a defensive tell.',
     body: `<svg class="swp-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${
       lang === 'vi' ? 'Thứ hạng sector theo thời gian' : 'Sector ranks over time'
@@ -624,7 +624,7 @@ const ANATOMY: {
     note: { en: 'long lower wick, closes near the high', vi: 'bóng dưới dài, đóng gần đỉnh' },
     blurb: {
       en: 'Lower wick ≥ 2× the body, close near the high. <b>The intraday sell-off was fully absorbed.</b> Reliable — if it sits at support.',
-      vi: 'Bóng dưới ≥ 2× thân, đóng cửa gần đỉnh. <b>Bán tháo trong phiên bị hấp thụ hết.</b> Tin cậy cao — nếu ở hỗ trợ.',
+      vi: 'Bóng dưới ≥ 2× thân, đóng cửa gần đỉnh. <b>Lực bán trong phiên bị hấp thụ hết.</b> Độ tin cậy cao — nếu nằm tại hỗ trợ.',
     },
   },
   {
@@ -689,7 +689,7 @@ export function candleAnatomyFigure(lang: Lang): string {
         : '🕯️ Figure 4 — Anatomy of the three bullish reversal bars',
     caption:
       lang === 'vi'
-        ? 'Chú ý cây nến được khoanh: mỗi mẫu đều kể cùng một câu chuyện — giá bị đẩy xuống rồi bị mua lại hết trước khi đóng cửa.'
+        ? 'Nhìn cây nến được khoanh: cả ba đều kể cùng một câu chuyện — giá bị đạp xuống rồi được mua lại hết trước giờ đóng cửa.'
         : 'Watch the ringed bar: all three tell the same story — price was pushed down and bought back before the close.',
     body: `<div class="swp-grid swp-g3">${cells}</div>`,
   });
@@ -755,11 +755,11 @@ export function rrFigure(lang: Lang): string {
   return figure({
     title:
       lang === 'vi'
-        ? '⚖️ Hình 5 — Cùng một mẫu hình, hai chất lượng khác nhau'
+        ? '⚖️ Hình 5 — Cùng một mẫu hình, chất lượng khác hẳn'
         : '⚖️ Figure 5 — Same pattern, two different qualities',
     caption:
       lang === 'vi'
-        ? 'Bên trái: nến gọn, stop gần, cùng mục tiêu đó cho khoảng <b>3R</b>. Bên phải: cùng hammer nhưng biên độ gấp 2,5× ATR — stop quá xa, cùng mục tiêu giá đó giờ chỉ còn khoảng <b>1R</b>. <b>Mẫu hình giống nhau, kết quả kỳ vọng khác hẳn.</b>'
+        ? 'Bên trái: nến gọn, stop gần, vẫn target đó mà ăn được khoảng <b>3R</b>. Bên phải: cũng hammer nhưng biên độ tới 2,5× ATR — stop quá xa, cùng target giá đó giờ chỉ còn khoảng <b>1R</b>. <b>Mẫu hình như nhau, kỳ vọng khác hẳn.</b>'
         : 'Left: a tight bar, a close stop, and that same target pays about <b>3R</b>. Right: the same hammer but 2.5× ATR wide — the stop is far away and the identical price target now pays about <b>1R</b>. <b>Same pattern, completely different expectancy.</b>',
     body: `<div class="swp-grid swp-g2">
       ${cell(lang === 'vi' ? '✓ NẾN GỌN · stop hẹp' : '✓ TIGHT BAR · narrow stop', UP, render(false))}
@@ -925,11 +925,11 @@ export function volumeCasesFigure(lang: Lang): string {
   return figure({
     title:
       lang === 'vi'
-        ? '📊 Hình 6 — Bốn tình huống volume và ý nghĩa ngược nhau của chúng'
+        ? '📊 Hình 6 — Bốn tình huống volume, bốn ý nghĩa trái ngược'
         : '📊 Figure 6 — Four volume situations, and their opposite meanings',
     caption:
       lang === 'vi'
-        ? 'Điểm quan trọng: <b>volume cạn có thể là tốt hoặc xấu tùy setup</b>. Không có luật chung "volume cao là tốt".'
+        ? 'Điểm quan trọng: <b>volume cạn có thể là tốt hoặc xấu tùy setup</b>. Không có luật chung kiểu "volume cao là tốt".'
         : 'The point: <b>drying volume can be good or bad depending on the setup</b>. There is no blanket "high volume is good" rule.',
     body: `<div class="swp-grid swp-g2">
       ${cell(lang === 'vi' ? '① PULLBACK — volume phải CẠN ✓' : '① PULLBACK — volume must DRY UP ✓', UP, dryup)}

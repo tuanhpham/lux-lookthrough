@@ -66,33 +66,33 @@ export function normKey(raw: string): string {
  */
 const SETUPS: Record<string, Term> = {
   bo: {
-    en: 'Breakout', vi: 'Bứt phá',
+    en: 'Breakout', vi: 'Breakout',
     tipEn: 'A base that has tightened under a pivot, waiting for price to clear it.',
-    tipVi: 'Nền tích lũy đã co lại dưới một điểm pivot, đang chờ giá vượt lên.',
+    tipVi: 'Nền tích lũy đã co hẹp ngay dưới pivot, chờ giá vượt lên.',
   },
   rv: {
     en: 'Reversal', vi: 'Đảo chiều',
     tipEn: 'A name that has fallen a long way, waiting for one strong session. '
       + 'The trigger needs fundamentals to pass first.',
-    tipVi: 'Mã đã rơi sâu, đang chờ một phiên bật mạnh. '
-      + 'Điểm kích hoạt chỉ mở khi điểm cơ bản đạt.',
+    tipVi: 'Mã đã giảm sâu, đang chờ một phiên bật mạnh. '
+      + 'Chỉ kích hoạt khi điểm cơ bản đạt.',
   },
   lead: {
     en: 'Sector leader', vi: 'Dẫn dắt ngành',
     tipEn: 'Not a chart pattern but a quality floor: a liquid name inside a top-3 '
       + 'sector, stronger than SPY and still near its high.',
-    tipVi: 'Không phải mẫu hình kỹ thuật mà là một bộ sàn chất lượng: mã đủ thanh khoản '
-      + 'thuộc top 3 sector, mạnh hơn SPY và còn gần đỉnh.',
+    tipVi: 'Không phải mẫu hình kỹ thuật mà là một bộ lọc chất lượng: mã đủ thanh khoản, '
+      + 'thuộc top 3 sector, mạnh hơn SPY và còn sát đỉnh.',
   },
   // Not a nightly setup, so it never heads a candidates table — but it IS one of the names
   // listed in a playbook cell's `setups`, and it was rendering there as a bare code.
   spike: {
-    en: 'Volume spike', vi: 'Bùng khối lượng',
+    en: 'Volume spike', vi: 'Đột biến khối lượng',
     tipEn: 'An intraday-only engine: an unusual surge of volume and range, with no base and no '
       + 'pivot behind it. The playbook allows it in some regimes and not in others.',
-    tipVi: 'Đây là engine chỉ chạy trong phiên: một cú bùng khối lượng và biên độ bất thường, '
-      + 'không có nền và không có pivot phía sau. Playbook cho phép nó ở một số trạng thái thị '
-      + 'trường và chặn ở các trạng thái khác.',
+    tipVi: 'Engine này chỉ chạy trong phiên: khối lượng và biên độ đột biến bất thường, '
+      + 'không có nền, không có pivot phía sau. Playbook cho phép nó ở một số trạng thái thị '
+      + 'trường và chặn ở các trạng thái còn lại.',
   },
 };
 
@@ -112,17 +112,17 @@ const REASONS: Record<string, Term> = {
   khong_co_nen_tich_luy: {
     en: 'No base yet', vi: 'Chưa có nền tích lũy',
     tipEn: 'The sideways stretch is shorter than a base has to be.',
-    tipVi: 'Đoạn đi ngang ngắn hơn độ dài tối thiểu của một nền.',
+    tipVi: 'Đoạn đi ngang còn ngắn hơn độ dài tối thiểu của một nền.',
   },
   khong_co_pivot: {
     en: 'No pivot', vi: 'Không có điểm pivot',
     tipEn: 'No clear high inside the base for price to break out over.',
-    tipVi: 'Không có đỉnh rõ ràng trong nền để giá bứt phá qua.',
+    tipVi: 'Trong nền không có đỉnh rõ ràng để giá breakout qua.',
   },
   bien_do_khong_co_lai: {
     en: 'Volatility did not contract', vi: 'Biên độ không co lại',
     tipEn: 'A base should go quieter as it matures. This one is still as wide as before.',
-    tipVi: 'Nền càng về cuối càng phải lặng đi. Nền này vẫn rộng như lúc đầu.',
+    tipVi: 'Nền càng về cuối càng phải lặng dần. Nền này vẫn rộng như lúc đầu.',
   },
   duoi_sma50: {
     en: 'Below the 50-day average', vi: 'Dưới SMA50',
@@ -132,60 +132,60 @@ const REASONS: Record<string, Term> = {
   sma50_dang_di_xuong: {
     en: 'The 50-day average is falling', vi: 'SMA50 đang đi xuống',
     tipEn: 'The 50-day moving average is sloping down, so the trend is not up yet.',
-    tipVi: 'Đường trung bình 50 ngày đang dốc xuống, xu hướng chưa phải tăng.',
+    tipVi: 'Đường trung bình 50 ngày đang dốc xuống, chưa phải xu hướng tăng.',
   },
   con_xa_pivot: {
     en: 'Still far below the pivot', vi: 'Còn xa pivot',
     tipEn: 'Too far under the breakout level for the trade to be close.',
-    tipVi: 'Còn quá xa điểm bứt phá nên chưa tới lúc vào.',
+    tipVi: 'Còn quá xa điểm breakout, chưa tới lúc vào.',
   },
   da_vuot_pivot_qua_xa: {
     en: 'Already well past the pivot', vi: 'Đã vượt pivot quá xa',
     tipEn: 'The breakout happened without the scanner; buying here means a wide stop.',
-    tipVi: 'Cú bứt phá đã xảy ra; mua lúc này thì cắt lỗ phải rất rộng.',
+    tipVi: 'Breakout đã xảy ra rồi; mua lúc này thì cắt lỗ phải rất rộng.',
   },
 
   // ── RV: rv_candidate() ──
   day_52_tuan_qua_cu: {
     en: 'The 52-week low is too old', vi: 'Đáy 52 tuần quá cũ',
     tipEn: 'The low was set too long ago for this to be a fresh reversal.',
-    tipVi: 'Đáy được tạo quá lâu rồi, không còn là một cú đảo chiều mới.',
+    tipVi: 'Đáy đã tạo từ quá lâu, không còn là một cú đảo chiều mới.',
   },
   chua_giam_du_3_thang: {
     en: 'Has not fallen enough over 3 months', vi: 'Chưa giảm đủ trong 3 tháng',
     tipEn: 'The 63-session return is not negative enough to call this beaten down.',
-    tipVi: 'Lợi nhuận 63 phiên chưa âm đủ để coi là đã rơi sâu.',
+    tipVi: 'Mức giảm 63 phiên chưa đủ sâu để tính là đã rơi mạnh.',
   },
   da_bat_len_qua_nhieu: {
     en: 'Already bounced too much', vi: 'Đã bật lên quá nhiều',
     tipEn: 'Price has run too far off the low; the low-risk entry is gone.',
-    tipVi: 'Giá đã chạy quá xa khỏi đáy, điểm vào ít rủi ro không còn.',
+    tipVi: 'Giá đã chạy quá xa khỏi đáy, không còn điểm vào rủi ro thấp.',
   },
   co_ban_khong_dat: {
     en: 'Fundamentals failed', vi: 'Cơ bản không đạt',
     tipEn: 'A reversal is only taken when the fundamentals pass. Unknown never counts as good.',
-    tipVi: 'Chỉ bắt đảo chiều khi điểm cơ bản đạt. "Chưa biết" không bao giờ được coi là "tốt".',
+    tipVi: 'Chỉ bắt đảo chiều khi điểm cơ bản đạt. "Chưa biết" không bao giờ tính là "tốt".',
   },
 
   // ── LEAD: lead_candidate(), lead_pick(), scan() ──
   khong_biet_sector: {
-    en: 'Sector unknown', vi: 'Không biết sector',
+    en: 'Sector unknown', vi: 'Chưa rõ sector',
     tipEn: 'The holdings file does not say which sector this belongs to, so it cannot be '
       + 'called a leader of one.',
-    tipVi: 'Dữ liệu thành phần không cho biết mã này thuộc sector nào, nên không thể gọi là '
+    tipVi: 'Dữ liệu thành phần không cho biết mã này thuộc sector nào, nên không thể xét '
       + 'dẫn dắt sector.',
   },
   khong_do_duoc_bien_do: {
     en: 'Volatility could not be measured', vi: 'Không đo được biên độ',
     tipEn: 'No ATR, so neither the stop nor the position size can be computed.',
-    tipVi: 'Không có ATR nên không tính được cắt lỗ lẫn khối lượng vào.',
+    tipVi: 'Không có ATR thì không tính được cả cắt lỗ lẫn size vào lệnh.',
   },
   khong_co_so_lieu_rs_thieu_ma_chuan: {
     en: 'No relative-strength data (benchmark missing?)',
     vi: 'Không có số liệu RS (thiếu mã chuẩn?)',
     tipEn: 'Strength is measured against SPY. Without the benchmark bars there is nothing '
       + 'to compare to.',
-    tipVi: 'Sức mạnh được đo so với SPY. Thiếu nến của mã chuẩn thì không có gì để so.',
+    tipVi: 'RS được đo so với SPY. Thiếu nến của mã chuẩn thì không có gì để so.',
   },
   yeu_hon_spy_trong_21_phien: {
     en: 'Weaker than SPY over 21 sessions', vi: 'Yếu hơn SPY trong 21 phiên',
@@ -198,12 +198,12 @@ const REASONS: Record<string, Term> = {
     tipVi: 'Mã dẫn dắt phải thắng chỉ số ở cả hai cửa sổ, 21 và 63 phiên.',
   },
   khong_co_danh_sach_sector: {
-    en: 'No sector ranking available', vi: 'Không có danh sách sector',
+    en: 'No sector ranking available', vi: 'Không có bảng xếp hạng sector',
     tipEn: 'Sector leaders are picked from the top sectors. With no ranking there are no '
       + 'top sectors, so the whole setup is skipped — this row says so out loud rather than '
       + 'leaving the table silently empty.',
     tipVi: 'Mã dẫn dắt được chọn từ các sector mạnh nhất. Không có bảng xếp hạng thì không có '
-      + 'sector nào ở top, nên cả setup bị bỏ qua — dòng này nói rõ ra thay vì để bảng trống.',
+      + 'sector nào ở top, nên cả setup bị bỏ qua — dòng này ghi rõ ra thay vì để bảng trống.',
   },
 
   // ── Intraday triggers: trig_bo() / trig_rv(). Not in `scanner:rejects` today. ──
@@ -211,62 +211,62 @@ const REASONS: Record<string, Term> = {
     en: 'Price or pivot missing', vi: 'Thiếu giá hoặc pivot',
     tipEn: 'A data gap, not a verdict on the stock: with no quote or no pivot there is no level '
       + 'to compare anything against, so the check cannot be run at all.',
-    tipVi: 'Đây là lỗ hổng dữ liệu, không phải kết luận về mã đó: không có giá hoặc không có pivot '
-      + 'thì không có mốc nào để so, nên phép kiểm tra không chạy được.',
+    tipVi: 'Đây là lỗ hổng dữ liệu, không phải kết luận về mã: thiếu giá hoặc thiếu pivot '
+      + 'thì không có mốc để so, nên không kiểm tra được.',
   },
   thieu_gia: {
     en: 'Price missing', vi: 'Thiếu giá',
     tipEn: 'No usable quote arrived for this symbol — stale, halted, or never fetched. '
       + 'Treated as a rejection because a missing price is never assumed to be a good one.',
-    tipVi: 'Không nhận được giá dùng được cho mã này — giá quá cũ, mã bị tạm ngừng, hoặc chưa lấy '
-      + 'được. Bị coi là loại vì thiếu giá không bao giờ được mặc định là giá tốt.',
+    tipVi: 'Không có giá dùng được cho mã này — giá quá cũ, mã bị tạm ngừng giao dịch, hoặc chưa lấy '
+      + 'được. Tính là loại, vì thiếu giá không bao giờ được mặc định là giá tốt.',
   },
   chua_vuot_pivot: {
     en: 'Has not cleared the pivot', vi: 'Chưa vượt pivot',
     tipEn: 'Still below the breakout level. Nothing to do yet.',
-    tipVi: 'Vẫn dưới điểm bứt phá. Chưa có gì để làm.',
+    tipVi: 'Vẫn dưới điểm breakout. Chưa có gì để làm.',
   },
   da_chay_qua_xa_pivot: {
     en: 'Run too far past the pivot', vi: 'Đã chạy quá xa pivot',
     tipEn: 'Chasing from here puts the stop too far away.',
-    tipVi: 'Đuổi giá từ đây thì cắt lỗ quá xa.',
+    tipVi: 'Đuổi giá ở đây thì cắt lỗ quá xa.',
   },
   thanh_khoan_trong_ngay_thap: {
-    en: 'Intraday volume too light', vi: 'Thanh khoản trong ngày thấp',
+    en: 'Intraday volume too light', vi: 'Khối lượng trong phiên còn thấp',
     tipEn: 'Today is not trading enough for the move to mean anything.',
-    tipVi: 'Hôm nay giao dịch chưa đủ để cú chạy có ý nghĩa.',
+    tipVi: 'Hôm nay khớp lệnh chưa đủ để cú chạy có ý nghĩa.',
   },
   dang_o_nua_duoi_bien_do_ngay: {
-    en: 'Sitting in the lower half of the day', vi: 'Đang ở nửa dưới biên độ ngày',
+    en: 'Sitting in the lower half of the day', vi: 'Đang ở nửa dưới biên độ phiên',
     tipEn: 'A breakout should hold the upper half of its range.',
-    tipVi: 'Một cú bứt phá thật phải giữ được nửa trên biên độ ngày.',
+    tipVi: 'Breakout thật phải giữ được nửa trên biên độ phiên.',
   },
   khong_dong_o_vung_dinh_ngay: {
-    en: 'Not closing near the high of the day', vi: 'Không đóng ở vùng đỉnh ngày',
+    en: 'Not closing near the high of the day', vi: 'Không đóng cửa gần đỉnh phiên',
     tipEn: 'Price cleared the level intraday but gave the gain back before the close. A breakout '
       + 'has to hold the upper half of the day’s range (the upper quarter for a reversal): the '
       + 'close is the only price the whole market agreed on.',
-    tipVi: 'Giá đã vượt mốc trong phiên nhưng trả lại hết trước khi đóng cửa. Một cú bứt phá phải '
-      + 'giữ được nửa trên biên độ ngày (đảo chiều là 1/4 trên): giá đóng cửa là giá duy nhất mà '
-      + 'cả thị trường đồng ý.',
+    tipVi: 'Giá đã vượt mốc trong phiên nhưng trả lại hết trước giờ đóng cửa. Breakout phải '
+      + 'giữ được nửa trên biên độ phiên (đảo chiều là 1/4 trên): giá đóng cửa là giá duy nhất mà '
+      + 'cả thị trường cùng chấp nhận.',
   },
   chua_co_so_lieu_co_ban: {
     en: 'No fundamentals yet', vi: 'Chưa có số liệu cơ bản',
     tipEn: 'Unknown is not treated as good, so the trigger stays shut.',
-    tipVi: '"Chưa biết" không được coi là "tốt", nên điểm kích hoạt vẫn đóng.',
+    tipVi: '"Chưa biết" không tính là "tốt", nên chưa kích hoạt.',
   },
   chua_lay_lai_sma20: {
     en: 'Has not reclaimed the 20-day average', vi: 'Chưa lấy lại SMA20',
     tipEn: 'The bounce is only confirmed once price closes back above its 20-day average.',
-    tipVi: 'Cú bật chỉ được xác nhận khi giá đóng lại trên đường trung bình 20 ngày.',
+    tipVi: 'Cú bật chỉ được xác nhận khi giá đóng cửa trở lại trên đường trung bình 20 ngày.',
   },
   gap_to_entry_xau: {
-    en: 'Large gap — poor entry', vi: 'Gap to, entry xấu',
+    en: 'Large gap — poor entry', vi: 'Gap lớn, entry xấu',
     tipEn: 'A warning, not a rejection: the trigger still fires. Price opened more than 8% above '
       + 'yesterday’s close, so the planned stop is now far below and the position it sizes has to '
       + 'be small. The setup may be right and the entry still bad.',
-    tipVi: 'Đây là cảnh báo, không phải loại: điểm kích hoạt vẫn nổ. Giá mở cửa cao hơn 8% so với '
-      + 'đóng cửa hôm trước, nên cắt lỗ theo kế hoạch giờ nằm rất xa và vị thế tính ra phải nhỏ. '
+    tipVi: 'Đây là cảnh báo, không phải loại: tín hiệu vẫn kích hoạt. Giá mở cửa cao hơn 8% so với '
+      + 'giá đóng cửa hôm trước, nên cắt lỗ theo kế hoạch giờ nằm rất xa và size tính ra phải nhỏ. '
       + 'Setup có thể đúng mà điểm vào vẫn tệ.',
   },
 
@@ -275,27 +275,27 @@ const REASONS: Record<string, Term> = {
   qua_loc: {
     en: 'Passed the filter', vi: 'Qua lọc',
     tipEn: 'How many names made it all the way through — not a rejection.',
-    tipVi: 'Số mã đi hết được bộ lọc — không phải lý do loại.',
+    tipVi: 'Số mã qua hết bộ lọc — không phải lý do loại.',
   },
   qua_san: {
     en: 'Cleared the quality floor', vi: 'Qua sàn chất lượng',
     tipEn: 'Passed every LEAD gate, before the per-sector and total caps were applied.',
-    tipVi: 'Đạt mọi tiêu chí LEAD, trước khi áp trần theo sector và trần tổng.',
+    tipVi: 'Đạt mọi tiêu chí LEAD, trước khi áp trần mỗi sector và trần tổng.',
   },
   bi_cat_tran: {
-    en: 'Cut by the candidate ceiling', vi: 'Bị cắt bởi trần ứng viên',
+    en: 'Cut by the candidate ceiling', vi: 'Bị loại do vượt trần ứng viên',
     tipEn: 'Qualified, but ranked below the last slot the scanner keeps.',
-    tipVi: 'Đạt chuẩn nhưng xếp dưới suất cuối cùng mà scanner giữ lại.',
+    tipVi: 'Đạt chuẩn nhưng xếp hạng dưới suất cuối cùng scanner giữ lại.',
   },
   cho_fund: {
     en: 'Awaiting fundamentals', vi: 'Chờ điểm cơ bản',
     tipEn: 'On the watch list, but the trigger stays shut until the fundamentals arrive.',
-    tipVi: 'Vẫn vào danh sách theo dõi, nhưng điểm kích hoạt đóng tới khi có điểm cơ bản.',
+    tipVi: 'Vẫn vào danh sách theo dõi, nhưng chưa kích hoạt cho tới khi có điểm cơ bản.',
   },
   khong_lap_duoc_ke_hoach: {
     en: 'No trade plan could be built', vi: 'Không lập được kế hoạch',
     tipEn: 'A candidate with no entry, stop and size is not a trade.',
-    tipVi: 'Một ứng viên không có điểm vào, cắt lỗ và khối lượng thì không phải một lệnh.',
+    tipVi: 'Ứng viên không có điểm vào, cắt lỗ và size thì chưa phải một lệnh.',
   },
 };
 
@@ -322,19 +322,19 @@ const PATTERNS: Pattern[] = [
     re: /^gia\s*<\s*\$(.+)$/i,
     en: 'Price below ${1}', vi: 'Giá dưới ${1}',
     tipEn: 'Cheap stocks move on nothing and cost more to trade, so there is a price floor.',
-    tipVi: 'Cổ phiếu giá thấp chạy vô cớ và tốn phí hơn khi giao dịch, nên có một sàn giá.',
+    tipVi: 'Cổ phiếu giá thấp hay chạy vô cớ và tốn phí giao dịch hơn, nên có một mức giá sàn.',
   },
   {
     re: /^nen rong hon\s*(.+)$/i,
     en: 'Base wider than {1}', vi: 'Nền rộng hơn {1}',
     tipEn: 'Measured top to bottom of the base. A deep base is a fight, not a rest.',
-    tipVi: 'Đo từ đỉnh xuống đáy nền. Nền quá sâu là một cuộc giằng xé, không phải nhịp nghỉ.',
+    tipVi: 'Đo từ đỉnh xuống đáy nền. Nền quá sâu là giằng co dữ dội, không phải nhịp nghỉ.',
   },
   {
     re: /^cach dinh 52 tuan\s*>\s*(.+)$/i,
     en: 'More than {1} below the 52-week high', vi: 'Cách đỉnh 52 tuần hơn {1}',
     tipEn: 'Breakouts and leaders are taken near the highs, not far under them.',
-    tipVi: 'Bứt phá và mã dẫn dắt được mua gần đỉnh, không phải ở xa dưới đỉnh.',
+    tipVi: 'Breakout và mã dẫn dắt được mua gần đỉnh, không phải ở xa bên dưới.',
   },
   {
     re: /^chua roi du\s*(.+)$/i,
@@ -347,27 +347,27 @@ const PATTERNS: Pattern[] = [
     en: 'Dollar volume below ${1} a session', vi: 'Thanh khoản dưới ${1} mỗi phiên',
     tipEn: 'Measured in money, not shares: a million shares at $3 and a million at $300 are '
       + 'two different worlds. This is the floor institutions trade above.',
-    tipVi: 'Đo bằng tiền, không bằng số cổ phiếu: một triệu cổ giá $3 và một triệu cổ giá $300 '
-      + 'là hai thế giới khác nhau. Đây là ngưỡng có tổ chức tham gia.',
+    tipVi: 'Đo bằng tiền, không bằng số cổ: một triệu cổ giá $3 và một triệu cổ giá $300 '
+      + 'là hai thế giới khác nhau. Đây là ngưỡng để tổ chức tham gia được.',
   },
   {
     re: /^rvol\s*<\s*(.+)$/i,
     en: 'RVOL below {1}', vi: 'RVOL dưới {1}',
     tipEn: "Today's volume against its normal level. Above 1 means people are paying attention.",
-    tipVi: 'Khối lượng hôm nay so với mức bình thường. Trên 1 là đang có người để ý đến nó.',
+    tipVi: 'Khối lượng hôm nay so với mức bình thường. Trên 1 là đang có người để ý.',
   },
   {
     re: /^bien do\s*<\s*(.+?)\s*\(khong du dong\)$/i,
-    en: 'Volatility below {1} — too quiet', vi: 'Biên độ dưới {1} — không đủ động',
+    en: 'Volatility below {1} — too quiet', vi: 'Biên độ dưới {1} — quá lặng',
     tipEn: 'Daily range this small means even a 3-ATR move barely covers fees and slippage.',
-    tipVi: 'Biên độ ngày nhỏ như vậy thì một cú chạy 3 ATR cũng không đủ bù phí và trượt giá.',
+    tipVi: 'Biên độ phiên nhỏ như vậy thì chạy 3 ATR cũng không đủ bù phí và trượt giá.',
   },
   {
     re: /^bien do\s*>\s*(.+?)\s*\(stop qua rong\)$/i,
     en: 'Volatility above {1} — the stop would be too wide',
     vi: 'Biên độ trên {1} — cắt lỗ quá rộng',
     tipEn: 'A sensible stop would sit so far away that the position has to shrink to nothing.',
-    tipVi: 'Cắt lỗ hợp lý sẽ xa đến mức vị thế phải nhỏ lại tới vô nghĩa.',
+    tipVi: 'Cắt lỗ hợp lý sẽ xa tới mức size phải nhỏ đến vô nghĩa.',
   },
   {
     re: /^da du\s*(\d+)\s*ma cua\s*(.+)$/i,
@@ -375,12 +375,12 @@ const PATTERNS: Pattern[] = [
     en: 'Already {1} names from {2}', vi: 'Đã đủ {1} mã của {2}',
     tipEn: 'Nothing wrong with this name — the scanner caps how many it takes from one '
       + 'sector, and the slots were filled by stronger ones.',
-    tipVi: 'Mã này không có gì sai — scanner giới hạn số mã lấy từ một sector, và các suất đã '
-      + 'bị những mã mạnh hơn lấy trước.',
+    tipVi: 'Mã này không có gì sai — scanner giới hạn số mã mỗi sector, và các suất đã '
+      + 'bị những mã mạnh hơn chiếm trước.',
   },
   {
     re: /^qua tran\s*(\d+)\s*ma tong$/i,
-    en: 'Over the {1}-name total cap', vi: 'Quá trần {1} mã tổng',
+    en: 'Over the {1}-name total cap', vi: 'Vượt trần tổng {1} mã',
     tipEn: 'Qualified, but the list was already full.',
     tipVi: 'Đạt chuẩn, nhưng danh sách đã đầy.',
   },
@@ -388,7 +388,7 @@ const PATTERNS: Pattern[] = [
     re: /^tang\s*<\s*(.+)$/i,
     en: 'Up less than {1} today', vi: 'Tăng dưới {1} trong ngày',
     tipEn: 'The bounce session has to be a strong one to count.',
-    tipVi: 'Phiên bật lên phải thật mạnh mới được tính.',
+    tipVi: 'Phiên bật phải thật mạnh mới được tính.',
   },
 ];
 
@@ -561,7 +561,7 @@ const ALERT_KINDS: Record<string, Term> = {
     en: 'Stronger', vi: 'Mạnh hơn',
     tipEn: 'Already alerted today, and re-sent because the score rose clearly above the best '
       + 'already sent. The same opportunity improving, not a new one.',
-    tipVi: 'Đã báo hôm nay rồi, và được gửi lại vì điểm tăng rõ rệt so với mức tốt nhất đã gửi. '
+    tipVi: 'Hôm nay đã báo rồi, nay gửi lại vì điểm tăng rõ so với mức cao nhất đã gửi. '
       + 'Đây là cùng một cơ hội đang mạnh lên, không phải một cơ hội mới.',
   },
 };
@@ -583,22 +583,22 @@ const TABLES: Record<string, Term> = {
     en: 'Daily bars', vi: 'Nến ngày',
     tipEn: 'Rows of daily open/high/low/close/volume — the raw history everything else is '
       + 'computed from.',
-    tipVi: 'Số dòng nến ngày (mở/cao/thấp/đóng/khối lượng) — lịch sử gốc mà mọi thứ khác được '
-      + 'tính ra từ đó.',
+    tipVi: 'Số dòng nến ngày (mở/cao/thấp/đóng/khối lượng) — dữ liệu gốc để tính ra '
+      + 'mọi thứ khác.',
   },
   struct: {
     en: 'Measured symbols', vi: 'Mã đã đo',
     tipEn: 'One row per symbol per session, holding the derived measurements: pivot, base length '
       + 'and depth, ATR%, RS, distance off the high. This is the table every gate is tested '
       + 'against, so it is also the universe the "Why rejected" shares are taken out of.',
-    tipVi: 'Một dòng cho mỗi mã mỗi phiên, chứa các số liệu đã tính: pivot, độ dài và độ sâu nền, '
-      + 'ATR%, RS, khoảng cách tới đỉnh. Đây là bảng mà mọi điều kiện được kiểm tra trên đó, nên '
-      + 'nó cũng là tổng số mà tỷ lệ ở mục "Vì sao bị loại" được chia ra.',
+    tipVi: 'Mỗi mã mỗi phiên một dòng, chứa các số liệu đã tính: pivot, độ dài và độ sâu nền, '
+      + 'ATR%, RS, khoảng cách tới đỉnh. Mọi điều kiện đều kiểm tra trên bảng này, nên '
+      + 'đây cũng là mẫu số cho các tỷ lệ ở mục "Vì sao bị loại".',
   },
   candidates: {
     en: 'Candidates', vi: 'Ứng viên',
     tipEn: 'Symbols that cleared every gate of at least one setup and were given a plan.',
-    tipVi: 'Các mã đã qua toàn bộ điều kiện của ít nhất một setup và đã được lập kế hoạch.',
+    tipVi: 'Các mã đã qua mọi điều kiện của ít nhất một setup và đã có kế hoạch.',
   },
 };
 

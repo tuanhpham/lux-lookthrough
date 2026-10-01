@@ -996,6 +996,22 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
     vi: 'Mở ChatGPT với câu hỏi trong URL, đồng thời copy sẵn để dự phòng. Custom GPT không tự chạy được — OpenAI không mở API cho chúng — nên hãy cài extension trong thư mục extension/ để nó tự điền và gửi giúp bạn. Không có extension thì chỉ cần dán.',
   },
   'prompts.show': { en: 'Show prompt', vi: 'Xem prompt' },
+  'prompts.assist': { en: 'Ask Assistant', vi: 'Hỏi Trợ lý' },
+  'prompts.assist.help': {
+    en: 'Send this prompt to the app’s own Assistant (your API key) and read the answer in its panel. Turn on 🌐 there for web research.',
+    vi: 'Gửi prompt này cho Trợ lý của app (dùng API key của bạn) và đọc câu trả lời ngay trong khung chat. Bật 🌐 trong đó nếu cần tra web.',
+  },
+  'prompts.assist.fill': {
+    en: 'Let the Assistant answer these questions straight into the box, then apply them',
+    vi: 'Để Trợ lý trả lời thẳng vào ô dán, rồi bấm Áp dụng',
+  },
+  'prompts.assist.running': { en: 'The Assistant is answering…', vi: 'Trợ lý đang trả lời…' },
+  'prompts.assist.stop': { en: 'Stop', vi: 'Dừng' },
+  'prompts.assist.done': { en: 'Answer is in — read it over, then Apply.', vi: 'Đã có câu trả lời — đọc lại rồi bấm Áp dụng.' },
+  'prompts.assist.nokey': {
+    en: 'The Assistant needs an API key — add one in its settings (⚙ in the chat panel), or use Ask ChatGPT.',
+    vi: 'Trợ lý cần API key — thêm trong phần cài đặt (⚙ ở khung chat), hoặc dùng Hỏi ChatGPT.',
+  },
   'prompts.hide': { en: 'Hide prompt', vi: 'Ẩn prompt' },
   'prompts.gpt.set': { en: 'Set my GPT', vi: 'Chọn GPT của tôi' },
   'prompts.gpt.title': { en: 'Your custom GPT', vi: 'Custom GPT của bạn' },

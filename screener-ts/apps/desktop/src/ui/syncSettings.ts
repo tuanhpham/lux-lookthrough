@@ -166,31 +166,31 @@ function stateLineHtml(vi: boolean): string {
   if (view.phase === 'off') {
     head = vi ? 'Chỉ lưu trên máy này' : 'Local only';
     detail = vi
-      ? 'Thiết bị này chưa có mã truy cập, nên không có gì được tải lên. Nhập mã bên dưới rồi bấm “Lưu & đồng bộ”.'
+      ? 'Máy này chưa có mã truy cập nên chưa sync gì lên. Nhập mã bên dưới rồi bấm “Lưu & sync”.'
       : 'This device has no access code, so nothing is uploaded. Enter the code below and press “Save & Sync”.';
   } else if (a.pullError) {
-    head = vi ? 'Không đồng bộ được' : 'Not syncing';
+    head = vi ? 'Không sync được' : 'Not syncing';
     detail =
       (vi
-        ? 'Không tải được dữ liệu từ server, nên mọi thay đổi trên thiết bị này đang nằm chờ. App sẽ tự thử lại; lý do: '
+        ? 'Không tải được dữ liệu từ server nên mọi thay đổi trên máy này đang chờ. App sẽ tự thử lại; lý do: '
         : 'The download from the server failed, so every change on this device is waiting. The app keeps retrying; reason: ') +
       a.pullError;
   } else if (a.lastError) {
     head = vi ? 'Chưa lưu được' : 'Not saved';
     detail =
-      (vi ? 'Một thay đổi chưa gửi lên được. Lý do: ' : 'A change could not be uploaded. Reason: ') +
+      (vi ? 'Có một thay đổi chưa gửi lên được. Lý do: ' : 'A change could not be uploaded. Reason: ') +
       a.lastError;
   } else if (view.phase === 'pending') {
-    head = vi ? 'Đang đồng bộ…' : 'Syncing…';
+    head = vi ? 'Đang sync…' : 'Syncing…';
     detail = vi
-      ? 'Đang tải dữ liệu của bạn về. Các thay đổi sẽ được gửi lên ngay sau đó.'
+      ? 'Đang tải dữ liệu về. Xong là gửi các thay đổi lên ngay.'
       : 'Downloading your data. Changes are uploaded as soon as it lands.';
   } else {
-    head = vi ? 'Đã đồng bộ' : 'Synced';
+    head = vi ? 'Đã sync' : 'Synced';
     detail = time
-      ? (vi ? 'Lần gửi lên gần nhất: ' : 'Last upload: ') + time
+      ? (vi ? 'Gửi lên lần cuối: ' : 'Last upload: ') + time
       : vi
-        ? 'Thiết bị này chưa thay đổi gì trong phiên này.'
+        ? 'Từ lúc mở app, máy này chưa thay đổi gì.'
         : 'Nothing has changed on this device this session.';
   }
   return `
@@ -216,7 +216,7 @@ export function openSyncSettings(ctx: AppContext): void {
     <div class="modal-backdrop"></div>
     <div class="modal-panel" style="max-width:440px">
       <div class="modal-head">
-        <div>${vi ? '☁️ Đồng bộ thiết bị' : '☁️ Device Sync'}</div>
+        <div>${vi ? '☁️ Sync thiết bị' : '☁️ Device Sync'}</div>
         <button class="sync-x" aria-label="Close">×</button>
       </div>
       <div class="modal-body" style="padding:16px">
@@ -224,26 +224,26 @@ export function openSyncSettings(ctx: AppContext): void {
         <p class="muted" style="font-size:13px;line-height:1.6;margin-top:0">
           ${
             vi
-              ? 'Nhập mã truy cập để đồng bộ danh sách theo dõi, bài viết và tài khoản giao dịch mô phỏng trên mọi thiết bị. Để trống để chỉ lưu cục bộ trên máy này.'
+              ? 'Nhập mã truy cập để sync Watchlist, bài viết và tài khoản giả lập giữa các thiết bị. Để trống nếu chỉ muốn lưu trên máy này.'
               : 'Enter your access code to sync watchlists, posts and paper-trading accounts across every device. Leave empty to keep data only on this device.'
           }
         </p>
         <label class="field-label">${vi ? 'Mã truy cập' : 'Access code'}</label>
         <input id="sync-code-input" class="field" style="width:100%" type="password"
           autocomplete="off" spellcheck="false" value="${existing.replace(/"/g, '&quot;')}"
-          placeholder="${vi ? 'dán mã của bạn' : 'paste your code'}" />
+          placeholder="${vi ? 'dán mã vào đây' : 'paste your code'}" />
         <div id="sync-msg" class="muted" style="font-size:12px;min-height:18px;margin:8px 0"></div>
         <div class="row" style="justify-content:flex-end;gap:8px;margin-top:4px">
           ${existing ? `<button id="sync-clear" class="btn-outline" style="margin-right:auto">${vi ? 'Đăng xuất' : 'Sign out'}</button>` : ''}
           <button id="sync-cancel" class="btn-outline">${vi ? 'Hủy' : 'Cancel'}</button>
-          <button id="sync-save" class="btn">${vi ? 'Lưu & đồng bộ' : 'Save & Sync'}</button>
+          <button id="sync-save" class="btn">${vi ? 'Lưu & sync' : 'Save & Sync'}</button>
         </div>
         <div style="border-top:1px solid var(--border, #2a2a2a);margin-top:16px;padding-top:14px">
-          <div class="field-label" style="margin-bottom:6px">${vi ? 'Sao lưu ngoại tuyến' : 'Offline backup'}</div>
+          <div class="field-label" style="margin-bottom:6px">${vi ? 'Sao lưu offline' : 'Offline backup'}</div>
           <p class="muted" style="font-size:12px;line-height:1.5;margin:0 0 10px">
             ${
               vi
-                ? 'Tải toàn bộ dữ liệu trên thiết bị này ra một tệp (không cần mã đồng bộ). Dùng “Nhập” để khôi phục trên thiết bị khác.'
+                ? 'Xuất toàn bộ dữ liệu trên máy này ra file (không cần mã sync). Dùng “Nhập” để khôi phục trên máy khác.'
                 : 'Download all data on this device to a file (no sync code needed). Use “Import” to restore it on another device.'
             }
           </p>
@@ -254,17 +254,17 @@ export function openSyncSettings(ctx: AppContext): void {
           </div>
         </div>
         <div style="border-top:1px solid var(--border, #2a2a2a);margin-top:16px;padding-top:14px">
-          <div class="field-label" style="margin-bottom:6px">${vi ? 'Phục hồi phiên bản cũ' : 'Recover an older version'}</div>
+          <div class="field-label" style="margin-bottom:6px">${vi ? 'Khôi phục bản cũ' : 'Recover an older version'}</div>
           <p class="muted" style="font-size:12px;line-height:1.5;margin:0 0 10px">
             ${
               vi
-                ? 'Mỗi lần một mục bị ghi đè hoặc xoá, giá trị cũ được lưu lại trên server. Nếu dữ liệu bị mất sau khi đồng bộ, tìm ở đây và bấm Phục hồi.'
+                ? 'Mỗi khi một mục bị ghi đè hay xoá, server giữ lại giá trị cũ. Lỡ mất dữ liệu sau khi sync thì tìm ở đây và bấm Khôi phục.'
                 : 'Whenever an item is overwritten or deleted, the server keeps the old value. If data vanished after a sync, find it here and press Restore.'
             }
           </p>
           <div style="display:flex;flex-wrap:wrap;gap:8px">
-            <button id="data-history" class="btn-outline">${vi ? '🕘 Xem phiên bản cũ' : '🕘 Browse versions'}</button>
-            <button id="data-restore-at" class="btn-outline">${vi ? '⏪ Khôi phục mọi thứ về một thời điểm' : '⏪ Restore everything to a moment'}</button>
+            <button id="data-history" class="btn-outline">${vi ? '🕘 Xem các bản cũ' : '🕘 Browse versions'}</button>
+            <button id="data-restore-at" class="btn-outline">${vi ? '⏪ Đưa mọi thứ về một thời điểm' : '⏪ Restore everything to a moment'}</button>
           </div>
           <div id="history-list" style="margin-top:10px;max-height:230px;overflow:auto"></div>
         </div>
@@ -282,7 +282,7 @@ export function openSyncSettings(ctx: AppContext): void {
 
   host.querySelector('#sync-clear')?.addEventListener('click', () => {
     setSyncCode(null);
-    msg.textContent = vi ? 'Đã đăng xuất. Dữ liệu cục bộ vẫn còn.' : 'Signed out. Local data is kept.';
+    msg.textContent = vi ? 'Đã đăng xuất. Dữ liệu trên máy vẫn giữ nguyên.' : 'Signed out. Local data is kept.';
     setTimeout(close, 800);
   });
 
@@ -325,7 +325,7 @@ export function openSyncSettings(ctx: AppContext): void {
       msg.style.color = 'var(--accent)';
       msg.textContent =
         (res.name ? `${vi ? 'Xin chào' : 'Hi'} ${res.name}. ` : '') +
-        (vi ? `Đã đồng bộ ${n} mục.` : `Synced ${n} item(s).`);
+        (vi ? `Đã sync ${n} mục.` : `Synced ${n} item(s).`);
       onSyncedCb?.();
       setTimeout(close, 900);
     } catch (e) {
@@ -336,7 +336,7 @@ export function openSyncSettings(ctx: AppContext): void {
       msg.textContent =
         (vi ? 'Không tải được dữ liệu: ' : 'Could not pull your data: ') +
         String((e as Error)?.message ?? e) +
-        (vi ? ' — mã đã lưu, app sẽ tự thử lại.' : ' — the code is saved; the app keeps retrying.');
+        (vi ? ' — đã lưu mã, app sẽ tự thử lại.' : ' — the code is saved; the app keeps retrying.');
     }
   });
 
@@ -347,10 +347,10 @@ export function openSyncSettings(ctx: AppContext): void {
       msg.textContent = vi ? 'Đang xuất…' : 'Exporting…';
       const n = await exportAllData(ctx);
       msg.style.color = 'var(--accent)';
-      msg.textContent = vi ? `Đã xuất ${n} mục vào tệp.` : `Exported ${n} item(s) to a file.`;
+      msg.textContent = vi ? `Đã xuất ${n} mục ra file.` : `Exported ${n} item(s) to a file.`;
     } catch (e) {
       msg.style.color = 'var(--danger)';
-      msg.textContent = (vi ? 'Xuất thất bại: ' : 'Export failed: ') + String((e as Error)?.message ?? e);
+      msg.textContent = (vi ? 'Xuất lỗi: ' : 'Export failed: ') + String((e as Error)?.message ?? e);
     }
   });
 
@@ -361,7 +361,7 @@ export function openSyncSettings(ctx: AppContext): void {
     if (!file) return;
     const ok = confirm(
       vi
-        ? 'Nhập sẽ ghi đè các mục trùng khóa bằng dữ liệu trong tệp. Tiếp tục?'
+        ? 'Mục nào trùng key sẽ bị ghi đè bằng dữ liệu trong file. Tiếp tục?'
         : 'Import will overwrite matching keys with the file’s data. Continue?',
     );
     if (!ok) {
@@ -375,8 +375,8 @@ export function openSyncSettings(ctx: AppContext): void {
       msg.style.color = 'var(--accent)';
       msg.textContent = vi
         ? `Đã khôi phục ${r.restored} mục` +
-          (r.cachesSkipped ? ` (bỏ qua ${r.cachesSkipped} mục dữ liệu giá — app sẽ tự tải lại)` : '') +
-          (r.daysDropped ? `, ${r.daysDropped} ngày scan/lịch cũ không đủ chỗ` : '') +
+          (r.cachesSkipped ? ` (bỏ qua ${r.cachesSkipped} mục dữ liệu giá — app tự tải lại)` : '') +
+          (r.daysDropped ? `, ${r.daysDropped} ngày scan/lịch cũ bị bỏ vì hết chỗ` : '') +
           '. Đang tải lại…'
         : `Restored ${r.restored} item(s)` +
           (r.cachesSkipped ? ` (skipped ${r.cachesSkipped} price-data item(s) — the app refetches them)` : '') +
@@ -387,7 +387,7 @@ export function openSyncSettings(ctx: AppContext): void {
       setTimeout(() => location.reload(), 2500);
     } catch (e) {
       msg.style.color = 'var(--danger)';
-      msg.textContent = (vi ? 'Nhập thất bại: ' : 'Import failed: ') + String((e as Error)?.message ?? e);
+      msg.textContent = (vi ? 'Nhập lỗi: ' : 'Import failed: ') + String((e as Error)?.message ?? e);
     } finally {
       fileInput.value = '';
     }
@@ -414,7 +414,7 @@ export function openSyncSettings(ctx: AppContext): void {
       return `${value.length} ${vi ? 'mục' : 'items'}`;
     }
     if (value && typeof value === 'object') {
-      return `${Object.keys(value as object).length} ${vi ? 'khoá' : 'keys'}`;
+      return `${Object.keys(value as object).length} ${vi ? 'key' : 'keys'}`;
     }
     return String(value).slice(0, 40);
   }
@@ -424,7 +424,7 @@ export function openSyncSettings(ctx: AppContext): void {
   async function showHistory(): Promise<void> {
     if (!getSyncCode()) {
       msg.style.color = 'var(--danger)';
-      msg.textContent = vi ? 'Cần nhập mã truy cập trước.' : 'Enter your access code first.';
+      msg.textContent = vi ? 'Nhập mã truy cập trước đã.' : 'Enter your access code first.';
       return;
     }
     historyList.innerHTML = `<div class="muted" style="font-size:12px">${vi ? 'Đang tải…' : 'Loading…'}</div>`;
@@ -448,7 +448,7 @@ export function openSyncSettings(ctx: AppContext): void {
         ? `<div class="muted" style="font-size:12px;line-height:1.6">
              ${
                vi
-                 ? `Server chưa có phiên bản cũ nào (lịch sử chỉ ghi từ bản sửa này). Nhưng thiết bị này có một bản chụp cục bộ lúc <b>${stamp(
+                 ? `Server chưa có bản cũ nào (lịch sử chỉ ghi từ bản cập nhật này). Nhưng máy này có một bản snapshot lúc <b>${stamp(
                      snap.at,
                    )}</b> gồm ${Object.keys(snap.data).length} mục.`
                  : `The server has no older versions yet (history records from this fix onward). This device does have a local snapshot from <b>${stamp(
@@ -457,11 +457,11 @@ export function openSyncSettings(ctx: AppContext): void {
              }
            </div>
            <button id="snap-restore" class="btn-outline" style="margin-top:8px;font-size:11px;padding:5px 10px">
-             ${vi ? 'Phục hồi bản chụp cục bộ' : 'Restore local snapshot'}
+             ${vi ? 'Khôi phục snapshot trên máy' : 'Restore local snapshot'}
            </button>`
         : `<div class="muted" style="font-size:12px">${
             vi
-              ? 'Chưa có phiên bản nào được lưu. Lịch sử chỉ ghi từ khi bản sửa này được triển khai.'
+              ? 'Chưa lưu bản cũ nào. Lịch sử chỉ bắt đầu ghi từ khi bản cập nhật này lên server.'
               : 'No versions stored yet. History only records from this fix onward.'
           }</div>`;
       historyList.querySelector('#snap-restore')?.addEventListener('click', async () => {
@@ -469,7 +469,7 @@ export function openSyncSettings(ctx: AppContext): void {
           !snap ||
           !confirm(
             vi
-              ? `Ghi ${Object.keys(snap.data).length} mục từ bản chụp lúc ${stamp(snap.at)} lên dữ liệu hiện tại?`
+              ? `Ghi ${Object.keys(snap.data).length} mục từ snapshot lúc ${stamp(snap.at)} đè lên dữ liệu hiện tại?`
               : `Write ${Object.keys(snap.data).length} item(s) from the ${stamp(snap.at)} snapshot over the current data?`,
           )
         ) {
@@ -479,7 +479,7 @@ export function openSyncSettings(ctx: AppContext): void {
         // last-write-wins — the same path the file import uses.
         for (const [key, value] of Object.entries(snap.data)) await ctx.storage.set(key, value);
         msg.style.color = 'var(--accent)';
-        msg.textContent = vi ? 'Đã phục hồi bản chụp. Đang tải lại…' : 'Snapshot restored. Reloading…';
+        msg.textContent = vi ? 'Đã khôi phục snapshot. Đang tải lại…' : 'Snapshot restored. Reloading…';
         setTimeout(() => location.reload(), 900);
       });
       return;
@@ -495,7 +495,7 @@ export function openSyncSettings(ctx: AppContext): void {
             </div>
           </div>
           <button class="btn-outline" style="font-size:11px;padding:4px 9px;flex:0 0 auto"
-            data-restore="${v.key}" data-at="${v.archivedAt}">${vi ? 'Phục hồi' : 'Restore'}</button>
+            data-restore="${v.key}" data-at="${v.archivedAt}">${vi ? 'Khôi phục' : 'Restore'}</button>
         </div>`,
       )
       .join('');
@@ -507,7 +507,7 @@ export function openSyncSettings(ctx: AppContext): void {
         if (
           !confirm(
             vi
-              ? `Phục hồi "${key}" về phiên bản lúc ${stamp(at)}? Giá trị hiện tại cũng được lưu lại nên có thể hoàn tác.`
+              ? `Khôi phục "${key}" về bản lúc ${stamp(at)}? Giá trị hiện tại cũng được giữ lại nên vẫn hoàn tác được.`
               : `Restore "${key}" to its version from ${stamp(at)}? The current value is archived too, so this is undoable.`,
           )
         ) {
@@ -518,11 +518,11 @@ export function openSyncSettings(ctx: AppContext): void {
           // Pull it back down so the local copy matches before the reload.
           await pullAndMerge(ctx.synced);
           msg.style.color = 'var(--accent)';
-          msg.textContent = vi ? `Đã phục hồi "${key}". Đang tải lại…` : `Restored "${key}". Reloading…`;
+          msg.textContent = vi ? `Đã khôi phục "${key}". Đang tải lại…` : `Restored "${key}". Reloading…`;
           setTimeout(() => location.reload(), 900);
         } catch (e) {
           msg.style.color = 'var(--danger)';
-          msg.textContent = (vi ? 'Phục hồi thất bại: ' : 'Restore failed: ') + String((e as Error)?.message ?? e);
+          msg.textContent = (vi ? 'Khôi phục lỗi: ' : 'Restore failed: ') + String((e as Error)?.message ?? e);
         }
       });
     });

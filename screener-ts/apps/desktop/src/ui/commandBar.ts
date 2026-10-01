@@ -31,6 +31,8 @@ const PATHS: Record<string, string> = {
   spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
   flag: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+  bot: '<path d="M12 3.6c4.7 0 8.4 3.2 8.4 7.2S16.7 18 12 18c-.9 0-1.8-.1-2.6-.3L5 19.6l1.2-3.5c-1.6-1.3-2.6-3.1-2.6-5.3 0-4 3.7-7.2 8.4-7.2z"/><path d="M12 7.4v4.8M9.6 9.8h4.8"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
 };
 
 export type CbIcon = keyof typeof PATHS;

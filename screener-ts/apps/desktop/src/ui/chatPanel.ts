@@ -80,6 +80,8 @@ let busy = false;
 let globalsWired = false;
 /** The last question, so a failed turn can be retried without retyping it. */
 let lastAsked = '';
+/** The short title a prompt sent from another page was shown under; '' for a typed question. */
+let lastLabel = '';
 
 // ── shell ────────────────────────────────────────────────────────────────────
 
@@ -156,6 +158,10 @@ function wire(el: HTMLElement): void {
     else if (act === 'approve') settleWrite('accept');
     else if (act === 'decline') settleWrite('decline');
     else if (act === 'retry') {
+      if (lastLabel) {
+        void submit({ prompt: lastAsked, label: lastLabel });
+        return;
+      }
       const input = field();
       input.value = lastAsked;
       void submit();
@@ -263,6 +269,42 @@ export async function openChatPanel(ctx: AppContext): Promise<void> {
   setTimeout(() => field().focus(), 60);
 }
 
+/**
+ * "Ask Assistant": send a prompt built on another page (research, case study, playbook) to
+ * this panel's own model, the counterpart of every "Ask ChatGPT" button.
+ *
+ * The transcript shows `label`, with the full prompt folded under it: these prompts run to
+ * thousands of characters, and a wall of them as the user's bubble buries the answer. Each
+ * one starts a fresh conversation — it carries its own context, and replaying an unrelated
+ * earlier chat with it would bill that chat again. A turn still running is left alone.
+ * Without a key the turn ends in the panel's usual "needs a model" message, which points at
+ * settings and at Ask ChatGPT.
+ */
+export async function askInChat(ctx: AppContext, prompt: string, label: string): Promise<void> {
+  await openChatPanel(ctx);
+  if (busy) return;
+  startNewState();
+  await submit({ prompt, label });
+}
+
+/**
+ * The same model, answering into somewhere other than this panel — the planner's criteria
+ * dialog streams the reply straight into its paste box, so the round trip through another tab
+ * disappears. A one-off session: nothing joins the panel's transcript, and with no approval
+ * callback the write tools are never offered. Null when no model is configured.
+ */
+export async function askAssistantText(
+  ctx: AppContext,
+  prompt: string,
+  onDelta: (chunk: string) => void,
+  signal?: AbortSignal,
+): Promise<AskResult | null> {
+  const c = await loadLlmConfig(ctx);
+  const key = c ? await getApiKey(ctx, c.providerId) : '';
+  if (!c || !isConfigured(c, !!key)) return null;
+  return new AssistantSession(ctx, c, webSearchOn).ask(prompt, signal, onDelta);
+}
+
 export function closeChatPanel(): void {
   // A card the user walked away from is a NO. Settled before the abort, because the
   // agent is parked on that promise and would never reach the aborted request: an
@@ -284,6 +326,7 @@ function startNewState(): void {
   session = null;
   entries.length = 0;
   lastAsked = '';
+  lastLabel = '';
 }
 
 function startNew(): void {
@@ -319,7 +362,8 @@ async function refreshConfig(): Promise<void> {
 // ── transcript ───────────────────────────────────────────────────────────────
 
 type Entry =
-  | { role: 'user'; text: string }
+  /** `prompt`: the full text actually sent, when `text` is only its title (an "Ask Assistant" button). */
+  | { role: 'user'; text: string; prompt?: string }
   /** A proposed write, waiting on the user or already settled. */
   | { role: 'approval'; plan: WritePlan; state: 'pending' | 'accepted' | 'declined' }
   | { role: 'assistant'; text: string; local: boolean; truncated: boolean; tools: ToolTrace[]; usage?: TokenUsage; costUsd?: number | null }
@@ -616,7 +660,9 @@ function render(): void {
     .map((e) => {
       if (e.role === 'user') {
         return `<div class="chat-turn chat-turn--user">
-          <div class="chat-msg chat-msg--user">${esc(e.text)}</div></div>`;
+          <div class="chat-msg chat-msg--user">${esc(e.text)}${e.prompt
+            ? `<details class="chat-prompt"><summary>${t('prompts.show')}</summary><pre>${esc(e.prompt)}</pre></details>`
+            : ''}</div></div>`;
       }
       if (e.role === 'pending') {
         // Escaped and NOT run through the markdown renderer while it streams: half a
@@ -696,15 +742,18 @@ function appendDelta(chunk: string): void {
   if (wasAtBottom) box.scrollTop = box.scrollHeight;
 }
 
-async function submit(): Promise<void> {
+async function submit(sent?: { prompt: string; label: string }): Promise<void> {
   const input = field();
-  const question = input.value.trim();
+  const question = sent ? sent.prompt.trim() : input.value.trim();
   if (!question || busy) return;
   busy = true;
-  input.value = '';
-  input.style.height = 'auto';
+  if (!sent) {
+    input.value = '';
+    input.style.height = 'auto';
+  }
   lastAsked = question;
-  entries.push({ role: 'user', text: question });
+  lastLabel = sent?.label ?? '';
+  entries.push(sent ? { role: 'user', text: sent.label, prompt: question } : { role: 'user', text: question });
 
   // Without a key, Tier 0 is still worth trying — those questions never needed one.
   const active =

@@ -32,6 +32,9 @@ import {
 import { criterionLabel, criterionWhy } from './gradeWords.js';
 import { esc } from './gradeView.js';
 import { askChatGpt, copyToClipboard } from '../ui/askChatGpt.js';
+import { askAssistantText } from '../ui/chatPanel.js';
+import { lblOf, promptActsHtml } from '../ui/promptActions.js';
+import type { AppContext } from '../context.js';
 import { t } from '../ui/i18n.js';
 
 /** One planner card, as much of it as the prompt needs. */
@@ -194,7 +197,15 @@ export interface CriteriaAskResult {
  * If nothing parses, the dialog says so and keeps the text. Closing on an unrecognised reply
  * would throw away a wall of research the user cannot get back without asking again.
  */
-export function openCriteriaAsk(card: CriteriaAskCard): Promise<CriteriaAskResult | null> {
+export function openCriteriaAsk(
+  card: CriteriaAskCard,
+  /**
+   * `ctx` lets "Ask Assistant" run the app's own model and stream its answer straight into the
+   * paste box — the same errand without the other tab. `auto` presses it on open (the planner's
+   * own Ask Assistant button).
+   */
+  opts: { ctx: AppContext; auto?: boolean },
+): Promise<CriteriaAskResult | null> {
   const ctx = criteriaAskContext(card);
   const prompt = buildCriteriaPrompt(ctx, card.vi ? 'vi' : 'en');
   const keys = ctx.asks.map((a) => a.key);
@@ -212,10 +223,7 @@ export function openCriteriaAsk(card: CriteriaAskCard): Promise<CriteriaAskResul
         <div class="dialog-body">
           <p class="ask-crit-lead">${t('wl.plan.ask.lead').replace('{date}', esc(card.date))}</p>
           <ul class="ask-crit-qs">${items}</ul>
-          <div class="row" style="gap:8px;margin:10px 0 12px">
-            <button class="btn" data-act="ask">🤖 ${t('prompts.ask')}</button>
-            <button class="btn-outline" data-act="copy">⧉ ${t('prompts.copy')}</button>
-          </div>
+          <div style="margin:10px 0 12px">${promptActsHtml({ ask: 'data-act="ask"', assistant: 'data-act="assist"', copy: 'data-act="copy"' })}</div>
           <label class="field-label">${t('wl.plan.ask.paste')}</label>
           <textarea class="field ask-crit-reply" data-reply rows="8"
             placeholder="${t('wl.plan.ask.pasteph')}"></textarea>
@@ -230,7 +238,9 @@ export function openCriteriaAsk(card: CriteriaAskCard): Promise<CriteriaAskResul
 
     const box = host.querySelector<HTMLTextAreaElement>('[data-reply]')!;
     const msg = host.querySelector<HTMLElement>('[data-msg]')!;
+    let run: AbortController | null = null;
     const done = (r: CriteriaAskResult | null): void => {
+      run?.abort();
       host.remove();
       document.removeEventListener('keydown', onKey);
       resolve(r);
@@ -241,6 +251,40 @@ export function openCriteriaAsk(card: CriteriaAskCard): Promise<CriteriaAskResul
     host.querySelector('[data-act="ask"]')!.addEventListener('click', (ev) => {
       askChatGpt(prompt, ev.currentTarget as HTMLElement);
     });
+    // A second press stops it. The reply streams into the box as it is written, so what came
+    // back before a stop is still there to read, edit or apply.
+    const assist = host.querySelector<HTMLElement>('[data-act="assist"]')!;
+    const runAssistant = async (): Promise<void> => {
+      if (run) {
+        run.abort();
+        return;
+      }
+      const ctrl = (run = new AbortController());
+      const lbl = lblOf(assist);
+      const old = lbl.textContent ?? '';
+      lbl.textContent = t('prompts.assist.stop');
+      msg.classList.remove('bad');
+      msg.textContent = t('prompts.assist.running');
+      box.value = '';
+      const res = await askAssistantText(opts.ctx, prompt, (c) => {
+        box.value += c;
+        box.scrollTop = box.scrollHeight;
+      }, ctrl.signal).catch((e: unknown) => ({ kind: 'error' as const, message: String(e).slice(0, 300), tools: [] }));
+      run = null;
+      lbl.textContent = old;
+      if (!host.isConnected) return;
+      if (!res) {
+        msg.textContent = t('prompts.assist.nokey');
+        msg.classList.add('bad');
+      } else if (res.kind === 'answer') {
+        box.value = res.text;
+        msg.textContent = t('prompts.assist.done');
+      } else {
+        msg.textContent = res.message;
+        msg.classList.add('bad');
+      }
+    };
+    assist.addEventListener('click', () => void runAssistant());
     host.querySelector('[data-act="copy"]')!.addEventListener('click', (ev) => {
       void copyToClipboard(prompt, ev.currentTarget as HTMLElement);
     });
@@ -258,5 +302,6 @@ export function openCriteriaAsk(card: CriteriaAskCard): Promise<CriteriaAskResul
     host.querySelector('.dialog-backdrop')!.addEventListener('click', () => done(null));
     document.addEventListener('keydown', onKey);
     box.focus();
+    if (opts.auto) void runAssistant();
   });
 }

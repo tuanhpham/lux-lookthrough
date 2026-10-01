@@ -205,7 +205,7 @@ function s01(lang: Lang): string {
   const steps: [string, string][] = vi
     ? [
         ['Market Regime (chỉ số)', 'Quyết định: được phép chơi kiểu gì, size bao nhiêu, hay đứng ngoài'],
-        ['Sector dẫn dắt (nhóm ngành)', 'Thu hẹp vũ trụ cổ phiếu xuống còn 2–3 nhóm đang hút dòng tiền'],
+        ['Sector dẫn dắt (nhóm ngành)', 'Thu hẹp rổ cổ phiếu xuống còn 2–3 nhóm đang hút dòng tiền'],
         ['Cổ phiếu In-Play', 'Lọc còn 5–10 mã thực sự có người chơi: RVol, thanh khoản, RS, chất xúc tác'],
         ['Setup & tín hiệu vào lệnh', 'Chờ nến xác nhận tại vùng tham chiếu — chỉ trong số 5–10 mã đó'],
       ]
@@ -402,7 +402,7 @@ function s04(lang: Lang): string {
         'bad',
         vi ? 'Luật kỷ luật' : 'The discipline rule',
         vi
-          ? 'Nếu anh không viết được dòng này một cách tự tin, <b>anh không giao dịch ngày mai</b>. Đó chính là giá trị thật mà bước xác định regime mang lại.'
+          ? 'Nếu anh không tự tin viết ra được dòng này, <b>ngày mai anh không giao dịch</b>. Đó chính là giá trị thật mà bước xác định regime mang lại.'
           : 'If you cannot write that line with confidence, <b>you do not trade tomorrow</b>. That is the real value the regime step delivers.',
       ) +
       callout(
@@ -997,7 +997,7 @@ function s08(lang: Lang): string {
           ? 'Quét cả thị trường để tìm "bullish engulfing" mà không hỏi nó nằm ở đâu. <b>Nếu bước 1 không đạt, đừng xét bước 3.</b>'
           : 'Scanning the whole market for "bullish engulfing" without asking where it is. <b>If step 1 fails, do not evaluate step 3.</b>',
       ) +
-      h4(vi ? 'Ba chỉ số thay cho việc nhận dạng hình ảnh' : 'Three numbers instead of visual pattern recognition') +
+      h4(vi ? 'Ba con số thay cho nhìn hình bằng mắt' : 'Three numbers instead of visual pattern recognition') +
       `<p class="swp-p">${
         vi
           ? 'Ba con số này <b>code được</b> — rất hợp với hệ thống tự động của anh, và nhất quán hơn nhiều so với nhận dạng mẫu hình bằng mắt hoặc bằng AI.'
@@ -1009,7 +1009,7 @@ function s08(lang: Lang): string {
           ? [
               ['<strong>Vị trí đóng cửa trong biên</strong>', m('(C − L) / (H − L)'), m('&gt; 0.7'), 'Người mua thắng phiên'],
               ['<strong>Tỷ lệ bóng dưới</strong>', m('(min(O,C) − L) / (H − L)'), m('&gt; 0.5'), 'Bị từ chối mạnh ở vùng giá thấp'],
-              ['<strong>Biên độ so với thường</strong>', m('Range / ATR(14)'), m('&gt; 1.0'), 'Có tranh chấp thật, không phải phiên chết'],
+              ['<strong>Biên độ so với bình thường</strong>', m('Range / ATR(14)'), m('&gt; 1.0'), 'Có tranh chấp thật, không phải phiên chết'],
             ]
           : [
               ['<strong>Close position in the range</strong>', m('(C − L) / (H − L)'), m('&gt; 0.7'), 'Buyers won the session'],
@@ -1026,7 +1026,7 @@ function s08(lang: Lang): string {
               '<b>Hammer</b> / bóng dưới dài tại MA',
               '<b>Bullish engulfing</b> kèm volume',
               '<b>Reversal bar</b> phá đáy giả',
-              'Phiên bản giảm của cả ba, cho lệnh short',
+              'Bản đảo chiều giảm của cả ba, dùng cho lệnh short',
             ]
           : [
               '<b>Hammer</b> / long lower wick at an MA',
@@ -1160,7 +1160,7 @@ RVol_adj = volume_so_far / expected
         'bad',
         vi ? 'Đừng so volume tích lũy với trung bình cả ngày' : 'Do not compare cumulative volume with a full-day average',
         vi
-          ? 'Nếu làm vậy, <b>mọi cổ phiếu đều trông "ít volume" vào buổi sáng và "nhiều volume" lúc đóng cửa</b> — chỉ số vô dụng. Với anh ở châu Âu, 16h00 CET là lúc thị trường Mỹ vừa mở, và mọi cảnh báo volume sẽ im lặng suốt buổi tối.'
+          ? 'Nếu làm vậy, <b>mọi cổ phiếu đều trông "ít volume" vào buổi sáng và "nhiều volume" lúc đóng cửa</b> — con số đó vô dụng. Với anh ở châu Âu, 16h00 CET là lúc thị trường Mỹ vừa mở, và mọi cảnh báo volume sẽ im lặng suốt buổi tối.'
           : 'Do that and <b>every stock looks "low volume" in the morning and "high volume" at the close</b> — a useless metric. From Europe, 16:00 CET is the US open, and every volume alert would stay silent all evening.',
       ) +
       `<p class="swp-p">${
@@ -1273,7 +1273,7 @@ function s11(lang: Lang): string {
           </label>
           <span class="swp-crit-w" title="${vi ? 'Trọng số' : 'Weight'}">${c.weight}</span>
           <button type="button" class="swp-crit-q" data-swp-why="${c.key}"
-            aria-expanded="false" title="${vi ? 'Vì sao tiêu chí này' : 'Why this matters'}">?</button>
+            aria-expanded="false" title="${vi ? 'Vì sao tiêu chí này quan trọng' : 'Why this matters'}">?</button>
           <div class="swp-crit-why" hidden>${criterionWhy(c.key, vi)
             .split('\n\n')
             .map((p) => `<p>${p}</p>`)
@@ -1295,7 +1295,7 @@ function s11(lang: Lang): string {
       <div class="swp-tool-h"><span class="swp-tool-i">✅</span><b>${vi ? 'Chấm điểm setup' : 'Score a setup'}</b></div>
       <div class="swp-tool-sub">${
         vi
-          ? 'Chọn setup trước — mỗi setup được hỏi một bộ tiêu chí khác nhau, và các dòng không liên quan sẽ được ẩn đi thay vì bị tính là trượt. Sau đó tick từng mục cho lệnh anh đang cân nhắc.'
+          ? 'Chọn setup trước — mỗi setup hỏi một bộ tiêu chí riêng, dòng nào không liên quan thì ẩn đi chứ không tính là trượt. Sau đó tick từng mục cho lệnh anh đang cân nhắc.'
           : 'Pick the setup first — each one is asked a different set of criteria, and the rows that do not apply are hidden rather than counted as failures. Then tick each item for the trade you are considering.'
       }</div>
       <div class="swp-ck-setups" role="tablist">${setupTabs}</div>
@@ -1314,7 +1314,7 @@ function s11(lang: Lang): string {
         'info',
         vi ? 'Cái gì sửa được, cái gì không' : 'What you may change, and what you may not',
         vi
-          ? `Hai đường A/B/C (<b>A ≥ ${T.a}, B ≥ ${T.b}, C ≥ ${T.c}</b>) là <b>sửa được</b> trong trang cấu hình Cẩm nang: chúng nói về độ khắt khe của riêng anh, và đó là quyền của anh. Còn các <b>ngưỡng đo</b> — RS ${GRADE_BARS.RS_STRONG}, nền không sâu quá ${GRADE_BARS.MAX_BASE_DEPTH_PCT}%, nhảy khoảng ${GRADE_BARS.MIN_GAP_PCT}% — thì <b>không sửa được</b>, và đó là chủ ý: mỗi con số đó là một câu trích dẫn. Hạ RS ${GRADE_BARS.RS_STRONG} xuống 50 không phải là tinh chỉnh checklist, mà là bỏ tiêu chí của O’Neil đi rồi vẫn để tên ông ở đó.`
+          ? `Hai đường A/B/C (<b>A ≥ ${T.a}, B ≥ ${T.b}, C ≥ ${T.c}</b>) là <b>sửa được</b> trong phần Cài đặt Playbook: chúng nói về độ khắt khe của riêng anh, và đó là quyền của anh. Còn các <b>ngưỡng đo</b> — RS ${GRADE_BARS.RS_STRONG}, nền không sâu quá ${GRADE_BARS.MAX_BASE_DEPTH_PCT}%, nhảy khoảng ${GRADE_BARS.MIN_GAP_PCT}% — thì <b>không sửa được</b>, và đó là chủ ý: mỗi con số đó là một câu trích dẫn. Hạ RS ${GRADE_BARS.RS_STRONG} xuống 50 không phải là tinh chỉnh checklist, mà là bỏ tiêu chí của O’Neil đi rồi vẫn để tên ông ở đó.`
           : `The A/B/C lines (<b>A ≥ ${T.a}, B ≥ ${T.b}, C ≥ ${T.c}</b>) <b>are</b> yours to move, on the Playbook settings page: they are a statement about your own selectivity. The <b>measurement bars</b> — RS ${GRADE_BARS.RS_STRONG}, a base no deeper than ${GRADE_BARS.MAX_BASE_DEPTH_PCT}%, a ${GRADE_BARS.MIN_GAP_PCT}% gap — are <b>not</b>, and that is deliberate: each one is a quotation. Moving RS ${GRADE_BARS.RS_STRONG} down to 50 is not tuning the checklist, it is deleting O’Neil’s criterion and leaving his name on it.`,
       ) +
       callout(
@@ -1327,7 +1327,7 @@ function s11(lang: Lang): string {
       cfgPointer(
         vi,
         vi
-          ? `Hai đường A/B/C nằm ở mục <b>Xếp hạng</b> trong trang cấu hình Cẩm nang. Đổi chúng thì mọi thẻ trong Trade Planner và ô xếp hạng của form Buy đều được chấm lại ngay — cùng ${GRADE_CRITERIA.length} tiêu chí này.`
+          ? `Hai đường A/B/C nằm ở mục <b>Xếp hạng</b> trong phần Cài đặt Playbook. Đổi chúng thì mọi thẻ trong Trade Planner và ô xếp hạng của thẻ Mua đều chấm lại ngay — cùng ${GRADE_CRITERIA.length} tiêu chí này.`
           : `The A/B/C lines live under <b>Grading</b> in the playbook settings. Change them and every Trade Planner card and the Buy form’s grade are re-scored at once — off these same ${GRADE_CRITERIA.length} criteria.`,
       ),
   );
@@ -1365,7 +1365,7 @@ function s12(lang: Lang): string {
       }</b></div>
       <div class="swp-tool-sub">${
         vi
-          ? 'Nhập kế hoạch lệnh, công cụ tính số lượng cổ phiếu sao cho rủi ro đúng bằng tỷ lệ anh đặt ra.'
+          ? 'Nhập kế hoạch lệnh, máy sẽ tính số cổ phiếu sao cho rủi ro đúng bằng tỷ lệ anh đặt ra.'
           : 'Enter the trade plan and it returns the share count that makes your risk exactly the percentage you chose.'
       }</div>
       <div class="swp-calc-grid">
@@ -1628,7 +1628,7 @@ function s15(lang: Lang): string {
       ) +
       h4(vi ? '🤖 Thư viện prompt — theo đúng nhịp ở trên' : '🤖 Prompt library — on the same rhythm') +
       `<p class="swp-sub" style="margin-top:-4px">${vi
-        ? 'Mỗi prompt hỏi AI <b>diễn giải</b>, không hỏi số liệu: dán dữ liệu từ app vào trước khi gửi. Sửa, thêm, xoá tuỳ ý — bản của bạn được đồng bộ.'
+        ? 'Mỗi prompt hỏi AI <b>diễn giải</b>, không hỏi số liệu: dán dữ liệu từ app vào trước khi gửi. Sửa, thêm, xoá tuỳ ý — bản của anh tự sync giữa các thiết bị.'
         : 'Every prompt asks the AI to <b>interpret</b>, never for a number: paste the data from the app in before sending. Edit, add, delete freely; your copy syncs.'}</p>` +
       promptsHtml(lang),
   );
@@ -1876,8 +1876,8 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang, ctx?: AppContex
       const n = inScope.size;
       const hidden = GRADE_CRITERIA.length - n;
       scopeNote.textContent = vi
-        ? `${setupName(setup, true)}: được hỏi ${n} trong ${GRADE_CRITERIA.length} tiêu chí${
-          hidden ? `, ${hidden} tiêu chí của họ mẫu hình khác được ẩn đi (không bị tính là trượt)` : ''
+        ? `${setupName(setup, true)}: hỏi ${n} trên ${GRADE_CRITERIA.length} tiêu chí${
+          hidden ? `, ẩn ${hidden} tiêu chí thuộc họ mẫu hình khác (không tính là trượt)` : ''
         }. Tick hết thì được ${r.possible} điểm, không phải 100 — trọng số là tỷ lệ tương đối`
           + ` (tổng cả bảng ${GRADE_TOTAL} điểm), và xếp hạng lấy theo phần trăm ${r.earned}/${r.possible}.`
         : `${setupName(setup, false)}: asked ${n} of ${GRADE_CRITERIA.length} criteria${
@@ -1902,7 +1902,7 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang, ctx?: AppContex
     } else if (letter === 'C') {
       title = vi ? '⚠️ CHƯA ĐỦ CHẤT LƯỢNG' : '⚠️ NOT GOOD ENOUGH';
       body = vi
-        ? `${r.score}% — loại C (từ ${T.c}%). Nếu vẫn vào thì phải nhỏ hơn hẳn, và phải biết mình đang làm thế.`
+        ? `${r.score}% — loại C (từ ${T.c}%). Nếu vẫn vào thì size phải nhỏ hơn hẳn, và phải biết rõ mình đang làm gì.`
         : `${r.score}% — a C (from ${T.c}%). If you take it at all, take it much smaller, and know that you are.`;
     } else {
       title = vi ? '❌ KHÔNG VÀO LỆNH' : '❌ DO NOT TRADE';

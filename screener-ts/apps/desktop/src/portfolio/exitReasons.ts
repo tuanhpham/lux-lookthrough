@@ -46,13 +46,13 @@ export type ExitReasonKey = string;
 export type ExitGroup = 'plan' | 'ma' | 'candle' | 'volume' | 'context' | 'discipline' | 'mine';
 
 export const EXIT_GROUPS: readonly { key: ExitGroup; en: string; vi: string }[] = [
-  { key: 'plan', en: 'The plan worked', vi: 'Kế hoạch chạy đúng' },
+  { key: 'plan', en: 'The plan worked', vi: 'Đúng kế hoạch' },
   { key: 'ma', en: 'Moving averages', vi: 'Đường trung bình' },
   { key: 'candle', en: 'Bearish reversal candles', vi: 'Nến đảo chiều giảm' },
   { key: 'volume', en: 'Volume', vi: 'Khối lượng' },
-  { key: 'context', en: 'The story changed', vi: 'Câu chuyện đã đổi' },
-  { key: 'discipline', en: 'Me, not the chart', vi: 'Do tôi, không do đồ thị' },
-  { key: 'mine', en: 'My own reasons', vi: 'Lý do tôi tự thêm' },
+  { key: 'context', en: 'The story changed', vi: 'Bối cảnh đã đổi' },
+  { key: 'discipline', en: 'Me, not the chart', vi: 'Do mình, không phải do chart' },
+  { key: 'mine', en: 'My own reasons', vi: 'Lý do tự thêm' },
 ];
 
 export interface ExitReason {
@@ -77,13 +77,13 @@ export const DEFAULT_EXIT_REASONS: readonly ExitReason[] = ([
   // mostly made of — and seeing that at a glance is the point of grouping at all.
   { key: 'stop', en: 'Stop hit', vi: 'Chạm cắt lỗ', group: 'plan' },
   { key: 'target', en: 'Target reached', vi: 'Đạt mục tiêu', group: 'plan' },
-  { key: 'trail', en: 'Trailing stop moved up under it', vi: 'Cắt lỗ dời theo đã chạm', group: 'plan' },
+  { key: 'trail', en: 'Trailing stop moved up under it', vi: 'Chạm trailing stop', group: 'plan' },
   { key: 'scaled', en: 'Took part of it off', vi: 'Bán một phần', group: 'plan' },
 
-  { key: 'ema10', en: 'Price fell back and touched the 10-EMA', vi: 'Giá rơi xuống chạm EMA10', group: 'ma' },
-  { key: 'ema21', en: 'Price fell back and touched the 21-EMA', vi: 'Giá rơi xuống chạm EMA21', group: 'ma' },
-  { key: 'ema50', en: 'Lost the 50-day moving average', vi: 'Mất đường trung bình 50 ngày', group: 'ma' },
-  { key: 'marolls', en: 'The moving averages rolled over', vi: 'Các đường trung bình quay đầu xuống', group: 'ma' },
+  { key: 'ema10', en: 'Price fell back and touched the 10-EMA', vi: 'Giá về chạm EMA10', group: 'ma' },
+  { key: 'ema21', en: 'Price fell back and touched the 21-EMA', vi: 'Giá về chạm EMA21', group: 'ma' },
+  { key: 'ema50', en: 'Lost the 50-day moving average', vi: 'Thủng đường MA50', group: 'ma' },
+  { key: 'marolls', en: 'The moving averages rolled over', vi: 'Các đường MA quay đầu giảm', group: 'ma' },
 
   // The user asked for the generic term AND the named patterns, which is right: on the day you
   // are usually sure it reversed and unsure which name it has, and a journal that forces the
@@ -98,20 +98,20 @@ export const DEFAULT_EXIT_REASONS: readonly ExitReason[] = ([
   { key: 'threecrows', en: 'Three Black Crows', vi: 'Ba con quạ đen', group: 'candle' },
   { key: 'harami', en: 'Bearish Harami', vi: 'Harami giảm', group: 'candle' },
 
-  { key: 'climax', en: 'Climax top on huge volume', vi: 'Đỉnh climax với khối lượng rất lớn', group: 'volume' },
-  { key: 'churn', en: 'Churning — heavy volume, no progress', vi: 'Giằng co — khối lượng lớn mà giá không đi', group: 'volume' },
-  { key: 'distribution', en: 'Distribution days piling up', vi: 'Các phiên phân phối dồn lại', group: 'volume' },
-  { key: 'gapfail', en: 'Gapped up and failed on the day', vi: 'Gap tăng rồi thất bại ngay trong ngày', group: 'volume' },
+  { key: 'climax', en: 'Climax top on huge volume', vi: 'Đỉnh climax, khối lượng đột biến', group: 'volume' },
+  { key: 'churn', en: 'Churning — heavy volume, no progress', vi: 'Churning — khối lượng lớn mà giá không đi', group: 'volume' },
+  { key: 'distribution', en: 'Distribution days piling up', vi: 'Phiên phân phối dồn dập', group: 'volume' },
+  { key: 'gapfail', en: 'Gapped up and failed on the day', vi: 'Gap tăng rồi gãy ngay trong phiên', group: 'volume' },
 
-  { key: 'thesis', en: 'The reason for the trade broke', vi: 'Lý do vào lệnh không còn đúng', group: 'context' },
+  { key: 'thesis', en: 'The reason for the trade broke', vi: 'Lý do vào lệnh đã sai', group: 'context' },
   { key: 'market', en: 'The market turned', vi: 'Thị trường chung xấu đi', group: 'context' },
-  { key: 'earnings', en: 'Earnings due — would not hold through it', vi: 'Sắp báo lợi nhuận — không giữ qua tin', group: 'context' },
+  { key: 'earnings', en: 'Earnings due — would not hold through it', vi: 'Sắp ra KQKD — không ôm qua', group: 'context' },
   { key: 'news', en: 'Bad news on the company', vi: 'Tin xấu về công ty', group: 'context' },
-  { key: 'better', en: 'Moved the money to a better setup', vi: 'Chuyển tiền sang cơ hội tốt hơn', group: 'context' },
+  { key: 'better', en: 'Moved the money to a better setup', vi: 'Chuyển vốn sang setup tốt hơn', group: 'context' },
 
-  { key: 'time', en: 'Time stop — it went nowhere', vi: 'Hết kiên nhẫn — giá không đi đâu', group: 'discipline' },
+  { key: 'time', en: 'Time stop — it went nowhere', vi: 'Time stop — giá cứ đứng yên', group: 'discipline' },
   { key: 'panic', en: 'Sold out of fear — not the plan', vi: 'Bán vì sợ — không theo kế hoạch', group: 'discipline' },
-  { key: 'rule', en: 'Broke my own rule', vi: 'Làm sai chính quy tắc của mình', group: 'discipline' },
+  { key: 'rule', en: 'Broke my own rule', vi: 'Phá luật của chính mình', group: 'discipline' },
   { key: 'other', en: 'Something else', vi: 'Lý do khác', group: 'discipline' },
 ] as const).map((r) => ({ ...r, builtin: true }));
 
@@ -227,6 +227,31 @@ export function exitReasonLabel(key: ExitReasonKey | '', vi: boolean, list = exi
  *
  * Returns undefined rather than '' so it can be assigned straight to the optional field.
  */
+/**
+ * The Vietnamese labels before request 71's rewrite. A case study filed back then may hold one
+ * as free text, so it still has to map back to its key.
+ */
+const OLD_VI: Record<string, string> = {
+  plan: 'Kế hoạch chạy đúng',
+  context: 'Câu chuyện đã đổi',
+  discipline: 'Do tôi, không do đồ thị',
+  mine: 'Lý do tôi tự thêm',
+  trail: 'Cắt lỗ dời theo đã chạm',
+  ema10: 'Giá rơi xuống chạm EMA10',
+  ema21: 'Giá rơi xuống chạm EMA21',
+  ema50: 'Mất đường trung bình 50 ngày',
+  marolls: 'Các đường trung bình quay đầu xuống',
+  climax: 'Đỉnh climax với khối lượng rất lớn',
+  churn: 'Giằng co — khối lượng lớn mà giá không đi',
+  distribution: 'Các phiên phân phối dồn lại',
+  gapfail: 'Gap tăng rồi thất bại ngay trong ngày',
+  thesis: 'Lý do vào lệnh không còn đúng',
+  earnings: 'Sắp báo lợi nhuận — không giữ qua tin',
+  better: 'Chuyển tiền sang cơ hội tốt hơn',
+  time: 'Hết kiên nhẫn — giá không đi đâu',
+  rule: 'Làm sai chính quy tắc của mình',
+};
+
 export function exitReasonKeyOfText(text: string, list = exitReasonList()): ExitReasonKey | undefined {
   const whole = text.trim().toLowerCase();
   if (!whole) return undefined;
@@ -234,7 +259,8 @@ export function exitReasonKeyOfText(text: string, list = exitReasonList()): Exit
   const hit = list.find((r) => {
     const en = r.en.toLowerCase();
     const vi = r.vi.toLowerCase();
-    return en === whole || vi === whole || en === head || vi === head;
+    const was = OLD_VI[r.key]?.toLowerCase();
+    return en === whole || vi === whole || en === head || vi === head || (!!was && (was === whole || was === head));
   });
   return hit?.key;
 }

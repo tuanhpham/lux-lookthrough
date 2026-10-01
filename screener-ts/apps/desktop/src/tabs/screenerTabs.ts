@@ -458,7 +458,7 @@ async function showPicks(ctx: AppContext): Promise<void> {
   const lang = getLang();
   status.innerHTML = `<span class="muted">${
     lang === 'vi'
-      ? 'Chưa quét hôm nay. Bấm “' + t('picks.run') + '” để chạy một lần — kết quả giữ cả ngày.'
+      ? 'Chưa quét hôm nay. Bấm “' + t('picks.run') + '” để quét một lần — kết quả giữ nguyên cả ngày.'
       : 'Not scanned today. Press “' + t('picks.run') + '” to run once — results stay all day.'
   }</span>`;
 }
@@ -1508,7 +1508,7 @@ export function renderSectors(ctx: AppContext): void {
   root.innerHTML = `
     ${pageHero({
       icon: '🧭', tone: 'var(--up)',
-      kicker: L('Market · Rotation', 'Thị trường · Luân chuyển'),
+      kicker: L('Market · Rotation', 'Thị trường · Xoay vòng ngành'),
       title: t('sectors.title'), sub: t('sectors.sub'),
     })}
     <div class="picks-config card pg-panel">
@@ -1592,7 +1592,7 @@ async function showSectors(ctx: AppContext): Promise<void> {
   const lang = getLang();
   $('#sector-status')!.innerHTML = `<span class="muted">${
     lang === 'vi'
-      ? 'Chưa quét hôm nay. Bấm “' + t('sectors.scan') + '” để chạy một lần — kết quả giữ cả ngày.'
+      ? 'Chưa quét hôm nay. Bấm “' + t('sectors.scan') + '” để quét một lần — kết quả giữ nguyên cả ngày.'
       : 'Not scanned today. Press “' + t('sectors.scan') + '” to run once — results stay all day.'
   }</span>`;
 }

@@ -72,7 +72,7 @@ function cmdBlock(cmd: string, where?: GuideStep['where']): string {
         <span class="st-cmd-dots" aria-hidden="true"><i></i><i></i><i></i></span>
         <span class="st-cmd-where">${where ? say(WHERE[where]) : 'bash'}</span>
         <span class="st-cmd-n">${lines > 1 ? L(`${lines} lines`, `${lines} dòng`) : ''}</span>
-        <button class="st-copy" data-st-copy>${L('Copy', 'Chép')}</button>
+        <button class="st-copy" data-st-copy>${L('Copy', 'Copy')}</button>
       </div>
       <pre>${body}</pre>
     </div>`;
@@ -131,16 +131,16 @@ function tocHtml(): string {
 function dataPanel(): string {
   const on = isSyncEnabled();
   const state = !on
-    ? `<span class="st-dot st-dot-off"></span>${L('Sync is off on this device — the data lives only here.', 'Thiết bị này chưa bật đồng bộ — dữ liệu chỉ nằm ở đây.')}`
+    ? `<span class="st-dot st-dot-off"></span>${L('Sync is off on this device — the data lives only here.', 'Máy này chưa bật sync — dữ liệu chỉ nằm ở đây.')}`
     : isHydrated()
-      ? `<span class="st-dot st-dot-on"></span>${L('Syncing — this device is up to date with the server.', 'Đang đồng bộ — thiết bị này khớp với server.')}`
+      ? `<span class="st-dot st-dot-on"></span>${L('Syncing — this device is up to date with the server.', 'Đang sync — máy này đã khớp với server.')}`
       : `<span class="st-dot st-dot-wait"></span>${L('Connecting to the server…', 'Đang kết nối server…')}`;
   const light = document.documentElement.classList.contains('light');
   return `<div class="st-panel">
       <div class="st-status">${state}</div>
       <div class="st-actions">
-        <button class="btn" data-st-act="sync">☁️ ${L('Sync & versions', 'Đồng bộ & phiên bản')}</button>
-        <button class="btn-outline" data-st-act="export">⬇ ${L('Export backup', 'Xuất sao lưu')}</button>
+        <button class="btn" data-st-act="sync">☁️ ${L('Sync & versions', 'Sync & các bản cũ')}</button>
+        <button class="btn-outline" data-st-act="export">⬇ ${L('Export backup', 'Xuất bản sao lưu')}</button>
         <button class="btn-outline" data-st-act="ai">✨ ${L('AI assistant', 'Trợ lý AI')}</button>
         <button class="btn-outline" data-st-act="theme">${light ? '🌙 ' + L('Dark theme', 'Giao diện tối') : '☀️ ' + L('Light theme', 'Giao diện sáng')}</button>
         <button class="btn-outline" data-st-act="lang">${vi() ? '🇬🇧 English' : '🇻🇳 Tiếng Việt'}</button>
@@ -156,8 +156,8 @@ function playbookPanel(): string {
   return `<div class="st-panel st-pb">
       <div class="st-pb-stats" id="st-pb-stats"><span class="muted">${L('Reading your settings…', 'Đang đọc cấu hình…')}</span></div>
       <div class="st-actions">
-        <button class="btn" data-st-act="playbook">⚙ ${L('Open playbook settings', 'Mở cấu hình cẩm nang')}</button>
-        <button class="btn-outline" data-st-act="learn">📘 ${L('Read the playbook', 'Đọc cẩm nang')}</button>
+        <button class="btn" data-st-act="playbook">⚙ ${L('Open playbook settings', 'Mở cài đặt Playbook')}</button>
+        <button class="btn-outline" data-st-act="learn">📘 ${L('Read the playbook', 'Đọc Playbook')}</button>
       </div>
     </div>`;
 }
@@ -181,15 +181,15 @@ async function fillPlaybookPanel(root: HTMLElement, ctx: AppContext): Promise<vo
     `<div class="st-pb-tile" style="--st-tone:${tone}"><span class="st-pb-k">${k}</span><b>${v}</b><span class="st-pb-s">${sub}</span></div>`;
   box.innerHTML = [
     tile(L('Market', 'Thị trường'), doc ? (vi() ? doc.vi : doc.en) : '—',
-      reg ? L(`SPY, close of ${reg.asOf}`, `SPY, nến ngày ${reg.asOf}`) : L('Not measured yet: open Portfolio once', 'Chưa đo: mở Danh mục một lần'),
+      reg ? L(`SPY, close of ${reg.asOf}`, `SPY, giá đóng cửa ${reg.asOf}`) : L('Not measured yet: open Portfolio once', 'Chưa đo: mở Danh mục một lần là có'),
       doc?.color ?? 'var(--faint)'),
     tile(L('Risk per trade', 'Rủi ro mỗi lệnh'),
       cfg.pinnedRiskPct != null ? `${cfg.pinnedRiskPct}%` : `${ladder.learningPct}–${ladder.stablePct}%`,
-      cfg.pinnedRiskPct != null ? L('Pinned by you', 'Bạn đã ghim') : L('Automatic, from your record', 'Tự động, theo thành tích'), 'var(--blue)'),
-    tile(L('Setups changed', 'Thiết lập đã sửa'), String(setups.length),
-      setups.length ? setups.join(' · ') : L('All on the book’s defaults', 'Tất cả theo mặc định của sách'), 'var(--danger)'),
+      cfg.pinnedRiskPct != null ? L('Pinned by you', 'Đã ghim tay') : L('Automatic, from your record', 'Tự động, theo thành tích giao dịch'), 'var(--blue)'),
+    tile(L('Setups changed', 'Setup đã chỉnh'), String(setups.length),
+      setups.length ? setups.join(' · ') : L('All on the book’s defaults', 'Tất cả theo mặc định của Playbook'), 'var(--danger)'),
     tile(L('Other edits', 'Chỉnh sửa khác'), String(other),
-      L('Ladder, grade lines, exit reasons', 'Thang rủi ro, đường hạng, lý do thoát'), 'var(--violet)'),
+      L('Ladder, grade lines, exit reasons', 'Thang rủi ro, ngưỡng hạng, lý do bán'), 'var(--violet)'),
   ].join('');
 }
 
@@ -214,13 +214,13 @@ function keyLabel(key: string): string {
     wealth: ['Financial Status', 'Tình trạng tài chính'],
     wealth_sort: ['Financial Status · sort', 'Tình trạng tài chính · sắp xếp'],
     wealth_ccy: ['Financial Status · currency', 'Tình trạng tài chính · tiền tệ'],
-    pf_playbook_cfg: ['Playbook settings', 'Cài đặt playbook'],
+    pf_playbook_cfg: ['Playbook settings', 'Cài đặt Playbook'],
     ui_collapsed: ['Folded sections', 'Các mục đã thu gọn'],
   };
   const hit = named[key];
   if (hit) return vi() ? hit[1] : hit[0];
-  if (key.startsWith('plan:')) return L(`Trade plan ${key.slice(5)}`, `Kế hoạch ${key.slice(5)}`);
-  if (key.startsWith('watchlist')) return L('Watchlists', 'Danh sách theo dõi');
+  if (key.startsWith('plan:')) return L(`Trade plan ${key.slice(5)}`, `Trade plan ${key.slice(5)}`);
+  if (key.startsWith('watchlist')) return L('Watchlists', 'Watchlist');
   if (key.startsWith('case')) return L('Case studies', 'Case studies');
   return '';
 }
@@ -234,7 +234,7 @@ function restorePanel(): string {
   if (!isSyncEnabled()) {
     return `<div class="st-panel"><div class="st-status"><span class="st-dot st-dot-off"></span>${L(
       'Needs sync: there is no server copy to restore from on this device.',
-      'Cần bật đồng bộ: thiết bị này không có bản trên server để khôi phục.',
+      'Cần bật sync: máy này không có bản nào trên server để khôi phục.',
     )}</div></div>`;
   }
   let undo = '';
@@ -243,7 +243,7 @@ function restorePanel(): string {
     if (last)
       undo = `<div class="st-undo">✅ ${L(
         `Restored ${last.n} item(s) to ${stamp(last.at)}. To undo, restore to`,
-        `Đã khôi phục ${last.n} mục về ${stamp(last.at)}. Muốn hoàn tác, khôi phục về`,
+        `Đã khôi phục ${last.n} mục về ${stamp(last.at)}. Muốn hoàn tác thì khôi phục về`,
       )} <b>${stamp(last.done - 1000)}</b>.
         <button class="btn-outline" data-st-undo="${last.done - 1000}">${L('Prepare undo', 'Chuẩn bị hoàn tác')}</button></div>`;
   } catch {
@@ -252,7 +252,7 @@ function restorePanel(): string {
   return `<div class="st-panel st-restore">
       ${undo}
       <div class="st-rs-row">
-        <label class="st-rs-label" for="st-at">${L('Moment (your local time)', 'Thời điểm (giờ địa phương)')}</label>
+        <label class="st-rs-label" for="st-at">${L('Moment (your local time)', 'Thời điểm (giờ máy bạn)')}</label>
         <input class="field st-at" id="st-at" type="datetime-local" step="60" value="${toLocalInput(Date.now() - 3600_000)}">
         <button class="btn" id="st-preview">${L('Preview', 'Xem trước')}</button>
         <button class="btn-outline" id="st-suggest">🔎 ${L('Suggest moments', 'Gợi ý thời điểm')}</button>
@@ -277,10 +277,10 @@ async function suggest(root: HTMLElement): Promise<void> {
       .sort((x, y) => y.v.archivedAt - x.v.archivedAt)
       .slice(0, 10);
     if (!rows.length) {
-      box.innerHTML = `<div class="muted st-msg">${L('No overwrites recorded for Portfolio or Financial Status yet.', 'Chưa có lần ghi đè nào của Portfolio hay Financial Status.')}</div>`;
+      box.innerHTML = `<div class="muted st-msg">${L('No overwrites recorded for Portfolio or Financial Status yet.', 'Danh mục và Tình trạng tài chính chưa bị ghi đè lần nào.')}</div>`;
       return;
     }
-    box.innerHTML = `<div class="st-quick-h">${L('Recent changes — pick one to go back to just before it:', 'Thay đổi gần đây — chọn một để quay về ngay trước nó:')}</div>
+    box.innerHTML = `<div class="st-quick-h">${L('Recent changes — pick one to go back to just before it:', 'Thay đổi gần đây — chọn một để quay về ngay trước lúc đó:')}</div>
       <div class="st-quick">${rows
         .map(({ v, next }) => {
           const shrank = next != null && v.bytes > 0 && next < v.bytes * 0.5;
@@ -338,7 +338,7 @@ async function preview(root: HTMLElement): Promise<void> {
   if (!changes.length) {
     out.innerHTML = `<div class="st-msg st-ok">${L(
       `Nothing differs from ${stamp(at)}: everything is already as it was then (items created since are kept).`,
-      `Không có gì khác so với ${stamp(at)}: mọi thứ đã như lúc đó (những mục tạo sau vẫn giữ).`,
+      `Không có gì khác so với ${stamp(at)}: mọi thứ vẫn như lúc đó (các mục tạo sau vẫn được giữ).`,
     )}</div>`;
     return;
   }
@@ -359,11 +359,11 @@ async function preview(root: HTMLElement): Promise<void> {
     })
     .join('');
   out.innerHTML = `<div class="st-prev-h">
-        <b>${changes.length}</b> ${L(`item(s) differ from ${stamp(at)}.`, `mục khác với ${stamp(at)}.`)}
-        <span class="muted">${L('Red = much smaller now, usually the loss. Caches start unticked.', 'Đỏ = bây giờ nhỏ hơn nhiều, thường là chỗ mất. Bộ nhớ đệm mặc định bỏ tick.')}</span>
+        <b>${changes.length}</b> ${L(`item(s) differ from ${stamp(at)}.`, `mục khác so với ${stamp(at)}.`)}
+        <span class="muted">${L('Red = much smaller now, usually the loss. Caches start unticked.', 'Đỏ = giờ nhỏ hơn nhiều, thường là chỗ bị mất. Cache mặc định không tick.')}</span>
       </div>
       <div class="st-prev-wrap"><table class="st-prev">
-        <thead><tr><th><input type="checkbox" id="st-all" checked title="${L('All', 'Tất cả')}"></th><th>${L('Item', 'Mục')}</th><th>${L('Then', 'Lúc đó')}</th><th>${L('Now', 'Bây giờ')}</th><th>${L('First changed', 'Đổi lần đầu')}</th><th>${L('Changes', 'Số lần đổi')}</th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="st-all" checked title="${L('All', 'Tất cả')}"></th><th>${L('Item', 'Mục')}</th><th>${L('Then', 'Lúc đó')}</th><th>${L('Now', 'Hiện tại')}</th><th>${L('First changed', 'Đổi lần đầu')}</th><th>${L('Changes', 'Số lần đổi')}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
       <div class="st-rs-go">
@@ -392,7 +392,7 @@ async function restore(root: HTMLElement, at: number, keys: string[]): Promise<v
     !confirm(
       L(
         `Restore ${keys.length} item(s) to how they were at ${stamp(at)}?\n\nClose the app on your other devices first. The current values are archived, so this can be undone.`,
-        `Khôi phục ${keys.length} mục về như lúc ${stamp(at)}?\n\nHãy đóng app trên các thiết bị khác trước. Giá trị hiện tại được lưu lại, nên có thể hoàn tác.`,
+        `Khôi phục ${keys.length} mục về như lúc ${stamp(at)}?\n\nNhớ đóng app trên các máy khác trước. Giá trị hiện tại vẫn được lưu lại nên hoàn tác được.`,
       ),
     )
   )
@@ -415,7 +415,7 @@ async function restore(root: HTMLElement, at: number, keys: string[]): Promise<v
     setTimeout(() => location.reload(), 1200);
   } catch (e) {
     msg.className = 'st-msg st-err';
-    msg.textContent = L('Restore failed: ', 'Khôi phục thất bại: ') + String((e as Error)?.message ?? e);
+    msg.textContent = L('Restore failed: ', 'Khôi phục lỗi: ') + String((e as Error)?.message ?? e);
     if (btn) btn.disabled = false;
   }
 }
@@ -444,11 +444,11 @@ export function renderSettings(ctx: AppContext): void {
       <h1>${L('Settings & Guides', 'Cài đặt & Hướng dẫn')}</h1>
       <p class="subtitle">${L(
         'Your data and its sync, restoring to a point in time, running and deploying the website, and keeping the scanner alive — step by step, every command one click from the clipboard.',
-        'Dữ liệu và đồng bộ, khôi phục về một thời điểm, chạy và deploy trang web, giữ scanner hoạt động — từng bước một, mỗi lệnh chỉ một cú bấm là vào clipboard.',
+        'Dữ liệu và sync, khôi phục về một thời điểm, chạy và deploy trang web, giữ Scanner luôn chạy — từng bước một, lệnh nào cũng chỉ một cú bấm là vào clipboard.',
       )}</p>
       <div class="st-hero-note">🔒 ${L(
         'No secret appears on this page. Anything in <code>&lt;ANGLE_BRACKETS&gt;</code> is a placeholder you replace; secrets are typed only where a command asks for them.',
-        'Trang này không chứa secret nào. Mọi thứ trong <code>&lt;NGOẶC_NHỌN&gt;</code> là chỗ bạn thay bằng giá trị thật; secret chỉ gõ khi một lệnh hỏi.',
+        'Trang này không chứa secret nào. Mọi thứ trong <code>&lt;NGOẶC_NHỌN&gt;</code> là chỗ cần thay bằng giá trị thật; secret chỉ gõ vào khi lệnh hỏi.',
       )}</div>
     </div>
     <div class="st-layout">

@@ -154,7 +154,7 @@ function colorSwatches(vi: boolean): string {
   return NOTE_COLORS.map((c) =>
     c === null
       ? `<button type="button" class="rn-color rn-color-reset" data-cmd="removeColor" title="${
-          vi ? 'Màu mặc định (theo giao diện)' : 'Default colour (follows the theme)'
+          vi ? 'Màu mặc định (theo theme)' : 'Default colour (follows the theme)'
         }"></button>`
       : `<button type="button" class="rn-color" data-cmd="foreColor" data-arg="${c}" style="background:${c}" title="${c}"></button>`,
   ).join('');
@@ -175,8 +175,8 @@ export function richEditorHtml(idPrefix: string, initialHtml: string, opts: { la
       ${btn('strikeThrough', '', '<s>S</s>', vi ? 'Gạch ngang' : 'Strikethrough')}
       <span class="rn-sep"></span>
       ${btn('formatBlock', 'H3', 'H', vi ? 'Tiêu đề' : 'Heading')}
-      ${btn('insertUnorderedList', '', '• ', vi ? 'Danh sách' : 'Bullet list')}
-      ${btn('insertOrderedList', '', '1.', vi ? 'Danh sách số' : 'Numbered list')}
+      ${btn('insertUnorderedList', '', '• ', vi ? 'Gạch đầu dòng' : 'Bullet list')}
+      ${btn('insertOrderedList', '', '1.', vi ? 'Đánh số' : 'Numbered list')}
       <span class="rn-sep"></span>
       ${colorSwatches(vi)}
       <span class="rn-sep"></span>
@@ -221,8 +221,8 @@ export function richNoteDialog(
           ${btn('strikeThrough', '', '<s>S</s>', vi ? 'Gạch ngang' : 'Strikethrough')}
           <span class="rn-sep"></span>
           ${btn('formatBlock', 'H3', 'H', vi ? 'Tiêu đề' : 'Heading')}
-          ${btn('insertUnorderedList', '', '• ', vi ? 'Danh sách' : 'Bullet list')}
-          ${btn('insertOrderedList', '', '1.', vi ? 'Danh sách số' : 'Numbered list')}
+          ${btn('insertUnorderedList', '', '• ', vi ? 'Gạch đầu dòng' : 'Bullet list')}
+          ${btn('insertOrderedList', '', '1.', vi ? 'Đánh số' : 'Numbered list')}
           <span class="rn-sep"></span>
           ${colorSwatches(vi)}
           <span class="rn-sep"></span>

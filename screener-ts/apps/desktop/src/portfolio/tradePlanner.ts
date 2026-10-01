@@ -81,6 +81,7 @@ import {
 import { openPlanReport, printPlanReport, type PlanReportInput } from './planReport.js';
 // The five criteria nobody can read off a chart, put to ChatGPT as of the trade date.
 import { criteriaNoteHtml, openCriteriaAsk } from './criteriaAsk.js';
+import { lblOf } from '../ui/promptActions.js';
 // The exit half of the card, and the journal entry a finished plan becomes.
 import {
   autoCaseTitle, caseStudyFromPlan, closeOnOrBefore, emptyExit, exitMath, exitReasonText,
@@ -589,7 +590,9 @@ async function computePlans(ctx: AppContext): Promise<void> {
           <button type="button" class="note-btn has-note" data-tp-noteedit="${S}" title="${t('pf.note.edit')}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           <span class="tp-tools">
             <button type="button" class="tp-tool tp-tool--ask" data-tp-ask="${S}"
-              title="${t('wl.plan.asktitle')}">${cbIcon('spark', 14)}<span>${t('wl.plan.ask')}</span></button>
+              title="${t('wl.plan.asktitle')}">${cbIcon('spark', 14)}<span data-lbl>${t('wl.plan.ask')}</span></button>
+            <button type="button" class="tp-tool tp-tool--bot" data-tp-assist="${S}"
+              title="${t('prompts.assist.fill')}">${cbIcon('bot', 14)}<span data-lbl>${t('prompts.assist')}</span></button>
             <button type="button" class="tp-tool" data-tp-view="${S}"
               title="${t('plan.viewtitle')}">${cbIcon('eye', 14)}<span>${t('plan.view')}</span></button>
             <button type="button" class="tp-tool" data-tp-print="${S}"
@@ -1102,8 +1105,8 @@ function paintPlanStatus(): void {
   ];
   if (acct) {
     bits.push(
-      `${vi ? 'Tiền theo' : 'Money in'} ${acct.account.currency}` +
-      (planCcy !== planAcctCcy() ? ` (${vi ? 'đang hiện bằng' : 'shown in'} ${planCcy})` : ''),
+      `${vi ? 'Tiền tệ' : 'Money in'} ${acct.account.currency}` +
+      (planCcy !== planAcctCcy() ? ` (${vi ? 'đang hiển thị theo' : 'shown in'} ${planCcy})` : ''),
     );
     if (!hasPrices(acct.account.id)) bits.push(t('wl.plan.costbasis'));
   } else {
@@ -1609,7 +1612,7 @@ function paintGradePanel(
  * can assume the panel was not recomputed in the meantime, so the `PlanEdit` written to is
  * looked up again rather than captured before the await.
  */
-async function askCriteria(symbol: string, btn: HTMLElement): Promise<void> {
+async function askCriteria(ctx: AppContext, symbol: string, btn: HTMLElement, auto = false): Promise<void> {
   const before = planEdits.get(symbol);
   if (!before) return;
   const vi = getLang() === 'vi';
@@ -1627,7 +1630,7 @@ async function askCriteria(symbol: string, btn: HTMLElement): Promise<void> {
     grade,
     effective: before.gradeOverride ?? grade?.grade ?? null,
     vi,
-  });
+  }, { ctx, auto });
   if (!res) return;
 
   const e = planEdits.get(symbol);
@@ -1656,9 +1659,10 @@ async function askCriteria(symbol: string, btn: HTMLElement): Promise<void> {
 
   // On the button itself, the way `copyToClipboard` reports: the grade above has just moved,
   // and a silent change to a letter the user did not watch happen is one they will not trust.
-  const old = btn.textContent ?? '';
-  btn.textContent = t('wl.plan.ask.applied').replace('{n}', String(n));
-  setTimeout(() => { btn.textContent = old; }, 2200);
+  const lbl = lblOf(btn);
+  const old = lbl.textContent ?? '';
+  lbl.textContent = t('wl.plan.ask.applied').replace('{n}', String(n));
+  setTimeout(() => { lbl.textContent = old; }, 2200);
 }
 
 // ── The exit, and filing the plan as a case study ───────────────────────────
@@ -2371,7 +2375,11 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
    * fresh when it resolves rather than closing over a `PlanEdit` that may have been replaced.
    */
   root.querySelectorAll<HTMLElement>('[data-tp-ask]').forEach((b) => {
-    b.addEventListener('click', () => void askCriteria(b.dataset.tpAsk!, b));
+    b.addEventListener('click', () => void askCriteria(ctx, b.dataset.tpAsk!, b));
+  });
+  // The same questions to the app's own Assistant: the dialog opens and its answer streams in.
+  root.querySelectorAll<HTMLElement>('[data-tp-assist]').forEach((b) => {
+    b.addEventListener('click', () => void askCriteria(ctx, b.dataset.tpAssist!, b, true));
   });
 
   // Unfold "how it ended". The caret is flipped in place rather than by re-rendering the card:

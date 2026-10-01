@@ -190,25 +190,25 @@ export function planReportHtml(i: PlanReportInput): string {
 
   const L = vi
     ? {
-      plan: 'Kế hoạch giao dịch', setup: 'Thiết lập', date: 'Ngày dự kiến',
-      entry: 'Giá vào', stop: 'Cắt lỗ', target: 'Mục tiêu', shares: 'Số cổ',
-      posval: 'Giá trị vị thế', risk: 'Rủi ro', riskps: 'Rủi ro/cổ', rr: 'Lợi nhuận:Rủi ro',
-      grade: 'Hạng', score: 'Điểm', size: 'Cỡ vị thế cho phép',
+      plan: 'Kế hoạch giao dịch', setup: 'Setup', date: 'Ngày dự kiến',
+      entry: 'Entry', stop: 'Stop', target: 'Target', shares: 'Số cổ',
+      posval: 'Giá trị vị thế', risk: 'Rủi ro', riskps: 'Rủi ro/cổ', rr: 'Lời:Lỗ (R:R)',
+      grade: 'Hạng', score: 'Điểm', size: 'Size cho phép',
       note: 'Ghi chú kế hoạch', nonote: 'Chưa có ghi chú.',
-      ack: 'Đã xem kế hoạch', noack: 'CHƯA xác nhận đã xem kế hoạch',
-      ungraded: 'Kế hoạch này chưa được chấm điểm — không có thiết lập nào được chọn, hoặc dữ liệu giá quá ngắn.',
-      overridden: 'Người dùng ghi đè hạng (điểm cho {auto})',
+      ack: 'Đã xem kế hoạch', noack: 'CHƯA xác nhận đã đọc kế hoạch',
+      ungraded: 'Kế hoạch này chưa có điểm — chưa chọn setup, hoặc dữ liệu giá quá ngắn.',
+      overridden: 'Hạng do bạn tự đặt (điểm tự chấm ra {auto})',
       // The scorecard's own words live in `scorecard.ts`, with the table that uses them.
       print: 'In / Lưu PDF',
-      levels: 'Mức giá và vị thế', brand: 'The Professional',
-      ink: 'In trên giấy trắng (tiết kiệm mực)',
-      exit: 'Kết thúc giao dịch', exitdate: 'Ngày thoát', exitpx: 'Giá thoát',
-      resultr: 'Kết quả R', pctgain: 'Lãi/lỗ %', held: 'Số ngày giữ', why: 'Lý do thoát',
+      levels: 'Mức giá & vị thế', brand: 'The Professional',
+      ink: 'In nền trắng (đỡ tốn mực)',
+      exit: 'Lệnh kết thúc thế nào', exitdate: 'Ngày bán', exitpx: 'Giá bán',
+      resultr: 'Kết quả (R)', pctgain: 'Lãi/lỗ %', held: 'Số ngày giữ', why: 'Vì sao bán',
       nowhy: 'Chưa ghi lý do.',
       out: { win: 'Thắng', loss: 'Thua', open: 'Đang mở', scratch: 'Hòa' } as Record<string, string>,
-      foot: 'Tạo lúc {when} · The Professional — kế hoạch giao dịch · Chỉ dùng để học. Không phải lời khuyên đầu tư.',
-      staleack: 'Xác nhận lúc {when}, với giá vào {entry} / cắt lỗ {stop}.',
-      earn: 'E = ngày công bố báo cáo (nguồn: Nasdaq, 4 quý gần nhất)',
+      foot: 'Tạo lúc {when} · The Professional — kế hoạch giao dịch · Chỉ để học, không phải khuyến nghị đầu tư.',
+      staleack: 'Xác nhận lúc {when}, khi entry {entry} / stop {stop}.',
+      earn: 'E = ngày công bố báo cáo KQKD (nguồn: Nasdaq, 4 quý gần nhất)',
     }
     : {
       plan: 'Trade plan', setup: 'Setup', date: 'Intended date',
@@ -414,7 +414,7 @@ const REPORT_ICON = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none"
 export function openPlanReport(i: PlanReportInput, opts: { title: string; print: string; close: string }): void {
   const vi = i.vi;
   const W = vi
-    ? { dark: 'Màn hình', paper: 'Giấy trắng', save: 'Tải HTML', sub: 'Bản đóng băng của kế hoạch' }
+    ? { dark: 'Màn hình', paper: 'Giấy trắng', save: 'Tải HTML', sub: 'Bản lưu cố định của kế hoạch' }
     : { dark: 'Screen', paper: 'Paper', save: 'Download HTML', sub: 'The plan as it was frozen' };
   const meta = [i.plan.setup ? setupName(i.plan.setup as SetupKey, vi) : '', i.date].filter(Boolean).join(' · ');
   const host = document.createElement('div');

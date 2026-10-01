@@ -213,7 +213,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     prefer: [/flash/, /pro/],
     note: {
       en: 'Free allowance, rate-limited. Google may train on data sent on the free tier.',
-      vi: 'Có hạn mức miễn phí, giới hạn tần suất. Google có thể dùng dữ liệu ở bậc miễn phí để huấn luyện.',
+      vi: 'Có gói miễn phí, bị giới hạn số lượt gọi. Ở gói miễn phí, Google có thể dùng dữ liệu của bạn để huấn luyện.',
     },
   },
   {
@@ -231,7 +231,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     prefer: [/^deepseek-chat/, /^deepseek-reasoner/],
     note: {
       en: 'Very cheap. Requests are processed on servers in China.',
-      vi: 'Rất rẻ. Yêu cầu được xử lý trên máy chủ tại Trung Quốc.',
+      vi: 'Rất rẻ. Yêu cầu chạy trên máy chủ đặt tại Trung Quốc.',
     },
   },
   {
@@ -249,7 +249,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     prefer: [/llama.*70b/, /llama/, /qwen/],
     note: {
       en: 'Free allowance, rate-limited. Hosts open models — fast, weaker at multi-step tool use.',
-      vi: 'Có hạn mức miễn phí, giới hạn tần suất. Chạy mô hình mở — nhanh, yếu hơn khi gọi công cụ nhiều bước.',
+      vi: 'Có gói miễn phí, bị giới hạn số lượt gọi. Chạy mô hình mở — nhanh, nhưng kém hơn khi phải gọi công cụ nhiều bước.',
     },
   },
   {
@@ -294,7 +294,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     // preflight at all. Keep `functions/api/llm` in step — see `relayUpstreams`.
     note: {
       en: 'OpenAI-compatible gateway; one key for many models. Relayed same-origin, so it works in the browser and on the phone. Prices are unknown here; fill them in for the cost meter.',
-      vi: 'Cổng trung gian tương thích OpenAI; một khoá dùng nhiều mô hình. Đi qua relay cùng origin nên chạy được cả trên trình duyệt và điện thoại. Không biết giá; nhập vào để có đồng hồ chi phí.',
+      vi: 'Cổng trung gian tương thích OpenAI; một key dùng được nhiều mô hình. Đi qua relay cùng origin nên chạy được cả trên trình duyệt lẫn điện thoại. App không biết giá; tự nhập giá để có đồng hồ chi phí.',
     },
   },
   {
@@ -326,7 +326,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     prefer: [/^gpt-5/, /^claude/, /^gemini/, /^deepseek/, /^gpt-4/, /./],
     note: {
       en: 'Any OpenAI-compatible endpoint — a gateway, a proxy, or your own server. Called straight from the browser, so the endpoint must allow this origin (CORS). Prices are unknown here; fill them in for the cost meter.',
-      vi: 'Bất kỳ endpoint tương thích OpenAI — cổng trung gian, proxy, hoặc máy chủ của bạn. Được gọi trực tiếp từ trình duyệt nên endpoint phải cho phép origin này (CORS). Không biết giá; nhập vào để có đồng hồ chi phí.',
+      vi: 'Bất kỳ endpoint nào tương thích OpenAI — cổng trung gian, proxy, hay máy chủ của bạn. Trình duyệt gọi thẳng tới endpoint nên endpoint phải cho phép origin này (CORS). App không biết giá; tự nhập giá để có đồng hồ chi phí.',
     },
   },
   {
@@ -345,7 +345,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     prefer: [/instruct/, /./],
     note: {
       en: 'Free and fully private — nothing leaves the machine. Desktop only; small models handle tools poorly.',
-      vi: 'Miễn phí và riêng tư hoàn toàn — dữ liệu không rời khỏi máy. Chỉ trên máy tính; mô hình nhỏ gọi công cụ kém.',
+      vi: 'Miễn phí và hoàn toàn riêng tư — dữ liệu không rời khỏi máy. Chỉ chạy trên máy tính; mô hình nhỏ gọi công cụ kém.',
     },
   },
 ];

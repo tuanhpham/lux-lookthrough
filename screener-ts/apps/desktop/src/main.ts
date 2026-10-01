@@ -278,7 +278,7 @@ function openLearnAt(id: string): void {
 
 const LEARN_PARTS: [string, string, { en: string; vi: string }][] = [
   ['lb-part-1', '📘', { en: 'The swing-trading playbook', vi: 'Cẩm nang swing trading' }],
-  ['lb-part-2', '🗺', { en: 'Working the platform, page by page', vi: 'Dùng nền tảng, từng trang' }],
+  ['lb-part-2', '🗺', { en: 'Working the platform, page by page', vi: 'Dùng nền tảng, từng trang một' }],
   ['lb-part-3', '🎯', { en: 'How the score is computed', vi: 'Điểm số được tính thế nào' }],
   ['lb-part-4', '🔤', { en: 'Glossary', vi: 'Thuật ngữ' }],
 ];
@@ -323,8 +323,8 @@ function paletteItems(): { pages: PaletteItem[]; actions: PaletteItem[]; deep: P
     id: `a:${id}`, icon, title, group: vi ? 'Thao tác' : 'Actions', tag: vi ? 'Thao tác' : 'Action', words, run,
   });
   const actions: PaletteItem[] = [
-    action('sync', '☁️', vi ? 'Đồng bộ & mã truy cập' : 'Sync & access code', () => openSyncSettings(ctx), 'sync backup export import dong bo'),
-    action('ai', '🔑', vi ? 'Khóa AI (API key)' : 'AI key & model', () => void openLlmSettings(ctx), 'ai api key llm'),
+    action('sync', '☁️', vi ? 'Sync & mã truy cập' : 'Sync & access code', () => openSyncSettings(ctx), 'sync backup export import dong bo'),
+    action('ai', '🔑', vi ? 'API key & model AI' : 'AI key & model', () => void openLlmSettings(ctx), 'ai api key llm'),
     action('chat', '💬', t('chat.title'), () => void openChatPanel(ctx), 'assistant chat ai tro ly'),
     action('theme', light ? '🌙' : '☀️',
       vi ? (light ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng') : light ? 'Switch to dark theme' : 'Switch to light theme',
@@ -570,7 +570,7 @@ function buildAppMenu(): HTMLElement {
           ${amIcon(isLight ? 'moon' : 'sun')}<span>${isLight ? (vi ? 'Giao diện tối' : 'Dark') : vi ? 'Giao diện sáng' : 'Light'}</span>
         </button>
         <button type="button" class="am-btn" id="app-menu-sync">${amIcon('cloud')}<span>Sync</span></button>
-        <button type="button" class="am-btn" id="app-menu-ai">${amIcon('key')}<span>${vi ? 'Khóa AI' : 'AI key'}</span></button>
+        <button type="button" class="am-btn" id="app-menu-ai">${amIcon('key')}<span>${vi ? 'API key' : 'AI key'}</span></button>
         <button type="button" class="am-btn am-btn-accent" id="app-menu-chat">${CHAT_ICON}<span>${t('chat.title')}</span></button>
       </div>
     </footer>`;

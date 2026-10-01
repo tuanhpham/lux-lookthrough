@@ -66,19 +66,19 @@ export const RULE_GROUPS: readonly {
   {
     key: 'stop', color: 'var(--danger)',
     vi: 'Cắt lỗ — chỗ luận điểm sai', en: 'The stop — where the idea is wrong',
-    leadVi: 'Sáu ô này quyết định MỘT con số: cắt lỗ. Và vì cắt lỗ quyết định số cổ, chúng quyết định luôn cỡ vị thế.',
+    leadVi: 'Sáu ô này chỉ quyết định MỘT con số: cắt lỗ. Mà cắt lỗ quyết định số cổ, nên chúng quyết định luôn size vị thế.',
     leadEn: 'These six boxes decide ONE number: the stop. And because the stop decides the share count, they decide the position size too.',
   },
   {
     key: 'target', color: 'var(--accent)',
     vi: 'Mục tiêu — chỗ chốt nửa đầu', en: 'The target — where half comes off',
-    leadVi: 'Nơi chốt phần đầu tiên. Cẩm nang chốt một nửa ở đây và để phần còn lại chạy.',
+    leadVi: 'Chỗ chốt phần đầu tiên. Playbook chốt một nửa ở đây và để phần còn lại chạy tiếp.',
     leadEn: 'Where the first piece comes off. The book takes half here and lets the rest run.',
   },
   {
     key: 'manage', color: 'var(--violet)',
-    vi: 'Phần còn lại — kéo và hạn', en: 'The runner — trail and expiry',
-    leadVi: 'Phần chưa chốt được quản lý thế nào, và khi nào một lệnh không chạy thì hết hạn.',
+    vi: 'Phần còn lại — trailing và hạn', en: 'The runner — trail and expiry',
+    leadVi: 'Phần chưa chốt quản lý ra sao, và lệnh đứng yên bao lâu thì hết hạn.',
     leadEn: 'How the unsold part is managed, and when a trade that is going nowhere expires.',
   },
 ];
@@ -104,79 +104,79 @@ export interface ColumnDoc {
 export const SETUP_COLUMNS: readonly ColumnDoc[] = [
   {
     field: 'anchor', group: 'stop', vi: 'Neo cắt lỗ', en: 'Stop anchor',
-    whatVi: 'Chỗ TRÊN ĐỒ THỊ mà cắt lỗ được treo vào — một điểm cấu trúc, không phải một số tiền bạn chịu được.',
+    whatVi: 'Điểm TRÊN CHART để treo cắt lỗ — một điểm cấu trúc, không phải số tiền bạn chịu lỗ nổi.',
     whatEn: 'The place ON THE CHART the stop hangs from — a structural point, not an amount of money you can stomach.',
-    whyVi: '<b>Đáy nến tín hiệu</b> = đáy của chính cây nến làm bạn muốn mua. <b>Đáy thấp nhất N phiên</b> = đáy thấp nhất trong N phiên gần nhất, dùng cho nền và nhịp điều chỉnh. <b>Theo ATR</b> = không có cấu trúc nào, lấy giá vào trừ đi (× ATR) × ATR.',
+    whyVi: '<b>Đáy nến tín hiệu</b> = đáy của chính cây nến khiến bạn muốn mua. <b>Đáy thấp nhất N phiên</b> = đáy thấp nhất trong N phiên gần nhất, dùng cho nền và nhịp pullback. <b>Theo ATR</b> = không dựa vào cấu trúc nào: lấy giá vào trừ (× ATR) × ATR.',
     whyEn: '<b>Signal bar low</b> = the low of the very bar that made you want in. <b>Lowest low of N</b> = the lowest low of the last N sessions, for bases and pullbacks. <b>By ATR</b> = no structure at all: entry minus (× ATR) × ATR.',
   },
   {
     field: 'lookback', group: 'stop', vi: 'N phiên', en: 'N sessions',
     whatVi: 'App nhìn lại bao nhiêu phiên để tìm “đáy thấp nhất” — và để đo chiều cao nền cho mục tiêu.',
     whatEn: 'How many sessions back the app looks for the “lowest low” — and measures the base height for the target.',
-    whyVi: 'Nhỏ = cắt lỗ sát, mua được nhiều cổ, nhưng dễ bị một cái bóng nến quét ra. Lớn = cắt lỗ sâu và an toàn hơn nhưng ít cổ hơn. Không có tác dụng gì nếu Neo là <i>Đáy nến tín hiệu</i> hoặc <i>Theo ATR</i>.',
+    whyVi: 'Nhỏ = cắt lỗ sát, mua được nhiều cổ hơn, nhưng chỉ một cây râu nến là bị quét. Lớn = cắt lỗ sâu, an toàn hơn nhưng ít cổ hơn. Không có tác dụng gì nếu Neo là <i>Đáy nến tín hiệu</i> hoặc <i>Theo ATR</i>.',
     whyEn: 'Small = a tight stop and more shares, but one wick takes you out. Large = a deeper, safer stop and fewer shares. Does nothing at all when the anchor is <i>Signal bar low</i> or <i>By ATR</i>.',
   },
   {
     field: 'padPct', group: 'stop', vi: 'Đệm %', en: 'Pad %',
-    whatVi: 'Nới thêm bao nhiêu phần trăm XUỐNG DƯỚI cái đáy vừa tìm được. 0,3 nghĩa là đặt cắt lỗ thấp hơn đáy 0,3%.',
+    whatVi: 'Đặt cắt lỗ THẤP HƠN cái đáy vừa tìm được bao nhiêu %. 0,3 nghĩa là cắt lỗ nằm dưới đáy 0,3%.',
     whatEn: 'How much further BELOW that low to place the stop, in percent. 0.3 means the stop sits 0.3% under it.',
-    whyVi: 'Đáy 97,62 với đệm 0,3% → cắt lỗ 97,33. Vì sao cần: cắt lỗ đặt đúng ngay cái đáy sẽ bị chính cái bóng nến tạo ra đáy đó quét ra — bạn mất lệnh trước khi biết mình sai.',
+    whyVi: 'Đáy 97,62, đệm 0,3% → cắt lỗ 97,33. Vì sao cần đệm: cắt lỗ đặt đúng ngay đáy sẽ bị chính cây râu nến tạo ra đáy đó quét mất — bạn văng khỏi lệnh trước khi biết mình có sai hay không.',
     whyEn: 'A 97.62 low with a 0.3% pad → a 97.33 stop. Why it is there: a stop sitting exactly on a known low gets swept by the wick that made it — you lose the trade before you find out you were wrong.',
   },
   {
     field: 'atrMult', group: 'stop', vi: '× ATR', en: '× ATR',
-    whatVi: 'Bội số của ATR(14) — biên độ dao động trung bình của một phiên, tính bằng tiền.',
+    whatVi: 'Bội số của ATR(14) — biên độ dao động trung bình mỗi phiên, tính bằng tiền.',
     whatEn: 'A multiple of ATR(14) — the average size of one session’s move, in money.',
-    whyVi: 'Làm hai việc: là chính cắt lỗ khi Neo = <i>Theo ATR</i>, và là thước đo “cắt lỗ này có xa bất thường không” cho mọi neo khác. ATR 1,96 với × ATR = 2 thì mốc ATR cách giá vào 3,92.',
+    whyVi: 'Có hai vai trò: chính là cắt lỗ khi Neo = <i>Theo ATR</i>, và là thước đo “cắt lỗ này có xa bất thường không” với mọi kiểu neo khác. ATR 1,96 và × ATR = 2 thì mốc ATR nằm dưới giá vào 3,92.',
     whyEn: 'Two jobs: it IS the stop when the anchor is <i>By ATR</i>, and it is the “is this stop unusually wide?” yardstick for every other anchor. An ATR of 1.96 with × ATR = 2 puts the ATR mark 3.92 below the entry.',
   },
   {
     field: 'maxStopEma', group: 'stop', vi: 'EMA chặn', en: 'Cap EMA',
-    whatVi: 'Cắt lỗ không được sâu hơn đường EMA này. Để trống = bỏ EMA ra, chỉ chặn bằng mốc ATR.',
+    whatVi: 'Cắt lỗ không được sâu hơn đường EMA này. Để trống = bỏ EMA, chỉ chặn bằng mốc ATR.',
     whatEn: 'The stop may not sit deeper than this EMA. Empty = leave the EMA out and cap on the ATR mark alone.',
-    whyVi: 'Đây là cái chặn một cái đáy CŨ: đáy của 14 phiên trước không còn là cấu trúc của lệnh hôm nay. 21 là mặc định vì cẩm nang đã dùng EMA21 để kéo lệnh và để xét tín hiệu — dưới EMA21 thì ý tưởng đã khác.',
+    whyVi: 'Ô này chặn việc neo vào một cái đáy CŨ: đáy từ 14 phiên trước không còn là cấu trúc của lệnh hôm nay. Mặc định 21 vì Playbook đã dùng EMA21 để trailing và để xét tín hiệu — thủng EMA21 là câu chuyện đã khác.',
     whyEn: 'This is what stops a STALE low being used: a low from fourteen sessions ago is not this trade’s structure. 21 by default because the book already trails and judges triggers against the 21 EMA — below it the idea has changed.',
   },
   {
     field: 'maxStopRef', group: 'stop', vi: 'Lấy mốc', en: 'Cap by',
-    whatVi: 'Khi cả hai mốc chặn (EMA và ATR) đều đo được thì lấy mốc nào — và có chặn hay không.',
+    whatVi: 'Khi đo được cả hai mốc chặn (EMA và ATR) thì lấy mốc nào — và có chặn hay không.',
     whatEn: 'Which of the two marks (the EMA and the ATR one) wins when both can be measured — and whether to cap at all.',
-    whyVi: '<b>Mốc sâu hơn</b> (mặc định): chỉ kéo cắt lỗ lên khi nó sâu hơn CẢ hai mốc — rộng rãi. <b>Mốc gần hơn</b>: mốc nào gần giá vào hơn thì mốc đó quyết định — chặt hơn nhiều, có thể bóp cắt lỗ xuống 2% ngay trong vùng nhiễu. <b>Không chặn</b>: để cấu trúc quyết định và số cổ nhỏ đi, đúng như cẩm nang.',
+    whyVi: '<b>Mốc sâu hơn</b> (mặc định): chỉ kéo cắt lỗ lên khi nó sâu hơn CẢ hai mốc — rộng rãi. <b>Mốc gần hơn</b>: mốc nào gần giá vào hơn thì mốc đó quyết định — chặt hơn nhiều, có thể ép cắt lỗ còn 2% ngay trong vùng nhiễu. <b>Không chặn</b>: để cấu trúc quyết định và giảm số cổ, đúng như Playbook.',
     whyEn: '<b>The deeper one</b> (default): pull the stop in only when it was below BOTH marks — generous. <b>The nearer one</b>: whichever mark is closer to the entry decides — much tighter, and it can squeeze the stop to 2% right inside the noise. <b>No cap</b>: structure decides and the share count shrinks, as the book has it.',
   },
   {
     field: 'targetKind', group: 'target', vi: 'Mục tiêu', en: 'Target',
-    whatVi: 'Cách tính chỗ chốt lời đầu tiên.',
+    whatVi: 'Cách tính điểm chốt lời đầu tiên.',
     whatEn: 'How the first profit target is worked out.',
-    whyVi: '<b>Bội số R</b> = giá vào + (R đầu × khoảng rủi ro). <b>Chiều cao nền</b> = giá vào + (đỉnh cao nhất − đáy thấp nhất trong N phiên): cái nền cao bao nhiêu thì cú bứt phá đi được bấy nhiêu. <b>Chạm EMA</b> = chốt hết tại EMA chốt, không theo R — dành cho lệnh hồi quy trung bình.',
+    whyVi: '<b>Bội số R</b> = giá vào + (R đầu × khoảng rủi ro). <b>Chiều cao nền</b> = giá vào + (đỉnh cao nhất − đáy thấp nhất trong N phiên): nền cao bao nhiêu thì cú breakout đi được bấy nhiêu. <b>Chạm EMA</b> = chốt hết tại EMA chốt, không theo R — dành cho lệnh mean reversion.',
     whyEn: '<b>R multiple</b> = entry + (First R × the risk distance). <b>Measured move</b> = entry + (highest high − lowest low over N): a breakout travels about as far as the base was tall. <b>At an EMA</b> = exit all of it at the exit EMA, with no R involved — for mean reversion.',
   },
   {
     field: 'firstTargetR', group: 'target', vi: 'R đầu', en: 'First R',
-    whatVi: '1R = khoảng từ giá vào đến cắt lỗ. R đầu = 3 nghĩa là mục tiêu đầu cách giá vào gấp ba khoảng đó.',
+    whatVi: '1R = khoảng cách từ giá vào đến cắt lỗ. R đầu = 3 nghĩa là mục tiêu đầu cách giá vào gấp ba khoảng đó.',
     whatEn: '1R = the distance from entry to stop. First R = 3 means the first target sits three of those distances above the entry.',
-    whyVi: 'Cẩm nang chốt MỘT NỬA ở đây rồi kéo phần còn lại. Đây cũng là con số làm R:R: dưới R:R tối thiểu thì cẩm nang nói bỏ qua lệnh. Chỉ dùng khi Mục tiêu = <i>Bội số R</i>.',
+    whyVi: 'Playbook chốt MỘT NỬA ở đây rồi trailing phần còn lại. Đây cũng là con số tạo ra R:R: dưới R:R tối thiểu thì Playbook bảo bỏ qua lệnh. Chỉ dùng khi Mục tiêu = <i>Bội số R</i>.',
     whyEn: 'The book takes HALF off here and trails the rest. It is also the number that makes the R:R: under the minimum R:R the book says skip the trade. Only used when the target is an <i>R multiple</i>.',
   },
   {
     field: 'targetEma', group: 'target', vi: 'EMA chốt', en: 'Exit EMA',
     whatVi: 'Đường EMA dùng làm điểm chốt khi Mục tiêu = <i>Chạm EMA</i>.',
     whatEn: 'The EMA the exit is taken at when the target is <i>At an EMA</i>.',
-    whyVi: 'Lệnh hồi quy trung bình không có mục tiêu theo R: nó kết thúc khi giá đã về lại đường trung bình, dù chỗ đó là 1,2R hay 0,7R. Nếu EMA này đang ở DƯỚI giá vào thì không có gì để nhắm tới và app sẽ nói vậy.',
+    whyVi: 'Lệnh mean reversion không có mục tiêu theo R: giá về lại đường trung bình là xong, dù chỗ đó là 1,2R hay 0,7R. Nếu EMA này đang nằm DƯỚI giá vào thì chẳng có gì để nhắm tới, và app sẽ báo vậy.',
     whyEn: 'A mean-reversion trade has no R target: it is over when price is back at the mean, whether that is 1.2R or 0.7R away. If this EMA is BELOW the entry there is nothing to aim at, and the app says so.',
   },
   {
-    field: 'trailEma', group: 'manage', vi: 'EMA kéo', en: 'Trail EMA',
-    whatVi: 'Phần còn lại sau khi chốt nửa đầu được kéo theo đường EMA này. Để trống = không kéo, ra hết ở mục tiêu.',
+    field: 'trailEma', group: 'manage', vi: 'EMA trailing', en: 'Trail EMA',
+    whatVi: 'Phần còn lại sau khi chốt nửa đầu sẽ trailing theo đường EMA này. Để trống = không trailing, ra hết ở mục tiêu.',
     whatEn: 'The part left after the first sale is trailed against this EMA. Empty = no trail, all of it leaves at the target.',
-    whyVi: 'EMA10 kéo chặt: giữ được lãi, nhưng ra sớm trong một nhịp chạy dài. EMA21 cho lệnh thở: bắt được những cú chạy lớn, và trả lại nhiều hơn khi cú chạy đó không đến.',
+    whyVi: 'EMA10 trailing sát: giữ được lãi nhưng dễ văng sớm trong một nhịp chạy dài. EMA21 cho lệnh không gian để thở: bắt được những con sóng lớn, nhưng trả lại nhiều hơn khi sóng không đến.',
     whyEn: 'A 10 EMA trails tight: it keeps the gain but takes you out early in a long run. A 21 EMA gives the trade room: it catches the big moves and gives back more when the move never comes.',
   },
   {
     field: 'maxHoldSessions', group: 'manage', vi: 'Hạn (phiên)', en: 'Expiry',
-    whatVi: 'Quá bao nhiêu phiên thì luận điểm coi như hết hiệu lực, bất kể giá đang ở đâu. Để trống = không hết hạn.',
+    whatVi: 'Sau bao nhiêu phiên thì luận điểm coi như hết hiệu lực, bất kể giá đang ở đâu. Để trống = không hết hạn.',
     whatEn: 'After how many sessions the thesis has expired regardless of where price is. Empty = never expires.',
-    whyVi: 'Tiền nằm trong một lệnh không chạy vẫn là tiền đang mất cơ hội — và đó là khoản lỗ duy nhất không bao giờ xuất hiện trong sổ. Hồi quy trung bình mặc định 7 phiên: nếu 7 phiên mà chưa hồi thì đó không phải một cú hồi.',
+    whyVi: 'Tiền nằm chết trong một lệnh đứng yên là tiền đang lỡ cơ hội ở chỗ khác — khoản lỗ duy nhất không bao giờ hiện trong sổ. Mean reversion mặc định 7 phiên: 7 phiên mà chưa hồi thì đó không phải cú hồi.',
     whyEn: 'Money in a trade going nowhere is money losing its chance elsewhere — the one loss that never shows up in the book. Mean reversion defaults to 7 sessions: if it has not reverted in seven, it was not a reversion.',
   },
 ];
@@ -192,32 +192,32 @@ export const REGIME_DOC: Record<PlaybookRegime, {
 }> = {
   UPTREND: {
     vi: 'Xu hướng tăng', en: 'Uptrend',
-    testVi: 'Giá đóng cửa trên CẢ MA50 và MA200, và MA50 đã lên hơn +0,5% trong 10 phiên.',
+    testVi: 'Giá đóng cửa trên CẢ MA50 và MA200, và MA50 tăng hơn +0,5% trong 10 phiên.',
     testEn: 'The close is above BOTH the 50MA and the 200MA, and the 50MA has risen more than +0.5% over 10 sessions.',
-    sizeVi: 'Cỡ đầy đủ — nhưng nếu biến động giãn ra (ATR > 1,3×) thì vẫn giảm nửa.',
+    sizeVi: 'Full size — nhưng nếu biến động giãn ra (ATR > 1,3×) thì vẫn giảm nửa.',
     sizeEn: 'Full size — though expanded volatility (ATR > 1.3×) still halves it.',
     color: 'var(--accent)',
   },
   UPTREND_UNDER_STRESS: {
-    vi: 'Tăng nhưng đang căng', en: 'Uptrend under stress',
-    testVi: 'MA50 vẫn trên MA200 và vẫn đang lên, nhưng giá đã tuột xuống dưới MA50 — nhịp tăng còn đó, giá thì vừa mất nó.',
+    vi: 'Tăng nhưng chịu áp lực', en: 'Uptrend under stress',
+    testVi: 'MA50 vẫn trên MA200 và vẫn đang lên, nhưng giá đã thủng MA50 — xu hướng tăng vẫn còn, chỉ là giá vừa rơi khỏi nó.',
     testEn: 'The 50MA is still above the 200MA and still rising, but price has slipped under the 50MA — the advance is intact and price has just lost it.',
     sizeVi: 'Giảm nửa.', sizeEn: 'Half size.',
     color: 'var(--warn)',
   },
   RANGE: {
     vi: 'Đi ngang', en: 'Range',
-    testVi: 'Không rơi vào ba trường hợp kia — giá và các đường trung bình đang đan vào nhau, hoặc MA50 đã nằm ngang.',
+    testVi: 'Không thuộc ba trường hợp kia — giá và các đường trung bình đan xen nhau, hoặc MA50 đã nằm ngang.',
     testEn: 'None of the other three fit — price and the averages are tangled, or the 50MA has gone flat.',
-    sizeVi: 'Giảm nửa. Bù lại, đi ngang mở ra các thiết lập hồi quy trung bình mà xu hướng tăng không có.',
+    sizeVi: 'Giảm nửa. Bù lại, thị trường đi ngang mở ra các setup mean reversion mà uptrend không có.',
     sizeEn: 'Half size. In exchange, a range unlocks the mean-reversion setups an uptrend does not offer.',
     color: 'var(--blue)',
   },
   DOWNTREND: {
     vi: 'Xu hướng giảm', en: 'Downtrend',
-    testVi: 'Giá dưới CẢ MA50 và MA200, và MA50 đã xuống hơn −0,5% trong 10 phiên.',
+    testVi: 'Giá dưới CẢ MA50 và MA200, và MA50 giảm hơn −0,5% trong 10 phiên.',
     testEn: 'The close is below BOTH the 50MA and the 200MA, and the 50MA has fallen more than −0.5% over 10 sessions.',
-    sizeVi: 'Không mở lệnh mua mới. Đây là luật “có giao dịch hay không”, nên ghim rủi ro cũng không vượt qua được.',
+    sizeVi: 'Không mở lệnh mua mới. Đây là luật “có vào lệnh hay không”, nên ghim rủi ro cũng không lách được.',
     sizeEn: 'No new longs. This is a whether-to-trade rule, so pinning the risk percent does not get past it.',
     color: 'var(--danger)',
   },
@@ -227,27 +227,27 @@ export const REGIME_DOC: Record<PlaybookRegime, {
 export const REGIME_STATS: readonly { key: string; vi: string; en: string; noteVi: string; noteEn: string }[] = [
   {
     key: 'close', vi: 'SPY đóng cửa', en: 'SPY close',
-    noteVi: 'Giá đóng cửa của SPY ở phiên ghi bên dưới — không phải giá lúc này.',
+    noteVi: 'Giá đóng cửa của SPY ở phiên ghi bên dưới — không phải giá hiện tại.',
     noteEn: 'SPY’s closing price on the session named below — not the price right now.',
   },
   {
     key: 'ma50', vi: 'MA50', en: 'MA50',
-    noteVi: 'Trung bình 50 phiên (trung bình đơn, đúng như TradingView mặc định).',
+    noteVi: 'Trung bình 50 phiên (SMA, giống mặc định của TradingView).',
     noteEn: 'The 50-session simple average — the same one TradingView draws by default.',
   },
   {
     key: 'ma200', vi: 'MA200', en: 'MA200',
-    noteVi: 'Trung bình 200 phiên. Trên nó là thị trường tăng dài hạn.',
+    noteVi: 'Trung bình 200 phiên. Giá trên đường này là thị trường tăng dài hạn.',
     noteEn: 'The 200-session average. Above it is a long-term bull market.',
   },
   {
     key: 'slope', vi: 'Độ dốc MA50', en: 'MA50 slope',
-    noteVi: 'MA50 hôm nay so với MA50 của 10 phiên trước. Hơn +0,5% là đang lên, dưới −0,5% là đang xuống, ở giữa là nằm ngang.',
+    noteVi: 'MA50 hôm nay so với MA50 cách đây 10 phiên. Trên +0,5% là đang lên, dưới −0,5% là đang xuống, ở giữa là nằm ngang.',
     noteEn: 'The 50MA now against the 50MA ten sessions ago. Over +0.5% is rising, under −0.5% is falling, between is flat.',
   },
   {
     key: 'atr', vi: 'Biến động (ATR)', en: 'Volatility (ATR)',
-    noteVi: 'ATR% hôm nay chia cho ATR% trung bình 100 phiên. 1,0 = như thường; trên 1,3 = giãn ra, cùng 1% rủi ro giờ mua được ít cổ hơn nên app giảm nửa.',
+    noteVi: 'ATR% hôm nay chia cho ATR% trung bình 100 phiên. 1,0 = bình thường; trên 1,3 = giãn ra, cùng 1% rủi ro giờ mua được ít cổ hơn nên app giảm nửa size.',
     noteEn: 'Today’s ATR% divided by its own 100-session average. 1.0 = as usual; over 1.3 = expanded, so the same 1% of risk buys fewer shares and the app halves size.',
   },
 ];
@@ -348,7 +348,7 @@ export function exampleSteps(
       field: 'anchor', group: 'stop',
       label: vi ? 'Neo cắt lỗ' : 'Stop anchor',
       detail: rule.anchor === 'signalBarLow'
-        ? (vi ? 'Đáy của cây nến cuối — cây nến làm bạn muốn mua' : 'The low of the last bar — the one that made you want in')
+        ? (vi ? 'Đáy của cây nến cuối — cây nến khiến bạn muốn mua' : 'The low of the last bar — the one that made you want in')
         : (vi ? `Đáy thấp nhất trong <b>${rule.lookback}</b> phiên gần nhất` : `The lowest low of the last <b>${rule.lookback}</b> sessions`),
       value: f2(lv.anchorPrice),
     });
@@ -357,7 +357,7 @@ export function exampleSteps(
       field: 'anchor', group: 'stop',
       label: vi ? 'Neo cắt lỗ' : 'Stop anchor',
       detail: vi
-        ? `Không dùng cấu trúc: ${f2(e)} − <b>${rule.atrMult}</b> × ATR(${lv.atr === null ? '?' : f2(lv.atr)})`
+        ? `Không dựa vào cấu trúc: ${f2(e)} − <b>${rule.atrMult}</b> × ATR(${lv.atr === null ? '?' : f2(lv.atr)})`
         : `No structure: ${f2(e)} − <b>${rule.atrMult}</b> × ATR(${lv.atr === null ? '?' : f2(lv.atr)})`,
       value: lv.atr === null ? '—' : f2(e - lv.atr * rule.atrMult),
     });
@@ -372,9 +372,9 @@ export function exampleSteps(
       field: 'padPct', group: 'stop',
       label: vi ? 'Đệm' : 'Pad',
       detail: rule.padPct === 0
-        ? (vi ? 'Đệm 0 — cắt lỗ đặt đúng ngay cái đáy, nên cái bóng nến tạo ra đáy đó có thể quét bạn ra'
+        ? (vi ? 'Đệm 0 — cắt lỗ nằm đúng ngay đáy, nên chính cây râu nến tạo ra đáy đó có thể quét bạn khỏi lệnh'
               : 'A 0 pad — the stop sits exactly on the low, so the wick that made it can sweep you out')
-        : (vi ? `${f2(lv.anchorPrice!)} thấp thêm <b>${rule.padPct}%</b>` : `${f2(lv.anchorPrice!)} lowered by <b>${rule.padPct}%</b>`),
+        : (vi ? `${f2(lv.anchorPrice!)} hạ thêm <b>${rule.padPct}%</b>` : `${f2(lv.anchorPrice!)} lowered by <b>${rule.padPct}%</b>`),
       value: f2(padded),
     });
   }
@@ -385,7 +385,7 @@ export function exampleSteps(
     out.push({
       field: 'maxStopRef', group: 'stop',
       label: vi ? 'Chặn' : 'Cap',
-      detail: vi ? 'Không chặn — cấu trúc quyết định, số cổ nhỏ đi nếu cần'
+      detail: vi ? 'Không chặn — để cấu trúc quyết định, cần thì giảm số cổ'
                  : 'No cap — structure decides and the share count absorbs it',
       value: '—',
     });
@@ -394,7 +394,7 @@ export function exampleSteps(
     if (lv.maxStopEmaValue !== null) {
       parts.push(`EMA${rule.maxStopEma} = <b>${f2(lv.maxStopEmaValue)}</b>`);
     } else if (rule.maxStopEma) {
-      parts.push(vi ? `EMA${rule.maxStopEma} không dưới giá vào nên không tính` : `the ${rule.maxStopEma} EMA is not below the entry, so it is out`);
+      parts.push(vi ? `EMA${rule.maxStopEma} không nằm dưới giá vào nên bỏ qua` : `the ${rule.maxStopEma} EMA is not below the entry, so it is out`);
     }
     if (atrGuide !== null) parts.push(`${rule.atrMult}×ATR = <b>${f2(atrGuide)}</b>`);
     const pick = rule.maxStopRef === 'deeper'
@@ -403,12 +403,12 @@ export function exampleSteps(
     const bit = lv.warnings.includes('stopCappedByMax');
     out.push({
       field: 'maxStopRef', group: 'stop',
-      label: vi ? 'Sâu nhất được phép' : 'Deepest allowed',
+      label: vi ? 'Sâu nhất cho phép' : 'Deepest allowed',
       detail: `${parts.join(' · ')} → ${pick}`
         + (bit
-          ? (vi ? ` — <b>đã chạm</b>: cắt lỗ bị kéo từ ${padded === null ? '' : f2(padded)} lên đây`
+          ? (vi ? ` — <b>đã chặn</b>: cắt lỗ bị kéo từ ${padded === null ? '' : f2(padded)} lên đây`
                 : ` — <b>it bit</b>: the stop was pulled up from ${padded === null ? '' : f2(padded)} to here`)
-          : (vi ? ' — không chạm' : ' — did not bite')),
+          : (vi ? ' — không cần chặn' : ' — did not bite')),
       value: lv.maxStopPrice === null ? '—' : f2(lv.maxStopPrice),
     });
   }
@@ -446,7 +446,7 @@ export function exampleSteps(
       field: 'targetEma', group: 'target',
       label: vi ? `Mục tiêu (chạm EMA${rule.targetEma ?? ''})` : `Target (at the ${rule.targetEma ?? ''} EMA)`,
       detail: lv.target === null
-        ? (vi ? 'Trên đồ thị ví dụ này EMA đó đang ở DƯỚI giá vào — không có gì để nhắm tới. Lệnh hồi quy trung bình chỉ hợp lý khi bạn vào ở dưới đường trung bình, không phải trên nó.'
+        ? (vi ? 'Trên chart ví dụ này EMA đó đang nằm DƯỚI giá vào — chẳng có gì để nhắm tới. Lệnh mean reversion chỉ hợp lý khi bạn vào dưới đường trung bình, không phải trên nó.'
               : 'On this example chart that EMA is BELOW the entry — nothing to aim at. A mean-reversion trade only makes sense entered under the mean, not above it.')
         : (vi ? 'Chốt hết tại đường trung bình, không theo R' : 'All of it comes off at the mean, with no R involved'),
       value: lv.target === null ? '—' : f2(lv.target),
@@ -458,8 +458,8 @@ export function exampleSteps(
       field: null, group: 'result',
       label: 'R:R',
       detail: lv.rMultiple >= minRR
-        ? (vi ? `Trên mức tối thiểu ${minRR} — được phép giao dịch` : `Above the ${minRR} minimum — allowed`)
-        : (vi ? `Dưới mức tối thiểu ${minRR} — cẩm nang nói bỏ qua` : `Under the ${minRR} minimum — the book says skip it`),
+        ? (vi ? `Trên mức tối thiểu ${minRR} — được vào lệnh` : `Above the ${minRR} minimum — allowed`)
+        : (vi ? `Dưới mức tối thiểu ${minRR} — Playbook bảo bỏ qua` : `Under the ${minRR} minimum — the book says skip it`),
       value: `${lv.rMultiple}R`,
     });
   }
@@ -469,8 +469,8 @@ export function exampleSteps(
     field: 'trailEma', group: 'manage',
     label: vi ? 'Phần còn lại' : 'The runner',
     detail: rule.trailEma === null
-      ? (vi ? 'Không kéo — ra hết ở mục tiêu' : 'No trail — all of it leaves at the target')
-      : (vi ? `Chốt một nửa ở mục tiêu, nửa còn lại kéo theo <b>EMA${rule.trailEma}</b>`
+      ? (vi ? 'Không trailing — ra hết ở mục tiêu' : 'No trail — all of it leaves at the target')
+      : (vi ? `Chốt một nửa ở mục tiêu, nửa còn lại trailing theo <b>EMA${rule.trailEma}</b>`
             : `Half off at the target, the rest trailed against the <b>${rule.trailEma} EMA</b>`),
     value: rule.trailEma === null ? '—' : `EMA${rule.trailEma}`,
   });
@@ -478,7 +478,7 @@ export function exampleSteps(
     field: 'maxHoldSessions', group: 'manage',
     label: vi ? 'Hạn' : 'Expiry',
     detail: rule.maxHoldSessions === null
-      ? (vi ? 'Không hết hạn — giữ đến khi cắt lỗ hoặc mục tiêu' : 'Never expires — held until the stop or the target')
+      ? (vi ? 'Không hết hạn — giữ đến khi chạm cắt lỗ hoặc mục tiêu' : 'Never expires — held until the stop or the target')
       : (vi ? `Quá <b>${rule.maxHoldSessions}</b> phiên thì luận điểm hết hiệu lực, dù giá ở đâu`
             : `After <b>${rule.maxHoldSessions}</b> sessions the thesis has expired, wherever price is`),
     value: rule.maxHoldSessions === null ? '—' : (vi ? `${rule.maxHoldSessions} phiên` : `${rule.maxHoldSessions} sess.`),

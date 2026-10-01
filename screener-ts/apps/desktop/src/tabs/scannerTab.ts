@@ -1963,7 +1963,7 @@ function overviewHtml(
   const alertsKey = newestAlertsKey();
   const alerts = alertsKey ? get<AlertsSnap>(alertsKey) : null;
   const night = status?.night;
-  const none = L('No snapshot yet', 'Chưa có bản chụp');
+  const none = L('No snapshot yet', 'Chưa có snapshot');
 
   const r = regime?.row;
   const pb = regime?.playbook;
@@ -1976,7 +1976,7 @@ function overviewHtml(
     sub: r
       ? [
         pb?.setups?.length ? esc(pb.setups.map((k) => setupWord(k).text).join(' · ')) : esc(t('scan.today.nosetup')),
-        pb?.size != null ? `${L('size', 'tỷ trọng')} ${Math.round(pb.size * 100)}%` : '',
+        pb?.size != null ? `${L('size', 'size')} ${Math.round(pb.size * 100)}%` : '',
       ].filter(Boolean).join(' · ')
       : none,
     tone: trendTone,
@@ -2001,7 +2001,7 @@ function overviewHtml(
       : !watch ? none
         : wRows
           ? `${wTotal > wRows ? `${L('top', 'top')} ${wRows} / ${wTotal} · ` : ''}${esc(watch.d ?? '')}`
-          : L('Nothing passed tonight', 'Không mã nào qua đêm nay'),
+          : L('Nothing passed tonight', 'Đêm nay không mã nào qua'),
     tone: watchBlocked ? 'var(--danger)' : wRows ? 'var(--accent)' : undefined,
   };
 
@@ -2029,12 +2029,12 @@ function overviewHtml(
 
   const statusTile: OvTile = {
     id: 'status',
-    value: loadError ? L('Unreachable', 'Không đọc được')
+    value: loadError ? L('Unreachable', 'Không kết nối được')
       : notes.length ? `${notes.length} ${t('scan.issues')}`
         : status ? t('scan.ok') : '—',
     sub: status?.beat?.session
       ? `${esc(status.beat.session)}${status.beat.universe ? ` · ${status.beat.universe} ${L('names', 'mã')}` : ''}`
-      : status ? L('Bridge answering', 'Cầu nối đang trả lời') : none,
+      : status ? L('Bridge answering', 'Bridge đang phản hồi') : none,
     tone: loadError ? 'var(--danger)' : notes.length ? 'var(--warn)' : status ? 'var(--up)' : undefined,
   };
 
@@ -2059,13 +2059,13 @@ function connectHtml(): string {
   const steps: [string, string, string][] = [
     ['🔑', L('Set the access code', 'Đặt mã truy cập'),
       L('The same code as sync — the ☁️ box. It is the only credential this page uses.',
-        'Cùng mã với đồng bộ — ô ☁️. Đây là thông tin đăng nhập duy nhất trang này dùng.')],
-    ['🖥️', L('The VM pushes snapshots', 'VM đẩy bản chụp lên'),
+        'Cùng mã với sync — ô ☁️. Trang này không cần đăng nhập gì khác.')],
+    ['🖥️', L('The VM pushes snapshots', 'VM đẩy snapshot lên'),
       L('Cron on the Oracle VM runs the scanner and pushes JSON out. Nothing connects in.',
-        'Cron trên Oracle VM chạy scanner rồi đẩy JSON ra. Không có kết nối nào đi vào.')],
-    ['📡', L('This page reads them', 'Trang này đọc chúng'),
+        'Cron trên Oracle VM chạy Scanner rồi đẩy JSON ra. Không có kết nối nào chiều vào.')],
+    ['📡', L('This page reads them', 'Trang này đọc dữ liệu đó'),
       L('Regime, sectors, the watch list with plans, the nightly run, alerts — read-only.',
-        'Bối cảnh, ngành, watch list kèm kế hoạch, chuỗi chạy đêm, cảnh báo — chỉ đọc.')],
+        'Bối cảnh, ngành, Watchlist kèm kế hoạch, các lần chạy đêm, cảnh báo — chỉ đọc.')],
   ];
   return `<div class="card pg-panel scan-connect">
     <div class="scan-connect-steps">${steps.map(([ic, h, p], i) => `

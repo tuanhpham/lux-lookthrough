@@ -99,7 +99,7 @@ describe('gateWords', () => {
     // With no Setup chosen there is nothing to read, so "read the plan above" would point at
     // an empty panel. The line has to name the field that would produce one.
     expect(gateWords('ack', false, false)).toMatch(/Setup/);
-    expect(gateWords('ack', false, true)).toMatch(/thiết lập/i);
+    expect(gateWords('ack', false, true)).toMatch(/Loại setup/);
     expect(gateWords('ack', true, false)).toMatch(/plan above/i);
   });
 

@@ -447,11 +447,11 @@ function renderStatus(): void {
       ${!stale
         ? updatedAtLabel(current.at, lang)
         : mayResweep
-          ? (lang === 'vi' ? `Ảnh chụp ngày ${current.builtOn} — đang làm mới…`
+          ? (lang === 'vi' ? `Dữ liệu ngày ${current.builtOn} — đang cập nhật…`
                            : `Snapshot from ${current.builtOn} — refreshing…`)
           // Already swept today: say so plainly instead of promising a refresh
           // that will not come. Refresh above is the way to force one.
-          : (lang === 'vi' ? `Ảnh chụp ngày ${current.builtOn} — đã quét hôm nay, bấm ↻ để quét lại`
+          : (lang === 'vi' ? `Dữ liệu ngày ${current.builtOn} — đã quét hôm nay, bấm ↻ để quét lại`
                            : `Snapshot from ${current.builtOn} — already swept today; use ↻ to force`)
       }${gapNote}
     </p>`;
@@ -501,11 +501,11 @@ function renderRisk(): void {
   // said what the number was divided by.
   const lang = getLang();
   const basis = lang === 'vi'
-    ? `Tính trên tổng vốn ${fmtBig(exp.totalCapital)} của tất cả tài khoản (giá vốn + tiền mặt).`
+    ? `Tính trên tổng vốn ${fmtBig(exp.totalCapital)} của mọi tài khoản (giá vốn + tiền mặt).`
     : `Against total capital of ${fmtBig(exp.totalCapital)} across all accounts (cost basis + cash).`;
   const fxNote = exp.mixedCurrency
     ? `<br><span style="color:#ffb648">⚠ ${lang === 'vi'
-        ? 'Các tài khoản dùng nhiều loại tiền khác nhau — số tiền được cộng thẳng, chưa quy đổi.'
+        ? 'Các tài khoản dùng nhiều loại tiền — đang cộng thẳng, chưa quy đổi.'
         : 'Accounts use different currencies — amounts are summed without conversion.'}</span>`
     : '';
 

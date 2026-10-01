@@ -40,7 +40,7 @@ export function renderAbout(onDiscover?: (trigger?: Element) => void): void {
             <span class="cl-orb-ring" aria-hidden="true"></span>
             <span class="cl-orb-core"><b>${t('story.discover')}</b>${arrow}</span>
           </button>
-          <p class="sl-exit-cap">${getLang() === 'vi' ? 'Hết · tiếp theo là nền tảng' : 'The end · the platform is next'}</p>
+          <p class="sl-exit-cap">${getLang() === 'vi' ? 'Hết · tiếp theo: nền tảng' : 'The end · the platform is next'}</p>
         </div>` : ''}
       </section>
     </div>`;

@@ -103,7 +103,7 @@ function levelsLine(c: CriteriaPromptContext, vi: boolean): string {
 function measuredBlock(c: CriteriaPromptContext, vi: boolean): string {
   if (!c.measured?.length) return '';
   const head = vi
-    ? 'ỨNG DỤNG ĐÃ TỰ ĐO ĐƯỢC (từ dữ liệu giá đến hết ngày trên — nếu bạn thấy khác, hãy nói rõ)'
+    ? 'APP ĐÃ TỰ ĐO (từ dữ liệu giá tính đến ngày trên — nếu bạn thấy khác, cứ nói thẳng)'
     : 'WHAT THE APP MEASURED ITSELF (from price data up to that date — if you find otherwise, say so)';
   const lines = c.measured.map(
     (m) => `  ${m.met ? '[YES]' : '[NO ]'} ${m.label}${m.measured ? ` — ${m.measured}` : ''}`,
@@ -170,51 +170,51 @@ point against it, and what would have made the answer clearer. Plain prose, no b
 - Educational analysis of a past decision, not investment advice.`;
 
 const VI = (c: CriteriaPromptContext): string => `# VAI TRÒ
-Bạn là trợ lý nghiên cứu theo trường phái O'Neil (CAN SLIM) / Minervini. Tôi đang dựng lại một
-quyết định giao dịch đúng như nó ở một ngày cụ thể, và tôi cần bạn trả lời những tiêu chí
-KHÔNG thể đọc ra từ biểu đồ giá, DỰA TRÊN NGUỒN THẬT.
+Bạn là trợ lý nghiên cứu theo trường phái O'Neil (CAN SLIM) / Minervini. Tôi đang xem lại một
+quyết định giao dịch đúng như bối cảnh tại một ngày cụ thể, và cần bạn trả lời các tiêu chí
+KHÔNG đọc được từ chart giá, DỰA TRÊN NGUỒN THẬT.
 
 # GIAO DỊCH
 ${c.symbol.toUpperCase()}${c.setup ? ` · ${c.setup}` : ''} · ngày quyết định **${c.date}**
-${levelsLine(c, true) ? `Các mức tôi dự định: ${levelsLine(c, true)}\n` : ''}${
+${levelsLine(c, true) ? `Các mức giá tôi định đặt: ${levelsLine(c, true)}\n` : ''}${
   c.grade || fin(c.score)
-    ? `Bảng tiêu chí của tôi khi chưa có các câu trả lời này: ${c.grade ?? 'chưa xếp hạng'}${fin(c.score) ? ` (${Math.round(c.score)}/100)` : ''}${fin(c.unknownWeight) && c.unknownWeight > 0 ? `, còn ${c.unknownWeight} điểm trọng số chưa trả lời` : ''}\n`
+    ? `Checklist của tôi khi chưa có các câu trả lời này: ${c.grade ?? 'chưa xếp hạng'}${fin(c.score) ? ` (${Math.round(c.score)}/100)` : ''}${fin(c.unknownWeight) && c.unknownWeight > 0 ? `, còn ${c.unknownWeight} điểm trọng số chưa trả lời` : ''}\n`
     : ''
 }
 # MỐC CHẶN THỜI GIAN — QUY TẮC QUAN TRỌNG NHẤT
-Chỉ dùng thông tin đã tồn tại VÀO hoặc TRƯỚC ngày ${c.date}. Báo cáo quý công bố sau ngày đó,
-diễn biến giá sau đó, khuyến nghị analyst sau đó, tin sau đó: đều không được dùng, dù trông có
-liên quan đến mấy. Nếu bằng chứng duy nhất bạn tìm được có ngày sau ${c.date}, đừng dùng nó để
-trả lời — hãy ghi "chỉ tìm thấy bằng chứng sau ngày đó" và trả lời UNKNOWN. Nhìn lại bằng kết
-quả đã biết là thứ duy nhất làm bài tập này trở nên vô nghĩa.
+Chỉ dùng thông tin đã có TRONG hoặc TRƯỚC ngày ${c.date}. Báo cáo quý công bố sau ngày đó,
+diễn biến giá về sau, khuyến nghị analyst về sau, tin tức về sau: tuyệt đối không dùng, dù trông
+liên quan đến đâu. Nếu bằng chứng duy nhất bạn tìm được có ngày sau ${c.date}, đừng dùng nó để
+trả lời — ghi "chỉ tìm thấy bằng chứng sau ngày đó" và trả lời UNKNOWN. Biết trước kết quả rồi
+mới nhìn lại là điều duy nhất khiến bài tập này mất hết ý nghĩa.
 
 # QUY TRÌNH
-1. Tra nguồn thật (báo cáo tài chính, thông cáo earnings có ngày trước mốc chặn, hiệu suất
-   ngành trong các tháng trước đó, dữ liệu khối lượng và sở hữu). KHÔNG bịa số.
-2. Mỗi câu trả lời YES, NO hoặc UNKNOWN. UNKNOWN là câu trả lời thật và đáng trọng — nó tốt hơn
-   phỏng đoán, vì phỏng đoán sẽ làm thay đổi cỡ vị thế của tôi.
+1. Tra nguồn thật (báo cáo tài chính, công bố KQKD có ngày trước mốc chặn, diễn biến của
+   ngành trong những tháng trước đó, dữ liệu volume và cơ cấu sở hữu). KHÔNG bịa số.
+2. Mỗi câu trả lời YES, NO hoặc UNKNOWN. UNKNOWN là câu trả lời hợp lệ và đàng hoàng — còn hơn
+   đoán mò, vì đoán mò sẽ làm lệch size vị thế của tôi.
 3. Dẫn bằng chứng: con số, ngày, và nguồn.
 
 # CÁC CÂU HỎI
 ${asksBlock(c, true)}
 ${measuredBlock(c, true)}
-# ĐỊNH DẠNG ĐẦU RA — làm đúng như vậy, ứng dụng sẽ đọc lại tự động
-Trước tiên, mỗi câu hỏi một dòng, giữ nguyên key trong ngoặc vuông:
+# ĐỊNH DẠNG TRẢ LỜI — theo đúng y như dưới, app sẽ tự đọc lại
+Đầu tiên, mỗi câu hỏi một dòng, giữ nguyên key trong ngoặc vuông:
 
 ANSWERS
 [key]: YES|NO|UNKNOWN — một dòng bằng chứng kèm ngày
 
-Sau đó, dưới tiêu đề EXPLANATIONS, mỗi câu hỏi một đoạn ngắn: bạn tìm được gì, số liệu, nguồn,
-và vì sao nó đạt hay không đạt tiêu chí theo đúng ý tác giả đặt ra tiêu chí đó.
+Tiếp theo, dưới tiêu đề EXPLANATIONS, mỗi câu hỏi một đoạn ngắn: bạn tìm được gì, số liệu, nguồn,
+và vì sao nó đạt hay không đạt tiêu chí, hiểu đúng theo ý người đặt ra tiêu chí đó.
 
-Sau đó, dưới tiêu đề SUMMARY, 3–6 câu để tôi dán thẳng vào ghi chú kế hoạch: các câu trả lời
-này nói gì về mẫu hình tại ngày ${c.date}, điểm mạnh nhất, điểm đáng lo nhất, và điều gì sẽ làm
-câu trả lời rõ ràng hơn. Viết văn xuôi, không gạch đầu dòng.
+Cuối cùng, dưới tiêu đề SUMMARY, 3–6 câu để tôi dán thẳng vào ghi chú kế hoạch: các câu trả lời
+này nói gì về setup tại ngày ${c.date}, điểm ủng hộ mạnh nhất, điểm phản bác mạnh nhất, và cần
+thêm gì thì câu trả lời mới rõ hơn. Viết thành đoạn văn, không gạch đầu dòng.
 
 # NGUYÊN TẮC
-- Số thật hoặc không có gì. "Không tìm thấy dữ liệu" tốt hơn một con số nghe hợp lý.
-- Hãy đóng vai người hoài nghi: nêu điều phản đối giao dịch, đừng viết bài bào chữa cho nó.
-- Đây là phân tích giáo dục về một quyết định trong quá khứ, không phải khuyến nghị đầu tư.`;
+- Có số thật thì dùng, không có thì thôi. "Không tìm thấy dữ liệu" còn hơn một con số nghe có vẻ hợp lý.
+- Đóng vai người hoài nghi: chỉ ra điều chống lại giao dịch này, đừng viết bài bênh vực nó.
+- Đây là phân tích mang tính học hỏi về một quyết định đã qua, không phải khuyến nghị đầu tư.`;
 
 /** Build the prompt for the questions the app cannot answer itself. */
 export function buildCriteriaPrompt(

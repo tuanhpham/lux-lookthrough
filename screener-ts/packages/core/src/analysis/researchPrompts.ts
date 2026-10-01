@@ -91,7 +91,7 @@ export interface ResearchPrompt {
 const TITLES: Record<ResearchPromptId, Record<PromptLang, string>> = {
   market: {
     en: 'Market context & impact',
-    vi: 'Bối cảnh thị trường & mức ảnh hưởng',
+    vi: 'Bối cảnh thị trường & tác động',
   },
   events: {
     en: 'Major events & catalysts',
@@ -99,7 +99,7 @@ const TITLES: Record<ResearchPromptId, Record<PromptLang, string>> = {
   },
   accumulation: {
     en: 'Accumulation & institutional participation',
-    vi: 'Dấu hiệu tích lũy & tổ chức lớn tham gia',
+    vi: 'Tích lũy & dòng tiền tổ chức',
   },
   fundamentals: {
     en: 'Fundamental analysis',
@@ -110,19 +110,19 @@ const TITLES: Record<ResearchPromptId, Record<PromptLang, string>> = {
 const GOALS: Record<ResearchPromptId, Record<PromptLang, string>> = {
   market: {
     en: 'Decide whether the current market lets you take this trade at all.',
-    vi: 'Quyết định xem thị trường hiện tại có cho phép vào lệnh này hay không.',
+    vi: 'Xem thị trường lúc này có cho phép vào lệnh này không.',
   },
   events: {
     en: 'Find the dated events that could move it before your thesis plays out.',
-    vi: 'Tìm các sự kiện có ngày cụ thể có thể tác động trước khi luận điểm kịp diễn ra.',
+    vi: 'Tìm các sự kiện có ngày cụ thể có thể ập đến trước khi luận điểm kịp thành hình.',
   },
   accumulation: {
     en: 'Judge whether large money is building a position or leaving.',
-    vi: 'Đánh giá xem dòng tiền lớn đang gom vào hay đang rút ra.',
+    vi: 'Xem dòng tiền lớn đang gom vào hay đang rút ra.',
   },
   fundamentals: {
     en: 'Check the business actually justifies the technical setup.',
-    vi: 'Kiểm tra doanh nghiệp có thực sự xứng với thiết lập kỹ thuật hay không.',
+    vi: 'Kiểm tra doanh nghiệp có thật sự xứng với setup kỹ thuật không.',
   },
 };
 
@@ -174,10 +174,10 @@ export function contextBlock(c: StockPromptContext, lang: PromptLang = 'en'): st
   const price = n(c.price);
   add(vi ? 'Giá' : 'Price', price === null ? null : `${price}${ccy}`);
   add(vi ? 'Vốn hóa' : 'Market cap', c.marketCap != null ? bigMoney(c.marketCap) : null);
-  add(vi ? 'Trạng thái thị trường' : 'Market regime', c.marketRegime ?? null);
+  add(vi ? 'Trạng thái thị trường (regime)' : 'Market regime', c.marketRegime ?? null);
 
   // ── Technical state (from this app's own scan). ──
-  add(vi ? 'Thiết lập (QM)' : 'Setup (QM)', c.setupType ?? null);
+  add(vi ? 'Setup (QM)' : 'Setup (QM)', c.setupType ?? null);
   add(vi ? 'Điểm chất lượng' : 'Quality score', n(c.qualityScore, 0) === null ? null : `${n(c.qualityScore, 0)}/100`);
   add(
     vi ? 'Bộ lọc xu hướng' : 'Trend filter',
@@ -185,17 +185,17 @@ export function contextBlock(c: StockPromptContext, lang: PromptLang = 'en'): st
   );
   add('Pivot', n(c.pivot));
   add(vi ? 'Khoảng cách tới pivot' : 'Distance to pivot', p(c.distanceToPivotPct));
-  add(vi ? 'Điểm mua / cắt lỗ / mục tiêu' : 'Entry / stop / target',
+  add(vi ? 'Entry / stop / target' : 'Entry / stop / target',
     c.entryPrice != null || c.stopLoss != null || c.targetPrice != null
       ? [n(c.entryPrice), n(c.stopLoss), n(c.targetPrice)].map((x) => x ?? '?').join(' / ')
       : null);
-  add(vi ? 'Nhịp tăng trước nền' : 'Prior advance', p(c.previousAdvancePct));
-  add(vi ? 'Số lần co thắt' : 'VCP contractions', c.vcpContractions == null ? null : String(c.vcpContractions));
-  add(vi ? 'Độ sâu nền' : 'Base depth', p(c.baseDepthPct));
-  add(vi ? 'Khối lượng cạn' : 'Volume contraction', p(c.volumeContractionPct));
+  add(vi ? 'Nhịp tăng trước base' : 'Prior advance', p(c.previousAdvancePct));
+  add(vi ? 'Số nhịp co VCP' : 'VCP contractions', c.vcpContractions == null ? null : String(c.vcpContractions));
+  add(vi ? 'Độ sâu base' : 'Base depth', p(c.baseDepthPct));
+  add(vi ? 'Volume co lại' : 'Volume contraction', p(c.volumeContractionPct));
   add(vi ? 'ATR co lại' : 'ATR contraction', p(c.atrContractionPct));
   add(vi ? 'Điểm động lượng' : 'Momentum score', n(c.momentumScore, 0) === null ? null : `${n(c.momentumScore, 0)}/100`);
-  add(vi ? 'Sức mạnh tương đối' : 'Relative strength', n(c.relativeStrength, 1));
+  add(vi ? 'Sức mạnh tương đối (RS)' : 'Relative strength', n(c.relativeStrength, 1));
   const rets = [c.return1mPct, c.return3mPct, c.return6mPct];
   add(
     vi ? 'Lợi nhuận 1M / 3M / 6M' : 'Returns 1M / 3M / 6M',
@@ -217,14 +217,14 @@ export function contextBlock(c: StockPromptContext, lang: PromptLang = 'en'): st
       ? vi ? ' (ngày DỰ KIẾN, có thể thay đổi)' : ' (ESTIMATED date, may shift)'
       : '';
     const what = c.nextEventTitle ?? c.nextEventKind ?? (vi ? 'sự kiện' : 'event');
-    add(vi ? 'Sự kiện gần nhất' : 'Next catalyst', `${c.nextEventDate} — ${what}${est}`);
+    add(vi ? 'Catalyst sắp tới' : 'Next catalyst', `${c.nextEventDate} — ${what}${est}`);
   }
 
   const header = vi
-    ? 'DỮ LIỆU ĐO ĐƯỢC (từ hệ thống của tôi — hãy dùng đúng những số này, đừng tự thay):'
+    ? 'DỮ LIỆU ĐO ĐƯỢC (từ hệ thống của tôi — dùng đúng các số này, đừng tự thay):'
     : 'MEASURED DATA (from my own system — use these exact numbers, do not substitute your own):';
   const footer = vi
-    ? 'Bất kỳ chỉ số nào không có trong danh sách trên là KHÔNG BIẾT. Đừng suy đoán — hãy nói rõ là bạn cần nó.'
+    ? 'Chỉ số nào không có trong danh sách trên thì coi là KHÔNG BIẾT. Đừng đoán — cứ nói rõ là bạn cần nó.'
     : 'Any metric not listed above is UNKNOWN. Do not invent it — say you need it.';
 
   return `${header}\n${L.join('\n')}\n${footer}`;
@@ -234,9 +234,9 @@ export function contextBlock(c: StockPromptContext, lang: PromptLang = 'en'): st
 function tail(lang: PromptLang): string {
   return lang === 'vi'
     ? `\nYêu cầu về cách trả lời:
-- Nêu rõ điều gì bạn KHÔNG kiểm chứng được, và mốc thời gian của thông tin bạn dùng.
-- Kết thúc bằng một dòng: "Điều sẽ chứng minh tôi sai:" — nêu bằng chứng cụ thể sẽ phủ định kết luận của bạn.
-- Không đưa lời khuyên mua/bán. Tôi tự ra quyết định; bạn cung cấp bằng chứng và rủi ro.`
+- Nói rõ điều gì bạn KHÔNG kiểm chứng được, và thông tin bạn dùng tính đến ngày nào.
+- Kết thúc bằng một dòng: "Điều sẽ chứng minh tôi sai:" — nêu bằng chứng cụ thể sẽ lật ngược kết luận của bạn.
+- Không khuyên mua/bán. Tôi tự quyết; bạn đưa bằng chứng và rủi ro.`
     : `\nHow to answer:
 - State explicitly what you could NOT verify, and the as-of date of anything you assert.
 - End with one line: "What would prove me wrong:" — the specific evidence that would overturn your conclusion.
@@ -251,12 +251,12 @@ const BODIES: Record<ResearchPromptId, Record<PromptLang, string>> = {
 2. How does that regime specifically affect THIS stock's sector and this kind of setup (a breakout/continuation long)? Say whether breakouts in this tape have been working or failing.
 3. Name the two or three macro events in the next month most likely to override anything stock-specific here.
 4. Conclude with a position-sizing implication: full size, half size, or stand aside — and the single market condition that would change that answer.`,
-    vi: `Bạn là chuyên gia chiến lược thị trường. Tôi đang đánh giá một ứng viên mua (long) và cần biết bối cảnh thị trường HIỆN TẠI có cho phép vào lệnh hay không.
+    vi: `Bạn là chuyên gia chiến lược thị trường. Tôi đang cân nhắc một mã để mua (long) và cần biết bối cảnh thị trường HIỆN TẠI có cho phép vào lệnh không.
 
-1. Mô tả trạng thái hiện tại của thị trường chứng khoán Mỹ: xu hướng chỉ số so với MA50/MA200, độ rộng, biến động, và vị trí trong chu kỳ lãi suất/lạm phát. Nêu rõ thông tin của bạn cập nhật đến thời điểm nào.
-2. Trạng thái đó ảnh hưởng cụ thể thế nào tới NGÀNH của cổ phiếu này và tới dạng thiết lập này (mua phá vỡ / tiếp diễn xu hướng)? Nói rõ các điểm phá vỡ trong giai đoạn này đang hiệu quả hay đang thất bại.
-3. Nêu hai đến ba sự kiện vĩ mô trong tháng tới có khả năng lấn át mọi yếu tố riêng của cổ phiếu này.
-4. Kết luận bằng hàm ý về khối lượng vị thế: vào đủ, vào một nửa, hay đứng ngoài — và một điều kiện thị trường duy nhất sẽ làm thay đổi câu trả lời đó.`,
+1. Thị trường chứng khoán Mỹ đang ở trạng thái nào: chỉ số so với MA50/MA200, độ rộng (breadth), biến động, và đang ở đâu trong chu kỳ lãi suất/lạm phát. Nói rõ thông tin của bạn tính đến thời điểm nào.
+2. Trạng thái đó tác động cụ thể ra sao tới NGÀNH của mã này và tới kiểu setup này (mua breakout / đi theo xu hướng)? Giai đoạn này breakout đang chạy được hay đang fail?
+3. Nêu hai đến ba sự kiện vĩ mô trong tháng tới có thể lấn át mọi yếu tố riêng của mã này.
+4. Kết luận bằng hàm ý về size: vào đủ, vào một nửa, hay đứng ngoài — và đúng một điều kiện thị trường sẽ làm đổi câu trả lời đó.`,
   },
   events: {
     en: `You are an event-driven analyst. For the stock below, map the dated catalysts that could move it over the next one to three months.
@@ -266,13 +266,13 @@ const BODIES: Record<ResearchPromptId, Record<PromptLang, string>> = {
 3. Flag any event that falls BEFORE my planned entry has time to work — those are the ones that turn a technical setup into a coin flip.
 4. Note anything already priced in versus genuinely unexpected, and how you can tell the difference.
 5. If my measured "next catalyst" below is missing, wrong, or stale, say so plainly.`,
-    vi: `Bạn là chuyên gia phân tích theo sự kiện. Với cổ phiếu dưới đây, hãy lập bản đồ các chất xúc tác có ngày cụ thể có thể tác động trong một đến ba tháng tới.
+    vi: `Bạn là chuyên gia phân tích sự kiện. Với mã dưới đây, hãy liệt kê các catalyst có ngày cụ thể có thể tác động trong một đến ba tháng tới.
 
-1. Liệt kê từng sự kiện đã biết hoặc dự kiến kèm ngày, và nói rõ ngày đó đã xác nhận hay chỉ là dự kiến: báo cáo lợi nhuận, cập nhật hướng dẫn kinh doanh, ngày dành cho nhà đầu tư, ra mắt sản phẩm, các mốc pháp lý hoặc thử nghiệm, hết hạn khóa cổ phiếu, thay đổi rổ chỉ số, phán quyết hợp đồng hoặc pháp lý.
-2. Với mỗi sự kiện, nêu hướng tác động khả dĩ và biên độ dao động thường thấy, và cho biết sự kiện đó giải tỏa hay chỉ trì hoãn sự bất định.
-3. Đánh dấu những sự kiện rơi vào TRƯỚC khi kế hoạch vào lệnh của tôi kịp phát huy — đó chính là những sự kiện biến một thiết lập kỹ thuật thành trò tung đồng xu.
-4. Chỉ ra điều gì đã được phản ánh vào giá và điều gì thực sự bất ngờ, cùng cách bạn phân biệt hai loại đó.
-5. Nếu "sự kiện gần nhất" tôi đo được ở dưới bị thiếu, sai hoặc đã cũ, hãy nói thẳng.`,
+1. Liệt kê từng sự kiện đã biết hoặc dự kiến kèm ngày, ghi rõ ngày đã xác nhận hay mới là dự kiến: KQKD, cập nhật guidance, investor day, ra mắt sản phẩm, mốc pháp lý hoặc thử nghiệm, hết hạn lock-up, thay đổi rổ chỉ số, phán quyết hợp đồng hoặc pháp lý.
+2. Với mỗi sự kiện, nêu chiều tác động có thể xảy ra và biên độ dao động thường gặp, và cho biết nó gỡ bỏ hay chỉ hoãn lại sự bất định.
+3. Đánh dấu các sự kiện rơi vào TRƯỚC khi kế hoạch vào lệnh của tôi kịp phát huy — chính chúng biến một setup kỹ thuật thành trò tung đồng xu.
+4. Chỉ ra điều gì giá đã phản ánh và điều gì thật sự bất ngờ, và bạn phân biệt hai loại đó bằng cách nào.
+5. Nếu "Catalyst sắp tới" tôi đo được ở dưới bị thiếu, sai hoặc đã cũ, cứ nói thẳng.`,
   },
   accumulation: {
     en: `You are a market-structure analyst. Judge whether large, patient money is BUILDING a position in this stock or exiting it.
@@ -282,13 +282,13 @@ const BODIES: Record<ResearchPromptId, Record<PromptLang, string>> = {
 3. Cover institutional evidence you can speak to: ownership trends, notable holders adding or trimming, index or fund inclusion, insider transactions, short interest and days-to-cover, and what each would look like if the thesis were wrong.
 4. Distinguish accumulation from a bear-market rally trap or a stock being marked up ahead of supply hitting.
 5. Give a single verdict — accumulation / neutral / distribution — plus the one piece of tape evidence you would watch next to confirm it.`,
-    vi: `Bạn là chuyên gia phân tích cấu trúc thị trường. Hãy đánh giá xem dòng tiền lớn, kiên nhẫn đang GOM cổ phiếu này hay đang rút ra.
+    vi: `Bạn là chuyên gia phân tích cấu trúc thị trường. Hãy đánh giá dòng tiền lớn, kiên nhẫn đang GOM mã này hay đang rút ra.
 
-1. Đọc bằng chứng cung/cầu: hành vi khối lượng trong ngày tăng so với ngày giảm, khối lượng có cạn dần khi nền giá siết lại hay không, các ngày pocket pivot hoặc thử phá vỡ với khối lượng lớn, và các nhịp điều chỉnh diễn ra với khối lượng giảm (lành mạnh) hay khối lượng tăng (phân phối).
-2. Diễn giải các số liệu co thắt tôi đo được ở dưới. Nói rõ chúng phù hợp với tích lũy hay chỉ đơn thuần là thiếu quan tâm — một cổ phiếu ít giao dịch và một cổ phiếu đang được gom trông rất giống nhau trên đồ thị giá, và khác nhau ở khối lượng.
-3. Trình bày các bằng chứng về tổ chức mà bạn nắm được: xu hướng sở hữu, các quỹ lớn mua thêm hay giảm tỷ trọng, việc được thêm vào chỉ số hoặc quỹ, giao dịch nội bộ, tỷ lệ bán khống và số ngày để mua lại, và mỗi yếu tố sẽ trông thế nào nếu luận điểm là sai.
-4. Phân biệt tích lũy thật với bẫy hồi phục trong thị trường giảm, hoặc với việc giá bị đẩy lên trước khi lượng cung lớn được xả ra.
-5. Đưa ra một kết luận duy nhất — tích lũy / trung tính / phân phối — kèm một bằng chứng trên bảng giá bạn sẽ theo dõi tiếp để xác nhận.`,
+1. Đọc cung/cầu: volume ngày tăng so với ngày giảm, volume có cạn dần khi base siết lại không, các phiên pocket pivot hoặc thử breakout với volume lớn, và các nhịp pullback đi kèm volume giảm (lành mạnh) hay volume tăng (phân phối).
+2. Diễn giải các số co thắt tôi đo được ở dưới. Chúng khớp với tích lũy hay chỉ đơn giản là không ai quan tâm — một mã ít giao dịch và một mã đang được gom trông rất giống nhau trên chart giá, chỉ khác nhau ở volume.
+3. Đưa ra các bằng chứng về tổ chức mà bạn biết: xu hướng sở hữu, các quỹ lớn mua thêm hay giảm tỷ trọng, mã được thêm vào chỉ số hoặc quỹ, giao dịch nội bộ, short interest và days to cover, và mỗi yếu tố sẽ trông ra sao nếu luận điểm sai.
+4. Phân biệt tích lũy thật với bull trap trong thị trường giảm, hoặc với cảnh giá bị kéo lên trước khi một lượng cung lớn được xả ra.
+5. Chốt đúng một kết luận — tích lũy / trung tính / phân phối — kèm một tín hiệu trên bảng giá bạn sẽ theo dõi tiếp để xác nhận.`,
   },
   fundamentals: {
     en: `You are an equity analyst. Check whether the underlying business justifies the technical setup below — a chart can look perfect on a deteriorating company, and that is how a breakout becomes a failed breakout.
@@ -299,14 +299,14 @@ const BODIES: Record<ResearchPromptId, Record<PromptLang, string>> = {
 4. Balance sheet and durability: debt, interest cover, dilution, customer or supplier concentration, and competitive position.
 5. The bear case, argued properly — the three most credible reasons this falls 30%, not strawmen.
 6. Reconcile the two views: does the fundamental picture SUPPORT the measured setup, merely tolerate it, or contradict it?`,
-    vi: `Bạn là chuyên viên phân tích cổ phiếu. Hãy kiểm tra xem doanh nghiệp phía sau có xứng với thiết lập kỹ thuật dưới đây hay không — đồ thị có thể rất đẹp trên một công ty đang xấu đi, và đó chính là cách một điểm phá vỡ trở thành phá vỡ thất bại.
+    vi: `Bạn là chuyên viên phân tích cổ phiếu. Hãy kiểm tra doanh nghiệp phía sau có xứng với setup kỹ thuật dưới đây không — chart có thể rất đẹp trong khi công ty đang xấu đi, và breakout fail thường bắt đầu đúng từ đó.
 
-1. Tóm tắt doanh nghiệp: bán gì, cho ai, và tiền thực sự đến từ đâu.
-2. Tăng trưởng và khả năng sinh lời: xu hướng doanh thu và EPS trong các quý gần nhất, tăng trưởng đang tăng tốc hay chậm lại, hướng đi của biên lợi nhuận, và dòng tiền thực so với lợi nhuận báo cáo.
-3. Định giá trong bối cảnh: hệ số định giá so với chính lịch sử công ty và so với các đối thủ, và mức giá hiện tại đang hàm ý tốc độ tăng trưởng nào. Nói rõ giá đã phản ánh sẵn thành công hay chưa.
-4. Bảng cân đối và độ bền: nợ, khả năng trả lãi, pha loãng cổ phiếu, mức độ tập trung khách hàng hoặc nhà cung cấp, và vị thế cạnh tranh.
-5. Luận điểm ngược (bear case) một cách nghiêm túc — ba lý do đáng tin nhất khiến cổ phiếu này giảm 30%, không phải những lý do dựng lên cho dễ bác bỏ.
-6. Đối chiếu hai góc nhìn: bức tranh cơ bản CỦNG CỐ thiết lập đã đo được, chỉ tạm chấp nhận được, hay đi ngược lại nó?`,
+1. Doanh nghiệp tóm gọn: bán gì, cho ai, và tiền thật sự đến từ đâu.
+2. Tăng trưởng và khả năng sinh lời: doanh thu và EPS các quý gần nhất đi thế nào, tăng trưởng đang tăng tốc hay chậm lại, biên lợi nhuận đi lên hay đi xuống, và dòng tiền thực so với lợi nhuận báo cáo.
+3. Định giá trong bối cảnh: hệ số định giá so với lịch sử của chính công ty và so với đối thủ, và giá hiện tại đang ngầm định tốc độ tăng trưởng nào. Giá đã phản ánh sẵn kịch bản thành công chưa?
+4. Bảng cân đối và sức bền: nợ, khả năng trả lãi, pha loãng cổ phiếu, mức phụ thuộc vào vài khách hàng hoặc nhà cung cấp, và vị thế cạnh tranh.
+5. Bear case nghiêm túc — ba lý do đáng tin nhất khiến mã này giảm 30%, không phải mấy lý do dựng lên cho dễ bác.
+6. Ghép hai góc nhìn: bức tranh cơ bản CỦNG CỐ setup đã đo được, tạm chấp nhận được, hay đi ngược lại nó?`,
   },
 };
 

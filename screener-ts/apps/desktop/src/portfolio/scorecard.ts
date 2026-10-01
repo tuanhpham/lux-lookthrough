@@ -29,7 +29,7 @@ export interface ScorecardWords {
 
 export function scorecardWords(vi: boolean): ScorecardWords {
   return vi
-    ? { title: 'Bảng tiêu chí', weight: 'Trọng số', measured: 'Đo tự động', manual: 'Tự trả lời', per: 'Theo' }
+    ? { title: 'Bảng tiêu chí', weight: 'Trọng số', measured: 'Tự đo', manual: 'Tự trả lời', per: 'Theo' }
     : { title: 'Scorecard', weight: 'Weight', measured: 'Measured', manual: 'Answered by hand', per: 'Per' };
 }
 

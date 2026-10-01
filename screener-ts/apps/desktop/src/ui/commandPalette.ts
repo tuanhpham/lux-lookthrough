@@ -93,15 +93,15 @@ export function openPalette(src: PaletteSource, initial = ''): void {
       <div class="cp-search">
         <svg class="cp-glass" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input class="cp-input" type="text" autocomplete="off" spellcheck="false"
-          placeholder="${vi ? 'Tìm trang, mục hướng dẫn hoặc thao tác…' : 'Search pages, guide sections or actions…'}" />
+          placeholder="${vi ? 'Tìm trang, mục hướng dẫn hay thao tác…' : 'Search pages, guide sections or actions…'}" />
         <kbd class="cp-esc">Esc</kbd>
       </div>
       <div class="cp-list" role="listbox"></div>
       <div class="cp-foot">
-        <span><kbd>↑</kbd><kbd>↓</kbd> ${vi ? 'chọn' : 'move'}</span>
+        <span><kbd>↑</kbd><kbd>↓</kbd> ${vi ? 'di chuyển' : 'move'}</span>
         <span><kbd>↵</kbd> ${vi ? 'mở' : 'open'}</span>
         <span><kbd>Esc</kbd> ${vi ? 'đóng' : 'close'}</span>
-        <span class="cp-foot-r">${isMac ? '⌘' : 'Ctrl'} K ${vi ? 'mở lại từ bất kỳ đâu' : 'opens this from anywhere'}</span>
+        <span class="cp-foot-r">${isMac ? '⌘' : 'Ctrl'} K ${vi ? 'mở từ bất cứ đâu' : 'opens this from anywhere'}</span>
       </div>
     </div>`;
   document.body.appendChild(host);
@@ -126,7 +126,7 @@ export function openPalette(src: PaletteSource, initial = ''): void {
     shown = all;
     active = Math.min(active, Math.max(0, shown.length - 1));
     if (!shown.length) {
-      list.innerHTML = `<div class="cp-empty">${vi ? 'Không tìm thấy gì cho' : 'Nothing found for'} “${esc(q)}”</div>`;
+      list.innerHTML = `<div class="cp-empty">${vi ? 'Không có kết quả cho' : 'Nothing found for'} “${esc(q)}”</div>`;
       return;
     }
     // Searching ranks across groups, so the group becomes a tag on each row instead of

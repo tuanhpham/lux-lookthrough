@@ -372,7 +372,7 @@ export function mountStickyToc(root: HTMLElement, lang: 'en' | 'vi'): void {
     for (const m of markBtns) {
       m.hidden = false;
       m.textContent = `↩ ${savedEntry.label}`;
-      m.title = L('Pick up where you left off', 'Đọc tiếp từ chỗ đã dừng');
+      m.title = L('Pick up where you left off', 'Đọc tiếp chỗ đang dở');
       m.addEventListener('click', () => {
         hideMarks();
         goTo(savedEntry.id);

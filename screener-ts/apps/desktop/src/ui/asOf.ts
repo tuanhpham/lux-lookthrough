@@ -57,8 +57,8 @@ export function asOfControlsHtml(scope: AsOfScope): string {
     <div class="asof-row">
       <span class="muted" style="font-size:12px">${vi ? '📅 Tính đến ngày' : '📅 As of date'}:</span>
       <input type="date" class="field asof-date" max="${todayIso()}" value="${s.date ?? ''}" style="width:150px" />
-      <button class="range-btn asof-live ${live ? 'active' : ''}" title="${vi ? 'Dữ liệu thời gian thực' : 'Live / real-time'}">${vi ? 'Trực tiếp' : 'Live'}</button>
-      <span class="muted" style="font-size:12px;margin-left:8px">${vi ? 'Lịch sử' : 'History'}:</span>
+      <button class="range-btn asof-live ${live ? 'active' : ''}" title="${vi ? 'Dữ liệu realtime' : 'Live / real-time'}">${vi ? 'Trực tiếp' : 'Live'}</button>
+      <span class="muted" style="font-size:12px;margin-left:8px">${vi ? 'Quá khứ' : 'History'}:</span>
       <div class="seg">${years
         .map(
           (y) =>
@@ -68,7 +68,7 @@ export function asOfControlsHtml(scope: AsOfScope): string {
         )
         .join('')}</div>
       <span class="asof-flag ${live ? 'hidden' : ''}" style="margin-left:auto">${
-        vi ? 'Chế độ lịch sử' : 'Historical mode'
+        vi ? 'Chế độ xem quá khứ' : 'Historical mode'
       }</span>
     </div>`;
 }

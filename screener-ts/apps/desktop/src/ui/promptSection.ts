@@ -16,6 +16,8 @@ import { buildResearchPrompts, type ResearchPrompt, type StockPromptContext } fr
 import type { AppContext } from '../context.js';
 import { t, getLang } from './i18n.js';
 import { askChatGpt, copyToClipboard, gptBadgeHtml, wireGptBadge } from './askChatGpt.js';
+import { askInChat } from './chatPanel.js';
+import { lblOf, promptActsHtml } from './promptActions.js';
 
 export { loadGptUrl } from './askChatGpt.js';
 
@@ -48,7 +50,7 @@ export function renderPromptSection(
         const box = host.querySelector<HTMLElement>(`#prompt-text-${btn.dataset.promptToggle}`);
         if (!box) return;
         const hidden = box.classList.toggle('hidden');
-        btn.textContent = hidden ? t('prompts.show') : t('prompts.hide');
+        lblOf(btn).textContent = hidden ? t('prompts.show') : t('prompts.hide');
       });
     });
 
@@ -66,6 +68,13 @@ export function renderPromptSection(
       });
     });
 
+    host.querySelectorAll<HTMLElement>('[data-prompt-assist]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = prompts[Number(btn.dataset.promptAssist)];
+        if (p) void askInChat(ctx, p.body, `${context.symbol} · ${p.title}`);
+      });
+    });
+
     wireGptBadge(host, ctx, paint);
   };
 
@@ -77,11 +86,12 @@ function promptCardHtml(p: ResearchPrompt, i: number): string {
     <div class="card" style="margin-bottom:10px;padding:12px">
       <div style="font-weight:600;font-size:13px">${i + 1}. ${esc(p.title)}</div>
       <p class="muted" style="margin:4px 0 8px;font-size:12px;line-height:1.5">${esc(p.goal)}</p>
-      <div class="row" style="gap:8px;flex-wrap:wrap">
-        <button class="btn" data-prompt-ask="${i}">${t('prompts.ask')}</button>
-        <button class="btn-outline" data-prompt-copy="${i}">${t('prompts.copy')}</button>
-        <button class="range-btn" data-prompt-toggle="${i}">${t('prompts.show')}</button>
-      </div>
+      ${promptActsHtml({
+        ask: `data-prompt-ask="${i}"`,
+        assistant: `data-prompt-assist="${i}"`,
+        copy: `data-prompt-copy="${i}"`,
+        show: `data-prompt-toggle="${i}"`,
+      })}
       <pre id="prompt-text-${i}" class="hidden" style="white-space:pre-wrap;font-size:11px;line-height:1.5;
         background:var(--surface);border-radius:8px;padding:10px;margin:10px 0 0;max-height:280px;overflow:auto">${esc(p.body)}</pre>
       <p class="muted" style="font-size:10px;margin:8px 0 0;line-height:1.5">${t('prompts.ask.hint')}</p>
