@@ -100,7 +100,7 @@ export function screenerTable(rows: ScreenerRow[], options: ScreenerTableOptions
 
   const retCell = (v: number | null): string => {
     if (v == null) return '—';
-    const color = v >= 0 ? 'var(--accent)' : 'var(--danger)';
+    const color = v >= 0 ? 'var(--up)' : 'var(--danger)';
     return `<span style="color:${color}">${num(v, 1)}%</span>`;
   };
 

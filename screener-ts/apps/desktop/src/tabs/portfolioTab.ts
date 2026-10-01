@@ -905,7 +905,7 @@ const SETUP_TYPES: { value: string; en: string; vi: string }[] = [
 ];
 const RATINGS: ('' | Rating)[] = ['', ...RATING_KEYS];
 const RATING_COLOR: Record<string, string> = {
-  A: 'var(--accent)', B: '#5b8cff', C: 'var(--warn, #ffb648)', D: 'var(--danger)',
+  A: 'var(--up)', B: '#5b8cff', C: 'var(--warn, #ffb648)', D: 'var(--danger)',
 };
 /** Label a setup value in the active language (falls back to the raw value). */
 function setupLabel(v: string | undefined, vi: boolean): string {
@@ -1287,8 +1287,8 @@ function draw(ctx: AppContext): void {
       <div class="stat"><div class="k">${t('pf.stat.contributed')}</div><div class="v">${money(toDisplay(m.contributedCapital), dispSymbol())}${m.netCashFlow !== 0 ? `<span class="muted" style="font-size:11px"> (${money(toDisplay(st.account.initialCapital), dispSymbol())} ${m.netCashFlow > 0 ? '+' : '−'} ${money(toDisplay(Math.abs(m.netCashFlow)), dispSymbol())})</span>` : ''}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.equity')}</div><div class="v">${money(toDisplay(m.equity), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.cash')}</div><div class="v">${money(toDisplay(m.cash), dispSymbol())}</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.pnl')}</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(m.totalPnL), dispSymbol())} (${pct(m.totalPnLPct)})</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.twr')}</div><div class="v" style="color:${m.twrPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(m.twrPct)}<span class="muted" style="font-size:11px"> (${pct(m.twrAnnualizedPct)} ${t('pf.stat.annualized')})</span></div></div>
+      <div class="stat"><div class="k">${t('pf.stat.pnl')}</div><div class="v" style="color:${m.totalPnL >= 0 ? 'var(--up)' : 'var(--danger)'}">${money(toDisplay(m.totalPnL), dispSymbol())} (${pct(m.totalPnLPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.twr')}</div><div class="v" style="color:${m.twrPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(m.twrPct)}<span class="muted" style="font-size:11px"> (${pct(m.twrAnnualizedPct)} ${t('pf.stat.annualized')})</span></div></div>
       <div class="stat"><div class="k">${t('pf.stat.risk')}</div><div class="v">${money(toDisplay(m.totalOpenRiskEur), dispSymbol())} (${pct(m.totalOpenRiskPct)})</div></div>
       <div class="stat"><div class="k">${t('pf.stat.realizedpnl')} / ${t('pf.stat.unrealpnl')}</div><div class="v">${money(toDisplay(m.realizedPnL), dispSymbol())} / ${money(toDisplay(m.unrealizedPnL), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.winrate')}</div><div class="v">${num(m.winRate * 100, 0)}%</div></div>
@@ -1360,7 +1360,7 @@ function draw(ctx: AppContext): void {
               .map(
                 (pos) =>
                   `<tr><td><a href="#" class="link-ticker" data-open="${pos.ticker}"><strong>${pos.ticker}</strong></a></td><td>${pos.shares}</td><td>${dispSymbol()}${num(toDisplay(pos.avgCost))}</td><td>${dispSymbol()}${num(toDisplay(pos.lastPrice))}</td><td>${money(toDisplay(pos.marketValue), dispSymbol())}</td>
-          <td style="color:${pos.unrealizedPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(pos.unrealizedPnL), dispSymbol())} (${pct(pos.unrealizedPnLPct)})</td>
+          <td style="color:${pos.unrealizedPnL >= 0 ? 'var(--up)' : 'var(--danger)'}">${money(toDisplay(pos.unrealizedPnL), dispSymbol())} (${pct(pos.unrealizedPnLPct)})</td>
           <td>${
             pos.riskFree
               ? `<span class="risk-free" title="Stop is at or above entry — capital is no longer at risk. Locked-in profit: ${money(toDisplay(pos.lockedInProfit ?? 0), dispSymbol())}">🔒 ${t('pf.riskfree')}</span>`
@@ -2540,7 +2540,7 @@ function transactionHistoryHtml(st: AccountState): string {
   const delBtn = (kind: string, id: string): string =>
     `<button class="del-btn" title="Delete this transaction" data-del-${kind}="${id}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>`;
   const signed = (v: number, dateForFx: string): string =>
-    `<span style="color:${v >= 0 ? 'var(--accent)' : 'var(--danger)'}">${v >= 0 ? '+' : ''}${money(toDisplay(v, dateForFx), dispSymbol())}</span>`;
+    `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--danger)'}">${v >= 0 ? '+' : ''}${money(toDisplay(v, dateForFx), dispSymbol())}</span>`;
   const vi = getLang() === 'vi';
   // Setup / rating cell: shows the setup label + A–D badge with a pencil to edit
   // (editing writes to the underlying buy lot). Only rows tied to a lot are editable.
@@ -2597,16 +2597,16 @@ function transactionHistoryHtml(st: AccountState): string {
       }
 
       const c = r.status === 'CLOSED' ? 'var(--warn)' : 'var(--accent2)';
-      const pnl = r.pnl == null ? '—' : `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(r.pnl, r.sellDate ?? r.buyDate), dispSymbol())}</span>`;
+      const pnl = r.pnl == null ? '—' : `<span style="color:${r.pnl >= 0 ? 'var(--up)' : 'var(--danger)'}">${money(toDisplay(r.pnl, r.sellDate ?? r.buyDate), dispSymbol())}</span>`;
       // PnL % of the position's own cost basis (return-on-trade).
       const pnlPctCost = r.pnl != null && r.cost > 0
-        ? `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct((r.pnl / r.cost) * 100)}</span>`
+        ? `<span style="color:${r.pnl >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct((r.pnl / r.cost) * 100)}</span>`
         : '—';
       // Weight: position cost vs the capital held when it was opened.
       const weight = r.capitalAtOpen > 0 ? pct((r.cost / r.capitalAtOpen) * 100) : '—';
       // PnL % of that capital base (impact on the whole account).
       const pnlPctCap = r.pnl != null && r.capitalAtOpen > 0
-        ? `<span style="color:${r.pnl >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct((r.pnl / r.capitalAtOpen) * 100)}</span>`
+        ? `<span style="color:${r.pnl >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct((r.pnl / r.capitalAtOpen) * 100)}</span>`
         : '—';
       const heldDays = r.holdDays != null ? r.holdDays : daysBetween(r.buyDate, todayStr);
       const chartTo = r.status === 'CLOSED' ? (r.sellDate ?? '') : '';
@@ -3199,7 +3199,7 @@ function kpiDonut(opts: {
   const GAP = total > 0 && cash > 0 && invested > 0 ? 3 : 0;
   const investedLen = Math.max(0, (investedPct / 100) * C - GAP);
   const cashLen = Math.max(0, (cashPct / 100) * C - GAP);
-  const pnlColor = pnlPos ? 'var(--accent)' : 'var(--danger)';
+  const pnlColor = pnlPos ? 'var(--up)' : 'var(--danger)';
 
   // Place a % label centered ON the arc band at the segment's angular midpoint,
   // so the ring can fill the viewBox without outside labels clipping the edge.
@@ -3360,8 +3360,8 @@ function buildOverviewHtml(): string {
       <div class="stat"><div class="k">${t('pf.stat.totalcap')}</div><div class="v">${money(toDisplay(totalContributed), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.totalequity')}</div><div class="v">${money(toDisplay(totalEquity), dispSymbol())}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.totalcash')}</div><div class="v">${money(toDisplay(totalCash), dispSymbol())}</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.totalpnl')}</div><div class="v" style="color:${totalPnL >= 0 ? 'var(--accent)' : 'var(--danger)'}">${money(toDisplay(totalPnL), dispSymbol())} (${pct(totalPnLPct)})</div></div>
-      <div class="stat"><div class="k">${t('pf.stat.twr')}</div><div class="v" style="color:${combinedTwrPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(combinedTwrPct)}</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.totalpnl')}</div><div class="v" style="color:${totalPnL >= 0 ? 'var(--up)' : 'var(--danger)'}">${money(toDisplay(totalPnL), dispSymbol())} (${pct(totalPnLPct)})</div></div>
+      <div class="stat"><div class="k">${t('pf.stat.twr')}</div><div class="v" style="color:${combinedTwrPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(combinedTwrPct)}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.best')}</div><div class="v" style="color:var(--accent)">${best ? `${best.name} · ${pct(best.twrPct)}` : '—'}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.worst')}</div><div class="v" style="color:var(--danger)">${worst && worst.twrPct < 0 ? `${worst.name} · ${pct(worst.twrPct)}` : '—'}</div></div>
       <div class="stat"><div class="k">${t('pf.stat.avgwinrate')}</div><div class="v">${num(avgWinRate * 100, 0)}%</div></div>
@@ -3384,7 +3384,7 @@ function buildOverviewHtml(): string {
       <tbody>${compareRows
         .map(
           (r) =>
-            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td style="color:${r.twrPct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${pct(r.twrPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
+            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td style="color:${r.twrPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(r.twrPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
         )
         .join('')}</tbody></table>
     </div>

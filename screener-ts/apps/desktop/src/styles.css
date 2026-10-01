@@ -8,19 +8,21 @@
 
 :root {
   /* Near-black layered canvas. */
-  --bg: #0c0b0f;
-  --surface: #100f14;
-  --card: #141219;
-  --cardhover: #1a1820;
-  --border: #221f2c;
-  --border-soft: #1a1820;
-  --text: #e9edf4;
-  --subtext: #99a2b2;
-  --faint: #5c6575;
+  --bg: #0d0d12;
+  --surface: #121219;
+  --card: #16161e;
+  --cardhover: #1e1e28;
+  --border: #272733;
+  --border-soft: #1e1e28;
+  --text: #ececf3;
+  --subtext: #9d9cb1;
+  --faint: #67667b;
 
   /* One confident accent (the brand green), plus trading semantics. */
-  --accent: #18d89a;
-  --accent-ink: #04130d;        /* text on an accent fill */
+  /* Brand, not "gain": a Kraken-style violet. Gains are `--up`, which is why the
+     two are separate tokens — before request 59 they were one green. */
+  --accent: #8b6cff;
+  --accent-ink: #ffffff;        /* text on an accent fill */
   --accent2: #5b8cff;
   --blue: #5b8cff;
   /* Violet, used for catalyst dates. No single hex clears 3:1 on both themes'
@@ -29,7 +31,7 @@
   --violet: #c084fc;
   --danger: #ff5266;
   --warn: #ffb648;
-  --up: var(--accent);
+  --up: #18d89a;
   --down: var(--danger);
 
   /* KPI donut — two-color transitions (ring + legend use stop1 → stop4):
@@ -46,13 +48,13 @@
   --ring: color-mix(in srgb, var(--accent) 30%, transparent);
 
   /* Tighter, shadcn-like geometry: small precise radii, hairline depth. */
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-xs: 6px;
-  --shadow: 0 1px 0 rgba(255, 255, 255, .02) inset, 0 8px 24px -12px rgba(0, 0, 0, .7);
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-xs: 5px;
+  --shadow: 0 1px 0 rgba(255, 255, 255, .02) inset, 0 6px 18px -14px rgba(0, 0, 0, .8);
   --shadow-lg: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 32px 64px -24px rgba(0, 0, 0, .8);
 
-  --font-ui: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-ui: 'IBM Plex Sans', 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-serif: 'Source Serif 4', Georgia, serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -93,14 +95,16 @@ html.light {
      items — so #ffffff against a #fffdf9 card would be a state change nobody can
      see. In a light theme the lift comes from the shadow and the hover comes from
      a tint; they are not the same signal and must not share a value. */
-  --cardhover: #f2ece1;
-  --border: #d9d2c6;
-  --border-soft: #e7e1d6;
+  /* A tint, not a colour: it lands on glass as often as on the opaque card. */
+  --cardhover: rgba(110, 88, 60, .07);
+  --border: rgba(92, 72, 46, .17);
+  --border-soft: rgba(92, 72, 46, .10);
   --text: #191510;
   --subtext: #5d564a;
   --faint: #827a6b;
-  --accent: #0b8f69;
+  --accent: #6a3de8;
   --accent-ink: #ffffff;
+  --up: #0b8f69;
   /* Deeper so violet text still reads on the cream card (5.1:1 vs 2.5:1). */
   --accent2: #3a6fe0;
   --blue: #3a6fe0;
@@ -5640,7 +5644,7 @@ html.light .cp-backdrop { background: rgba(20,16,10,.28); }
 @media (max-width: 640px) {
   .nav-crumb { margin-left: 12px; }
   .nav-search { width: 34px; height: 34px; padding: 0; justify-content: center; margin-right: 8px; }
-  .nav-search-l, .nav-search-k { display: none; }
+  .nav-search-l, .nav-search .nav-search-k { display: none; }
 }
 @media (max-width: 420px) { .nav-crumb { display: none; } .nav-search { margin-left: auto; } }
 
@@ -5780,4 +5784,201 @@ html.light .cp-backdrop { background: rgba(20,16,10,.28); }
   .amp-desc { -webkit-line-clamp: 1; }
   #app-menu .app-menu-page { padding: 6px 8px; }
   .am-wrap { gap: 14px; }
+}
+
+
+/* ══ Kraken dark + liquid-glass light (request 59) ═════════════════════════════════
+   Dark follows Kraken Pro: a flat near-black canvas, panels one step up with a
+   hairline edge, one violet for the brand, green/red only for up/down, and a solid
+   top bar holding the page groups. Light is the same layout in frosted glass: white
+   panels you can half see through, a bright top edge, over a soft blurred-room
+   gradient (see glasseffect.jpg). Only things that FLOAT over content — the bar, the
+   menus, the modal — pay for a real backdrop blur; a card over the static gradient
+   would look identical without one, so it does not get one. */
+body::before {
+  background:
+    radial-gradient(90% 50% at 85% -12%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 62%);
+}
+html.light body::before {
+  background:
+    radial-gradient(55% 48% at 12% 6%, rgba(255, 210, 166, .78), transparent 72%),
+    radial-gradient(48% 44% at 88% 12%, rgba(196, 226, 204, .72), transparent 72%),
+    radial-gradient(56% 50% at 74% 92%, rgba(200, 216, 246, .75), transparent 72%),
+    radial-gradient(46% 46% at 6% 94%, rgba(242, 204, 220, .55), transparent 72%),
+    radial-gradient(40% 36% at 48% 46%, rgba(255, 255, 255, .55), transparent 70%),
+    linear-gradient(160deg, #f4ede4, #e8e1d7);
+}
+html.light body { background: #ece5db; }
+
+/* The bar: solid, hairline under it, page groups inline. */
+#topnav {
+  height: 56px; padding: 0 22px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  border-bottom: 1px solid var(--border-soft);
+  -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+}
+html.light #topnav {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .42));
+  border-bottom-color: rgba(255, 255, 255, .7);
+  box-shadow: 0 1px 0 rgba(92, 72, 46, .08), 0 10px 30px -18px rgba(60, 45, 25, .25);
+  -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
+}
+.app-brand-name { color: var(--text); opacity: .9; }
+html.light .app-brand-name { color: var(--text); }
+
+.nav-groups { display: none; }
+.nav-icon-btn {
+  flex: none; width: 32px; height: 32px; margin-right: 10px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--subtext);
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.nav-icon-btn:hover { color: var(--text); border-color: var(--accent-line); background: var(--cardhover); }
+.nav-icon-btn .nt-moon { display: none; }
+html.light .nav-icon-btn .nt-moon { display: block; }
+html.light .nav-icon-btn .nt-sun { display: none; }
+.nav-search { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.light .nav-search, html.light .nav-icon-btn { background: rgba(255, 255, 255, .55); border-color: rgba(255, 255, 255, .8); box-shadow: 0 1px 2px rgba(60, 45, 25, .08); }
+
+@media (min-width: 1100px) {
+  .nav-groups { display: flex; align-items: stretch; align-self: stretch; gap: 2px; margin: 0 auto 0 26px; }
+  .nav-groups ~ .nav-crumb { display: none; }
+  .ng { position: relative; display: flex; align-items: center; }
+  .ng-btn {
+    height: 34px; padding: 0 11px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    border: 0; border-radius: 8px; background: transparent; color: var(--subtext);
+    font: 600 13.5px var(--font-ui); letter-spacing: 0; white-space: nowrap;
+    transition: color .12s ease, background .12s ease;
+  }
+  .ng-btn svg { opacity: .7; transition: transform .15s ease; }
+  .ng-btn:hover, .ng.open .ng-btn { color: var(--text); background: var(--cardhover); }
+  .ng.active .ng-btn { color: var(--text); }
+  .ng.active::after {
+    content: ''; position: absolute; left: 11px; right: 11px; bottom: -1px; height: 2px;
+    border-radius: 2px; background: var(--accent);
+  }
+  .ng-pop {
+    position: absolute; top: calc(100% - 2px); left: -6px; z-index: 90; width: 360px;
+    display: none; flex-direction: column; gap: 2px; padding: 7px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg);
+    animation: ngIn .14s ease-out;
+  }
+  html.light .ng-pop {
+    background: linear-gradient(180deg, rgba(255, 253, 250, .96), rgba(255, 253, 250, .9));
+    border-color: rgba(255, 255, 255, .9);
+    -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  }
+  .ng.open .ng-pop { display: flex; }
+  .ng.open .ng-btn svg { transform: rotate(180deg); }
+  @media (hover: hover) {
+    .nav-groups:not(.ng-quiet) .ng:hover .ng-pop { display: flex; }
+    .nav-groups:not(.ng-quiet) .ng:hover .ng-btn { color: var(--text); background: var(--cardhover); }
+  }
+}
+@keyframes ngIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ng-item {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 11px;
+  width: 100%; padding: 8px 9px; text-align: left; cursor: pointer;
+  border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text); font-family: var(--font-ui);
+}
+.ng-item:hover { background: var(--cardhover); }
+.ng-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ng-ic {
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+  border-radius: 8px; background: var(--surface); border: 1px solid var(--border-soft);
+}
+.ng-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ng-name { font-size: 13.5px; font-weight: 600; }
+.ng-desc { font-size: 12px; line-height: 1.4; color: var(--subtext); }
+.ng-item.on { background: var(--accent-wash); border-color: var(--accent-line); }
+.ng-item.on .ng-name { color: var(--accent); }
+
+/* Panels: flatter, tighter, one hairline. */
+.card { box-shadow: none; }
+html.light .card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .7), rgba(255, 255, 255, .5));
+  border-color: rgba(255, 255, 255, .78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .95), 0 1px 2px rgba(60, 45, 25, .05), 0 14px 34px -18px rgba(60, 45, 25, .24);
+}
+html.light .stat {
+  background: rgba(255, 255, 255, .5); border-color: rgba(255, 255, 255, .8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+html.light .stat:hover { border-color: rgba(255, 255, 255, 1); }
+html.light th { background: rgba(251, 248, 244, .94); }
+html.light .field, html.light select.field { background: rgba(255, 255, 255, .6); }
+html.light .field:focus { background: rgba(255, 255, 255, .85); }
+
+button.btn {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .14) inset, 0 6px 16px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+button.btn:hover { filter: brightness(1.08); box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 8px 20px -10px var(--accent); }
+html.light button.btn-outline {
+  background: rgba(255, 255, 255, .55); border-color: rgba(92, 72, 46, .16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 1px 2px rgba(60, 45, 25, .06);
+}
+html.light button.btn-outline:hover { background: rgba(255, 255, 255, .8); }
+
+/* Floating layers: the glass is real here, there is content behind it. */
+html.light .modal-panel {
+  background: linear-gradient(180deg, rgba(255, 253, 250, .9), rgba(255, 253, 250, .8));
+  border-color: rgba(255, 255, 255, .85);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+}
+html.light .modal-head { background: rgba(255, 255, 255, .55); }
+html.light .modal-backdrop { background: rgba(120, 100, 76, .18); }
+#app-menu { background: color-mix(in srgb, var(--bg) 90%, transparent); }
+html.light #app-menu { background: rgba(244, 238, 230, .55); }
+html.light .app-menu-group {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .66), rgba(255, 255, 255, .46));
+  border-color: rgba(255, 255, 255, .8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .95), 0 14px 34px -20px rgba(60, 45, 25, .28);
+}
+html.light .am-search, html.light .am-btn, html.light .am-seg { background: rgba(255, 255, 255, .6); border-color: rgba(255, 255, 255, .85); }
+html.light .am-bar { background: rgba(255, 255, 255, .35); border-top-color: rgba(255, 255, 255, .7); }
+html.light .cp {
+  background: linear-gradient(180deg, rgba(255, 253, 250, .95), rgba(255, 253, 250, .88));
+  border-color: rgba(255, 255, 255, .85);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+}
+html.light .cp-foot { background: rgba(255, 255, 255, .4); }
+
+/* Gains are green again now that the accent is violet. */
+.cl-sec-bar { background: var(--up); }
+.cl-sec-v { color: var(--up); }
+.swp-p-up { color: var(--up); }
+.swp-p-up.swp-pill { color: var(--up); border-color: color-mix(in srgb, var(--up) 42%, transparent); background: color-mix(in srgb, var(--up) 12%, transparent); }
+.swp-d-up { background: var(--up); }
+.swp-b-up { border-left-color: var(--up); }
+.swp-b-up .swp-banner-b b { color: var(--up); }
+.swp-c-good { border-left-color: var(--up); background: color-mix(in srgb, var(--up) 6%, var(--card)); }
+.swp-c-good .swp-callout-t { color: var(--up); }
+.swp-vs-good { border-left-color: var(--up); }
+.swp-vs-good h5 { color: var(--up); }
+
+
+/* Type, Kraken-style: one sans everywhere in the app, figures tabular rather than
+   monospaced, headings set in the sans at weight instead of a light serif. The
+   story, the landing page and the menu wordmark keep their serif — those rules are
+   not under #main. `--font-num` is the face for every datum; swap it back to
+   `var(--font-mono)` to return the terminal look. */
+:root { --font-num: 'IBM Plex Sans', 'Hanken Grotesk', system-ui, sans-serif; }
+.mono, .stat .v, .scorebar + span, table td, .badge, #picks-status, #screen-status, #sector-status {
+  font-family: var(--font-num);
+}
+#main h1 {
+  font-family: var(--font-ui); font-weight: 600; font-size: clamp(22px, 2.6vw, 30px);
+  letter-spacing: -.018em; margin-bottom: 4px;
+}
+#main .subtitle { color: var(--subtext); }
+#main th {
+  font-family: var(--font-ui); font-size: 12px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--faint);
+}
+#main .stat .k {
+  font-family: var(--font-ui); font-size: 12px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--subtext);
+}
+#main .stat .v { font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+#main .section-title, .modal-body .section-title {
+  font-size: 14px; font-weight: 600; letter-spacing: -.005em; text-transform: none; color: var(--text);
 }

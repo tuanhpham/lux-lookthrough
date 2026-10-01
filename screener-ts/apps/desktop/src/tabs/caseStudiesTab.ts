@@ -238,7 +238,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
       ${detailStat('R:R', plannedRr(study))}
       ${detailStat(vi ? 'Ngày thoát' : 'Exit date', study.exitDate ?? '—')}
       ${detailStat(vi ? 'Giá thoát' : 'Exit price', money(study.exitPrice, sym))}
-      ${detailStat(vi ? 'Kết quả R' : 'Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? 'var(--accent)' : 'var(--danger)') : undefined)}
+      ${detailStat(vi ? 'Kết quả R' : 'Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? 'var(--up)' : 'var(--danger)') : undefined)}
       ${detailStat(vi ? 'Loại' : 'Setup', escapeAttr(study.setupType))}
       ${detailStat(vi ? 'Xếp hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
     </div>

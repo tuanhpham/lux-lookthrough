@@ -1855,7 +1855,7 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
   let setup: SetupKey = SETUP_KEYS[0]!;
 
   const GRADE_COL: Record<string, string> = {
-    A: 'var(--accent)', B: 'var(--accent)', C: 'var(--warn)', D: 'var(--danger)',
+    A: 'var(--up)', B: 'var(--up)', C: 'var(--warn)', D: 'var(--danger)',
   };
 
   function updateScore(): void {

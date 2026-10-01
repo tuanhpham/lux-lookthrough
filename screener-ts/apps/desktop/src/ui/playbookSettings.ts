@@ -248,7 +248,7 @@ function budgetHtml(state: AccountState, vi: boolean): string {
     flooredAtMin: ['đã chạm sàn rủi ro', 'hit the risk floor'],
   };
   const pinned = cfg.pinnedRiskPct !== null;
-  const tone = budget.pct === 0 ? 'var(--danger)' : pinned ? 'var(--blue)' : 'var(--accent)';
+  const tone = budget.pct === 0 ? 'var(--danger)' : pinned ? 'var(--blue)' : 'var(--up)';
 
   return `<div class="pb-note" style="--pb-tone:${tone};margin-top:10px">
     <div class="pb-chain">

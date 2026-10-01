@@ -139,7 +139,7 @@ function fmt(v: number, ccy: WealthCurrency, cents = true): string {
 const eur = (v: number): string => fmt(v, shown, false);
 /** Used by `fmt` and the account charts. Dong is written after the number, in `fmt`. */
 const SYMBOL: Record<WealthCurrency, string> = { EUR: '€', USD: '$', VND: '₫', CNY: '¥' };
-const tone = (v: number): string => (v >= 0 ? 'var(--accent)' : 'var(--danger)');
+const tone = (v: number): string => (v >= 0 ? 'var(--up)' : 'var(--danger)');
 /** An amount as it is put back in an input: grouped, all its decimals. See `saveReading`. */
 const grouped = (v: number): string => v.toLocaleString('en-US', { maximumFractionDigits: 8 });
 /** The currency as a chip in that currency's colour — the colour the dots and charts use. */

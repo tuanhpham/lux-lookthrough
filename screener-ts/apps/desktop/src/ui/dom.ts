@@ -102,7 +102,7 @@ export function signalBadge(signal: string): string {
 }
 
 const STAGE_COLORS: Record<number, string> = {
-  1: 'var(--blue)', 2: 'var(--accent)', 3: 'var(--warn)', 4: 'var(--danger)', 0: 'var(--faint)',
+  1: 'var(--blue)', 2: 'var(--up)', 3: 'var(--warn)', 4: 'var(--danger)', 0: 'var(--faint)',
 };
 export function stageBadge(stage: number, label: string): string {
   const c = STAGE_COLORS[stage] ?? 'var(--faint)';

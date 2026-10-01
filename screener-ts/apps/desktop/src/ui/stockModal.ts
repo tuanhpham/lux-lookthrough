@@ -455,7 +455,7 @@ function earnLegendHtml(rows: EarningsReport[], on: boolean, vi: boolean): strin
   const items = rows
     .map((r) => {
       const s = r.surprisePct;
-      const tone = s == null ? 'var(--faint)' : s >= 0 ? 'var(--accent)' : 'var(--danger)';
+      const tone = s == null ? 'var(--faint)' : s >= 0 ? 'var(--up)' : 'var(--danger)';
       const sur = s == null ? '' : ` <span style="color:${tone}">${s >= 0 ? '+' : ''}${s.toFixed(1)}%</span>`;
       const eps =
         r.eps == null ? '' : ` EPS ${r.eps}${r.consensus == null ? '' : ` ${vi ? 'vs dự báo' : 'vs est.'} ${r.consensus}`}`;

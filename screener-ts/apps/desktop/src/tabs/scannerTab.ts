@@ -641,7 +641,7 @@ function rankDelta(v: number | null | undefined): string {
   // Positive = moved UP the ranking = better. Arrow AND sign, because an arrow
   // alone inherits whichever direction the reader assumes "up" means in a table
   // whose rank numbers get smaller as things improve.
-  return `<span style="color:${v > 0 ? 'var(--accent)' : 'var(--danger)'}">`
+  return `<span style="color:${v > 0 ? 'var(--up)' : 'var(--danger)'}">`
     + `${v > 0 ? '▲' : '▼'}${Math.abs(v)}</span>`;
 }
 
@@ -726,9 +726,9 @@ function renderSectors(snap: SectorsSnap | null, topN: number): string {
       + `<td${top ? ' style="font-weight:700"' : ''} title="${esc(sectorTip(r.sym))}">${tkr(r.sym)}`
       + `${sectorName(r.sym) ? `<div class="scan-secname">${esc(sectorName(r.sym)!)}</div>` : ''}</td>`
       + cell(num(r.composite, 1))
-      + cell(signedFrac(r.ret21), (r.ret21 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
-      + cell(signedFrac(r.ret63), (r.ret63 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
-      + cell(signedFrac(r.ret126), (r.ret126 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + cell(signedFrac(r.ret21), (r.ret21 ?? 0) >= 0 ? 'var(--up)' : 'var(--danger)')
+      + cell(signedFrac(r.ret63), (r.ret63 ?? 0) >= 0 ? 'var(--up)' : 'var(--danger)')
+      + cell(signedFrac(r.ret126), (r.ret126 ?? 0) >= 0 ? 'var(--up)' : 'var(--danger)')
       + `<td>${rankDelta(cs[String(wins[0] ?? 5)])}</td>`
       + `<td>${rankDelta(cs[String(wins[1] ?? 21)])}</td>`
       + `<td>${flag(r.above_sma50)}</td><td>${flag(r.above_ema21)}</td>`
@@ -960,8 +960,8 @@ function renderWatch(
       // Relative strength vs the benchmark, as excess return in percentage points.
       // Both windows are shown because a single positive window can be luck and
       // Stage 3 requires both — so seeing both is seeing the reason it qualified.
-      + cell(signedFrac(r.rs21), (r.rs21 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
-      + cell(signedFrac(r.rs63), (r.rs63 ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + cell(signedFrac(r.rs21), (r.rs21 ?? 0) >= 0 ? 'var(--up)' : 'var(--danger)')
+      + cell(signedFrac(r.rs63), (r.rs63 ?? 0) >= 0 ? 'var(--up)' : 'var(--danger)')
       + cell(r.base_len == null ? '—' : String(r.base_len))
       + cell(fmtBig(r.adv20))
       + `</tr>`
@@ -1013,7 +1013,7 @@ function renderNight(night: NightBlock | null | undefined): string {
       st?.stale ? 'var(--danger)' : undefined),
     stat(t('scan.night.took'), last.sec == null ? '—' : `${last.sec.toFixed(1)}s`),
     stat(t('scan.night.exit'), String(last.code ?? '—'),
-      last.code ? 'var(--danger)' : 'var(--accent)'),
+      last.code ? 'var(--danger)' : 'var(--up)'),
     stat(t('scan.today.bar'), esc(last.bar ?? '—'),
       // The chain records the bar it decided on; when it equals the run day the
       // bar had not closed. nightly._check_bar already warns, and the warning
@@ -1692,7 +1692,7 @@ function renderAlerts(snap: AlertsSnap | null): string {
     // "+1.4%" answers "was the alert any good", "18.42" does not.
     const g = (v: number | null | undefined): string => {
       const m = move(r.px, v);
-      return m == null ? '—' : `<span style="color:${m >= 0 ? 'var(--accent)' : 'var(--danger)'}">${signed(m)}</span>`;
+      return m == null ? '—' : `<span style="color:${m >= 0 ? 'var(--up)' : 'var(--danger)'}">${signed(m)}</span>`;
     };
     // `NEW` / `UP` in words. The difference between them is the column's whole reason for
     // existing — an `UP` is the same opportunity getting stronger, not a second one — and
@@ -1705,7 +1705,7 @@ function renderAlerts(snap: AlertsSnap | null): string {
       + `<td>${tkr(r.sym)}</td>`
       + cell(num(r.score, 1))
       + cell(num(r.px, 2))
-      + cell(signedFrac(r.chg), (r.chg ?? 0) >= 0 ? 'var(--accent)' : 'var(--danger)')
+      + cell(signedFrac(r.chg), (r.chg ?? 0) >= 0 ? 'var(--up)' : 'var(--danger)')
       + cell(num(r.rvol, 1))
       + cell(fmtBig(r.dollar_vol))
       + `<td>${g(r.px15)}</td><td>${g(r.px60)}</td><td>${g(r.px_close)}</td>`

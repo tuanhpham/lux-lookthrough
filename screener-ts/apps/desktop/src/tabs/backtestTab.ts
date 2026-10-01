@@ -206,7 +206,7 @@ async function runBt(ctx: AppContext): Promise<void> {
 }
 
 function statCard(label: string, value: string, good?: boolean): string {
-  const color = good === undefined ? 'var(--text)' : good ? 'var(--accent)' : 'var(--danger)';
+  const color = good === undefined ? 'var(--text)' : good ? 'var(--up)' : 'var(--danger)';
   return `<div class="stat"><div class="k">${label}</div><div class="v" style="color:${color}">${value}</div></div>`;
 }
 

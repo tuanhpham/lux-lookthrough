@@ -592,7 +592,7 @@ function renderRegimeBanner(regime: MarketRegime | null, sectors: SectorMomentum
   const parts: string[] = [];
   if (regime) {
     const color =
-      regime.regimeType === 'BULL' ? 'var(--accent)' : regime.regimeType === 'BEAR' ? 'var(--danger)' : 'var(--warn)';
+      regime.regimeType === 'BULL' ? 'var(--up)' : regime.regimeType === 'BEAR' ? 'var(--danger)' : 'var(--warn)';
     const flag = regime.riskOn ? 'risk-on' : 'risk-off';
     parts.push(
       `Market: <strong style="color:${color}">${regime.regimeType}</strong> (${flag}, strength ${num(regime.strengthScore, 0)})`,
@@ -1009,7 +1009,7 @@ function volumeTable(
         <td style="color:${ratioColor};font-weight:700">${r.ratio.toFixed(2)}×</td>
         <td>${fmtBig(r.peakVolume)}</td>
         <td class="muted">${fmtBig(r.baselineAvgVolume)}</td>
-        <td>${r.sectorVolChangePct != null ? `<span style="color:${r.sectorVolChangePct >= 0 ? 'var(--accent)' : 'var(--danger)'}">${sectorStr}</span>` : '—'}</td>
+        <td>${r.sectorVolChangePct != null ? `<span style="color:${r.sectorVolChangePct >= 0 ? 'var(--up)' : 'var(--danger)'}">${sectorStr}</span>` : '—'}</td>
         <td class="muted" style="font-size:11px">${r.sector ?? '—'}</td>
       </tr>`;
     }).join('');
@@ -1643,7 +1643,7 @@ function renderSectorSnapshot(ctx: AppContext, rows: SectorSnapshotRow[]): void 
 
   for (const s of rows) {
     const color = s.avgRelativeStrength != null
-      ? s.avgRelativeStrength >= 0 ? 'var(--accent)' : 'var(--danger)'
+      ? s.avgRelativeStrength >= 0 ? 'var(--up)' : 'var(--danger)'
       : 'var(--faint)';
     const momRank = s.rank != null ? `#${s.rank}` : '—';
     const hot = s.hot ? ' 🔥' : '';

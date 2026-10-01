@@ -194,7 +194,60 @@ function paintCrumb(): void {
   const kbd = $('#nav-search .nav-search-k');
   if (kbd) kbd.textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
   $('#nav-search')?.setAttribute('aria-label', lang === 'vi' ? 'Tìm kiếm' : 'Search');
+  $('#nav-theme')?.setAttribute('aria-label', lang === 'vi' ? 'Đổi giao diện sáng / tối' : 'Toggle light / dark');
+  const nav = $('#nav-groups');
+  if (nav) nav.innerHTML = PAGE_GROUPS.map((g) => {
+    const items = PAGES.filter((p) => p.group === g.id).map((p) =>
+      `<button type="button" role="menuitem" class="ng-item${p.id === currentTab ? ' on' : ''}" data-ngtab="${p.id}">`
+      + `<span class="ng-ic">${p.icon}</span><span class="ng-txt"><span class="ng-name">${t(`nav.${p.id}`)}</span>`
+      + `<span class="ng-desc">${p.desc[lang]}</span></span></button>`).join('');
+    return `<div class="ng${info?.group === g.id ? ' active' : ''}" data-ng="${g.id}">`
+      + `<button type="button" class="ng-btn" aria-haspopup="true" aria-expanded="false">${g.title[lang]}`
+      + `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>`
+      + `<div class="ng-pop" role="menu">${items}</div></div>`;
+  }).join('');
 }
+
+/**
+ * The Kraken-style page groups in the top bar (≥1100px; smaller screens keep ☰).
+ * Hover opens a group on a mouse, a click opens it everywhere; `.ng-quiet` keeps the
+ * one just used from popping back open under a pointer that has not moved away.
+ */
+function closeNavGroups(): void {
+  $$('#nav-groups .ng.open').forEach((g) => {
+    g.classList.remove('open');
+    g.querySelector('.ng-btn')?.setAttribute('aria-expanded', 'false');
+  });
+}
+const navGroups = $('#nav-groups');
+navGroups?.addEventListener('click', (e) => {
+  const item = (e.target as Element).closest<HTMLElement>('[data-ngtab]');
+  if (item) {
+    const tab = item.dataset.ngtab as Tab;
+    closeNavGroups();
+    navGroups.classList.add('ng-quiet');
+    if (tab !== currentTab) pageTransition(item, () => enterApp(tab));
+    return;
+  }
+  const g = (e.target as Element).closest<HTMLElement>('.ng');
+  if (!g) return;
+  const open = !g.classList.contains('open');
+  closeNavGroups();
+  g.classList.toggle('open', open);
+  g.querySelector('.ng-btn')?.setAttribute('aria-expanded', String(open));
+});
+navGroups?.addEventListener('mouseleave', () => navGroups.classList.remove('ng-quiet'));
+document.addEventListener('click', (e) => {
+  if (!(e.target as Element | null)?.closest?.('#nav-groups')) closeNavGroups();
+});
+$('#nav-theme')?.addEventListener('click', (e) => {
+  const light = document.documentElement.classList.contains('light');
+  pageTransition(e.currentTarget as Element, () => {
+    applyTheme(light ? 'dark' : 'light');
+    // The ☰ menu bakes its theme label in; the next open rebuilds it.
+    if (appMenuEl) { appMenuEl.remove(); appMenuEl = null; }
+  });
+});
 
 // ── Search palette ───────────────────────────────────────────────────────────
 
@@ -621,6 +674,7 @@ $('#nav-search')?.addEventListener('click', () => openSearch());
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   closeAppMenu();
+  closeNavGroups();
   // Only the topmost layer closes. A dialog opened FROM the panel (the API-key
   // form) owns Escape while it is up; closing the panel underneath it would leave
   // the user staring at a form belonging to something that is no longer there.
