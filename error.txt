@@ -5901,3 +5901,15 @@ CHAT-61 (2026-10-01) - Dau trang theo Lich su kien, than trang theo Top Picks, t
   - Cau chuyen: bo backdrop-filter cua .sl-veil, an .sl-exit::after (vong mo), bo blur anh tren dien thoai; chuong 0-3 anh tran man hinh (inset 0, khong mask) voi lop phu mau --bg nhe hon chuong 5.
 - Kiem tra: tsc OK; vitest 420/420 (playbookBroadcast + syncMerge timeout luc may tai nang, chay lai rieng thi qua); vite build OK; anh headless toi/sang cua Picks, Backtest, Watchlist, Portfolio, Case Studies, Calendar, Scanner (mock), Cau chuyen chuong 1-3.
 - Chua thu tren thiet bi that.
+
+CHAT-62 (2026-10-01) - Segment kieu Wealth khap noi, subtitle rong, popup API key va nut tro ly kinh long
+- Yeu cau: (1) anh trang Cau chuyen ro hon (tin nhan bi cat dau, hieu la lop phu anh); (2) dung kieu "Show in EUR USD" cua trang Wealth cho cac phan tuong tu o trang khac; (3) subtitle chi chiem 1/3-1/2 trang; (4) popup Assistant API Key va icon chatbot theo kinh long, chuyen nghiep.
+- Code: dd807c1a.
+  - .seg (styles.css, khoi Request 66): ray segment giong .cb-seg; nhom range-btn doc quyen tren Portfolio (2 khoi giong nhau + bieu do dong), Wealth, Picks (strategy/market/universe/min price/vol), Screener, Sectors, Lich, Backtest, Case Study, As-of va stock modal. Nut van la .range-btn nen wiring click khong doi.
+  - Nut roi thanh cb-btn co icon: Watchlist (refresh/plan/export/import), Lich (Them su kien/Lam moi), xuat CSV/HTML cua Screener va Backtest. commandBar.ts them icon download/upload/clipboard.
+  - Landing: head() co sub thi them .cl-head--split (2 cot, sub ben phai, vach mau accent); mobile ve 1 cot. #main .pg-hero .subtitle bo max-width.
+  - formDialog: moi popup kinh long; opts className/icon/sub; moi o duoc boc .dialog-f[data-f]. Popup API key: .dialog--ai rong 540px, luoi 2 cot, 2 o gia canh nhau, ghi chu thanh panel.
+  - #chat-fab: thau kinh 54px (halo xoay + loi kinh + bong chat co tia sang); dia am duong van o menu va panel.
+  - Story: lop phu 42/50% xuong 18/24%, mobile 36/42%.
+- Kiem tra: tsc, vitest 420/420 (playbookBroadcast/syncMerge chay lai rieng vi qua tai), vite build; anh headless popup sang/toi, landing, Picks, Portfolio, Lich, Watchlist sang, Story.
+- Chua thu tren thiet bi that.
