@@ -7986,3 +7986,27 @@ html.light .cs-tile { background: linear-gradient(160deg, #fff, rgba(245, 242, 2
 @media (prefers-reduced-motion: reduce) { .dialog { animation: none; } }
 /* The study chart's grid is drawn for the dark theme; on the light one it read as black rules. */
 html.light #cs-chart svg [stroke="#1d222c"] { stroke: rgba(40, 30, 60, .09); }
+
+/* ── Plan viewer, round two. The frame is see-through so the dialog's glass shows
+   behind the report; that only works while the frame's colour scheme matches the
+   document's (see reportTheme.ts), hence the scheme per theme. ── */
+html:not(.light) .rep-frame { color-scheme: dark; background: transparent; border-color: rgba(255, 255, 255, .09); }
+html.light .rep-frame { color-scheme: light; background: transparent; border-color: rgba(255, 255, 255, .9); box-shadow: inset 0 1px 0 #fff, 0 10px 30px -20px rgba(60, 45, 90, .45); }
+/* A phone: the host's 14px padding plus a 100vw/100dvh sheet pushed the dialog off
+   the right edge and the two buttons below the bottom, with nothing to scroll. The
+   sheet now fills the host exactly, and the buttons sit above the home indicator. */
+@media (max-width: 620px) {
+  .dialog-host:has(.dialog--report) { padding: 0; place-items: stretch; }
+  .dialog.dialog--report {
+    width: 100%; max-width: 100%; height: 100%; max-height: 100%; border-radius: 0; border: 0;
+    padding: calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
+  }
+  .dialog--report .dialog-head { margin-bottom: 8px; }
+  .dialog--report .dialog-x { top: calc(10px + env(safe-area-inset-top)); right: 10px; }
+  .dialog--report .dialog-ic { width: 32px; height: 32px; border-radius: 10px; }
+  .rep-frame { border-radius: 12px; }
+  .dialog-actions.rep-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; padding-top: 8px; }
+  .rep-actions .seg { grid-column: 1 / -1; margin: 0; display: flex; }
+  .rep-actions .seg .range-btn { flex: 1 1 0; }
+  .rep-actions .btn-outline, .rep-actions .btn { width: 100%; min-width: 0; padding-left: 8px; padding-right: 8px; }
+}

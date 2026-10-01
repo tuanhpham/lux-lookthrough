@@ -19,6 +19,13 @@
  *
  * `.embedded` is set on `<html>` by the in-app viewer (`openPlanReport`), which supplies its own
  * print and paper controls, so the document's toolbar steps aside there.
+ *
+ * ── GLASS WHEN EMBEDDED ─────────────────────────────────────────────────────
+ * Inside the viewer the page has no canvas of its own: the root goes transparent and the cards
+ * go translucent, so the dialog's frosted glass is what shows through ("nhin trong khong duoc
+ * liquid glass vi too dark or too bright"). An iframe is only see-through when its colour scheme
+ * matches the embedding element's, so the viewer also tags the root `host-dark` / `host-light`
+ * and the frame element carries the app theme's scheme. Screen only: print keeps solid paper.
  */
 export const REPORT_CSS = `  :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -112,4 +119,32 @@ export const REPORT_CSS = `  :root { color-scheme: dark; }
   body:has(#ink:checked) .gbar-track { background:#ebe8f2; }
   body:has(#ink:checked) .ack.ok { color:#0b8a5e; }
   body:has(#ink:checked) .ack.bad { color:#a3620a; }
-  body:has(#ink:checked) .why .k { color:#a23bbd; }`;
+  body:has(#ink:checked) .why .k { color:#a23bbd; }
+
+  @media screen {
+    html.embedded, html.embedded:has(#ink:checked) { background:transparent; }
+    html.embedded.host-dark, html.embedded.host-dark:has(#ink:checked) { color-scheme: dark; }
+    html.embedded.host-light, html.embedded.host-light:has(#ink:checked) { color-scheme: light; }
+    html.embedded body { min-height:100vh; padding:clamp(12px,3vw,26px); background:none; }
+    html.embedded .chart { background:rgba(6,5,12,.42); }
+    html.embedded .chart, html.embedded .stat, html.embedded .notes, html.embedded .sc-wrap, html.embedded .cat, html.embedded .gbars {
+      -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+    /* Screen inside the light theme: light ink needs a dark sheet under it. */
+    html.embedded.host-light body:not(:has(#ink:checked)) { background:linear-gradient(180deg, rgba(24,22,38,.93), rgba(14,13,24,.95)); }
+    /* Paper: frosted white cards on the light glass, a near-white sheet on the dark one. */
+    html.embedded body:has(#ink:checked) { background:none; }
+    html.embedded.host-dark body:has(#ink:checked) { background:linear-gradient(180deg, rgba(255,255,255,.95), rgba(250,248,255,.93)); }
+    html.embedded body:has(#ink:checked) .cover { background:linear-gradient(135deg, rgba(139,92,246,.13), rgba(255,255,255,.55) 60%, rgba(255,255,255,.4)); border-color:rgba(255,255,255,.9);
+      box-shadow:inset 0 1px 0 #fff, 0 12px 30px -22px rgba(60,45,90,.5); }
+    html.embedded body:has(#ink:checked) .chart,
+    html.embedded body:has(#ink:checked) .stat,
+    html.embedded body:has(#ink:checked) .why,
+    html.embedded body:has(#ink:checked) .ack,
+    html.embedded body:has(#ink:checked) .gbars,
+    html.embedded body:has(#ink:checked) .sc-wrap,
+    html.embedded body:has(#ink:checked) .cat,
+    html.embedded body:has(#ink:checked) .notes { background:rgba(255,255,255,.6); border-color:rgba(255,255,255,.92); box-shadow:inset 0 1px 0 #fff, 0 10px 26px -22px rgba(60,45,90,.55); }
+    html.embedded body:has(#ink:checked) .ack.ok { background:rgba(24,216,154,.1); border-color:rgba(11,138,94,.25); }
+    html.embedded body:has(#ink:checked) .ack.bad { background:rgba(255,182,72,.12); border-color:rgba(163,98,10,.25); }
+    html.embedded body:has(#ink:checked) th { background:rgba(109,79,216,.06); }
+  }`;

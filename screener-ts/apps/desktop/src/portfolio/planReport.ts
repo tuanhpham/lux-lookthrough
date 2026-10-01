@@ -432,7 +432,7 @@ export function openPlanReport(i: PlanReportInput, opts: { title: string; print:
         <iframe class="rep-frame" sandbox="allow-same-origin allow-modals" title="${esc(opts.title)}"></iframe>
       </div>
       <div class="dialog-actions rep-actions">
-        <div class="seg" role="group"><button class="range-btn active" data-paper="0">${esc(W.dark)}</button><button class="range-btn" data-paper="1">${esc(W.paper)}</button></div>
+        <div class="seg" role="group"><button class="range-btn" data-paper="0">${esc(W.dark)}</button><button class="range-btn" data-paper="1">${esc(W.paper)}</button></div>
         <span style="flex:1"></span>
         <button class="btn-outline" data-act="save">${esc(W.save)}</button>
         <button class="btn" data-act="print">${esc(opts.print)}</button>
@@ -440,7 +440,18 @@ export function openPlanReport(i: PlanReportInput, opts: { title: string; print:
     </div>`;
   document.body.appendChild(host);
   const frame = host.querySelector<HTMLIFrameElement>('iframe')!;
-  frame.addEventListener('load', () => frame.contentDocument?.documentElement.classList.add('embedded'));
+  // Paper follows the app theme on open (Screen on dark, Paper on light); the switch still flips it.
+  const light = document.documentElement.classList.contains('light');
+  const setPaper = (on: boolean): void => {
+    const ink = frame.contentDocument?.getElementById('ink') as HTMLInputElement | null;
+    if (ink) ink.checked = on;
+    host.querySelectorAll<HTMLElement>('[data-paper]').forEach((x) => x.classList.toggle('active', (x.dataset.paper === '1') === on));
+  };
+  frame.addEventListener('load', () => {
+    frame.contentDocument?.documentElement.classList.add('embedded', light ? 'host-light' : 'host-dark');
+    setPaper(light);
+  });
+  setPaper(light);
   // `srcdoc` after insertion: assigning it while the iframe is detached loads the document
   // twice in WebKit, and this one carries an inline SVG chart.
   frame.srcdoc = planReportHtml(i);
@@ -450,11 +461,7 @@ export function openPlanReport(i: PlanReportInput, opts: { title: string; print:
   host.querySelectorAll('[data-act="close"]').forEach((b) => b.addEventListener('click', close));
   host.querySelector('.dialog-backdrop')!.addEventListener('click', close);
   host.querySelector('[data-act="save"]')!.addEventListener('click', () => printPlanReport(i));
-  host.querySelectorAll<HTMLButtonElement>('[data-paper]').forEach((b) => b.addEventListener('click', () => {
-    const ink = frame.contentDocument?.getElementById('ink') as HTMLInputElement | null;
-    if (ink) ink.checked = b.dataset.paper === '1';
-    host.querySelectorAll('[data-paper]').forEach((x) => x.classList.toggle('active', x === b));
-  }));
+  host.querySelectorAll<HTMLButtonElement>('[data-paper]').forEach((b) => b.addEventListener('click', () => setPaper(b.dataset.paper === '1')));
   host.querySelector('[data-act="print"]')!.addEventListener('click', () => {
     try {
       frame.contentWindow!.focus();
