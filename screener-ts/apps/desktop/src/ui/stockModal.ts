@@ -393,7 +393,7 @@ function renderDetail(
     ${patternBlock}
     <div class="card" style="margin-top:14px;padding:8px">
       <div style="margin:4px 6px">${sectionHead(t('detail.pricehistory'), [], {
-        right: `<div class="row" style="gap:4px;flex-wrap:wrap">${RANGES.map((r) => `<button class="range-btn ${r.period === '1y' ? 'active' : ''}" data-period="${r.period}">${r.label}</button>`).join('')}</div>`,
+        right: `<div class="row seg" style="gap:2px;flex-wrap:wrap">${RANGES.map((r) => `<button class="range-btn ${r.period === '1y' ? 'active' : ''}" data-period="${r.period}">${r.label}</button>`).join('')}</div>`,
       })}</div>
       <div class="row" style="margin:0 6px 6px">
         ${EMA_CONFIG.map(
@@ -409,12 +409,12 @@ function renderDetail(
     <div class="card" style="margin-top:14px;padding:8px">
       <div style="margin:4px 6px">${sectionHead(t('detail.fundtrend'), [], {
         right: `<div class="row" style="gap:10px;flex-wrap:wrap">
-          <div class="row" style="gap:4px">
+          <div class="row seg" style="gap:2px">
             <button class="range-btn active" data-fund="revenue">Revenue</button>
             <button class="range-btn" data-fund="netIncome">Net Income</button>
             <button class="range-btn" data-fund="eps">EPS</button>
           </div>
-          <div class="row" style="gap:4px">
+          <div class="row seg" style="gap:2px">
             <button class="range-btn active" data-freq="annual">Annual</button>
             <button class="range-btn" data-freq="quarterly">Quarterly</button>
           </div>

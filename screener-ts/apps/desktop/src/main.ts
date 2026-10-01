@@ -490,6 +490,14 @@ function discoverFromStory(trigger?: Element): void {
  * painting is a cropped image rather than SVG at all — is in `ui/emblem.ts`.
  */
 const CHAT_ICON = ORB_MARK;
+/* The launcher's own face: a glass lens with a speech bubble and a spark in it.
+   The disc stays in the menu row and the panel; on the launcher it read as a
+   photo pasted onto the glass, so the button draws its glyph instead. */
+const FAB_FACE =
+  '<span class="fab-halo" aria-hidden="true"></span><span class="fab-core" aria-hidden="true">' +
+  '<svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">' +
+  '<path d="M12 3.6c4.7 0 8.4 3.2 8.4 7.2S16.7 18 12 18c-.9 0-1.8-.1-2.6-.3L5 19.6l1.2-3.5c-1.6-1.3-2.6-3.1-2.6-5.3 0-4 3.7-7.2 8.4-7.2z"/>' +
+  '<path class="fab-spark" d="M12 6.9l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z" fill="currentColor" stroke="none"/></svg></span>';
 
 // ── App cinematic menu overlay ────────────────────────────────────────────────
 
@@ -671,7 +679,7 @@ function mountChatLauncher(): void {
   if (!existing) {
     btn.id = 'chat-fab';
     btn.type = 'button';
-    btn.innerHTML = CHAT_ICON;
+    btn.innerHTML = FAB_FACE;
     btn.addEventListener('click', () => void openChatPanel(ctx));
     app.appendChild(btn);
   }

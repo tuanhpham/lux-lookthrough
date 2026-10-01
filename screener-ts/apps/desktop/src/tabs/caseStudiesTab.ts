@@ -230,7 +230,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     <div class="card" style="padding:10px;margin-bottom:14px">
       <div class="row" style="gap:6px;margin-bottom:8px">
         <span class="muted" style="font-size:12px">${vi ? 'Cửa sổ' : 'Window'}:</span>
-        ${[1, 3, 6].map((mo) => `<button class="range-btn ${mo === study.windowMonths ? 'active' : ''}" data-win="${mo}">±${mo}M</button>`).join('')}
+        <div class="seg">${[1, 3, 6].map((mo) => `<button class="range-btn ${mo === study.windowMonths ? 'active' : ''}" data-win="${mo}">±${mo}M</button>`).join('')}</div>
       </div>
       <div id="cs-chart">${vi ? 'Đang tải…' : 'Loading…'}</div>
     </div>

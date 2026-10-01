@@ -40,6 +40,7 @@ import {
 import type { AppContext } from '../context.js';
 import { $, el, fmtBig } from '../ui/dom.js';
 import { pageHero } from '../ui/pageHero.js';
+import { cbButton } from '../ui/commandBar.js';
 import { t, getLang } from '../ui/i18n.js';
 import { openStock } from '../ui/stockModal.js';
 import { formDialog } from '../ui/forms.js';
@@ -370,9 +371,11 @@ function renderControls(): void {
   host.innerHTML = `
     <div class="card" style="margin-bottom:14px">
       <div class="row" style="gap:8px">
-        ${scopeBtn('all', t('cal.scope.all'))}
-        ${scopeBtn('watchlist', t('cal.scope.watchlist'))}
-        ${scopeBtn('portfolio', t('cal.scope.portfolio'))}
+        <div class="seg">
+          ${scopeBtn('all', t('cal.scope.all'))}
+          ${scopeBtn('watchlist', t('cal.scope.watchlist'))}
+          ${scopeBtn('portfolio', t('cal.scope.portfolio'))}
+        </div>
         <span style="flex:1"></span>
         <label class="field-label" style="margin:0">${t('cal.mincap')}</label>
         <select id="cal-mincap" class="field" style="width:auto;min-width:96px">
@@ -381,8 +384,8 @@ function renderControls(): void {
           <option value="2000000000"${view.minCap === 2e9 ? ' selected' : ''}>$2B</option>
           <option value="10000000000"${view.minCap === 1e10 ? ' selected' : ''}>$10B</option>
         </select>
-        <button id="cal-add" class="range-btn">+ ${t('cal.addevent')}</button>
-        <button id="cal-refresh" class="range-btn">↻ ${t('cal.refresh')}</button>
+        ${cbButton({ id: 'cal-add', label: t('cal.addevent'), icon: 'plus', primary: true })}
+        ${cbButton({ id: 'cal-refresh', label: t('cal.refresh'), icon: 'refresh' })}
       </div>
       <div class="row" style="gap:6px;margin-top:10px">
         ${KINDS.map((k) => {

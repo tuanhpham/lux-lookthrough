@@ -54,6 +54,7 @@ import {
 import { loadScan, saveScan, scannedAtLabel } from './scanCache.js';
 import { getLang } from '../ui/i18n.js';
 import { pageHero } from '../ui/pageHero.js';
+import { cbIcon } from '../ui/commandBar.js';
 import {
   asOfControlsHtml,
   wireAsOfControls,
@@ -272,15 +273,15 @@ export function renderPicks(ctx: AppContext): void {
       <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.strategy') ?? 'Strategy'}</span>
         <div class="picks-pill-group">
-          ${(['qm', 'momentumscan', 'surge', 'volume'] as PicksStrategy[])
+          <div class="seg">${(['qm', 'momentumscan', 'surge', 'volume'] as PicksStrategy[])
             .map((s) => `<button class="range-btn ${s === picksStrategy ? 'active' : ''}" data-strategy="${s}">${t('picks.' + s)}</button>`)
-            .join('')}
+            .join('')}</div>
         </div>
       </div>
       <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.market')}</span>
         <div class="picks-pill-group">
-          ${markets.map(([m, label]) => `<button class="range-btn ${m === picksMarket ? 'active' : ''}" data-market="${m}">${label}</button>`).join('')}
+          <div class="seg">${markets.map(([m, label]) => `<button class="range-btn ${m === picksMarket ? 'active' : ''}" data-market="${m}">${label}</button>`).join('')}</div>
         </div>
       </div>
       <div class="picks-config-row">
@@ -303,15 +304,15 @@ export function renderPicks(ctx: AppContext): void {
       <div class="picks-config-row${picksStrategy === 'volume' ? '' : ' hidden'}" id="picks-vol-period-row">
         <span class="picks-config-label">${t('picks.vol.period')}</span>
         <div class="picks-pill-group">
-          ${(['1w', '1m', '3m'] as VolumePeriod[])
+          <div class="seg">${(['1w', '1m', '3m'] as VolumePeriod[])
             .map((p) => `<button class="range-btn ${p === volumePeriod ? 'active' : ''}" data-volperiod="${p}">${t('picks.vol.period.' + p)}</button>`)
-            .join('')}
+            .join('')}</div>
         </div>
       </div>
       <div class="picks-config-row${picksStrategy === 'volume' ? '' : ' hidden'}" id="picks-vol-minavgvol-row">
         <span class="picks-config-label">${t('picks.vol.minavgvol')}</span>
         <div class="picks-pill-group">
-          ${(MIN_AVG_VOL_OPTS as readonly MinAvgVolOpt[]).map((v) =>
+          <div class="seg">${(MIN_AVG_VOL_OPTS as readonly MinAvgVolOpt[]).map((v) =>
             `<button class="range-btn ${v === minAvgVol ? 'active' : ''}" data-minavgvol="${v}">${
               v === 0 ? t('opt.any') : v >= 1_000_000 ? '1M' : `${v / 1000}K`
             }</button>`
@@ -467,6 +468,7 @@ function renderUniverseRow(ctx: AppContext): void {
   const row = $('#picks-uni-row')!;
   const opts = UNIVERSES_BY_MARKET[picksMarket];
   row.innerHTML =
+    '<div class="seg">' +
     opts
       .map(
         (o) =>
@@ -475,6 +477,7 @@ function renderUniverseRow(ctx: AppContext): void {
           )}</button>`,
       )
       .join('') +
+    '</div>' +
     `<span id="picks-uni-hint" class="scan-note-slot">${universeHintHtml()}</span>`;
   row.querySelectorAll<HTMLElement>('[data-universe]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -490,9 +493,9 @@ function renderMinPriceRow(ctx: AppContext): void {
   const row = $('#picks-minprice-row')!;
   // Reset selection when current value doesn't exist in the new market's presets.
   if (!minPriceOpts().includes(minPicksPrice)) minPicksPrice = 0;
-  row.innerHTML = minPriceOpts()
+  row.innerHTML = `<div class="seg">${minPriceOpts()
     .map((v) => `<button class="range-btn ${v === minPicksPrice ? 'active' : ''}" data-minprice="${v}">${minPriceLabel(v)}</button>`)
-    .join('');
+    .join('')}</div>`;
   row.querySelectorAll<HTMLElement>('[data-minprice]').forEach((b) =>
     b.addEventListener('click', () => {
       minPicksPrice = parseInt(b.dataset.minprice!, 10) as MinPriceOpt;
@@ -1222,12 +1225,12 @@ export function renderScreener(ctx: AppContext): void {
       <div class="scr-group-h"><i>01</i>${L('Market & date', 'Thị trường & ngày')}</div>
       <div class="toolbar" style="margin-bottom:10px">
         <span class="muted" style="font-size:12px">${t('picks.market')}:</span>
-        ${markets
+        <div class="seg">${markets
           .map(
             ([m, label]) =>
               `<button class="range-btn ${m === screenerMarket ? 'active' : ''}" data-screener-market="${m}">${label}</button>`,
           )
-          .join('')}
+          .join('')}</div>
       </div>
       ${asOfControlsHtml('screener')}
       </div>
@@ -1439,8 +1442,8 @@ function exportBar(rows: ScreenerRow[], basename: string): HTMLElement {
   const bar = el(
     `<div class="row" style="justify-content:flex-end;margin-bottom:8px;gap:6px">
        <span class="muted" style="font-size:12px">${rows.length} ${t('export.rows')}</span>
-       <button class="range-btn" data-exp="csv">${t('export.csv')}</button>
-       <button class="range-btn" data-exp="html">${t('export.html')}</button>
+       <button type="button" class="cb-btn" data-exp="csv">${cbIcon('download')}<span>${t('export.csv')}</span></button>
+       <button type="button" class="cb-btn" data-exp="html">${cbIcon('file')}<span>${t('export.html')}</span></button>
      </div>`,
   );
   const title = 'The Professional — Screener';
@@ -1512,12 +1515,12 @@ export function renderSectors(ctx: AppContext): void {
       <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.market')}</span>
         <div class="picks-pill-group">
-          ${markets
+          <div class="seg">${markets
             .map(
               ([m, label]) =>
                 `<button class="range-btn ${m === sectorMarket ? 'active' : ''}" data-sector-market="${m}">${label}</button>`,
             )
-            .join('')}
+            .join('')}</div>
         </div>
       </div>
       <div class="picks-config-row">
@@ -1703,7 +1706,7 @@ function renderSectorSnapshot(ctx: AppContext, rows: SectorSnapshotRow[]): void 
         </div>
         <div class="sector-detail hidden" data-detail="${s.sector}">
           <div class="row" style="margin-bottom:8px">
-            <div class="row" data-freq-group>
+            <div class="row seg" data-freq-group>
               <button class="range-btn active" data-freq="weekly">Weekly</button>
               <button class="range-btn" data-freq="monthly">Monthly</button>
             </div>

@@ -59,14 +59,14 @@ export function asOfControlsHtml(scope: AsOfScope): string {
       <input type="date" class="field asof-date" max="${todayIso()}" value="${s.date ?? ''}" style="width:150px" />
       <button class="range-btn asof-live ${live ? 'active' : ''}" title="${vi ? 'Dữ liệu thời gian thực' : 'Live / real-time'}">${vi ? 'Trực tiếp' : 'Live'}</button>
       <span class="muted" style="font-size:12px;margin-left:8px">${vi ? 'Lịch sử' : 'History'}:</span>
-      ${years
+      <div class="seg">${years
         .map(
           (y) =>
             `<button class="range-btn asof-years ${y === s.yearsBack ? 'active' : ''}" data-years="${y}">${
               y === 'max' ? 'Max' : y + 'y'
             }</button>`,
         )
-        .join('')}
+        .join('')}</div>
       <span class="asof-flag ${live ? 'hidden' : ''}" style="margin-left:auto">${
         vi ? 'Chế độ lịch sử' : 'Historical mode'
       }</span>

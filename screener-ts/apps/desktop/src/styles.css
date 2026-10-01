@@ -7559,21 +7559,176 @@ html.light .about-story .sl-chapter > .sl-ch-bg { filter: saturate(.92) brightne
   background:
     radial-gradient(60% 55% at 50% 50%, color-mix(in srgb, var(--c, var(--accent)) 12%, transparent), transparent 75%),
     linear-gradient(to bottom,
-      color-mix(in srgb, var(--bg) 88%, transparent) 0%,
-      color-mix(in srgb, var(--bg) 42%, transparent) 26%,
-      color-mix(in srgb, var(--bg) 42%, transparent) 74%,
-      color-mix(in srgb, var(--bg) 92%, transparent) 100%);
+      color-mix(in srgb, var(--bg) 80%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 18%, transparent) 26%,
+      color-mix(in srgb, var(--bg) 18%, transparent) 74%,
+      color-mix(in srgb, var(--bg) 88%, transparent) 100%);
 }
 html.light .about-story .sl-chapter .sl-ch-bg::before {
   background:
     radial-gradient(60% 55% at 50% 50%, color-mix(in srgb, var(--c, var(--accent)) 9%, transparent), transparent 75%),
     linear-gradient(to bottom,
-      color-mix(in srgb, var(--bg) 90%, transparent) 0%,
-      color-mix(in srgb, var(--bg) 50%, transparent) 26%,
-      color-mix(in srgb, var(--bg) 50%, transparent) 74%,
-      color-mix(in srgb, var(--bg) 94%, transparent) 100%);
+      color-mix(in srgb, var(--bg) 82%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 24%, transparent) 26%,
+      color-mix(in srgb, var(--bg) 24%, transparent) 74%,
+      color-mix(in srgb, var(--bg) 90%, transparent) 100%);
 }
 @media (max-width: 700px) {
-  .about-story .sl-chapter .sl-ch-bg::before { background: color-mix(in srgb, var(--bg) 55%, transparent); }
-  html.light .about-story .sl-chapter .sl-ch-bg::before { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+  .about-story .sl-chapter .sl-ch-bg::before { background: color-mix(in srgb, var(--bg) 36%, transparent); }
+  html.light .about-story .sl-chapter .sl-ch-bg::before { background: color-mix(in srgb, var(--bg) 42%, transparent); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Request 66 — the Wealth segment everywhere, wide subtitles, glass dialogs,
+   the glass launcher
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── .seg: the Wealth page's "Show in EUR / USD" track, for every exclusive
+   pill group. The pills stay .range-btn (their click wiring reads it); only the
+   look changes. `gap` is !important because most of these containers still
+   carry an inline gap from before. Three branches: plain, #main (whose pill
+   rule is 1,1,0) and the stock modal, which is not inside #main. ── */
+.seg {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px !important;
+  width: auto; max-width: 100%; padding: 3px; border-radius: 10px; vertical-align: middle;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.toolbar.seg, .row.seg { flex: none; }
+.seg > .range-btn, #main .seg > .range-btn, .modal-body .seg > .range-btn {
+  height: 26px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; box-shadow: none;
+  color: var(--subtext); font: 700 11.5px var(--font-mono); letter-spacing: .02em; white-space: nowrap;
+  transition: background .12s ease, color .12s ease, box-shadow .12s ease;
+}
+.seg > .range-btn:hover, #main .seg > .range-btn:hover, .modal-body .seg > .range-btn:hover { color: var(--text); background: transparent; }
+.seg > .range-btn.active, #main .seg > .range-btn.active, .modal-body .seg > .range-btn.active {
+  background: var(--card); color: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 0 1px var(--accent-line);
+}
+.seg > .range-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+html.light .seg { background: rgba(255, 255, 255, .5); border-color: rgba(40, 30, 60, .12); }
+html.light .seg > .range-btn.active, html.light #main .seg > .range-btn.active, html.light .modal-body .seg > .range-btn.active {
+  background: #fff; box-shadow: 0 1px 3px rgba(40, 30, 60, .16), 0 0 0 1px var(--accent-line);
+}
+.picks-pill-group > .seg { margin-right: 4px; }
+/* Loose action buttons that became .cb-btn keep a row height that matches. */
+.row > .cb-btn, .toolbar > .cb-btn { height: 32px; }
+
+/* ── Subtitles. A landing head with a sub becomes an editorial split: label
+   and title on the left, the sub on the right, bottoms on one line, so a
+   two-sentence sub reads across the page instead of down a 58ch column. ── */
+.cl-head--split {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px 56px; align-items: end;
+}
+.cl-head--split .cl-h2 { margin-bottom: 0; }
+.cl-head--split .cl-section-sub {
+  max-width: none; margin: 0; padding-left: 22px; border-left: 2px solid var(--accent-line);
+  font-size: 15.5px; line-height: 1.65;
+}
+@media (max-width: 860px) {
+  .cl-head--split { grid-template-columns: minmax(0, 1fr); }
+  .cl-head--split .cl-section-sub { padding-left: 14px; }
+}
+/* In the app, the measure caps were set for a narrower page. */
+#main .pg-hero .subtitle { max-width: none; }
+.swp-lede, .swp-sub, .lg-lede, .lb-lede, .sec-sub, .scan-head-txt p, .scan-rej-why { max-width: 140ch; }
+
+/* ── Dialogs in liquid glass. Every formDialog shares this, so the API-key
+   popup, Add account and the trade forms all match. ── */
+.dialog-backdrop { background: rgba(3, 5, 9, .42); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); }
+html.light .dialog-backdrop { background: rgba(240, 236, 248, .38); }
+.dialog {
+  border-radius: 20px; padding: 22px 22px 18px; overflow: hidden; isolation: isolate;
+  -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6);
+}
+.dialog::before {
+  content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none;
+  background: radial-gradient(70% 55% at 0% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%),
+              radial-gradient(60% 50% at 100% 100%, color-mix(in srgb, var(--blue) 12%, transparent), transparent 70%);
+}
+html:not(.light) .dialog {
+  background: rgba(20, 18, 32, .62); border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 30px 80px -24px rgba(0, 0, 0, .85);
+}
+html.light .dialog {
+  background: rgba(255, 255, 255, .66); border: 1px solid rgba(255, 255, 255, .95);
+  box-shadow: inset 0 1px 0 #fff, 0 30px 70px -26px rgba(60, 45, 90, .4);
+}
+.dialog .field { border-radius: 10px; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+html:not(.light) .dialog .field { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .12); }
+html.light .dialog .field { background: rgba(255, 255, 255, .7); border-color: rgba(40, 30, 60, .14); }
+.dialog .field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.dialog .field-label { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+.dialog-actions { border-top-color: rgba(127, 127, 127, .16); }
+.dialog-actions .btn-outline, .dialog-actions .btn { border-radius: 10px; min-width: 84px; }
+.dialog-actions .btn { box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--accent) 80%, transparent); }
+
+.dialog-head { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.dialog-head .dialog-title { margin: 0; }
+.dialog-sub { margin-top: 2px; font-size: 12px; color: var(--subtext); }
+.dialog-ic {
+  flex: none; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; color: var(--accent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 26%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+  border: 1px solid var(--accent-line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+
+/* The assistant's connection dialog: wider, fields on a two-column grid, the
+   two prices side by side, the notes as tinted panels at the end. */
+.dialog.dialog--ai { width: min(540px, 94vw); }
+.dialog--ai .dialog-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 12px; align-content: start; }
+.dialog--ai .dialog-f { grid-column: 1 / -1; min-width: 0; }
+.dialog--ai .dialog-f[data-f="pin"], .dialog--ai .dialog-f[data-f="pout"] { grid-column: auto; }
+.dialog--ai .dialog-f[data-f="apikey"] .field { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: .01em; }
+.dialog--ai .dialog-f--info .dialog-info {
+  margin: 0 0 8px; padding: 11px 13px; border-radius: 12px; font-size: 12px; line-height: 1.6; color: var(--subtext);
+  background: color-mix(in srgb, var(--accent) 6%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.dialog--ai .dialog-f--info .dialog-info:empty { display: none; }
+.dialog--ai .dialog-f--info .dialog-info a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.dialog--ai .dialog-f--info .dialog-info a:hover { text-decoration: underline; }
+@media (max-width: 520px) {
+  .dialog--ai .dialog-body { grid-template-columns: minmax(0, 1fr); }
+  .dialog--ai .dialog-f[data-f="pin"], .dialog--ai .dialog-f[data-f="pout"] { grid-column: 1 / -1; }
+}
+
+/* ── The launcher: a small glass lens, the landing orb's recipe at 54px. A
+   turning colour halo under a frosted core with a highlight across its top. ── */
+#chat-fab { width: 54px; height: 54px; background: none; border: 0; box-shadow: none; overflow: visible; color: var(--text); }
+#chat-fab .fab-halo {
+  position: absolute; inset: -7px; border-radius: 50%; pointer-events: none; opacity: .55;
+  background: conic-gradient(from 0deg, var(--accent), var(--blue), #18bea8, #e246a8, var(--accent));
+  filter: blur(12px); animation: clSpin 14s linear infinite; transition: opacity .3s ease;
+}
+#chat-fab .fab-core {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  -webkit-backdrop-filter: blur(14px) saturate(1.6); backdrop-filter: blur(14px) saturate(1.6);
+  transition: transform .3s cubic-bezier(.22, 1, .36, 1);
+}
+#chat-fab .fab-core::before {
+  content: ''; position: absolute; left: 18%; right: 18%; top: 5%; height: 36%; border-radius: 50%; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, 0));
+}
+html:not(.light) #chat-fab .fab-core {
+  background: radial-gradient(circle at 50% 120%, color-mix(in srgb, var(--accent) 60%, transparent), transparent 72%), rgba(20, 18, 34, .55);
+  border: 1px solid rgba(255, 255, 255, .5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 -10px 18px -10px color-mix(in srgb, var(--accent) 85%, transparent), 0 14px 30px -12px rgba(0, 0, 0, .9);
+}
+html.light #chat-fab .fab-core {
+  background: radial-gradient(circle at 50% 120%, color-mix(in srgb, var(--accent) 36%, transparent), transparent 72%), rgba(255, 255, 255, .6);
+  border: 1px solid rgba(255, 255, 255, .95); color: #2a2340;
+  box-shadow: inset 0 1px 0 #fff, inset 0 -10px 18px -12px color-mix(in srgb, var(--accent) 65%, transparent), 0 14px 30px -14px rgba(60, 45, 90, .5);
+}
+#chat-fab .fab-core svg { position: relative; display: block; }
+#chat-fab .fab-spark { color: var(--accent); transform-origin: 12px 10.7px; transition: transform .5s cubic-bezier(.34, 1.32, .48, 1); }
+html:not(.light) #chat-fab .fab-spark { color: #fff; }
+#chat-fab:hover { transform: translateY(-2px); box-shadow: none; }
+#chat-fab:hover .fab-halo { opacity: .9; }
+#chat-fab:hover .fab-core { transform: scale(1.05); }
+#chat-fab:hover .fab-spark { transform: rotate(90deg) scale(1.15); }
+#chat-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  #chat-fab .fab-halo { animation: none; }
+  #chat-fab .fab-spark, #chat-fab .fab-core { transition: none; }
+}
+@media (max-width: 720px) {
+  #chat-fab { width: 48px; height: 48px; }
 }

@@ -389,11 +389,11 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
         <span class="section-title" style="margin:0">${tc('wealth.chart')}</span>
-        <div class="toolbar" style="margin:0;gap:4px">
+        <div class="toolbar seg" style="margin:0;gap:4px">
           <button class="range-btn${view === 'total' ? ' active' : ''}" data-w-view="total">${t('wealth.view.total')}</button>
           <button class="range-btn${view === 'stack' ? ' active' : ''}" data-w-view="stack">${t('wealth.view.stack')}</button>
         </div>
-        <div class="toolbar" style="margin:0;gap:4px">
+        <div class="toolbar seg" style="margin:0;gap:4px">
           ${(['all', '2y', '1y', '6m'] as const).map((r) => `<button class="range-btn${range === r ? ' active' : ''}" data-w-range="${r}">${r === 'all' ? 'All' : r.toUpperCase()}</button>`).join('')}
         </div>
       </div>
@@ -671,7 +671,7 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
   const modes =
     a.currency === shown
       ? ''
-      : `<div class="toolbar" style="margin:0 0 4px;gap:4px">${(['native', 'eur'] as const)
+      : `<div class="toolbar seg" style="margin:0 0 4px;gap:4px">${(['native', 'eur'] as const)
           .map((m) => `<button class="range-btn${mode === m ? ' active' : ''}" data-w-cmode="${a.id}" data-mode="${m}">${m === 'native' ? a.currency : shown}</button>`)
           .join('')}</div>`;
   return `${row}<tr class="w-hist" data-w-row="${a.id}"><td colspan="9">

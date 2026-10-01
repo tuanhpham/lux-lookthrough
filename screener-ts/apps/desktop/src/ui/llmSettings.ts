@@ -51,6 +51,10 @@ function announce(): void {
   }
 }
 
+const KEY_ICON =
+  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7"/><path d="m16 7 2.5 2.5"/><path d="m13.5 9.5 2 2"/></svg>';
+
 const DEFAULT_CONFIG: LlmConfig = { providerId: 'openai', model: '' };
 
 /** A number the user typed, or undefined for "unknown" — never a guessed 0. */
@@ -210,6 +214,12 @@ export async function openLlmSettings(ctx: AppContext): Promise<void> {
     );
 
     const res = await formDialog(t('ai.settings.title'), fields, {
+      className: 'dialog--ai',
+      icon: KEY_ICON,
+      sub:
+        getLang() === 'vi'
+          ? `Nối trợ lý với tài khoản AI của bạn · ${provider.label}`
+          : `Connect the assistant to your own AI account · ${provider.label}`,
       onChange: (values) =>
         values.provider !== cfg.providerId ? { blurb: t('ai.provider.switch') } : undefined,
     });

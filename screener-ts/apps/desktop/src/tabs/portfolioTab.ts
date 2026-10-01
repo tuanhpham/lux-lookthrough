@@ -1305,22 +1305,22 @@ function draw(ctx: AppContext): void {
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
         <span class="section-title" style="margin:0">${t('pf.title')}</span>
-        <div class="toolbar" style="margin:0;gap:4px">
+        <div class="toolbar seg" style="margin:0;gap:4px">
           <button class="range-btn active" data-pf-view="equity">${t('pf.chart.equity')}</button>
           <button class="range-btn" data-pf-view="candle">${t('pf.chart.candle')}</button>
           <button class="range-btn" data-pf-view="twr" title="${t('pf.chart.twr.title')}">${t('pf.chart.twr')}</button>
         </div>
-        <div class="toolbar" style="margin:0;gap:4px">
+        <div class="toolbar seg" style="margin:0;gap:4px">
           <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
         </div>
-        <div class="toolbar" style="margin:0;gap:4px" id="pf-range-bar">
+        <div class="toolbar seg" style="margin:0;gap:4px" id="pf-range-bar">
           <button class="range-btn active" data-pf-range="all">All</button>
           <button class="range-btn" data-pf-range="5y">5Y</button>
           <button class="range-btn" data-pf-range="2y">2Y</button>
           <button class="range-btn" data-pf-range="1y">1Y</button>
           <button class="range-btn" data-pf-range="6m">6M</button>
         </div>
-        <div class="toolbar" style="margin:0;gap:4px" id="pf-ema-bar">
+        <div class="toolbar seg" style="margin:0;gap:4px" id="pf-ema-bar">
           <button class="range-btn" data-pf-ema="5">EMA5</button>
           <button class="range-btn" data-pf-ema="10">EMA10</button>
           <button class="range-btn" data-pf-ema="21">EMA21</button>
@@ -1409,11 +1409,11 @@ function draw(ctx: AppContext): void {
             <span id="row-chart-days" class="pos-chart-days"></span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <div class="toolbar" style="margin:0;gap:3px">
+            <div class="toolbar seg" style="margin:0;gap:3px">
               <button class="range-btn active" id="row-view-candle" data-rv="candle">Candle</button>
               <button class="range-btn" id="row-view-equity" data-rv="equity">Equity</button>
             </div>
-            <div class="toolbar" id="row-ema-bar" style="margin:0;gap:4px">
+            <div class="toolbar seg" id="row-ema-bar" style="margin:0;gap:4px">
               <button class="range-btn" data-re="5">EMA5</button>
               <button class="range-btn" data-re="10">EMA10</button>
               <button class="range-btn" data-re="21">EMA21</button>
@@ -3399,22 +3399,22 @@ function buildOverviewHtml(): string {
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
         <span class="section-title" style="margin:0">${t('pf.overview.combined')}</span>
-        <div class="toolbar" style="margin:0;gap:4px">
+        <div class="toolbar seg" style="margin:0;gap:4px">
           <button class="range-btn active" data-pf-view="equity">${t('pf.chart.equity')}</button>
           <button class="range-btn" data-pf-view="candle">${t('pf.chart.candle')}</button>
           <button class="range-btn" data-pf-view="twr" title="${t('pf.chart.twr.title')}">${t('pf.chart.twr')}</button>
         </div>
-        <div class="toolbar" style="margin:0;gap:4px">
+        <div class="toolbar seg" style="margin:0;gap:4px">
           <button class="range-btn${pfShowCash ? ' active' : ''}" id="pf-cash-toggle" title="Toggle cash inclusion">+Cash</button>
         </div>
-        <div class="toolbar" style="margin:0;gap:4px" id="pf-range-bar">
+        <div class="toolbar seg" style="margin:0;gap:4px" id="pf-range-bar">
           <button class="range-btn active" data-pf-range="all">All</button>
           <button class="range-btn" data-pf-range="5y">5Y</button>
           <button class="range-btn" data-pf-range="2y">2Y</button>
           <button class="range-btn" data-pf-range="1y">1Y</button>
           <button class="range-btn" data-pf-range="6m">6M</button>
         </div>
-        <div class="toolbar" style="margin:0;gap:4px" id="pf-ema-bar">
+        <div class="toolbar seg" style="margin:0;gap:4px" id="pf-ema-bar">
           <button class="range-btn" data-pf-ema="5">EMA5</button>
           <button class="range-btn" data-pf-ema="10">EMA10</button>
           <button class="range-btn" data-pf-ema="21">EMA21</button>

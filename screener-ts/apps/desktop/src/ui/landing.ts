@@ -300,9 +300,11 @@ export function renderLanding(
   // Every section now opens with the same two-line head: a mono label saying what
   // kind of thing this is, then the serif question it answers.
   const head = (eyebrow: string, title: string, sub?: string) => `
-    <div class="cl-head">
-      <span class="cl-head-eyebrow">${eyebrow}</span>
-      <h2 class="cl-h2">${title}</h2>
+    <div class="cl-head${sub ? ' cl-head--split' : ''}">
+      <div class="cl-head-t">
+        <span class="cl-head-eyebrow">${eyebrow}</span>
+        <h2 class="cl-h2">${title}</h2>
+      </div>
       ${sub ? `<p class="cl-section-sub muted">${sub}</p>` : ''}
     </div>`;
 

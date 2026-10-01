@@ -22,6 +22,7 @@ import { downloadCsv, downloadHtml } from '../ui/exportFile.js';
 import { openStock } from '../ui/stockModal.js';
 import { t, getLang } from '../ui/i18n.js';
 import { pageHero } from '../ui/pageHero.js';
+import { cbButton } from '../ui/commandBar.js';
 
 type BtStrategy = 'vcp' | 'momentum';
 let btStrategy: BtStrategy = 'vcp';
@@ -65,8 +66,10 @@ export function renderBacktest(ctx: AppContext): void {
       <div class="picks-config-row">
         <span class="picks-config-label">${t('backtest.strategy')}</span>
         <div class="picks-pill-group">
-          <button class="range-btn ${btStrategy === 'vcp' ? 'active' : ''}" data-btstrat="vcp">${t('backtest.strat.vcp')}</button>
-          <button class="range-btn ${btStrategy === 'momentum' ? 'active' : ''}" data-btstrat="momentum">${t('backtest.strat.momentum')}</button>
+          <div class="seg">
+            <button class="range-btn ${btStrategy === 'vcp' ? 'active' : ''}" data-btstrat="vcp">${t('backtest.strat.vcp')}</button>
+            <button class="range-btn ${btStrategy === 'momentum' ? 'active' : ''}" data-btstrat="momentum">${t('backtest.strat.momentum')}</button>
+          </div>
           <p id="bt-strat-desc" class="muted pg-row-note">${stratDesc(btStrategy)}</p>
         </div>
       </div>
@@ -91,10 +94,10 @@ export function renderBacktest(ctx: AppContext): void {
       <div class="picks-config-row">
         <span class="picks-config-label">${t('backtest.period')}</span>
         <div class="picks-pill-group" id="bt-period-row">
-          ${PERIOD_PRESETS.map(
+          <div class="seg">${PERIOD_PRESETS.map(
             (p) =>
               `<button class="range-btn ${p.mode === periodMode ? 'active' : ''}" data-btperiod="${p.mode}">${p.label}</button>`,
-          ).join('')}
+          ).join('')}</div>
         <div id="bt-custom-dates" class="${periodMode === 'custom' ? '' : 'hidden'}" style="flex-basis:100%;margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
           <div>
             <label class="field-label">${t('backtest.from')}</label>
@@ -231,8 +234,8 @@ function renderResults(ctx: AppContext, res: BacktestResult, s: BacktestStats, s
   out.innerHTML = `
     ${zeroBlock}
     <div class="row" style="justify-content:flex-end;margin-bottom:8px;gap:6px">
-      <button class="range-btn" id="bt-csv">${t('export.csv')}</button>
-      <button class="range-btn" id="bt-html">${t('export.html')}</button>
+      ${cbButton({ id: 'bt-csv', label: t('export.csv'), icon: 'download' })}
+      ${cbButton({ id: 'bt-html', label: t('export.html'), icon: 'file' })}
     </div>
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
       ${statCard(t('backtest.totalreturn'), num(s.totalReturnPct, 1) + '%', s.totalReturnPct >= 0)}

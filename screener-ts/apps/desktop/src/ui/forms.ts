@@ -55,6 +55,11 @@ export interface FormDialogOptions {
    * specific field values live (e.g. auto-fill price when date changes).
    * 'info' field values are set as innerHTML so they can contain HTML. */
   onChange?: (values: Record<string, string>) => Partial<Record<string, string>> | void;
+  /** Extra class on `.dialog`, for a dialog that lays its fields out itself. */
+  className?: string;
+  /** An icon tile and a one-line sub under the title (both trusted HTML). */
+  icon?: string;
+  sub?: string;
 }
 
 export function formDialog(title: string, fields: Field[], opts: FormDialogOptions = {}): Promise<Record<string, string> | null> {
@@ -63,29 +68,35 @@ export function formDialog(title: string, fields: Field[], opts: FormDialogOptio
     host.className = 'dialog-host';
     host.innerHTML = `
       <div class="dialog-backdrop"></div>
-      <div class="dialog">
-        <div class="dialog-title">${title}</div>
+      <div class="dialog${opts.className ? ' ' + opts.className : ''}">
+        ${
+          opts.icon || opts.sub
+            ? `<div class="dialog-head">${opts.icon ? `<span class="dialog-ic">${opts.icon}</span>` : ''}<div>
+                <div class="dialog-title">${title}</div>${opts.sub ? `<div class="dialog-sub">${opts.sub}</div>` : ''}
+              </div></div>`
+            : `<div class="dialog-title">${title}</div>`
+        }
         <div class="dialog-body">
           ${fields
             .map(
               (f) => {
                 if (f.type === 'select' && f.options) {
-                  return `<label class="field-label">${f.label}</label>
-                    <select class="field dialog-field" data-key="${f.key}">${optionsHtml(f)}</select>`;
+                  return `<div class="dialog-f" data-f="${f.key}"><label class="field-label">${f.label}</label>
+                    <select class="field dialog-field" data-key="${f.key}">${optionsHtml(f)}</select></div>`;
                 }
                 if (f.type === 'info') {
-                  return `${f.label ? `<label class="field-label">${f.label}</label>` : ''}
-                    <div class="dialog-info dialog-field" data-key="${f.key}" data-type="info">${f.value ?? ''}</div>`;
+                  return `<div class="dialog-f dialog-f--info" data-f="${f.key}">${f.label ? `<label class="field-label">${f.label}</label>` : ''}
+                    <div class="dialog-info dialog-field" data-key="${f.key}" data-type="info">${f.value ?? ''}</div></div>`;
                 }
                 // Use type="text" with inputmode="decimal" for number fields so that
                 // iOS WKWebView returns the typed value reliably (type="number" has a
                 // known Safari bug where .value can return '' for valid decimal input).
                 const isNum = f.type === 'number';
-                return `<label class="field-label">${f.label}</label>
+                return `<div class="dialog-f" data-f="${f.key}"><label class="field-label">${f.label}</label>
                   <input class="field dialog-field" data-key="${f.key}"${f.raw ? ' data-raw="1"' : ''}
                     type="${isNum ? 'text' : (f.type ?? 'text')}"
                     ${isNum ? 'inputmode="decimal" autocorrect="off" autocapitalize="off"' : ''}
-                    value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" />`;
+                    value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" /></div>`;
               }
             )
             .join('')}

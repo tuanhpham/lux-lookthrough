@@ -11,6 +11,7 @@ import { openStock } from '../ui/stockModal.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { sectionHead } from '../ui/sectionHead.js';
 import { pageHero } from '../ui/pageHero.js';
+import { cbButton } from '../ui/commandBar.js';
 import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
@@ -54,10 +55,10 @@ export function renderWatchlist(ctx: AppContext): void {
         </div>
       </div>
       <div class="picks-config-actions">
-        <button id="wl-refresh" class="btn-outline">↻ ${t('wl.refresh')}</button>
-        <button id="wl-plan" class="btn-outline">📋 ${t('wl.plan')}</button>
-        <button id="wl-export" class="btn-outline" title="${t('wl.export.tip')}">⬇ ${t('wl.export')}</button>
-        <button id="wl-import" class="btn-outline" title="${t('wl.import.tip')}">⬆ ${t('wl.import')}</button>
+        ${cbButton({ id: 'wl-refresh', label: t('wl.refresh'), icon: 'refresh', primary: true })}
+        ${cbButton({ id: 'wl-plan', label: t('wl.plan'), icon: 'clipboard' })}
+        ${cbButton({ id: 'wl-export', label: t('wl.export'), icon: 'download', title: t('wl.export.tip') })}
+        ${cbButton({ id: 'wl-import', label: t('wl.import'), icon: 'upload', title: t('wl.import.tip') })}
         <input id="wl-import-file" type="file" accept="application/json,.json" style="display:none" />
       </div>
     </div>
