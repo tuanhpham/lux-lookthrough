@@ -5158,20 +5158,60 @@ html.light .chat-shell::before {
 .w-gbar-v, .w-gbar-p { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .w-gbar-p { color: var(--subtext); }
 
-/* The accounts filter: search + a <details> dropdown of checkboxes. */
-.w-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.w-search { max-width: 240px; padding: 6px 10px; font-size: 13px; }
+/* The accounts filter bar. It is its own stacking layer (`position` + `z-index`) so the
+   picker's popover paints over the accounts card below it, not under it. */
+.w-filter { position: relative; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.w-search-wrap { position: relative; flex: 0 1 260px; min-width: 160px; }
+.w-search-ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 15px; pointer-events: none; }
+.w-search { padding: 7px 10px 7px 30px; font-size: 13px; }
 .w-pick { position: relative; }
-.w-pick > summary { list-style: none; cursor: pointer; }
+.w-pick > summary { list-style: none; }
 .w-pick > summary::-webkit-details-marker { display: none; }
-.w-pick-menu {
-  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 220px; max-height: 320px; overflow-y: auto;
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+.w-pick-btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; cursor: pointer; font-size: 13px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text);
+  -webkit-user-select: none; user-select: none; transition: border-color .15s ease;
 }
-.w-pick-acts { display: flex; gap: 4px; padding: 2px 2px 6px; margin-bottom: 4px; border-bottom: 1px solid var(--border-soft); }
-.w-pick-opt { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
-.w-pick-opt:hover { background: var(--border-soft); }
+.w-pick-btn:hover, .w-pick[open] > .w-pick-btn { border-color: var(--accent); }
+.w-pick.on > .w-pick-btn { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.w-pick-caret { font-size: 10px; color: var(--faint); transition: transform .15s ease; }
+.w-pick[open] .w-pick-caret { transform: rotate(180deg); }
+.w-pick-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; width: min(340px, calc(100vw - 32px));
+  display: flex; flex-direction: column; max-height: min(460px, 70vh);
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .25);
+  animation: wPickIn .14s ease-out;
+}
+@keyframes wPickIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.w-pick-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 12px 14px 8px; font-size: 13px; }
+.w-pick-find { margin: 0 14px 8px; width: auto; padding: 6px 10px; font-size: 12.5px; }
+.w-pick-list { overflow-y: auto; padding: 0 6px 6px; border-top: 1px solid var(--border-soft); }
+.w-pick-group { display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px; font-size: 11px; }
+.w-pick-opt { position: relative; display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.w-pick-opt:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.w-pick-opt > input { position: absolute; opacity: 0; pointer-events: none; }
+.w-pick-box {
+  flex: 0 0 auto; width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center; transition: background .12s ease, border-color .12s ease;
+}
+.w-pick-opt > input:checked + .w-pick-box { background: var(--accent); border-color: var(--accent); }
+.w-pick-opt > input:checked + .w-pick-box::after { content: '✓'; color: var(--bg, #000); font-size: 11px; font-weight: 800; line-height: 1; }
+.w-pick-opt > input:focus-visible + .w-pick-box { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.w-pick-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-pick-sub { display: block; font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+.w-pick-v { flex: 0 0 auto; font-size: 12px; color: var(--subtext); font-variant-numeric: tabular-nums; }
+.w-pick-foot { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border-soft); }
+.w-pick-foot > button { padding: 6px 14px; font-size: 12.5px; }
+.w-fold-all { height: 34px; padding: 0 12px; font-size: 12.5px; }
+.w-chips { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.w-chips:empty { display: none; }
+.w-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; font-size: 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.w-chip > button { border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 5px; border-radius: 50%; }
+.w-chip > button:hover { color: var(--danger); }
 
 /* An account's readings: a card edged in the account's colour, every cell an input that
    looks like text until hovered or focused. Amber edge = typed but not saved yet. */

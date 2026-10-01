@@ -391,7 +391,7 @@ function pageHtml(side: PortfolioSide, s: WealthSeries): string {
     </div>
 
     ${sectionHead(t('wealth.accounts'), [countChip(book.accounts.length + 1, undefined, t('pf.unit.accounts'))], { sub: tc('wealth.accounts.sub') })}
-    ${filterHtml()}
+    ${filterHtml(now)}
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
       ${accountsTable(now, side)}
     </div>`;
@@ -461,32 +461,63 @@ function groupBars(title: string, rows: { label: string; color: string; v: numbe
     </div>`;
 }
 
-/** The search box, the account picker, and the "3/7 shown · €…" line `applyFilter` fills. */
-function filterHtml(): string {
+/**
+ * The bar above the accounts table: search, the account picker, expand / collapse all,
+ * and the "3/7 shown · €…" line plus the picked-account chips that `applyFilter` fills.
+ *
+ * The picker is a popover, not a native multi-select (which is a cramped list box on a
+ * desktop and a full-screen wheel on a phone). Accounts are grouped by currency, each with
+ * its type and its value, and the list has its own search for when there are many.
+ */
+function filterHtml(now: WealthSeries['points'][number] | null): string {
   if (!book.accounts.length) return '';
-  const opts = [
-    { id: PF_ROW, name: t('nav.portfolio'), color: PF_COLOR },
-    ...[...book.accounts].sort((a, b) => a.name.localeCompare(b.name)).map((a) => ({ id: a.id, name: a.name, color: colorOf(a.id) })),
-  ];
+  const opt = (id: string, name: string, color: string, sub: string, v: number | null): string =>
+    `<label class="w-pick-opt" data-w-optname="${esc(name.toLocaleLowerCase())}">
+        <input type="checkbox" data-w-pick="${id}"${picked.has(id) ? ' checked' : ''}>
+        <span class="w-pick-box"></span>
+        <span class="kpi-dot" style="background:${color}"></span>
+        <span class="w-pick-name">${esc(name)}<span class="w-pick-sub">${sub}</span></span>
+        <span class="w-pick-v">${v == null ? '' : eur(v)}</span>
+      </label>`;
+  const groups = WEALTH_CURRENCIES.map((c) => ({ c, list: book.accounts.filter((a) => a.currency === c).sort((a, b) => a.name.localeCompare(b.name)) }))
+    .filter((g) => g.list.length)
+    .map(
+      (g) => `<div class="w-pick-group">${ccyChip(g.c)}<span class="muted">${g.list.length}</span></div>
+        ${g.list.map((a) => opt(a.id, a.name, colorOf(a.id), t('wealth.kind.' + a.kind), now?.byAccount[a.id] ?? null)).join('')}`,
+    )
+    .join('');
+  const allOpen = [PF_ROW, ...book.accounts.map((a) => a.id)].every((id) => openHistory.has(id));
   return `<div class="w-filter">
-      <input class="field w-search" id="w-q" type="search" autocomplete="off" placeholder="${t('wealth.filter.search')}" value="${esc(query)}">
+      <div class="w-search-wrap">
+        <span class="w-search-ico" aria-hidden="true">⌕</span>
+        <input class="field w-search" id="w-q" type="search" autocomplete="off" placeholder="${t('wealth.filter.search')}" value="${esc(query)}">
+      </div>
       <details class="w-pick">
-        <summary class="btn-outline" id="w-pick-label">${pickLabel()}</summary>
-        <div class="w-pick-menu">
-          <div class="w-pick-acts"><button class="range-btn" data-w-pickall>${t('wealth.filter.all')}</button></div>
-          ${opts
-            .map(
-              (o) => `<label class="w-pick-opt"><input type="checkbox" data-w-pick="${o.id}"${picked.has(o.id) ? ' checked' : ''}><span class="kpi-dot" style="background:${o.color}"></span>${esc(o.name)}</label>`,
-            )
-            .join('')}
+        <summary class="w-pick-btn"><span id="w-pick-label">${pickLabel()}</span><span class="w-pick-caret">▾</span></summary>
+        <div class="w-pick-menu" role="dialog">
+          <div class="w-pick-head">
+            <strong>${t('wealth.filter.title')}</strong>
+            <span class="muted" id="w-pick-count"></span>
+          </div>
+          <input class="field w-pick-find" id="w-pick-find" type="search" autocomplete="off" placeholder="${t('wealth.filter.find')}">
+          <div class="w-pick-list">
+            ${opt(PF_ROW, t('nav.portfolio'), PF_COLOR, t('wealth.kind.portfolio'), now?.portfolio ?? null)}
+            ${groups}
+          </div>
+          <div class="w-pick-foot">
+            <button class="btn-outline" data-w-pickclear>${t('wealth.filter.clear')}</button>
+            <button class="btn" data-w-pickdone>${t('wealth.filter.done')}</button>
+          </div>
         </div>
       </details>
+      <button class="btn-outline w-fold-all" data-w-foldall="${allOpen ? 'close' : 'open'}">${allOpen ? `▴ ${t('wealth.collapseall')}` : `▾ ${t('wealth.expandall')}`}</button>
       <span class="muted" id="w-shown" style="font-size:12px"></span>
+      <div class="w-chips" id="w-chips"></div>
     </div>`;
 }
 
 const pickLabel = (): string =>
-  `${t('wealth.filter.pick')}: ${picked.size ? String(picked.size) : t('wealth.filter.all')} ▾`;
+  picked.size ? t('wealth.filter.some').replace('{n}', String(picked.size)) : t('wealth.filter.everything');
 
 /** Whether a table row passes the picker and the search (name, note, type, currency). */
 function rowVisible(id: string): boolean {
@@ -521,6 +552,20 @@ function applyFilter(root: HTMLElement, now: WealthSeries['points'][number] | nu
         : '';
   const label = root.querySelector<HTMLElement>('#w-pick-label');
   if (label) label.textContent = pickLabel();
+  root.querySelector('.w-pick')?.classList.toggle('on', picked.size > 0);
+  const count = root.querySelector<HTMLElement>('#w-pick-count');
+  if (count) count.textContent = picked.size ? `${picked.size}/${ids.length}` : t('wealth.filter.everything');
+  // The picked accounts as removable chips, so what is hiding the rest stays in sight.
+  const chips = root.querySelector<HTMLElement>('#w-chips');
+  if (chips)
+    chips.innerHTML = ids
+      .filter((id) => picked.has(id))
+      .map((id) => {
+        const a = book.accounts.find((x) => x.id === id);
+        const name = id === PF_ROW ? t('nav.portfolio') : (a?.name ?? '');
+        return `<span class="w-chip"><span class="kpi-dot" style="background:${id === PF_ROW ? PF_COLOR : colorOf(id)}"></span>${esc(name)}<button data-w-unpick="${id}" title="${t('wealth.filter.remove')}">×</button></span>`;
+      })
+      .join('');
 }
 
 function accountsTable(now: WealthSeries['points'][number] | null, side: PortfolioSide): string {
@@ -1082,10 +1127,34 @@ function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
       applyFilter(root, now);
     }),
   );
-  root.querySelector('[data-w-pickall]')?.addEventListener('click', () => {
+  const unpickAll = (): void => {
     picked.clear();
     root.querySelectorAll<HTMLInputElement>('[data-w-pick]').forEach((cb) => (cb.checked = false));
     applyFilter(root, now);
+  };
+  root.querySelector('[data-w-pickclear]')?.addEventListener('click', unpickAll);
+  root.querySelector('[data-w-pickdone]')?.addEventListener('click', () => {
+    const d = root.querySelector<HTMLDetailsElement>('.w-pick');
+    if (d) d.open = false;
+  });
+  root.querySelector<HTMLInputElement>('#w-pick-find')?.addEventListener('input', (e) => {
+    const q = (e.target as HTMLInputElement).value.trim().toLocaleLowerCase();
+    root.querySelectorAll<HTMLElement>('[data-w-optname]').forEach((o) => o.classList.toggle('hidden', !!q && !o.dataset.wOptname!.includes(q)));
+  });
+  // Chips are rebuilt by applyFilter, so one delegated listener instead of one per chip.
+  root.querySelector('#w-chips')?.addEventListener('click', (e) => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-w-unpick]')?.dataset.wUnpick;
+    if (!id) return;
+    picked.delete(id);
+    const cb = root.querySelector<HTMLInputElement>(`[data-w-pick="${id}"]`);
+    if (cb) cb.checked = false;
+    applyFilter(root, now);
+  });
+  root.querySelector<HTMLElement>('[data-w-foldall]')?.addEventListener('click', (e) => {
+    const open = (e.currentTarget as HTMLElement).dataset.wFoldall === 'open';
+    openHistory.clear();
+    if (open) for (const id of [PF_ROW, ...book.accounts.map((a) => a.id)]) openHistory.add(id);
+    draw(ctx);
   });
   if (!pickCloseWired) {
     pickCloseWired = true;
