@@ -5715,3 +5715,27 @@ trinh cua app, khong bi gioi han o trang dang mo; them mot nut de bat/tat tim ki
 — Chua co ty gia tien te duoc chon: van hien EUR, co canh bao, va tu tai ty gia khi bam nut.
 — Lua chon luu trong key `wealth_ccy`, dong bo giua cac may.
 — Kiem tra: typecheck exit 0, 413 test, vite build OK.
+
+
+## CHAT-51 — Financial Status: phan bo, loc tai khoan, sua lan ghi tai cho (21fcece7)
+
+### A. Yeu cau
+— Ghi chu tai khoan tren dien thoai nam mot dong, cot rat dai. Muon bieu do phan bo theo tien te va theo loai tai khoan (cong gop, vd tat ca ngan hang).
+— Nut xem giao dich cuoi dong; bam ten tai khoan cung mo/dong duoc. Cot tien te moi tien te mot mau.
+— O tim kiem hoac dropdown chon nhieu tai khoan de chi xem mot so.
+— Cac lan ghi so du nhin don dieu: lam noi bat hon, de sua hon.
+
+### B. Nguyen nhan ghi chu dai
+— styles.css (khoi @media max-width 980px): `table { white-space: nowrap }` cho moi bang. Ghi chu thua huong nowrap.
+— Sua: `.w-note` white-space normal + `width: max-content; max-width: 28ch`. Chi `white-space: normal` thi chua du: bang tren mobile co min-content qua rong nen cot bi ep xuong do rong mot tu.
+
+### C. Da lam
+— Hai the "Theo tien te" / "Theo loai tai khoan": moi nhom mot thanh ngang, so tien theo tien te hien thi, ty trong tren tong tai san duong. No (so am) hien mau do, ty trong am. Portfolio la mot nhom rieng trong ca hai (khong tach theo ma).
+— Ten tai khoan co mui ten ▸/▾, bam de mo/dong. Nut cuoi dong hien so lan ghi (vd "5 ▾"). Dong Portfolio: bam ten mo bieu do; link "Mo Portfolio →" ben duoi de sang tab Portfolio.
+— Cot tien te: chip mau CCY_COLOR.
+— Loc: o tim (ten, ghi chu, loai, tien te) + dropdown checkbox (co Portfolio). Chi an dong trong bang; KPI va bieu do giu nguyen. Hien "Dang hien n/m · tong". Khong luu: tai lai trang la hien het.
+— Lan ghi: the vien trai mau tai khoan; ngay/so tien/ghi chu la o nhap ngay tai cho. Go vao -> vien vang, nut ✓ sang; Enter hoac ✓ luu, Esc huy. Khong luu khi roi o (blur) vi se ve lai trang giua chung. Cot "Thay doi" so voi lan ghi truoc (tien goc). Dong tren cung de them lan ghi moi; trung ngay thi hoi truoc.
+— Bo hop thoai ✎ sua lan ghi; quy tac "so tien khong sua thi khong parse lai" giu nguyen (so sanh voi chuoi da nhom).
+
+### D. Kiem tra
+— typecheck exit 0, desktop 413 test, vite build OK. Chua xem tren dien thoai that.
