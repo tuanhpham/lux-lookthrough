@@ -31,6 +31,8 @@ export interface BookPart {
   /** Roman numeral, shown big. Roman on purpose: it cannot be mistaken for the
    *  playbook's own 1–16 section numbers. */
   numeral: string;
+  /** One emoji, the same one the search palette shows for the part. */
+  icon?: string;
   title: string;
   /** One sentence. What this part is for, not what it contains. */
   blurb: string;
@@ -61,17 +63,24 @@ export function bookCoverHtml(
     <div class="lb-eyebrow">${vi ? 'Sổ tay · The Professional Platform' : 'Handbook · The Professional Platform'}</div>
     <h1 class="lb-title">${title}</h1>
     <p class="lb-lede">${lede}</p>
-    <div class="lb-contents-h">${vi ? 'Nội dung' : 'Contents'}</div>
+    <div class="lb-contents-h">${vi ? 'Nội dung' : 'Contents'}<span>${parts.length} ${vi ? 'phần' : 'parts'}</span></div>
     <ol class="lb-contents">${parts
       .map(
-        (p) => `<li>
-          <button type="button" class="lb-contents-row" data-lb-goto="${p.id}">
-            <span class="lb-contents-num">${p.numeral}</span>
+        (p, i) => `<li>
+          <button type="button" class="lb-contents-row lb-c-${i + 1}" data-lb-goto="${p.id}">
+            <span class="lb-contents-top">
+              <span class="lb-contents-num">${p.numeral}</span>
+              ${p.icon ? `<span class="lb-contents-ic" aria-hidden="true">${p.icon}</span>` : ''}
+            </span>
             <span class="lb-contents-text">
               <span class="lb-contents-title">${esc(p.title)}</span>
               <span class="lb-contents-blurb">${esc(p.blurb)}</span>
             </span>
-            <span class="lb-contents-min" data-lb-min="${p.id}"></span>
+            <span class="lb-contents-meta">
+              <span class="lb-contents-min" data-lb-min="${p.id}"></span>
+              <span class="lb-contents-ch" data-lb-ch="${p.id}"></span>
+              <span class="lb-contents-go" aria-hidden="true">→</span>
+            </span>
           </button>
         </li>`,
       )
@@ -88,6 +97,7 @@ export function bookPartHtml(part: BookPart): string {
   return `<section class="lb-wrap">
     <header class="lb-part" id="${part.id}">
       <span class="lb-part-kicker">${part.numeral}</span>
+      ${part.icon ? `<span class="lb-part-ic" aria-hidden="true">${part.icon}</span>` : ''}
       <h2 class="lb-part-title">${esc(part.title)}</h2>
       <p class="lb-part-blurb">${esc(part.blurb)}</p>
     </header>
@@ -109,7 +119,14 @@ export function stampReadingTimes(root: HTMLElement, lang: Lang): void {
     if (!id) continue;
     const words = (wrap.textContent ?? '').trim().split(/\s+/).filter(Boolean).length;
     const slot = root.querySelector<HTMLElement>(`[data-lb-min="${id}"]`);
-    if (slot) slot.textContent = `${Math.max(1, Math.round(words / WPM))} ${unit}`;
+    if (slot) slot.textContent = `⏱ ${Math.max(1, Math.round(words / WPM))} ${unit}`;
+    // Chapters: the playbook counts its numbered sections, the other parts their
+    // headings (a part divider's own title is not a chapter).
+    const secs = wrap.querySelectorAll('.swp-sec').length;
+    const heads = Array.from(wrap.querySelectorAll('h2')).filter((h) => !h.closest('.lb-part')).length;
+    const n = secs || heads;
+    const ch = root.querySelector<HTMLElement>(`[data-lb-ch="${id}"]`);
+    if (ch && n) ch.textContent = `${n} ${lang === 'vi' ? 'mục' : n === 1 ? 'section' : 'sections'}`;
   }
 }
 

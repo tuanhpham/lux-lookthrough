@@ -1,6 +1,6 @@
 import type { AppContext } from '../context.js';
 import { $, el } from '../ui/dom.js';
-import { getLang, t } from '../ui/i18n.js';
+import { t } from '../ui/i18n.js';
 import {
   askChatGpt,
   copyToClipboard,
@@ -10,50 +10,31 @@ import {
 } from '../ui/askChatGpt.js';
 
 /**
- * Trading System Playbook — a bilingual (EN/VI) reference page adapted to the
- * app's own design system (CSS variables, `.card`, `.playbook-*`, toolbar pills).
+ * The working half of the swing-trading playbook: the routine you tick off and the
+ * prompt library you send to an AI. Both live inside §15 "The daily routine" in Learn.
  *
- * The original was a standalone dark-theme HTML page; here it is rebuilt with
- * the app's components so it inherits the active theme + language and stays
- * consistent with the rest of the desktop UI. Two small interactive widgets are
- * preserved (market-regime traffic light + a localStorage routine checklist).
+ * ── WHY THIS IS NOT A PAGE ANY MORE ─────────────────────────────────────────
+ * There used to be a separate Playbook tab with a regime traffic light, risk rules,
+ * a routine and these prompts. The playbook in Learn already covers the regime
+ * (§3) and the risk rules (§9–10), and covers them better. So the two pages said the
+ * same things twice with different numbers. What only the old tab had were the
+ * interactive parts, so they moved into the section they belong to, and the tab was
+ * removed. `#playbook` still works: main.ts maps it to Learn, §15.
+ *
+ * ── STORAGE ─────────────────────────────────────────────────────────────────
+ * The keys did not move (`playbook:prompts`, `playbook:routine`), so a user's
+ * edited prompts survived the merge. Ticks are keyed by step (`ev-0`, `wk-3`).
+ * Ticks from the old four-phase list never match a new key, so they are ignored,
+ * which is harmless for a checklist that is meant to be cleared every day anyway.
+ *
+ * `routineHtml` and `promptsHtml` are static and are drawn by swingPlaybook.ts with
+ * the rest of the section. `wirePlaybookTools` then restores the ticks and fills the
+ * prompt library, which needs storage.
  */
 
 type Lang = 'en' | 'vi';
 type Bi = { en: string; vi: string };
 const tx = (b: Bi, lang: Lang) => b[lang] ?? b.en;
-
-// ── Static content (bilingual) ──────────────────────────────────────────────
-
-const REGIMES: { key: string; color: string; label: Bi; rule: Bi }[] = [
-  {
-    key: 'green',
-    color: 'var(--accent)',
-    label: { en: 'Risk-On', vi: 'Chấp nhận rủi ro' },
-    rule: {
-      en: 'Index above rising 50DMA & 200DMA, breadth expanding. Full position sizing, take valid breakouts.',
-      vi: 'Chỉ số trên MA50 & MA200 đang dốc lên, độ rộng mở rộng. Vào lệnh đầy đủ, mua các điểm phá vỡ hợp lệ.',
-    },
-  },
-  {
-    key: 'yellow',
-    color: 'var(--warn)',
-    label: { en: 'Caution', vi: 'Thận trọng' },
-    rule: {
-      en: 'Index choppy around 50DMA, mixed breadth. Half size, tighten stops, only A+ setups.',
-      vi: 'Chỉ số giằng co quanh MA50, độ rộng lẫn lộn. Vào nửa khối lượng, siết stop, chỉ setup A+.',
-    },
-  },
-  {
-    key: 'red',
-    color: 'var(--danger)',
-    label: { en: 'Risk-Off', vi: 'Phòng thủ' },
-    rule: {
-      en: 'Index below falling 200DMA, distribution days stacking. Mostly cash, no new longs.',
-      vi: 'Chỉ số dưới MA200 đang dốc xuống, ngày phân phối chồng chất. Phần lớn tiền mặt, không mở lệnh mua mới.',
-    },
-  },
-];
 
 interface Prompt {
   id: string;
@@ -64,7 +45,7 @@ interface Prompt {
 
 /**
  * Built-in prompt library. Used to seed the editable, persisted library the
- * first time the tab is opened (and restored by "Reset"). The user's own copy
+ * first time it is shown (and restored by "Reset"). The user's own copy
  * lives in storage under `PROMPTS_KEY` — see loadPrompts / savePrompts below.
  */
 const DEFAULT_PROMPTS: Prompt[] = [
@@ -213,215 +194,247 @@ async function savePrompts(ctx: AppContext, prompts: Prompt[]): Promise<void> {
   await ctx.storage.set(PROMPTS_KEY, prompts);
 }
 
-const ROUTINE: { phase: Bi; items: Bi[] }[] = [
+/** When in the week a prompt is meant to be run. Drives its tag and the filter chips.
+ * A prompt the user wrote has no cadence, so it is filed under "yours". */
+type Cadence = 'morning' | 'evening' | 'weekend' | 'monthly' | 'any' | 'custom';
+const CADENCE_OF: Record<string, Cadence> = {
+  'us-brief': 'morning',
+  regime: 'evening', triage: 'evening', entry: 'evening', review: 'evening', 'vn-recap': 'evening',
+  postmortem: 'weekend', 'weekend-map': 'weekend',
+  monthly: 'monthly',
+  'single-stock': 'any',
+};
+const CADENCE: Record<Cadence, Bi> = {
+  morning: { en: 'Morning', vi: 'Buổi sáng' },
+  evening: { en: 'Evening', vi: 'Buổi tối' },
+  weekend: { en: 'Weekend', vi: 'Cuối tuần' },
+  monthly: { en: 'Monthly', vi: 'Hằng tháng' },
+  any: { en: 'Any time', vi: 'Bất kỳ lúc nào' },
+  custom: { en: 'Yours', vi: 'Của bạn' },
+};
+const cadenceOf = (p: Prompt): Cadence => CADENCE_OF[p.id] ?? 'custom';
+
+// ── The routine ─────────────────────────────────────────────────────────────
+
+interface RoutineStep {
+  t: Bi;
+  /** Minutes, as the book budgets them. */
+  min?: number;
+  /** The page in this app where the step is done. */
+  go?: string;
+}
+interface RoutinePhase {
+  id: 'ev' | 'wk';
+  icon: string;
+  title: Bi;
+  when: Bi;
+  steps: RoutineStep[];
+}
+
+/** The book's own evening and weekend lists, each step tied to the page it is done on. */
+const ROUTINE: RoutinePhase[] = [
   {
-    phase: { en: 'Pre-Market (Daily)', vi: 'Trước phiên (Hằng ngày)' },
-    items: [
-      { en: 'Run market regime check (P1)', vi: 'Chạy kiểm tra trạng thái thị trường (P1)' },
-      { en: 'Update watchlist & note names near pivot', vi: 'Cập nhật watchlist & ghi chú mã gần điểm pivot' },
-      { en: 'Set alerts at buy points', vi: 'Đặt cảnh báo tại điểm mua' },
+    id: 'ev', icon: '🌙',
+    title: { en: 'Evening', vi: 'Buổi tối' },
+    when: { en: 'after the US close · 30–45 min', vi: 'sau khi Mỹ đóng cửa · 30–45 phút' },
+    steps: [
+      { t: { en: 'Write the regime line: trend · volatility · breadth · distribution days', vi: 'Viết dòng regime: xu hướng · biến động · độ rộng · ngày phân phối' }, min: 5, go: 'scanner' },
+      { t: { en: 'Rank the 11 sector ETFs on 1M / 3M / 6M', vi: 'Xếp hạng 11 sector ETF theo 1M / 3M / 6M' }, min: 5, go: 'sectors' },
+      { t: { en: 'Note this week’s rank changes', vi: 'Ghi lại thay đổi thứ hạng tuần này' }, min: 2, go: 'sectors' },
+      { t: { en: 'Screen ONLY inside the top 3 sectors', vi: 'Chạy screener CHỈ trong top 3 sector' }, min: 5, go: 'screener' },
+      { t: { en: 'In-play filter: RVol, liquidity, ATR, RS', vi: 'Lọc in-play: RVol, thanh khoản, ATR, RS' }, min: 3, go: 'screener' },
+      { t: { en: 'Score 5 charts', vi: 'Chấm điểm 5 biểu đồ' }, min: 15, go: 'watchlist' },
+      { t: { en: 'Write the plan: entry / stop / target', vi: 'Viết kế hoạch: entry / stop / target' }, min: 10, go: 'watchlist' },
     ],
   },
   {
-    phase: { en: 'During Session', vi: 'Trong phiên' },
-    items: [
-      { en: 'Only act on triggered, planned setups', vi: 'Chỉ hành động với setup đã lên kế hoạch và được kích hoạt' },
-      { en: 'Size by risk, never by conviction', vi: 'Tính khối lượng theo rủi ro, không theo cảm tính' },
-      { en: 'No new buys in RED regime', vi: 'Không mua mới khi thị trường ở trạng thái ĐỎ' },
-    ],
-  },
-  {
-    phase: { en: 'Post-Market (Daily)', vi: 'Sau phiên (Hằng ngày)' },
-    items: [
-      { en: 'Review open positions (P4)', vi: 'Rà soát vị thế đang mở (P4)' },
-      { en: 'Move stops per trailing rules', vi: 'Dời stop theo quy tắc trailing' },
-      { en: 'Log any closed trade (P5)', vi: 'Ghi nhật ký mọi lệnh đã đóng (P5)' },
-    ],
-  },
-  {
-    phase: { en: 'Weekend (Weekly)', vi: 'Cuối tuần (Hằng tuần)' },
-    items: [
-      { en: 'Sector rotation read (Sectors tab)', vi: 'Đọc luân chuyển ngành (tab Ngành)' },
-      { en: 'Refresh full watchlist with the screener', vi: 'Làm mới toàn bộ watchlist bằng bộ lọc' },
-      { en: 'Write up the week&rsquo;s best setup as a Case Study', vi: 'Ghi lại setup đáng chú ý nhất của tuần thành một Hồ sơ Setup' },
+    id: 'wk', icon: '📅',
+    title: { en: 'Weekend', vi: 'Cuối tuần' },
+    when: { en: 'once a week · 1–2 hours', vi: 'mỗi tuần một lần · 1–2 giờ' },
+    steps: [
+      { t: { en: 'Review every trade of the week', vi: 'Xem lại toàn bộ lệnh trong tuần' }, go: 'portfolio' },
+      { t: { en: 'Update expectancy by setup × regime', vi: 'Cập nhật expectancy theo setup × regime' }, go: 'casestudies' },
+      { t: { en: 'Flag the rule-breaking trades, and write down why', vi: 'Đánh dấu lệnh phá luật, và ghi lại vì sao' }, go: 'casestudies' },
+      { t: { en: 'Look at the 90-session sector rotation', vi: 'Xem biểu đồ xoay vòng sector 90 phiên' }, go: 'sectors' },
+      { t: { en: 'Check next week’s earnings calendar', vi: 'Kiểm tra lịch earnings tuần tới' }, go: 'calendar' },
+      { t: { en: 'Prepare the watchlist', vi: 'Chuẩn bị danh sách theo dõi' }, go: 'watchlist' },
+      { t: { en: 'Re-read one section of this playbook', vi: 'Đọc lại một mục trong cẩm nang này' } },
     ],
   },
 ];
-
-const DATA_SOURCES: { source: string; use: Bi; note: Bi }[] = [
-  {
-    source: 'Yahoo Finance',
-    use: { en: 'Primary OHLCV + fundamentals', vi: 'OHLCV chính + dữ liệu cơ bản' },
-    note: { en: 'Split/dividend-adjusted; default provider in this app', vi: 'Đã điều chỉnh chia tách/cổ tức; nhà cung cấp mặc định' },
-  },
-  {
-    source: 'Finnhub',
-    use: { en: 'Fallback quotes / fundamentals', vi: 'Báo giá / cơ bản dự phòng' },
-    note: { en: 'Optional API key (Settings / Cloudflare secret)', vi: 'Khóa API tùy chọn (Cài đặt / secret Cloudflare)' },
-  },
-  {
-    source: 'Wikipedia',
-    use: { en: 'S&P 1500 universe membership', vi: 'Thành phần rổ S&P 1500' },
-    note: { en: 'Used to build the screenable universe', vi: 'Dùng để dựng rổ cổ phiếu có thể quét' },
-  },
-];
-
-const RISK_RULES: Bi[] = [
-  { en: 'Risk a fixed % of equity per trade (e.g. 0.5–1%).', vi: 'Rủi ro một % cố định trên vốn cho mỗi lệnh (vd 0,5–1%).' },
-  { en: 'Never average down a losing trade.', vi: 'Không bao giờ trung bình giá xuống cho lệnh thua.' },
-  { en: 'Cut losers at the planned stop — no exceptions.', vi: 'Cắt lỗ tại stop đã định — không ngoại lệ.' },
-  { en: 'Let winners run with a trailing stop above breakeven.', vi: 'Để lệnh thắng chạy với trailing stop trên điểm hòa vốn.' },
-  { en: 'Max portfolio heat (sum of open risk) capped.', vi: 'Giới hạn tổng rủi ro đang mở của danh mục.' },
-];
-
-// ── Render ──────────────────────────────────────────────────────────────────
 
 const ROUTINE_KEY = 'playbook:routine';
 
-export function renderPlaybook(ctx: AppContext): void {
-  const lang = getLang() as Lang;
-  const root = $('#tab-playbook')!;
-  const title = { en: 'Trading System Playbook', vi: 'Sổ tay hệ thống giao dịch' };
-  const sub = {
-    en: 'A repeatable, rules-based workflow — market regime, watchlist triage, entries, risk and review.',
-    vi: 'Quy trình lặp lại theo quy tắc — trạng thái thị trường, sàng lọc watchlist, vào lệnh, quản trị rủi ro và rà soát.',
-  };
+const PAGE_NAME: Record<string, Bi> = {
+  scanner: { en: 'Scanner', vi: 'Scanner' },
+  sectors: { en: 'Sectors', vi: 'Ngành' },
+  screener: { en: 'Screener', vi: 'Bộ lọc' },
+  watchlist: { en: 'Watchlist', vi: 'Theo dõi' },
+  portfolio: { en: 'Portfolio', vi: 'Danh mục' },
+  casestudies: { en: 'Case Studies', vi: 'Hồ sơ' },
+  calendar: { en: 'Calendar', vi: 'Lịch' },
+};
 
-  root.innerHTML = `<h1>${tx(title, lang)}</h1><p class="subtitle">${tx(sub, lang)}</p>`;
-
-  // 1) Market regime traffic light
-  const regimeSection = el(`<div class="playbook-section"></div>`);
-  regimeSection.appendChild(sectionHead({ en: '1 · Market Regime', vi: '1 · Trạng thái thị trường' }, lang));
-  const regimeGrid = el(`<div class="grid grid-cards"></div>`);
-  for (const r of REGIMES) {
-    regimeGrid.appendChild(
-      el(`<div class="card" style="border-left:4px solid ${r.color}">
-        <div class="row" style="gap:8px;align-items:center">
-          <span style="width:12px;height:12px;border-radius:50%;background:${r.color};box-shadow:0 0 8px ${r.color}"></span>
-          <strong>${tx(r.label, lang)}</strong>
+/** The two tickable routine cards. Static; `wirePlaybookTools` restores the ticks. */
+export function routineHtml(lang: Lang): string {
+  const vi = lang === 'vi';
+  const phase = (p: RoutinePhase): string => {
+    const total = p.steps.reduce((s, x) => s + (x.min ?? 0), 0);
+    return `<div class="pt-phase" data-pt-phase="${p.id}">
+      <header class="pt-phase-h">
+        <span class="pt-phase-ic" aria-hidden="true">${p.icon}</span>
+        <div class="pt-phase-t">
+          <b>${tx(p.title, lang)}</b>
+          <span>${tx(p.when, lang)}</span>
         </div>
-        <p class="muted" style="margin:8px 0 0;line-height:1.55">${tx(r.rule, lang)}</p>
-      </div>`),
-    );
-  }
-  regimeSection.appendChild(regimeGrid);
-  root.appendChild(regimeSection);
+        <span class="pt-prog" data-pt-prog>0/${p.steps.length}</span>
+      </header>
+      <div class="pt-bar"><i data-pt-bar style="width:0%"></i></div>
+      <ol class="pt-steps">
+        ${p.steps.map((s, i) => `<li>
+          <label class="pt-step">
+            <input type="checkbox" data-pt-tick="${p.id}-${i}" />
+            <span class="pt-step-n">${i + 1}</span>
+            <span class="pt-step-t">${tx(s.t, lang)}</span>
+            ${s.min ? `<span class="pt-min">${s.min}′</span>` : ''}
+          </label>
+          ${s.go ? `<button type="button" class="pt-go" data-pt-go="${s.go}" title="${vi ? 'Mở trang' : 'Open'} ${tx(PAGE_NAME[s.go]!, lang)}">${tx(PAGE_NAME[s.go]!, lang)} →</button>` : ''}
+        </li>`).join('')}
+      </ol>
+      <footer class="pt-phase-f">
+        <span>${total ? `${vi ? 'Tổng' : 'Total'} ≈ ${total}′` : vi ? 'Không tính giờ — làm cho kỹ' : 'Untimed: do it properly'}</span>
+        <button type="button" class="pt-clear" data-pt-clear="${p.id}">${vi ? 'Bỏ tick' : 'Clear ticks'}</button>
+      </footer>
+    </div>`;
+  };
+  return `<div class="pt-routine">${ROUTINE.map(phase).join('')}</div>`;
+}
 
-  // 2) Agent prompt library — editable + persisted (see renderPromptLibrary)
-  const promptSection = el(`<div class="playbook-section"></div>`);
-  const promptHead = el(`<div class="row" style="align-items:center;gap:8px;margin-bottom:10px"></div>`);
-  promptHead.appendChild(sectionHead({ en: '2 · Agent Prompt Library', vi: '2 · Thư viện prompt cho AI' }, lang));
-  const addBtn = el(`<button class="range-btn" style="margin-left:auto">${lang === 'vi' ? '+ Thêm prompt' : '+ Add prompt'}</button>`);
-  const resetBtn = el(`<button class="range-btn">${lang === 'vi' ? 'Khôi phục mặc định' : 'Reset to defaults'}</button>`);
-  promptHead.appendChild(addBtn);
-  promptHead.appendChild(resetBtn);
-  promptSection.appendChild(promptHead);
-  const promptList = el(`<div></div>`);
-  promptSection.appendChild(promptList);
-  root.appendChild(promptSection);
+/** The prompt library's frame. The cards arrive from storage in `wirePlaybookTools`. */
+export function promptsHtml(lang: Lang): string {
+  const vi = lang === 'vi';
+  const chips = (['all', 'morning', 'evening', 'weekend', 'monthly', 'any', 'custom'] as const)
+    .map((c) => `<button type="button" class="pt-chip${c === 'all' ? ' on' : ''}" data-pt-cad="${c}">${
+      c === 'all' ? (vi ? 'Tất cả' : 'All') : tx(CADENCE[c], lang)}</button>`).join('');
+  return `<div class="pt-lib" data-pt-lib>
+    <div class="pt-lib-bar">
+      <div class="pt-chips" role="group" aria-label="${vi ? 'Lọc theo thời điểm' : 'Filter by cadence'}">${chips}</div>
+      <div class="pt-lib-acts">
+        <button type="button" class="range-btn" data-pt-add>${vi ? '+ Thêm prompt' : '+ Add prompt'}</button>
+        <button type="button" class="range-btn" data-pt-reset>${vi ? 'Khôi phục mặc định' : 'Reset to defaults'}</button>
+      </div>
+    </div>
+    <div data-pt-gpt></div>
+    <div class="pt-grid" data-pt-list><div class="muted">${vi ? 'Đang tải…' : 'Loading…'}</div></div>
+  </div>`;
+}
 
-  void renderPromptLibrary(ctx, lang, promptList);
+/** Restore the ticks, fill the prompt library, wire the buttons. Call once per render. */
+export function wirePlaybookTools(root: HTMLElement, ctx: AppContext, lang: Lang): void {
+  const routine = root.querySelector<HTMLElement>('.pt-routine');
+  if (routine) void wireRoutine(routine, ctx);
+  root.querySelectorAll<HTMLElement>('[data-pt-go]').forEach((b) =>
+    b.addEventListener('click', () => { location.hash = `#${b.dataset.ptGo}`; }),
+  );
 
-  addBtn.addEventListener('click', () => {
-    openPromptEditor(ctx, lang, null, () => void renderPromptLibrary(ctx, lang, promptList));
-  });
-  resetBtn.addEventListener('click', async () => {
+  const lib = root.querySelector<HTMLElement>('[data-pt-lib]');
+  if (!lib) return;
+  const list = lib.querySelector<HTMLElement>('[data-pt-list]')!;
+  const repaint = (): void => void renderPromptLibrary(ctx, lang, lib, list);
+  repaint();
+  lib.querySelector('[data-pt-add]')!.addEventListener('click', () => openPromptEditor(ctx, lang, null, repaint));
+  lib.querySelector('[data-pt-reset]')!.addEventListener('click', async () => {
     const msg = lang === 'vi' ? 'Khôi phục toàn bộ prompt về mặc định? Mọi chỉnh sửa sẽ mất.' : 'Reset all prompts to defaults? Your edits will be lost.';
     if (!confirm(msg)) return;
     await ctx.storage.delete(PROMPTS_KEY);
-    void renderPromptLibrary(ctx, lang, promptList);
+    repaint();
   });
+  lib.querySelectorAll<HTMLElement>('[data-pt-cad]').forEach((c) =>
+    c.addEventListener('click', () => {
+      lib.querySelectorAll('[data-pt-cad]').forEach((x) => x.classList.toggle('on', x === c));
+      lib.dataset.cad = c.dataset.ptCad;
+      applyCadence(lib);
+    }),
+  );
+}
 
-  // 3) Routine checklist (persisted)
-  const routineSection = el(`<div class="playbook-section"></div>`);
-  routineSection.appendChild(sectionHead({ en: '3 · Routine Checklist', vi: '3 · Checklist quy trình' }, lang));
-  const routineGrid = el(`<div class="grid grid-cards"></div>`);
-  routineSection.appendChild(routineGrid);
-  root.appendChild(routineSection);
+function applyCadence(lib: HTMLElement): void {
+  const want = lib.dataset.cad ?? 'all';
+  lib.querySelectorAll<HTMLElement>('.pt-card').forEach((c) => {
+    c.hidden = want !== 'all' && c.dataset.cad !== want;
+  });
+}
 
-  void (async () => {
-    const checked = (await ctx.storage.get<Record<string, boolean>>(ROUTINE_KEY)) ?? {};
-    ROUTINE.forEach((block, bi) => {
-      const card = el(`<div class="card"><strong>${tx(block.phase, lang)}</strong><div style="margin-top:8px"></div></div>`);
-      const wrap = card.lastElementChild as HTMLElement;
-      block.items.forEach((item, ii) => {
-        const id = `${bi}-${ii}`;
-        const row = el(`<label class="playbook-check">
-          <input type="checkbox" ${checked[id] ? 'checked' : ''} />
-          <span>${tx(item, lang)}</span>
-        </label>`);
-        row.querySelector('input')!.addEventListener('change', (e) => {
-          checked[id] = (e.target as HTMLInputElement).checked;
-          void ctx.storage.set(ROUTINE_KEY, checked);
-        });
-        wrap.appendChild(row);
-      });
-      routineGrid.appendChild(card);
+async function wireRoutine(routine: HTMLElement, ctx: AppContext): Promise<void> {
+  const checked = (await ctx.storage.get<Record<string, boolean>>(ROUTINE_KEY)) ?? {};
+  const paint = (): void => {
+    routine.querySelectorAll<HTMLElement>('[data-pt-phase]').forEach((ph) => {
+      const boxes = [...ph.querySelectorAll<HTMLInputElement>('[data-pt-tick]')];
+      const done = boxes.filter((b) => b.checked).length;
+      ph.querySelector('[data-pt-prog]')!.textContent = `${done}/${boxes.length}`;
+      (ph.querySelector('[data-pt-bar]') as HTMLElement).style.width = `${Math.round((done / boxes.length) * 100)}%`;
+      ph.classList.toggle('done', done === boxes.length);
     });
-  })();
-
-  // 4) Risk rules
-  const riskSection = el(`<div class="playbook-section"></div>`);
-  riskSection.appendChild(sectionHead({ en: '4 · Risk Rules', vi: '4 · Quy tắc rủi ro' }, lang));
-  const riskCard = el(`<div class="card"><ul class="playbook-list"></ul></div>`);
-  const ul = riskCard.querySelector('ul')!;
-  for (const rule of RISK_RULES) ul.appendChild(el(`<li>${tx(rule, lang)}</li>`));
-  riskSection.appendChild(riskCard);
-  root.appendChild(riskSection);
-
-  // 5) Data sources
-  const dataSection = el(`<div class="playbook-section"></div>`);
-  dataSection.appendChild(sectionHead({ en: '5 · Data Sources', vi: '5 · Nguồn dữ liệu' }, lang));
-  const table = el(`<div class="card" style="overflow:auto"><table class="playbook-table">
-    <thead><tr>
-      <th>${lang === 'vi' ? 'Nguồn' : 'Source'}</th>
-      <th>${lang === 'vi' ? 'Dùng cho' : 'Used for'}</th>
-      <th>${lang === 'vi' ? 'Ghi chú' : 'Note'}</th>
-    </tr></thead><tbody></tbody></table></div>`);
-  const tbody = table.querySelector('tbody')!;
-  for (const d of DATA_SOURCES) {
-    tbody.appendChild(
-      el(`<tr><td><strong>${String(d.source)}</strong></td><td>${tx(d.use, lang)}</td><td class="muted">${tx(d.note, lang)}</td></tr>`),
-    );
-  }
-  dataSection.appendChild(table);
-  root.appendChild(dataSection);
+  };
+  routine.querySelectorAll<HTMLInputElement>('[data-pt-tick]').forEach((b) => {
+    b.checked = !!checked[b.dataset.ptTick!];
+    b.addEventListener('change', () => {
+      checked[b.dataset.ptTick!] = b.checked;
+      void ctx.storage.set(ROUTINE_KEY, checked);
+      paint();
+    });
+  });
+  routine.querySelectorAll<HTMLElement>('[data-pt-clear]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      btn.closest('[data-pt-phase]')!.querySelectorAll<HTMLInputElement>('[data-pt-tick]').forEach((b) => {
+        b.checked = false;
+        delete checked[b.dataset.ptTick!];
+      });
+      void ctx.storage.set(ROUTINE_KEY, checked);
+      paint();
+    }),
+  );
+  paint();
 }
 
 /**
  * Render every prompt card into `list`, each with Ask / Copy / Edit / Delete.
  *
  * Ask and Copy both use the body in the active language. Edit/Delete mutate the
- * persisted copy and re-render. Called on first paint and after any change.
+ * persisted copy and re-render. The body is folded: ten open prompts made the
+ * section a wall of monospace, and the title + goal are enough to choose one.
  *
  * The GPT badge sits once above the list rather than on each card: it reflects one
  * shared setting, and repeating it per prompt would suggest each has its own.
  */
-async function renderPromptLibrary(ctx: AppContext, lang: Lang, list: HTMLElement): Promise<void> {
+async function renderPromptLibrary(ctx: AppContext, lang: Lang, lib: HTMLElement, list: HTMLElement): Promise<void> {
   const prompts = await loadPrompts(ctx);
   await loadGptUrl(ctx);
+  const repaint = (): void => void renderPromptLibrary(ctx, lang, lib, list);
+  const gpt = lib.querySelector<HTMLElement>('[data-pt-gpt]')!;
+  gpt.innerHTML = gptBadgeHtml();
+  wireGptBadge(gpt, ctx, repaint);
   list.innerHTML = '';
-
-  const badge = el(gptBadgeHtml());
-  list.appendChild(badge);
-  wireGptBadge(list, ctx, () => void renderPromptLibrary(ctx, lang, list));
+  const vi = lang === 'vi';
 
   prompts.forEach((p, idx) => {
     const body = tx(p.body, lang);
-    const card = el(`<div class="card" style="margin-bottom:10px">
-      <div class="row" style="gap:8px;align-items:baseline">
-        <span class="badge" style="background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)">P${idx + 1}</span>
-        <strong>${escapeHtml(tx(p.title, lang))}</strong>
-        <span class="row" style="gap:6px;margin-left:auto">
-          <button class="btn" data-ask>${t('prompts.ask')}</button>
-          <button class="range-btn" data-copy>${lang === 'vi' ? 'Sao chép' : 'Copy'}</button>
-          <button class="range-btn" data-edit>${lang === 'vi' ? 'Sửa' : 'Edit'}</button>
-          <button class="range-btn" data-del>${lang === 'vi' ? 'Xóa' : 'Delete'}</button>
-        </span>
+    const cad = cadenceOf(p);
+    const card = el(`<article class="pt-card" data-cad="${cad}">
+      <header class="pt-card-h">
+        <span class="pt-n">P${idx + 1}</span>
+        <span class="pt-cad pt-cad-${cad}">${tx(CADENCE[cad], lang)}</span>
+      </header>
+      <h5 class="pt-title">${escapeHtml(tx(p.title, lang))}</h5>
+      <p class="pt-goal">${escapeHtml(tx(p.goal, lang))}</p>
+      <details class="pt-body"><summary>${vi ? 'Xem nội dung prompt' : 'Show the prompt'}</summary><pre class="playbook-pre">${escapeHtml(body)}</pre></details>
+      <div class="pt-acts">
+        <button class="btn" data-ask>${t('prompts.ask')}</button>
+        <button class="range-btn" data-copy>${vi ? 'Sao chép' : 'Copy'}</button>
+        <button class="range-btn pt-quiet" data-edit>${vi ? 'Sửa' : 'Edit'}</button>
+        <button class="range-btn pt-quiet" data-del>${vi ? 'Xóa' : 'Delete'}</button>
       </div>
-      <p class="muted" style="margin:6px 0 8px;line-height:1.5">${escapeHtml(tx(p.goal, lang))}</p>
-      <pre class="playbook-pre">${escapeHtml(body)}</pre>
-    </div>`);
+    </article>`);
 
     card.querySelector('[data-ask]')!.addEventListener('click', (e) => {
       askChatGpt(body, e.currentTarget as HTMLElement);
@@ -433,17 +446,18 @@ async function renderPromptLibrary(ctx: AppContext, lang: Lang, list: HTMLElemen
       void copyToClipboard(body, e.currentTarget as HTMLElement);
     });
     card.querySelector('[data-edit]')!.addEventListener('click', () => {
-      openPromptEditor(ctx, lang, p.id, () => void renderPromptLibrary(ctx, lang, list));
+      openPromptEditor(ctx, lang, p.id, repaint);
     });
     card.querySelector('[data-del]')!.addEventListener('click', async () => {
-      const msg = lang === 'vi' ? `Xóa prompt "${tx(p.title, lang)}"?` : `Delete prompt "${tx(p.title, lang)}"?`;
+      const msg = vi ? `Xóa prompt "${tx(p.title, lang)}"?` : `Delete prompt "${tx(p.title, lang)}"?`;
       if (!confirm(msg)) return;
       const next = (await loadPrompts(ctx)).filter((x) => x.id !== p.id);
       await savePrompts(ctx, next);
-      void renderPromptLibrary(ctx, lang, list);
+      repaint();
     });
     list.appendChild(card);
   });
+  applyCadence(lib);
 }
 
 /**
@@ -509,12 +523,6 @@ function openPromptEditor(ctx: AppContext, lang: Lang, id: string | null, onSave
       onSaved();
     });
   })();
-}
-
-function sectionHead(b: Bi, lang: Lang): HTMLElement {
-  return el(
-    `<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:0 0 10px">${tx(b, lang)}</h2>`,
-  );
 }
 
 function escapeHtml(s: string): string {

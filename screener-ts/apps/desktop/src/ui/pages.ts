@@ -65,11 +65,6 @@ export const PAGES: readonly PageInfo[] = [
     words: 'watch list theo doi',
   },
   {
-    id: 'playbook', icon: '🚦', group: 'trade',
-    desc: { en: 'Today’s regime, what to trade and how much risk', vi: 'Trạng thái thị trường hôm nay, giao dịch gì và rủi ro bao nhiêu' },
-    words: 'regime risk so tay',
-  },
-  {
     id: 'casestudies', icon: '🗂', group: 'trade',
     desc: { en: 'Past setups filed with chart, levels and notes', vi: 'Hồ sơ setup đã qua: biểu đồ, mức giá, ghi chú' },
     words: 'case study journal ho so nhat ky',
@@ -91,8 +86,8 @@ export const PAGES: readonly PageInfo[] = [
   },
   {
     id: 'learn', icon: '📖', group: 'know',
-    desc: { en: 'The handbook: playbook, page guides, scores, glossary', vi: 'Sổ tay: cẩm nang, hướng dẫn trang, điểm số, thuật ngữ' },
-    words: 'learn handbook guide glossary tim hieu thuat ngu',
+    desc: { en: 'The handbook: playbook, daily checklist, AI prompts, page guides, glossary', vi: 'Sổ tay: cẩm nang, checklist hằng ngày, prompt AI, hướng dẫn trang, thuật ngữ' },
+    words: 'learn handbook guide glossary playbook checklist routine prompt tim hieu thuat ngu cam nang so tay',
   },
   {
     id: 'about', icon: '✨', group: 'know',

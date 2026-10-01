@@ -48,6 +48,19 @@ export interface TocEntry {
   fold?: { unit: HTMLElement; head: HTMLElement };
   /** For a section: the chapter it sits in. */
   parent?: string;
+  /** What goes in the row's leading slot: a part's numeral, a section's number, or
+   *  the emoji a chapter heading starts with (lifted out of `label`). */
+  num?: string;
+}
+
+/** A heading's leading emoji, split off so the row can hang it in its own column. */
+const LEAD_EMOJI = /^((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s*/u;
+
+/** The leading slot of a row. Numbers and numerals get a badge; an emoji does not. */
+function slotHtml(e: TocEntry, cls: string): string {
+  if (!e.num) return `<span class="${cls}"></span>`;
+  const badge = e.level === 0 || /^[0-9IVX]+$/.test(e.num);
+  return `<span class="${cls}${badge ? ' is-num' : ''}" aria-hidden="true">${e.num}</span>`;
 }
 
 /** The line at which a section counts as "current": the 56px top nav, plus the sticky
@@ -95,11 +108,21 @@ function collect(root: HTMLElement, lang: 'en' | 'vi'): TocEntry[] {
           ? (node.querySelector<HTMLElement>('.swp-h')?.textContent ?? '').replace(/\s+/g, ' ').trim()
           : labelOf(node, lang);
     if (!label) continue;
+    let text = label;
+    let num: string | undefined;
+    if (level === 0) num = (node.querySelector<HTMLElement>('.lb-part-kicker')?.textContent ?? '').trim() || undefined;
+    else if (level === 2) num = (node.querySelector<HTMLElement>('.swp-num')?.textContent ?? '').trim() || undefined;
+    // A section's emoji (if any) is dropped behind its number; a chapter's moves into the slot.
+    const m = LEAD_EMOJI.exec(text);
+    if (m) {
+      text = text.slice(m[0].length);
+      if (!num) num = m[1];
+    }
     // Anchor to the section wrapper (so the heading isn't flush against the bar)
     // and keep ids that already exist — the playbook's own chips point at them.
     if (!node.id) node.id = `learn-toc-${++i}`;
     node.classList.add('lt-anchor');
-    const e: TocEntry = { id: node.id, label, level, el: node };
+    const e: TocEntry = { id: node.id, label: text, level, el: node, num };
     if (level === 1) chapter = node.id;
     if (level === 0) chapter = undefined;
     if (level === 2) e.parent = chapter;
@@ -137,7 +160,7 @@ function setFolded(e: TocEntry, folded: boolean, remember = true): void {
 }
 
 /** Unfold the target (and the chapter around it) and scroll there. */
-function reveal(doc: Document, id: string): void {
+function reveal(doc: Document, id: string, smooth = true): void {
   const target = doc.getElementById(id);
   if (!target) return;
   for (const e of entriesNow) {
@@ -146,14 +169,15 @@ function reveal(doc: Document, id: string): void {
     }
   }
   syncFoldMarks?.();
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  target.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block: 'start' });
 }
 
 let syncFoldMarks: (() => void) | null = null;
 
-/** For other modules (the search palette): open Learn's section `id` and go there. */
-export function jumpToLearn(id: string): void {
-  reveal(document, id);
+/** For other modules (the search palette, an old link): open Learn's section `id` and
+ *  go there. `smooth: false` lands at once, for arriving from outside the page. */
+export function jumpToLearn(id: string, smooth = true): void {
+  reveal(document, id, smooth);
 }
 
 const ICON_LIST = `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="11" y2="8"/><line x1="2" y1="12" x2="8" y2="12"/></svg>`;
@@ -219,7 +243,7 @@ export function mountStickyToc(root: HTMLElement, lang: 'en' | 'vi'): void {
     <div class="lt-toc-panel" hidden>
       ${tools}
       <div class="lt-toc-list">${entries
-        .map((e) => `<button type="button" class="lt-toc-item lv${e.level}" data-toc="${e.id}">${e.label}</button>`)
+        .map((e) => `<button type="button" class="lt-toc-item lv${e.level}" data-toc="${e.id}">${slotHtml(e, 'lt-toc-ic')}<span class="lt-toc-t">${e.label}</span></button>`)
         .join('')}</div>
     </div>`;
   body.prepend(bar);
@@ -237,7 +261,7 @@ export function mountStickyToc(root: HTMLElement, lang: 'en' | 'vi'): void {
       .map((e) => {
         const n = e.level === 1 ? kids(e.id) : 0;
         return `<button type="button" class="lr-item lv${e.level}" data-toc="${e.id}"${e.parent ? ` data-parent="${e.parent}"` : ''}>
-          <span class="lr-item-t">${e.label}</span>${n ? `<span class="lr-item-n">${n}</span>` : ''}</button>`;
+          ${slotHtml(e, 'lr-item-ic')}<span class="lr-item-t">${e.label}</span>${n ? `<span class="lr-item-n">${n}</span>` : ''}</button>`;
       })
       .join('')}</div>
     <div class="lr-rail-foot">

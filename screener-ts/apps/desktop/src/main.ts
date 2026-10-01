@@ -9,7 +9,6 @@ import { renderWealth } from './tabs/wealthTab.js';
 import { migrateAccountsBlob, invalidateAccounts } from './portfolio/store.js';
 import { renderCalendar } from './tabs/calendarTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
-import { renderPlaybook } from './tabs/playbookTab.js';
 import { renderCaseStudies } from './tabs/caseStudiesTab.js';
 import { renderScanner } from './tabs/scannerTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
@@ -55,7 +54,7 @@ onModalClose(() => {
   if (entered && currentTab === 'watchlist') renderTab('watchlist');
 });
 
-const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'wealth', 'backtest', 'playbook', 'casestudies', 'scanner', 'learn', 'about', 'settings'] as const;
+const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'wealth', 'backtest', 'casestudies', 'scanner', 'learn', 'about', 'settings'] as const;
 type Tab = (typeof TABS)[number];
 
 let entered = false;
@@ -109,9 +108,6 @@ function renderTab(tab: Tab): void {
     case 'backtest':
       renderBacktest(ctx);
       break;
-    case 'playbook':
-      renderPlaybook(ctx);
-      break;
     case 'casestudies':
       renderCaseStudies(ctx);
       break;
@@ -119,7 +115,8 @@ function renderTab(tab: Tab): void {
       renderScanner(ctx);
       break;
     case 'learn':
-      renderLearn();
+      renderLearn(ctx);
+      takeAliasJump();
       break;
     case 'about':
       renderAbout(discoverFromStory);
@@ -143,7 +140,29 @@ function renderTab(tab: Tab): void {
  */
 function tabFromHash(): Tab | null {
   const h = location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+  const alias = HASH_ALIAS[h];
+  if (alias) {
+    aliasJump = alias[1];
+    return alias[0];
+  }
   return (TABS as readonly string[]).includes(h) ? (h as Tab) : null;
+}
+
+/**
+ * Hashes of pages that were merged into another one, so old links and bookmarks
+ * still land somewhere sensible: the tab, then the section to scroll to.
+ * `#playbook` was its own tab until its checklist and prompts moved into Learn §15.
+ */
+const HASH_ALIAS: Record<string, [Tab, string]> = {
+  playbook: ['learn', 'swp-routine'],
+};
+let aliasJump: string | null = null;
+
+/** Scroll to the section an aliased hash asked for, once, after its tab rendered. */
+function takeAliasJump(): void {
+  const id = aliasJump;
+  aliasJump = null;
+  if (id) requestAnimationFrame(() => jumpToLearn(id, false));
 }
 
 function syncHash(tab: Tab): void {
@@ -685,8 +704,13 @@ window.addEventListener('keydown', (e) => {
 // while the landing page is up must not silently unlock and reveal the app.
 window.addEventListener('hashchange', () => {
   const tab = tabFromHash();
-  if (!tab || tab === currentTab) return;
+  if (!tab) return;
   if ($('#app')!.classList.contains('hidden')) return;
+  if (tab === currentTab) {
+    syncHash(tab);
+    takeAliasJump();
+    return;
+  }
   show(tab);
 });
 window.addEventListener('app:show-tab', (e) => {

@@ -34,7 +34,7 @@ export interface GuideStep {
 export interface GuideSection {
   id: string;
   /** The TOC group this section sits under. */
-  group: 'data' | 'web' | 'scanner' | 'safety';
+  group: 'data' | 'trading' | 'web' | 'scanner' | 'safety';
   icon: string;
   title: Bi;
   lead: Bi;
@@ -45,6 +45,7 @@ export interface GuideSection {
 
 export const GROUPS: Record<GuideSection['group'], Bi> = {
   data: { en: 'Your data', vi: 'Dữ liệu của bạn' },
+  trading: { en: 'Trading', vi: 'Giao dịch' },
   web: { en: 'The website', vi: 'Trang web' },
   scanner: { en: 'Scanner (VM)', vi: 'Scanner (VM)' },
   safety: { en: 'Safety', vi: 'An toàn' },
@@ -270,6 +271,21 @@ export const SECTIONS: readonly GuideSection[] = [
     tip: {
       en: 'The full write-up, with the reasoning behind each step, is `apps/desktop/RECOVERY.md`.',
       vi: 'Bản đầy đủ, có lý do cho từng bước, là `apps/desktop/RECOVERY.md`.',
+    },
+  },
+  {
+    id: 'playbook',
+    group: 'trading',
+    icon: '📖',
+    title: { en: 'Playbook settings', vi: 'Cấu hình cẩm nang' },
+    lead: {
+      en: 'The numbers every plan is sized and graded with: the risk ladder, how much smaller a lower grade trades, where A/B/C fall, and the stop / target / trail rule of each setup. The same dialog opens from ⚙ Playbook on Portfolio; it is here too so it can be found without an account open.',
+      vi: 'Những con số mà mọi kế hoạch dùng để tính cỡ và xếp hạng: thang rủi ro, hạng thấp thì nhỏ đi bao nhiêu, đường A/B/C nằm ở đâu, và luật cắt lỗ / chốt lời / kéo stop của từng thiết lập. Đây cũng là hộp thoại mở từ nút ⚙ Cẩm nang ở Danh mục; nó có mặt ở đây để tìm được mà không cần mở tài khoản nào.',
+    },
+    steps: [],
+    tip: {
+      en: 'Saving re-derives every plan still being written; anything already bought, saved or filed keeps the numbers it was decided on. The reasoning behind each default is in Learn, Part I, §9–§12.',
+      vi: 'Bấm Lưu thì mọi kế hoạch đang viết dở sẽ tự tính lại; cái đã mua, đã lưu hay đã lưu hồ sơ giữ nguyên con số lúc quyết định. Lý do của từng con số mặc định nằm ở Learn, Phần I, mục 9–12.',
     },
   },
   {

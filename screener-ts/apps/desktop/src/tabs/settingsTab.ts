@@ -27,6 +27,10 @@ import { copyToClipboard } from '../ui/askChatGpt.js';
 import { isSyncEnabled, remoteHistory, remoteRestoreAt, type RestoreAtChange } from '../adapters/syncClient.js';
 import { pullAndMerge, isHydrated, isExpendableKey, isRebuildableCache } from '../adapters/storage.js';
 import { say, type Bi } from './scannerGuide.js';
+import { DEFAULT_RISK_LADDER } from '@screener/core';
+import { currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, playbookConfig } from '../portfolio/playbook.js';
+import { REGIME_DOC } from '../ui/playbookHelp.js';
+import { openPlaybookSettingsHere } from '../ui/playbookSettings.js';
 import { SECTIONS, GROUPS, WHERE, type GuideSection, type GuideStep } from './settingsGuide.js';
 
 const UNDO_KEY = 'settings:lastRestore';
@@ -90,7 +94,7 @@ function stepHtml(s: GuideStep, i: number): string {
 }
 
 function sectionHtml(s: GuideSection): string {
-  const panel = s.id === 'data' ? dataPanel() : s.id === 'restore' ? restorePanel() : '';
+  const panel = s.id === 'data' ? dataPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : '';
   return `<section class="card st-sec" id="st-${s.id}" data-st-sec="${s.id}">
       <header class="st-sec-head">
         <span class="st-sec-icon" aria-hidden="true">${s.icon}</span>
@@ -143,6 +147,50 @@ function dataPanel(): string {
       </div>
       <div class="st-msg" id="st-data-msg"></div>
     </div>`;
+}
+
+// ── playbook panel ───────────────────────────────────────────────────────────
+
+/** The frame; `fillPlaybookPanel` puts the live numbers in once the config is read. */
+function playbookPanel(): string {
+  return `<div class="st-panel st-pb">
+      <div class="st-pb-stats" id="st-pb-stats"><span class="muted">${L('Reading your settings…', 'Đang đọc cấu hình…')}</span></div>
+      <div class="st-actions">
+        <button class="btn" data-st-act="playbook">⚙ ${L('Open playbook settings', 'Mở cấu hình cẩm nang')}</button>
+        <button class="btn-outline" data-st-act="learn">📘 ${L('Read the playbook', 'Đọc cẩm nang')}</button>
+      </div>
+    </div>`;
+}
+
+/** Four tiles: today's regime, risk per trade, the setups you changed, the other edits. */
+async function fillPlaybookPanel(root: HTMLElement, ctx: AppContext): Promise<void> {
+  const box = root.querySelector<HTMLElement>('#st-pb-stats');
+  if (!box) return;
+  await loadPlaybookConfig(ctx);
+  // Cache only: drawing a page must not start a market-data download.
+  const reg = currentRegime() ?? (await ensureRegime(ctx).catch(() => null));
+  if (!box.isConnected) return;
+  const cfg = playbookConfig();
+  const ladder = ladderConfig();
+  const setups = Object.keys(cfg.setups).filter((k) => Object.keys(cfg.setups[k as keyof typeof cfg.setups] ?? {}).length);
+  const ladderEdits = (Object.keys(cfg.ladder) as (keyof typeof cfg.ladder)[])
+    .filter((k) => JSON.stringify(cfg.ladder[k]) !== JSON.stringify(DEFAULT_RISK_LADDER[k])).length;
+  const other = ladderEdits + Object.keys(cfg.gradeThresholds).length + (cfg.exitReasons?.length ?? 0);
+  const doc = reg ? REGIME_DOC[reg.regime] : null;
+  const tile = (k: string, v: string, sub: string, tone = 'var(--accent)'): string =>
+    `<div class="st-pb-tile" style="--st-tone:${tone}"><span class="st-pb-k">${k}</span><b>${v}</b><span class="st-pb-s">${sub}</span></div>`;
+  box.innerHTML = [
+    tile(L('Market', 'Thị trường'), doc ? (vi() ? doc.vi : doc.en) : '—',
+      reg ? L(`SPY, close of ${reg.asOf}`, `SPY, nến ngày ${reg.asOf}`) : L('Not measured yet: open Portfolio once', 'Chưa đo: mở Danh mục một lần'),
+      doc?.color ?? 'var(--faint)'),
+    tile(L('Risk per trade', 'Rủi ro mỗi lệnh'),
+      cfg.pinnedRiskPct != null ? `${cfg.pinnedRiskPct}%` : `${ladder.learningPct}–${ladder.stablePct}%`,
+      cfg.pinnedRiskPct != null ? L('Pinned by you', 'Bạn đã ghim') : L('Automatic, from your record', 'Tự động, theo thành tích'), 'var(--blue)'),
+    tile(L('Setups changed', 'Thiết lập đã sửa'), String(setups.length),
+      setups.length ? setups.join(' · ') : L('All on the book’s defaults', 'Tất cả theo mặc định của sách'), 'var(--danger)'),
+    tile(L('Other edits', 'Chỉnh sửa khác'), String(other),
+      L('Ladder, grade lines, exit reasons', 'Thang rủi ro, đường hạng, lý do thoát'), 'var(--violet)'),
+  ].join('');
 }
 
 // ── restore panel ────────────────────────────────────────────────────────────
@@ -442,6 +490,12 @@ export function renderSettings(ctx: AppContext): void {
         case 'lang':
           setLang(vi() ? 'en' : 'vi'); // main.ts re-renders the open page on a language change
           break;
+        case 'playbook':
+          void openPlaybookSettingsHere(ctx, () => void fillPlaybookPanel(root, ctx));
+          break;
+        case 'learn':
+          location.hash = '#learn';
+          break;
         case 'export':
           try {
             const n = await exportAllData(ctx);
@@ -459,6 +513,8 @@ export function renderSettings(ctx: AppContext): void {
       }
     }),
   );
+
+  void fillPlaybookPanel(root, ctx);
 
   // Restore panel.
   root.querySelector('#st-preview')?.addEventListener('click', () => void preview(root));

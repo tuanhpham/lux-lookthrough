@@ -15,6 +15,8 @@ import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
 import { swingPlaybookHtml, wireSwingPlaybook } from './swingPlaybook.js';
+import { wirePlaybookTools } from './playbookTools.js';
+import { platformGuideHtml, wirePlatformGuide } from './learnPlatform.js';
 import { mountStickyToc } from '../ui/stickyToc.js';
 import {
   bookCoverHtml,
@@ -438,116 +440,6 @@ function scoreExplainerHtml(lang: 'en' | 'vi'): string {
   </div>`;
 }
 
-function pageGuideHtml(lang: 'en' | 'vi'): string {
-  const vi = lang === 'vi';
-  type Page = { icon: string; name: string; what: string; howTo: string };
-  const pages: Page[] = vi ? [
-    {
-      icon: '🏆', name: 'Top Picks',
-      what: 'Quét toàn bộ vũ trụ cổ phiếu để tìm thiết lập tốt nhất. Ba chiến lược: <b>Qullamaggie</b> (VCP & EP), <b>Momentum</b> (mã đang tăng mạnh nhất), và <b>Surge</b> (bứt phá tuần này).',
-      howTo: 'Chọn chiến lược → chọn thị trường và phạm vi (US curated ~540 mã, S&P 1500...) → nhấn ↻ Chạy. Kết quả cập nhật dần khi quét xong từng đợt. Bật "Lọc động lượng trước" để thu hẹp vũ trụ về nhóm mạnh nhất trước khi tìm mẫu hình. Dùng <b>Tính đến ngày</b> để quét theo một ngày trong quá khứ (xem mục bên dưới).',
-    },
-    {
-      icon: '🔍', name: 'Screener',
-      what: 'Bộ lọc tùy chỉnh: nhập mã bất kỳ hoặc chọn ngành. Lọc theo loại thiết lập (VCP / EP), điểm chất lượng tối thiểu, mức động lượng.',
-      howTo: 'Nhập mã (cách nhau bằng dấu phẩy) hoặc nhấp vào chip ngành để chọn toàn bộ ngành đó → chọn bộ lọc → nhấn Chạy lọc. Nhấp vào hàng để xem biểu đồ chi tiết và phân tích. Đặt <b>Tính đến ngày</b> để lọc theo một ngày trong quá khứ.',
-    },
-    {
-      icon: '👁', name: 'Watchlists',
-      what: 'Theo dõi các mã bạn quan tâm. Mỗi mã được quét lại (điểm chất lượng QM, pivot, mức dừng lỗ). Hỗ trợ nhiều danh sách, xuất/nhập JSON.',
-      howTo: 'Nhập mã → nhấn Thêm. Nhấn <b>📋 Lập kế hoạch</b> để xem kế hoạch giao dịch có kích thước vị thế cho từng mã. Nhấn ↻ để làm mới giá.',
-    },
-    {
-      icon: '🗺', name: 'Sectors',
-      what: 'Xếp hạng ngành theo động lượng 1M/3M và RS so với SPY. Cho thấy tiền đang chảy về ngành nào.',
-      howTo: 'Nhấn ↻ Quét ngành → nhấp vào hàng ngành để xem cổ phiếu trong ngành → nhấn "Lọc cổ phiếu →" để chuyển các mã sang Screener. Có thể đặt <b>Tính đến ngày</b> để xem xếp hạng ngành tại một ngày trong quá khứ.',
-    },
-    {
-      icon: '📈', name: 'Portfolio',
-      what: 'Giao dịch giấy nhiều tài khoản độc lập. Mua/bán, theo dõi P&L và rủi ro theo thời gian thực (dữ liệu quote trực tiếp).',
-      howTo: 'Chọn hoặc tạo tài khoản → nhập mã và số lượng → nhấn Mua/Bán. Đường vốn và các chỉ số rủi ro cập nhật tự động. Có thể đặt <b>ngày</b> trong quá khứ để ghi giao dịch lịch sử — gợi ý giá tự lấy giá đóng cửa của ngày đó.',
-    },
-    {
-      icon: '⏱', name: 'Backtest',
-      what: 'Mô phỏng chiến lược trên dữ liệu lịch sử. Hai chiến lược: <b>VCP breakout</b> (mua khi phá vỡ nền VCP) và <b>Momentum rebalancing</b> (nắm giữ mã điểm động lượng cao, thoát khi động lượng giảm).',
-      howTo: 'Nhập mã (1–10 mã), chọn chu kỳ lịch sử và chiến lược → nhấn Chạy. Xem phần bên dưới để hiểu tại sao đôi khi kết quả 0 giao dịch.',
-    },
-    {
-      icon: '📓', name: 'Playbook',
-      what: 'Quy trình giao dịch hàng ngày dưới dạng checklist tương tác: mở cửa, đóng cửa, và quản lý vị thế.',
-      howTo: 'Dùng như danh sách kiểm tra hàng ngày. Đánh dấu từng mục khi hoàn thành; trạng thái không được lưu lại (làm mới mỗi ngày).',
-    },
-    {
-      icon: '📊', name: 'Hồ sơ Setup (Case Studies)',
-      what: 'Nhật ký các thiết lập trong quá khứ: ghim một mã vào ngày then chốt, kèm mức mua/cắt lỗ/mục tiêu, các chất xúc tác có ngày tháng, và ghi chú/bài học. Mỗi hồ sơ vẽ biểu đồ nến ±3 tháng quanh ngày đó với mọi mức và dấu mốc.',
-      howTo: 'Bấm “＋ Hồ sơ mới” → nhập mã, ngày then chốt, các mức và chất xúc tác → Lưu. Mở hồ sơ để xem biểu đồ (đổi cửa sổ ±1/3/6 tháng) và bấm “⬇ Tải HTML” để xuất báo cáo độc lập (mở ra có nút In → Lưu thành PDF). Hồ sơ được đồng bộ giữa các thiết bị.',
-    },
-  ] : [
-    {
-      icon: '🏆', name: 'Top Picks',
-      what: 'Sweeps the whole stock universe for the best setups. Three strategies: <b>Qullamaggie</b> (VCP & episodic pivot patterns), <b>Momentum</b> (the strongest movers right now), and <b>Surge</b> (names that broke out this week).',
-      howTo: 'Pick a strategy → pick a market and universe (US curated ~540, S&P 1500, …) → hit ↻ Run. Results stream in as each batch is scanned. Enable "Momentum pre-filter" to narrow the universe to the highest-momentum names before looking for patterns. Use <b>As of date</b> to screen as of a past day (see the section below).',
-    },
-    {
-      icon: '🔍', name: 'Screener',
-      what: 'Custom scan: paste any tickers or click sector chips. Filter by setup type (VCP / EP), min quality score, and momentum tier.',
-      howTo: 'Type symbols (comma-separated) or click sector chips → set your filters → Run Screen. Click any row to open the detail chart with trade levels, analysis, and fundamentals. Set <b>As of date</b> to screen as of a past day.',
-    },
-    {
-      icon: '👁', name: 'Watchlists',
-      what: 'Track any symbols you care about. Each is re-scanned live (QM quality score, pivot, stop level). Supports multiple named lists, JSON export/import.',
-      howTo: 'Type a ticker → Add. Hit <b>📋 Trade Plan</b> to get position-sized trade plans for every symbol in the list. Hit ↻ to refresh quotes.',
-    },
-    {
-      icon: '🗺', name: 'Sectors',
-      what: 'Ranks all sectors by 1M/3M momentum and RS vs SPY. Shows where money is flowing — which sectors are hot and which are cold.',
-      howTo: 'Hit ↻ Scan sectors → click a sector row to see its stocks → hit "Screen stocks →" to send them to the Screener. You can set <b>As of date</b> to see the sector ranking as of a past day.',
-    },
-    {
-      icon: '📈', name: 'Portfolio',
-      what: 'Multi-account paper trading with live quotes. Buy/sell, track PnL and risk metrics across independent accounts.',
-      howTo: 'Select or create an account → enter a ticker and size → Buy/Sell. The equity curve and risk stats update in real time. Set a past <b>date</b> to record a historical transaction — the price hint auto-fills that date\'s close.',
-    },
-    {
-      icon: '⏱', name: 'Backtest',
-      what: 'Simulate strategies on historical daily bars. Two strategies: <b>VCP breakout</b> (enters when a VCP base breaks out) and <b>Momentum rebalancing</b> (holds high-momentum names, exits when momentum fades).',
-      howTo: 'Enter 1–10 symbols, choose a history period and strategy → Run Backtest. Read the section below for why you sometimes see 0 trades.',
-    },
-    {
-      icon: '📓', name: 'Playbook',
-      what: 'Daily trading process as an interactive checklist: open, close, and position management.',
-      howTo: 'Use it as a daily checklist. Check items off as you complete them; state is not saved (resets each session).',
-    },
-    {
-      icon: '📊', name: 'Case Studies',
-      what: 'A journal of past setups: pin a stock to a key date with entry/stop/target levels, dated catalysts, and notes/lessons. Each case renders a ±3-month candle chart around that date with every level and marker drawn on it.',
-      howTo: 'Click “＋ New case study” → enter the symbol, key date, levels and catalysts → Save. Open a case to view the chart (switch ±1/3/6-month window) and hit “⬇ Download HTML” for a standalone report (it opens with a Print → Save as PDF button). Case studies sync across your devices.',
-    },
-  ];
-
-  const cards = pages
-    .map(
-      (p) => `<div class="card" style="margin-bottom:10px">
-        <div style="display:flex;gap:10px;align-items:flex-start">
-          <span style="font-size:22px;flex:0 0 auto">${p.icon}</span>
-          <div>
-            <strong style="font-size:14px">${p.name}</strong>
-            <p class="muted" style="margin:4px 0;line-height:1.55;font-size:13px">${p.what}</p>
-            <p style="margin:4px 0;line-height:1.55;font-size:12px;color:var(--subtext)">
-              <b style="color:var(--faint)">${vi ? 'Cách dùng: ' : 'How to use: '}</b>${p.howTo}
-            </p>
-          </div>
-        </div>
-      </div>`,
-    )
-    .join('');
-
-  return `<div class="card analysis-card" style="margin-bottom:22px">
-    <h2 style="font-size:15px;margin:0 0 12px">${vi ? '🗺 Hướng dẫn từng trang' : '🗺 Page-by-page guide'}</h2>
-    ${cards}
-  </div>`;
-}
-
 function backtestGuideHtml(lang: 'en' | 'vi'): string {
   const vi = lang === 'vi';
   return `<div class="card analysis-card" style="margin-bottom:22px">
@@ -646,7 +538,7 @@ function asOfGuideHtml(lang: 'en' | 'vi'): string {
  * front of it meant scrolling past all of them every single time. The glossary is
  * back matter now, which is where a glossary has always belonged.
  */
-export function renderLearn(): void {
+export function renderLearn(ctx: AppContext): void {
   const root = $('#tab-learn')!;
   const lang = getLang();
   const vi = lang === 'vi';
@@ -655,22 +547,25 @@ export function renderLearn(): void {
     {
       id: 'lb-part-1',
       numeral: 'I',
+      icon: '📘',
       title: vi ? 'Cẩm nang swing trading' : 'The swing-trading playbook',
       blurb: vi
-        ? 'Từ môi trường thị trường xuống đến điểm vào lệnh — phần sẽ đọc lại nhiều nhất.'
-        : 'From the market environment down to the entry — the part that gets reread.',
+        ? 'Từ môi trường thị trường xuống đến điểm vào lệnh, cùng checklist hằng tối và thư viện prompt.'
+        : 'From the market environment down to the entry, with the evening checklist and the prompt library.',
     },
     {
       id: 'lb-part-2',
       numeral: 'II',
+      icon: '🗺',
       title: vi ? 'Dùng nền tảng' : 'Working the platform',
       blurb: vi
-        ? 'Từng trang dùng để làm gì, cách lọc theo một ngày trong quá khứ, và cách chạy backtest.'
-        : 'What each page is for, how to screen a past date, and how to run a backtest.',
+        ? 'Đi lại trong app, từng trang theo nhóm, lọc theo một ngày trong quá khứ, và backtest.'
+        : 'Getting around, every page by group, screening a past date, and the backtest.',
     },
     {
       id: 'lb-part-3',
       numeral: 'III',
+      icon: '🎯',
       title: vi ? 'Điểm số được tính thế nào' : 'How the score is computed',
       blurb: vi
         ? 'Mở nắp máy: từng thành phần làm nên điểm QM và momentum.'
@@ -679,6 +574,7 @@ export function renderLearn(): void {
     {
       id: 'lb-part-4',
       numeral: 'IV',
+      icon: '🔤',
       title: vi ? 'Thuật ngữ' : 'Glossary',
       blurb: vi
         ? 'Mọi chỉ số và thuật ngữ, xếp theo nhóm — phần tra cứu ở cuối sách.'
@@ -700,11 +596,14 @@ export function renderLearn(): void {
   const playbook = el(swingPlaybookHtml(lang));
   p1.appendChild(playbook);
   root.appendChild(p1);
-  wireSwingPlaybook(playbook, lang);
+  wireSwingPlaybook(playbook, lang, ctx);
+  wirePlaybookTools(playbook, ctx, lang);
 
   // Part II — the platform, page by page.
   const p2 = el(bookPartHtml(parts[1]!));
-  p2.appendChild(el(pageGuideHtml(lang)));
+  const guide = el(platformGuideHtml(lang));
+  p2.appendChild(guide);
+  wirePlatformGuide(guide);
   p2.appendChild(el(asOfGuideHtml(lang)));
   p2.appendChild(el(backtestGuideHtml(lang)));
   root.appendChild(p2);

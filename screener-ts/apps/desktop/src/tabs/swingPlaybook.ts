@@ -40,6 +40,9 @@ import {
   criterionLabel, criterionWhy, groupLabel, scopeLabel, sourceLabel,
 } from '../portfolio/gradeWords.js';
 import { setupName } from '../portfolio/planWords.js';
+import { routineHtml, promptsHtml } from './playbookTools.js';
+import { openPlaybookSettingsHere } from '../ui/playbookSettings.js';
+import type { AppContext } from '../context.js';
 
 type Lang = 'en' | 'vi';
 type Bi = { en: string; vi: string };
@@ -1572,40 +1575,6 @@ Profit Factor = gross_profit / gross_loss
 
 function s15(lang: Lang): string {
   const vi = lang === 'vi';
-  const evening = vi
-    ? `1. Viết dòng regime                  5'
-   (trend · vol · breadth · dist days)
-2. Xếp hạng 11 sector ETF (1M/3M/6M)  5'
-3. Ghi thay đổi thứ hạng tuần này     2'
-4. Screener CHỈ trong top 3 sector    5'
-5. Lọc in-play (RVol, TK, ATR, RS)    3'
-6. Chấm điểm 5 biểu đồ               15'
-7. Viết kế hoạch: entry/stop/target  10'`
-    : `1. Write the regime line             5'
-   (trend · vol · breadth · dist days)
-2. Rank the 11 sector ETFs (1M/3M/6M) 5'
-3. Note this week's rank changes      2'
-4. Screen ONLY inside the top 3       5'
-5. In-play filter (RVol, liq, ATR, RS) 3'
-6. Score 5 charts                    15'
-7. Write the plan: entry/stop/target 10'`;
-
-  const weekend = vi
-    ? `1. Xem lại toàn bộ lệnh trong tuần
-2. Cập nhật expectancy theo setup × regime
-3. Đánh dấu lệnh phá luật — tại sao?
-4. Xem biểu đồ xoay vòng sector 90 phiên
-5. Kiểm tra lịch earnings tuần tới
-6. Chuẩn bị danh sách theo dõi
-7. Đọc lại 1 mục trong cẩm nang này`
-    : `1. Review every trade of the week
-2. Update expectancy by setup × regime
-3. Flag the rule-breaking trades — why?
-4. Look at the 90-session sector rotation
-5. Check next week's earnings calendar
-6. Prepare the watchlist
-7. Re-read one section of this playbook`;
-
   return sec(
     'routine',
     '15',
@@ -1613,11 +1582,10 @@ function s15(lang: Lang): string {
     vi
       ? 'Thiết kế cho múi giờ châu Âu — chạy sau khi thị trường Mỹ đóng cửa, không cần theo dõi trong phiên.'
       : 'Designed for a European time zone — run after the US close, with no intraday monitoring required.',
-    grid(
-      2,
-      card(h4(vi ? '🌙 Buổi tối · 30–45 phút' : '🌙 Evening · 30–45 minutes') + pre(evening)),
-      card(h4(vi ? '📅 Cuối tuần · 1–2 giờ' : '📅 Weekend · 1–2 hours') + pre(weekend)),
-    ) +
+    // Tickable, and each step names the page it is done on: the old Playbook tab's
+    // checklist and the book's two lists were the same routine written twice.
+    h4(vi ? '✅ Checklist — tick khi làm xong' : '✅ Checklist — tick as you go') +
+      routineHtml(lang) +
       h4(vi ? 'Nơi AI thực sự giúp được — và nơi nó gây hại' : 'Where AI genuinely helps — and where it hurts') +
       vs(
         vi ? '✓ AI mạnh' : '✓ AI is strong',
@@ -1657,7 +1625,12 @@ function s15(lang: Lang): string {
         vi
           ? '<b>AI viết công thức · dữ liệu do anh lấy về · máy tính chạy phép tính.</b> AI không bao giờ được là nguồn của một con số thị trường. Một giá trị ATR bịa ra sẽ đi thẳng vào công thức tính size và vào lệnh thật của anh.'
           : '<b>AI writes the formula · you fetch the data · the machine does the arithmetic.</b> An AI must never be the source of a market number. One invented ATR value walks straight into your size formula and into a real order.',
-      ),
+      ) +
+      h4(vi ? '🤖 Thư viện prompt — theo đúng nhịp ở trên' : '🤖 Prompt library — on the same rhythm') +
+      `<p class="swp-sub" style="margin-top:-4px">${vi
+        ? 'Mỗi prompt hỏi AI <b>diễn giải</b>, không hỏi số liệu: dán dữ liệu từ app vào trước khi gửi. Sửa, thêm, xoá tuỳ ý — bản của bạn được đồng bộ.'
+        : 'Every prompt asks the AI to <b>interpret</b>, never for a number: paste the data from the app in before sending. Edit, add, delete freely; your copy syncs.'}</p>` +
+      promptsHtml(lang),
   );
 }
 
@@ -1801,7 +1774,7 @@ export function swingPlaybookHtml(lang: Lang): string {
  * resolved through `data-swp-*`, so calling this twice on two different roots
  * (e.g. after a language switch re-renders the tab) keeps them independent.
  */
-export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
+export function wireSwingPlaybook(root: HTMLElement, lang: Lang, ctx?: AppContext): void {
   const vi = lang === 'vi';
   const q = <T extends Element>(sel: string) => root.querySelector<T>(sel);
   const qa = <T extends Element>(sel: string) => Array.from(root.querySelectorAll<T>(sel));
@@ -1816,12 +1789,15 @@ export function wireSwingPlaybook(root: HTMLElement, lang: Lang): void {
   }
 
   // -- pointer to the settings dialog ---------------------------------------
-  // The hash is the app's own way between tabs (`tabFromHash` → `show` → render),
-  // so this needs no new plumbing and Back returns the reader to the chapter they
-  // were in. The dialog itself is opened by the Portfolio tab, which has the
-  // `AppContext` this one does not.
+  // Learn now passes its `AppContext`, so the dialog opens right here over the
+  // chapter. Without one, the old route still works: ask, and let the Portfolio
+  // tab (which always has a context) open it.
   for (const b of qa<HTMLButtonElement>('[data-swp-cfg]')) {
     b.addEventListener('click', () => {
+      if (ctx) {
+        void openPlaybookSettingsHere(ctx);
+        return;
+      }
       requestPlaybookSettings();
       location.hash = '#portfolio';
     });

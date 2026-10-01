@@ -72,6 +72,7 @@ import {
 // Shared with the Buy form and the Trade Planner, so all three dropdowns spell the
 // setups the same way.
 import { setupName } from '../portfolio/planWords.js';
+import { accounts, active, activeId, ensureAccountsLoaded, OVERVIEW_ID } from '../portfolio/store.js';
 import { candleChart, emaOf, type Level, type Note, type Zone } from './miniChart.js';
 import {
   DEMO_CANDLES, DEMO_ENTRY, REGIME_DOC, REGIME_STATS, RULE_GROUPS, SETUP_COLUMNS,
@@ -144,6 +145,32 @@ function secHtml(title: string, sub: string, tone = 'var(--accent)'): string {
     <span class="pb-sec-t">${title}</span>
     ${sub ? `<span class="pb-sec-s">${sub}</span>` : ''}
   </div>`;
+}
+
+/** The dialog's chapters, in order. The chip bar and the numbered block heads both
+ *  read this, so a chip cannot point at a block that is not there. */
+const BLOCKS = [
+  { id: 'market', icon: '🌡', vi: 'Thị trường', en: 'Market' },
+  { id: 'ladder', icon: '🪜', vi: 'Thang rủi ro', en: 'Risk ladder' },
+  { id: 'grade-size', icon: '⚖️', vi: 'Cỡ theo hạng', en: 'Size by grade' },
+  { id: 'grading', icon: '🎯', vi: 'Xếp hạng', en: 'Grading' },
+  { id: 'rules', icon: '📐', vi: 'Luật từng setup', en: 'Setup rules' },
+  { id: 'example', icon: '🧪', vi: 'Ví dụ', en: 'Example' },
+] as const;
+type BlockId = (typeof BLOCKS)[number]['id'];
+
+/** A numbered chapter of the dialog: a panel with a number badge, a title and one line.
+ *  The caller closes it with `</section>`. */
+function blockOpen(id: BlockId, title: string, sub: string, tone = 'var(--accent)'): string {
+  const i = BLOCKS.findIndex((b) => b.id === id);
+  return `<section class="pb-block" id="pb-b-${id}" data-pb-block="${id}" style="--pb-tone:${tone}">
+    <header class="pb-block-h">
+      <span class="pb-block-n">${i + 1}</span>
+      <div class="pb-block-tt">
+        <h3>${title}</h3>
+        ${sub ? `<p>${sub}</p>` : ''}
+      </div>
+    </header>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -419,6 +446,20 @@ function exampleHtml(host: HTMLElement, k: SetupKey, vi: boolean): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * Open the dialog from a page that has no account picker of its own (Learn,
+ * Settings & Guides). The record shown is the selected account, or the only one
+ * when there is just one, and none on Overview, where "your record" has no single
+ * answer. That is the same rule the Portfolio tab applies.
+ */
+export async function openPlaybookSettingsHere(ctx: AppContext, onSaved?: () => void): Promise<void> {
+  await ensureAccountsLoaded(ctx);
+  const state = accounts.length === 1
+    ? accounts[0]!
+    : accounts.length && activeId() !== OVERVIEW_ID ? active() : null;
+  await openPlaybookSettings(ctx, state, onSaved);
+}
+
+/**
  * Open the dialog. `state` is the active account, used only for the read-only
  * status block — the dialog still works (and still saves) without one.
  */
@@ -462,110 +503,127 @@ export async function openPlaybookSettings(
   host.innerHTML = `
     <div class="modal-backdrop"></div>
     <div class="modal-panel pb-modal">
-      <div class="modal-head">
-        <div>${vi ? '📖 Cấu hình cẩm nang' : '📖 Playbook settings'}</div>
-        <button class="pb-x" style="background:0;border:0;color:var(--faint);font-size:22px;cursor:pointer">×</button>
+      <div class="modal-head pb-head">
+        <div class="pb-head-t">
+          <span class="pb-head-ic" aria-hidden="true">📖</span>
+          <div>
+            <b>${vi ? 'Cấu hình cẩm nang' : 'Playbook settings'}</b>
+            <span>${vi ? 'Cỡ vị thế, xếp hạng, và luật cắt lỗ / chốt lời cho từng thiết lập' : 'Position size, grading, and the stop / target rules per setup'}</span>
+          </div>
+        </div>
+        <button class="pb-x" aria-label="${vi ? 'Đóng' : 'Close'}">×</button>
       </div>
-      <div class="modal-body" style="padding:16px;max-height:76vh;overflow:auto">
+      <div class="modal-body pb-body">
+        <nav class="pb-nav" aria-label="${vi ? 'Các phần' : 'Sections'}">
+          ${BLOCKS.map((b, i) => `<button type="button" class="pb-nav-chip${i === 0 ? ' on' : ''}" data-pb-go="${b.id}"><span class="pb-nav-n">${i + 1}</span>${b.icon} ${vi ? b.vi : b.en}</button>`).join('')}
+        </nav>
 
-        ${secHtml(
+        ${blockOpen('market',
           vi ? 'Thị trường hôm nay' : 'The market today',
-          vi ? 'app đo, không sửa được — nhưng nó quyết định cỡ mọi lệnh bên dưới'
-             : 'measured, not editable — and it decides the size of everything below',
+          vi ? 'App đo, không sửa được — nhưng nó quyết định cỡ mọi lệnh bên dưới.'
+             : 'Measured, not editable — and it decides the size of everything below.',
           'var(--blue)',
         )}
         ${regimeHtml(currentRegime(), vi)}
-        ${state ? budgetHtml(state, vi) : ''}
+        ${state ? budgetHtml(state, vi) : `<p class="pb-note pb-noacct">${vi
+          ? 'Chưa chọn tài khoản nào nên không hiện chuỗi rủi ro của riêng bạn. Chọn một tài khoản ở tab Danh mục để thấy nó ở đây.'
+          : 'No account is selected, so your own risk chain is not shown. Select an account on Portfolio to see it here.'}</p>`}
 
-        <p class="pb-note" style="margin:14px 0 0">
+        <p class="pb-note pb-intro">
           ${vi
             ? 'Mọi con số ở đây là một điểm khởi đầu hợp lý để bạn tự kiểm chứng, <b>không phải hằng số thiêng</b>. Ô để trống nghĩa là “không có” (không kéo theo EMA, không hết hạn) — khác với số 0. Khi bạn bấm <b>Lưu</b>, mọi kế hoạch <b>đang viết</b> trong app sẽ tự tính lại theo luật mới; cái đã mua, đã lưu kế hoạch hay đã lưu hồ sơ thì giữ nguyên con số lúc quyết định.'
             : 'Every number here is a reasonable starting point for you to verify, <b>not a sacred constant</b>. An empty box means “none” (no trail, never expires) — which is not the same as 0. When you press <b>Save</b>, every plan still being WRITTEN re-derives itself from the new rules; anything already bought, saved as a plan or filed as a case study keeps the numbers it was decided on.'}
         </p>
+        </section>
 
-        ${secHtml(vi ? 'Cỡ vị thế — thang rủi ro' : 'Position size — the risk ladder',
-          vi ? 'bạn được rủi ro bao nhiêu phần trăm tài khoản, và khi nào' : 'what percent of the account you may risk, and when')}
-        <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 18px">
-          ${LADDER_FIELDS.map((f) => `
-            <div>
-              <label class="field-label" style="margin-bottom:2px">${vi ? f.vi : f.en}</label>
+        ${blockOpen('ladder', vi ? 'Cỡ vị thế — thang rủi ro' : 'Position size — the risk ladder',
+          vi ? 'Bạn được rủi ro bao nhiêu phần trăm tài khoản, và khi nào.' : 'What percent of the account you may risk, and when.')}
+        <div class="pb-fields">
+          ${LADDER_FIELDS.map((f) => {
+            const def = DEFAULT_RISK_LADDER[f.key as 'minRR'];
+            const cur = ladder[f.key as 'minRR'];
+            return `
+            <label class="pb-field${cur !== def ? ' pb-edited' : ''}">
+              <span class="pb-field-k">${vi ? f.vi : f.en}</span>
               <input class="field" data-ladder="${f.key}" type="text" inputmode="decimal"
-                autocorrect="off" autocapitalize="off" value="${ladder[f.key as 'minRR']}"
-                style="width:100%;padding:5px 7px;font-size:12px" />
-              ${(vi ? f.hint.vi : f.hint.en)
-                ? `<div class="muted" style="font-size:11px;line-height:1.4;margin-top:2px">${vi ? f.hint.vi : f.hint.en}</div>`
-                : ''}
-            </div>`).join('')}
+                autocorrect="off" autocapitalize="off" value="${cur}" />
+              <span class="pb-field-d">${vi ? 'mặc định' : 'default'} ${def}</span>
+              ${(vi ? f.hint.vi : f.hint.en) ? `<span class="pb-field-h">${vi ? f.hint.vi : f.hint.en}</span>` : ''}
+            </label>`;
+          }).join('')}
         </div>
 
-        <div style="margin-top:14px">
-          <label class="field-label" style="margin-bottom:2px">
-            ${vi ? 'Ghim rủi ro mỗi lệnh (%) — để trống để dùng thang tự động' : 'Pin risk per trade (%) — empty to use the automatic ladder'}
-          </label>
+        <label class="pb-field pb-field-wide${cfg.pinnedRiskPct != null ? ' pb-edited' : ''}">
+          <span class="pb-field-k">
+            📌 ${vi ? 'Ghim rủi ro mỗi lệnh (%) — để trống để dùng thang tự động' : 'Pin risk per trade (%) — empty to use the automatic ladder'}
+          </span>
           <input class="field" id="pb-pinned" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off"
-            value="${cfg.pinnedRiskPct ?? ''}" placeholder="${vi ? 'tự động' : 'automatic'}"
-            style="width:160px;padding:5px 7px;font-size:12px" />
-          <div class="muted" style="font-size:11px;line-height:1.4;margin-top:2px">
+            value="${cfg.pinnedRiskPct ?? ''}" placeholder="${vi ? 'tự động' : 'automatic'}" />
+          <span class="pb-field-h">
             ${vi
               ? 'Ghim vẫn không mở lệnh mua mới khi thị trường ở xu hướng giảm: đó là luật “có giao dịch hay không”, không phải luật “to bao nhiêu”.'
               : 'A pin still refuses new longs in a downtrend: that rule is about whether to trade, not about how big.'}
-          </div>
-        </div>
+          </span>
+        </label>
+        </section>
 
-        ${secHtml(vi ? 'Cỡ theo xếp hạng' : 'Size by grade',
-          vi ? 'lệnh hạng thấp thì nhỏ đi bao nhiêu' : 'how much smaller a lower-graded trade gets')}
+        ${blockOpen('grade-size', vi ? 'Cỡ theo xếp hạng' : 'Size by grade',
+          vi ? 'Lệnh hạng thấp thì nhỏ đi bao nhiêu.' : 'How much smaller a lower-graded trade gets.', 'var(--up)')}
         <p class="pb-note" style="margin:0 0 10px">
           ${vi
             ? 'Phần cỡ vị thế mà mỗi hạng được lấy, tính theo % của cỡ đầy đủ. <b>A là 100</b> vì A nghĩa là “đúng cái lệnh mà thang rủi ro được viết cho”. Ba hạng còn lại là số của app, không phải của cẩm nang — nên mới cho sửa. Trong Trade Planner, hạng do bảng tiêu chí tự tính ra, không phải tự chọn; chưa đủ dữ liệu để xếp hạng thì lệnh vẫn được cỡ đầy đủ.'
             : 'The share of the FINISHED position each grade gets, as a percent of full size. <b>A is 100</b> because A <i>means</i> “the trade the ladder was written for”. The other three are the app’s numbers, not the book’s — which is exactly why they are editable. In the Trade Planner the grade is scored from a criteria checklist rather than chosen; when too little can be measured to name a letter, the trade is planned at full size.'}
         </p>
-        <div class="row" style="gap:10px;flex-wrap:wrap">
+        <div class="pb-grades">
           ${RATING_KEYS.map((k) => `
-            <div style="width:110px">
-              <label class="field-label" style="margin-bottom:2px">${vi ? 'Hạng' : 'Grade'} ${k} (%)</label>
+            <label class="pb-grade pb-grade-${k.toLowerCase()}">
+              <span class="pb-grade-l">${k}</span>
+              <span class="pb-grade-k">${vi ? 'cỡ' : 'size'} %</span>
               <input class="field" data-rating="${k}" type="text" inputmode="decimal"
-                autocorrect="off" autocapitalize="off" value="${ladder.ratingPct[k]}"
-                style="width:100%;padding:5px 7px;font-size:12px;text-align:right" />
-            </div>`).join('')}
+                autocorrect="off" autocapitalize="off" value="${ladder.ratingPct[k]}" />
+            </label>`).join('')}
         </div>
-        <div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">
+        <div class="pb-small">
           ${vi
             ? 'Phần này nhân vào số cổ đã tính xong, chứ không nằm trong chồng giảm nửa vì thị trường: % rủi ro chỉ là một trong bốn giới hạn, nên nếu giới hạn tập trung 25% đang quyết định cỡ thì giảm % rủi ro sẽ không đổi được gì. Sàn rủi ro vì thế không chặn phần này — nó để chặn app tự bóp lệnh, không phải để chặn bạn. Nhưng hạng thấp nhất vẫn luôn còn ít nhất 1 cổ.'
             : 'This multiplies the finished share count rather than sitting in the stack of market halvings: risk percent is only one of four limits, so cutting it changed nothing whenever the 25% concentration cap was the binding one. The risk floor therefore does not catch this cut — the floor exists to stop the APP whittling a position away, not to stop you. The lowest grade still never falls below 1 share.'}
         </div>
 
-        ${secHtml(vi ? 'Xếp hạng — hai đường A/B/C' : 'Grading — where A/B/C fall',
-          vi ? 'độ khắt khe của riêng bạn' : 'your own selectivity')}
+        </section>
+
+        ${blockOpen('grading', vi ? 'Xếp hạng — các đường A/B/C' : 'Grading — where A/B/C fall',
+          vi ? 'Độ khắt khe của riêng bạn.' : 'Your own selectivity.', 'var(--violet)')}
         <p class="pb-note" style="margin:0 0 10px">
           ${vi
             ? `Điểm tối thiểu để một lệnh được xếp hạng đó, tính theo % của phần bảng tiêu chí mà app trả lời được. Đây là <b>độ khắt khe của riêng bạn</b> nên mới cho sửa — còn các ngưỡng đo (RS 80, nền ≤ 25%, nhảy khoảng ≥ 10%) thì không, vì mỗi con số đó là một câu trích dẫn. ${GRADE_CRITERIA.length} tiêu chí, xem giải thích từng cái ở mục 11 của cẩm nang.`
             : `The minimum score for a trade to earn that letter, as a percent of the checklist the app could actually answer. This is <b>your own selectivity</b>, which is why it is editable — the measurement bars (RS 80, a base ≤ 25%, a gap ≥ 10%) are not, because each of those is a quotation. ${GRADE_CRITERIA.length} criteria, each explained in §11 of the playbook.`}
         </p>
-        <div class="row" style="gap:10px;flex-wrap:wrap">
+        <div class="pb-grades">
           ${(['a', 'b', 'c'] as const).map((k) => `
-            <div style="width:110px">
-              <label class="field-label" style="margin-bottom:2px">${
-                vi ? 'Hạng' : 'Grade'} ${k.toUpperCase()} ${vi ? 'từ' : 'from'} (%)</label>
+            <label class="pb-grade pb-grade-${k}">
+              <span class="pb-grade-l">${k.toUpperCase()}</span>
+              <span class="pb-grade-k">${vi ? 'từ' : 'from'} %</span>
               <input class="field" data-grade-th="${k}" type="text" inputmode="decimal"
-                autocorrect="off" autocapitalize="off" value="${thresholds[k]}"
-                style="width:100%;padding:5px 7px;font-size:12px;text-align:right" />
-            </div>`).join('')}
+                autocorrect="off" autocapitalize="off" value="${thresholds[k]}" />
+            </label>`).join('')}
         </div>
-        <div class="muted" style="font-size:11px;line-height:1.4;margin-top:4px">
+        <div class="pb-small">
           ${vi
             ? `Mặc định A ${DEFAULT_GRADE_THRESHOLDS.a} · B ${DEFAULT_GRADE_THRESHOLDS.b} · C ${DEFAULT_GRADE_THRESHOLDS.c}; dưới C là D. Nên sửa bằng dữ liệu của chính bạn sau 50–100 lệnh có ghi chép — nếu lệnh loại B thắng ngang loại A thì đường A đang quá cao — chứ không phải bằng cảm giác sau một lệnh thua. Sửa giữa hai lệnh thì được, sửa lúc đang cầm một lệnh thì không.`
             : `Defaults are A ${DEFAULT_GRADE_THRESHOLDS.a} · B ${DEFAULT_GRADE_THRESHOLDS.b} · C ${DEFAULT_GRADE_THRESHOLDS.c}; below C is a D. Move these on your own recorded data after 50–100 logged trades — if your Bs win as often as your As, the A line is too high — not on the feeling that follows a loss. Between trades, never while holding one.`}
         </div>
 
-        ${secHtml(vi ? 'Luật theo từng thiết lập' : 'Rules per setup',
-          vi ? 'cắt lỗ đi đâu, chốt lời ở đâu — cho từng loại lệnh' : 'where the stop goes and where the profit comes off, per kind of trade',
+        </section>
+
+        ${blockOpen('rules', vi ? 'Luật theo từng thiết lập' : 'Rules per setup',
+          vi ? 'Cắt lỗ đi đâu, chốt lời ở đâu — cho từng loại lệnh.' : 'Where the stop goes and where the profit comes off, per kind of trade.',
           'var(--danger)')}
         <p class="pb-note" style="margin:0 0 10px">
           ${vi
             ? 'Mười một cột, nhưng chỉ <b>ba câu hỏi</b>: chỗ nào chứng minh mình sai (<span style="color:var(--danger);font-weight:600">cắt lỗ</span>), chỗ nào chốt phần đầu (<span style="color:var(--accent);font-weight:600">mục tiêu</span>), và phần còn lại chạy thế nào (<span style="color:var(--violet);font-weight:600">kéo và hạn</span>). Màu ở đầu mỗi cột theo đúng ba nhóm đó, và phần <b>giải thích từng cột</b> nằm ngay dưới bảng. Không nhớ một ô làm gì thì đừng đoán — cuộn xuống phần <b>Ví dụ</b>: nó dựng đúng một lệnh bằng chính những con số đang có trong bảng.'
             : 'Eleven columns, but only <b>three questions</b>: where you are proved wrong (<span style="color:var(--danger);font-weight:600">the stop</span>), where the first piece comes off (<span style="color:var(--accent);font-weight:600">the target</span>), and how the rest is run (<span style="color:var(--violet);font-weight:600">trail and expiry</span>). The colour on each header follows those three groups, and <b>every column is explained</b> right under the table. If a box is a mystery, do not guess — scroll to the <b>Example</b>: it plans one trade using exactly the numbers now in the table.'}
         </p>
-        <div style="overflow-x:auto">
+        <div class="pb-tbl-wrap">
           <table class="pb-tbl">
             <thead>
               <tr>
@@ -630,22 +688,25 @@ export async function openPlaybookSettings(
             </div>`;
         }).join('')}
 
-        <div class="pb-sec" style="--pb-tone:var(--blue)">
-          <span class="pb-sec-t">${vi ? 'Ví dụ — một lệnh, bằng chính các số ở trên' : 'Example — one trade, with the numbers above'}</span>
-          <select class="field" id="pb-eg-setup" style="padding:3px 6px;font-size:12px;width:auto">
+        </section>
+
+        ${blockOpen('example', vi ? 'Ví dụ — một lệnh, bằng chính các số ở trên' : 'Example — one trade, with the numbers above',
+          vi ? 'Sửa ô nào ở trên thì ví dụ đổi theo ngay.' : 'Change any box above and this follows at once.', 'var(--blue)')}
+        <div class="pb-eg-pick">
+          <span>${vi ? 'Thiết lập' : 'Setup'}</span>
+          <select class="field" id="pb-eg-setup">
             ${SETUP_KEYS.map((k) => `<option value="${k}"${k === 'VCP' ? ' selected' : ''}>${setupName(k, vi)}</option>`).join('')}
           </select>
-          <span class="pb-sec-s">${vi ? 'sửa ô nào ở trên thì ví dụ đổi theo ngay' : 'change any box above and this follows at once'}</span>
         </div>
         <div id="pb-eg"></div>
-
-        <div id="pb-msg" class="muted" style="font-size:12px;min-height:18px;margin:10px 0"></div>
-        <div class="row" style="justify-content:flex-end;gap:8px">
-          <button id="pb-reset-all" class="btn-outline" style="margin-right:auto">${vi ? 'Về mặc định toàn bộ' : 'Reset everything'}</button>
-          <button id="pb-cancel" class="btn-outline">${vi ? 'Hủy' : 'Cancel'}</button>
-          <button id="pb-save" class="btn">${vi ? 'Lưu' : 'Save'}</button>
-        </div>
+        </section>
       </div>
+      <footer class="pb-foot">
+        <button id="pb-reset-all" class="btn-outline">${vi ? 'Về mặc định toàn bộ' : 'Reset everything'}</button>
+        <div id="pb-msg" class="pb-msg"></div>
+        <button id="pb-cancel" class="btn-outline">${vi ? 'Hủy' : 'Cancel'}</button>
+        <button id="pb-save" class="btn">${vi ? 'Lưu' : 'Save'}</button>
+      </footer>
     </div>`;
 
   document.body.appendChild(host);
@@ -663,6 +724,33 @@ export async function openPlaybookSettings(
   // forget. `input` covers typing, `change` covers the selects.
   host.addEventListener('input', drawExample);
   host.addEventListener('change', drawExample);
+
+  // The chip bar scrolls the dialog's own body, and follows it: the chip of the block
+  // nearest the top is lit.
+  const body = host.querySelector<HTMLElement>('.pb-body')!;
+  const nav = host.querySelector<HTMLElement>('.pb-nav')!;
+  const chips = [...host.querySelectorAll<HTMLElement>('[data-pb-go]')];
+  const blocks = [...host.querySelectorAll<HTMLElement>('[data-pb-block]')];
+  const light = (id: string): void => chips.forEach((c) => {
+    const on = c.dataset.pbGo === id;
+    if (on && !c.classList.contains('on')) {
+      nav.scrollTo({ left: c.offsetLeft - 12, behavior: 'smooth' });
+    }
+    c.classList.toggle('on', on);
+  });
+  const topOf = (el: HTMLElement): number =>
+    el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop;
+  chips.forEach((c) => c.addEventListener('click', () => {
+    const el = host.querySelector<HTMLElement>(`#pb-b-${c.dataset.pbGo}`);
+    if (el) body.scrollTo({ top: topOf(el) - nav.offsetHeight - 10, behavior: 'smooth' });
+    light(c.dataset.pbGo!);
+  }));
+  body.addEventListener('scroll', () => {
+    let cur = blocks[0]!.dataset.pbBlock!;
+    for (const b of blocks) if (topOf(b) - nav.offsetHeight - 30 <= body.scrollTop) cur = b.dataset.pbBlock!;
+    if (body.scrollTop + body.clientHeight >= body.scrollHeight - 4) cur = blocks[blocks.length - 1]!.dataset.pbBlock!;
+    light(cur);
+  }, { passive: true });
 
   host.querySelector('.modal-backdrop')!.addEventListener('click', close);
   host.querySelector('.pb-x')!.addEventListener('click', close);
