@@ -5936,3 +5936,14 @@ CHAT-64 (2026-10-01) - Popup ke hoach vua man hinh dien thoai, Man hinh/Giay the
   - Kinh: iframe .rep-frame nen trong suot; iframe chi trong suot khi color-scheme cua goc iframe khop color-scheme cua the iframe, nen .rep-frame dat color-scheme theo theme va goc iframe nhan class host-dark/host-light. REPORT_CSS them khoi @media screen cho html.embedded: Man hinh = tim than mo, the kinh blur; Giay = trang mo 60%, vien trang, bong nhe. Khi in van nen dac nhu cu.
 - Kiem tra: tsc, vitest 420/420 (--testTimeout=30000; may cham lam 2-3 test import timeout 5s, ca khi chua sua), vite build; anh headless popup ke hoach toi (Man hinh) va sang (Giay), mobile 390.
 - Chua thu tren thiet bi that.
+
+CHAT-65 (2026-10-01) - Trang co phieu: KPI noi bat, nut Trade Plan/Watchlist, cong cu ke hoach, How it ended
+- Yeu cau: (1) trang co phieu: the KPI (Entry, Stop...) co nen giong nen trang, nhat la theme sang - lam noi bat; nut Trade Plan, Watchlist noi bat hon; (2) trong Trade Plan: nut Hoi ChatGPT, Xem ke hoach, In ke hoach noi bat hon; muc "How it ended" noi bat hon; chu phan ghi chu to hon phan con lai (ca trong View plan).
+- Code: 561b0860.
+  - .stat trong .modal-panel va #main .tp-statgrid: theme sang nen trang dac, vien manh, bong mem (truoc la 50% trang tren panel trang nen chim vao nen); theme toi kinh sang hon, vien ro hon. KPI stock modal dung font so 16px, mobile 2 cot.
+  - #sm-plan: nut tim dac co icon clipboard (selector html button.btn-outline.sm-act--plan de thang html.light button.btn-outline); #wl-toggle: nut trang/kinh co bong.
+  - Hang .tp-tools: Hoi ChatGPT (nut chinh, icon spark), Xem ke hoach (eye), In ke hoach (print) - nut tint accent, day sang phai; mobile chia deu 1 hang. commandBar them icon print/spark/star/flag.
+  - How it ended: khung tim (--violet) thay vach dut, icon co, nhan 13px mau chu, chip "tuy chon", caret ben phai; .tp-exit nhan class open khi mo.
+  - Chu ghi chu: .tp-note 12.5px (truoc 13px), h3 13px; REPORT_CSS .notes 13px/1.65 (truoc ke thua 14px/1.75), h3 13.5px.
+- Kiem tra: tsc, vitest 420/420 (--testTimeout=30000), vite build; anh headless stock modal NVDA + planner sang va toi.
+- Chua thu tren thiet bi that.
