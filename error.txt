@@ -5890,3 +5890,14 @@ CHAT-60 (2026-10-01) - Trang Cau chuyen (About) kinh long nhu landing
   - styles.css: khoi Request 64 cuoi file; .about-story trong suot, anh nen tan bang mask, trich dan the kinh, dong ket san khau kinh, man chan va veil mau canvas.
 - Kiem tra: tsc 0, vitest 420/420 (2 file timeout chay lai qua), build OK; anh chup toi/sang 1440 va mobile 500; 5 chuong deu cao 749px o 1440x900.
 - Chua thu tren thiet bi that.
+
+CHAT-61 (2026-10-01) - Dau trang theo Lich su kien, than trang theo Top Picks, tieu de bang, bo blur cu
+- Yeu cau: (1) trang Cau chuyen bo hieu ung blur cu vi kinh long da mo san, anh nen moi chuong tran man hinh nhu chuong cuoi; (2) dau trang Picks/Screener/Sectors/Scanner theo kieu Lich su kien (pha nhe voi kieu cu), than Backtest/Watchlist/Portfolio/Case Studies theo Top Picks; (3) tieu de bang moi trang chuyen nghiep, noi bat hon.
+- Code: fe27ffcf.
+  - ui/pageHero.ts: bo bang kinh + icon lon; tieu de va mo ta nam tren nen nhu Lich su kien, giu mot vien kicker nho mau trang (icon + nhom). Dung cho 10 trang: Lich, Picks, Screener, Sectors, Scanner, Watchlist, Case Studies, Backtest, Portfolio (ca 2 view), Wealth.
+  - Backtest, Watchlist: form chuyen sang .picks-config.pg-panel, hang danh so 01..05 nhu Top Picks; nut hanh dong nam o dai duoi. Id cu giu nguyen.
+  - Case Studies: the co vien trai + anh mau theo ket qua (--tone). Portfolio: o KPI co vien trai accent.
+  - Bang: #main th va .modal-body th thanh dai kinh, chu hoa 10.5px, vien duoi accent, cot dang sap xep co gach accent. Mau lay tu bien --th-bg/--th-edge de giu do uu tien o #main th, nen cac bang co kieu rieng (#main table.scan-gt th, wl-chk...) van thang.
+  - Cau chuyen: bo backdrop-filter cua .sl-veil, an .sl-exit::after (vong mo), bo blur anh tren dien thoai; chuong 0-3 anh tran man hinh (inset 0, khong mask) voi lop phu mau --bg nhe hon chuong 5.
+- Kiem tra: tsc OK; vitest 420/420 (playbookBroadcast + syncMerge timeout luc may tai nang, chay lai rieng thi qua); vite build OK; anh headless toi/sang cua Picks, Backtest, Watchlist, Portfolio, Case Studies, Calendar, Scanner (mock), Cau chuyen chuong 1-3.
+- Chua thu tren thiet bi that.
