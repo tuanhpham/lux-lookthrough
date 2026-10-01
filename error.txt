@@ -5972,3 +5972,14 @@ CHAT-67 (2026-10-01) - Nut prompt dong bo, Hoi Tro ly, tieng Viet tu nhien moi t
   - exitReasons: OLD_VI giu nhan cu de case study cu van map ve dung key; BO hien la "Breakout"; nut ⚙ Playbook dong bo trong huong dan.
 - Kiem tra: tsc OK (desktop + core); vitest desktop 420/420, core 833/833; vite build OK; chup man hinh hang nut Case Study desktop + mobile 500px.
 - Chua thu tren thiet bi that.
+
+CHAT-68 (2026-10-02) - Top Picks mat nut Run scan, Top Picks vs Screener, link Sectors
+- Yeu cau: nut Run scan bien mat o Qullamagie/Momentum/Surge; so sanh Top Picks va Custom Screener, co nen gop; nghien cuu link Sectors -> Screener.
+- Code: 10de45e5.
+  - Nguyen nhan: request 66 (dd807c1a) them .seg cho hang min avg vol nhung thieu mot </div>, nut Run/Stop nam trong seg bi an.
+  - runPicks gom Run/Stop vao mot cho (try/catch/finally + picksRunSeq), doi lua chon giua scan thi scan cu dung, luu theo picksRunView.
+  - app:show-tab goi show(tab, false): nav, crumb, #hash theo tab moi (truoc day refresh quay ve Sectors).
+  - runScreen: try/catch + screenRunSeq, loi fetch khong de spinner quay mai.
+  - Khong gop Top Picks va Screener: Top Picks = chien luoc co san tren ca universe; Screener = danh sach/nganh tu chon, cot QM+momentum+volume, loc, xuat CSV.
+- Kiem tra: tsc OK, vitest 420/420, anh headless Top Picks thay lai nut Run scan.
+- Chua thu tren thiet bi that.
