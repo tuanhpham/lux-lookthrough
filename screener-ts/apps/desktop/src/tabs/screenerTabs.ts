@@ -53,6 +53,7 @@ import {
 } from '../adapters/universe.js';
 import { loadScan, saveScan, scannedAtLabel } from './scanCache.js';
 import { getLang } from '../ui/i18n.js';
+import { pageHero } from '../ui/pageHero.js';
 import {
   asOfControlsHtml,
   wireAsOfControls,
@@ -73,6 +74,9 @@ import {
 } from '../adapters/sectorLabelCache.js';
 
 const PERIOD: Period = '1y';
+
+/** English or Vietnamese, for the page chrome that has no i18n key. */
+const L = (en: string, viText: string): string => (getLang() === 'vi' ? viText : en);
 const CURATED = [...new Set(Object.values(SECTOR_STOCKS).flat())]; // ~543 symbols
 /** VN symbols that are in the static sector maps (already labelled). */
 const VN_CURATED = new Set(Object.values(VN_SECTOR_STOCKS).flat());
@@ -258,10 +262,13 @@ export function renderPicks(ctx: AppContext): void {
     ['de', `${flagSvg('de')} ${t('picks.market.de')}`],
   ];
   root.innerHTML = `
-    <h1>${t('picks.title')}</h1>
-    <p class="subtitle">${t('picks.sub')}</p>
+    ${pageHero({
+      icon: '🎯', tone: 'var(--accent)',
+      kicker: L('Market · Ideas', 'Thị trường · Ý tưởng'),
+      title: t('picks.title'), sub: t('picks.sub'),
+    })}
 
-    <div class="picks-config card">
+    <div class="picks-config card pg-panel">
       <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.strategy') ?? 'Strategy'}</span>
         <div class="picks-pill-group">
@@ -322,7 +329,7 @@ export function renderPicks(ctx: AppContext): void {
         <button id="picks-stop" class="btn-outline hidden">${t('picks.stop')}</button>
       </div>
     </div>
-    <div id="picks-regime" class="muted picks-regime-bar"></div>
+    <div id="picks-regime" class="picks-regime-bar"></div>
 
     <div id="picks-progress" class="picks-progress hidden"><div id="picks-bar"></div></div>
     <div id="picks-status" class="muted" style="margin:8px 0 12px"></div>
@@ -589,22 +596,28 @@ function renderRegimeBanner(regime: MarketRegime | null, sectors: SectorMomentum
     elBanner.textContent = '';
     return;
   }
-  const parts: string[] = [];
+  let lead = '';
   if (regime) {
     const color =
       regime.regimeType === 'BULL' ? 'var(--up)' : regime.regimeType === 'BEAR' ? 'var(--danger)' : 'var(--warn)';
     const flag = regime.riskOn ? 'risk-on' : 'risk-off';
-    parts.push(
-      `Market: <strong style="color:${color}">${regime.regimeType}</strong> (${flag}, strength ${num(regime.strengthScore, 0)})`,
-    );
+    lead = `<span class="pg-chip pg-chip--lead" style="--c:${color}"><i></i>${L('Market', 'Thị trường')}`
+      + ` <b>${regime.regimeType}</b><small>${flag} · ${L('strength', 'sức mạnh')} ${num(regime.strengthScore, 0)}</small></span>`;
   }
-  if (sectors && sectors.hotSectors.length) {
-    parts.push(`🔥 Hot: ${sectors.hotSectors.join(', ')}`);
-  }
-  if (sectors && sectors.coldSectors.length) {
-    parts.push(`🧊 Cold: ${sectors.coldSectors.join(', ')}`);
-  }
-  elBanner.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  elBanner.innerHTML = lead + rotationChips(sectors?.hotSectors ?? [], sectors?.coldSectors ?? []);
+}
+
+/**
+ * Hot and cold sectors as chips — the strip above Top Picks and above the sector
+ * list. It used to be one grey sentence ("🔥 Hot: A, B · 🧊 Cold: C"), which is the
+ * one line on either page that says where the money is going.
+ */
+function rotationChips(hot: readonly string[], cold: readonly string[]): string {
+  const group = (cls: string, head: string, names: readonly string[]): string => names.length
+    ? `<span class="pg-chips-h ${cls}">${head}</span>`
+      + names.map((n) => `<span class="pg-chip ${cls}">${n}</span>`).join('')
+    : '';
+  return group('is-hot', `🔥 ${t('sectors.hot')}`, hot) + group('is-cold', `🧊 ${t('sectors.cold')}`, cold);
 }
 
 /**
@@ -1199,9 +1212,14 @@ export function renderScreener(ctx: AppContext): void {
     ['de', `${flagSvg('de')} ${t('picks.market.de')}`],
   ];
   root.innerHTML = `
-    <h1>${t('screener.title')}</h1>
-    <p class="subtitle">${t('screener.sub')}</p>
-    <div class="card" style="margin-bottom:16px">
+    ${pageHero({
+      icon: '🔬', tone: 'var(--blue)',
+      kicker: L('Market · Filter', 'Thị trường · Bộ lọc'),
+      title: t('screener.title'), sub: t('screener.sub'),
+    })}
+    <div class="card pg-panel scr-form" style="margin-bottom:16px">
+      <div class="scr-group">
+      <div class="scr-group-h"><i>01</i>${L('Market & date', 'Thị trường & ngày')}</div>
       <div class="toolbar" style="margin-bottom:10px">
         <span class="muted" style="font-size:12px">${t('picks.market')}:</span>
         ${markets
@@ -1212,13 +1230,19 @@ export function renderScreener(ctx: AppContext): void {
           .join('')}
       </div>
       ${asOfControlsHtml('screener')}
+      </div>
+      <div class="scr-group">
+      <div class="scr-group-h"><i>02</i>${L('What to scan', 'Quét gì')}</div>
       <label class="field-label">${t('screener.symbols')}</label>
       <input id="sym-input" class="field" placeholder="${screenerMarket === 'vn' ? 'FPT.VN, HPG.VN, VCB.VN' : screenerMarket === 'de' ? 'ALV.DE, SAP.DE, SIE.DE' : 'AAPL, MSFT, NVDA'}" />
       <div style="margin-top:12px">
         <label class="field-label">${t('screener.orsectors')}</label>
         <div id="sector-chips" class="row"></div>
       </div>
-      <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:12px">
+      </div>
+      <div class="scr-group">
+      <div class="scr-group-h"><i>03</i>${L('Filters & order', 'Bộ lọc & thứ tự')}</div>
+      <div class="grid scr-filters" style="grid-template-columns:repeat(4,1fr)">
         <div><label class="field-label">${t('screener.setup')}</label><select id="setup-filter" class="field">
           <option value="">${t('opt.any')}</option>
           <option value="VCP">${t('screener.setup.vcp')}</option>
@@ -1236,7 +1260,8 @@ export function renderScreener(ctx: AppContext): void {
           <option value="return3m">3M</option>
           <option value="relativeStrength">RS</option></select></div>
       </div>
-      <div class="row" style="margin-top:14px"><button id="run-screen" class="btn">${t('screener.run')}</button><span id="screen-status" class="muted"></span></div>
+      </div>
+      <div class="row scr-run"><button id="run-screen" class="btn">${t('screener.run')}</button><span id="screen-status" class="muted"></span></div>
     </div>
     <div id="screen-results"></div>`;
 
@@ -1478,9 +1503,12 @@ export function renderSectors(ctx: AppContext): void {
     ['de', `${flagSvg('de')} ${t('picks.market.de')}`],
   ];
   root.innerHTML = `
-    <h1>${t('sectors.title')}</h1>
-    <p class="subtitle">${t('sectors.sub')}</p>
-    <div class="picks-config card">
+    ${pageHero({
+      icon: '🧭', tone: 'var(--up)',
+      kicker: L('Market · Rotation', 'Thị trường · Luân chuyển'),
+      title: t('sectors.title'), sub: t('sectors.sub'),
+    })}
+    <div class="picks-config card pg-panel">
       <div class="picks-config-row">
         <span class="picks-config-label">${t('picks.market')}</span>
         <div class="picks-pill-group">
@@ -1661,7 +1689,7 @@ function renderSectorSnapshot(ctx: AppContext, rows: SectorSnapshotRow[]): void 
       ? `vol ${pct(s.volumeChangePct)} · ${flowLabel}`
       : 'no volume data';
     const row = el(`
-      <div class="sector-row">
+      <div class="sector-row${s.hot ? ' is-hot' : ''}${s.cold ? ' is-cold' : ''}" style="--tone:${color}">
         <div class="sector-head" data-sector="${s.sector}">
           <span class="sector-rank">${momRank}</span>
           <div style="flex:1"><strong>${s.sector}${hot}</strong>
@@ -1734,10 +1762,7 @@ function renderSectorRotationBanner(report: SectorMomentumReport): void {
   const out = $('#sector-results')!;
   if (!report.hotSectors.length && !report.coldSectors.length) return;
   const banner = el(
-    `<div class="muted" style="font-size:12px;margin-bottom:10px">` +
-      (report.hotSectors.length ? `🔥 ${t('sectors.hot')}: <strong>${report.hotSectors.join(', ')}</strong>` : '') +
-      (report.coldSectors.length ? ` &nbsp;·&nbsp; 🧊 ${t('sectors.cold')}: ${report.coldSectors.join(', ')}` : '') +
-      `</div>`,
+    `<div class="picks-regime-bar sec-rot">${rotationChips(report.hotSectors, report.coldSectors)}</div>`,
   );
   out.appendChild(banner);
 }

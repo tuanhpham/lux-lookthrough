@@ -14,7 +14,8 @@
 import type { AppContext } from '../context.js';
 import { $, num, fmtBig } from '../ui/dom.js';
 import { openStock } from '../ui/stockModal.js';
-import { t } from '../ui/i18n.js';
+import { t, getLang } from '../ui/i18n.js';
+import { pageHero } from '../ui/pageHero.js';
 import { isSyncEnabled } from '../adapters/syncClient.js';
 import { scannerPull } from '../adapters/scannerClient.js';
 import { openSyncSettings } from '../ui/syncSettings.js';
@@ -1927,17 +1928,166 @@ function wireJump(root: HTMLElement): void {
   };
 }
 
+/** English or Vietnamese, for chrome that has no i18n key. */
+const L = (en: string, viText: string): string => (getLang() === 'vi' ? viText : en);
+
+/** The hero every state of the page opens with. */
+const hero = (side = '', foot = ''): string => pageHero({
+  icon: '📡', tone: 'var(--violet)',
+  kicker: L('Live · the alert bot on the VM', 'Trực tiếp · bot cảnh báo trên VM'),
+  title: t('scan.title'), sub: t('scan.sub'), side, foot,
+});
+
+interface OvTile {
+  id: (typeof SECS)[number]['id'];
+  value: string;
+  sub: string;
+  tone?: string;
+}
+
+/**
+ * The page at a glance: one glass tile per question the sections below answer —
+ * what the market allows, where the strength is, what is on the list, did last night
+ * run, what fired today, is the bridge healthy. Each tile carries its section's
+ * number and jumps there, so the overview is also the first index on the page.
+ *
+ * Built from the snapshots already in hand; a tile with nothing behind it says so in
+ * its own words rather than disappearing, because a missing tile reads as "fine".
+ */
+function overviewHtml(
+  status: Status | null, notes: string[], topN: number, topSectors: readonly string[],
+  watchBlocked: boolean,
+): string {
+  const regime = get<RegimeSnap>(KEY_REGIME);
+  const watch = get<WatchSnap>(KEY_WATCH);
+  const alertsKey = newestAlertsKey();
+  const alerts = alertsKey ? get<AlertsSnap>(alertsKey) : null;
+  const night = status?.night;
+  const none = L('No snapshot yet', 'Chưa có bản chụp');
+
+  const r = regime?.row;
+  const pb = regime?.playbook;
+  const trendTone = r?.trend === 'UPTREND' ? 'var(--up)'
+    : r?.trend === 'DOWNTREND' ? 'var(--danger)'
+      : r?.trend ? 'var(--warn)' : undefined;
+  const today: OvTile = {
+    id: 'today',
+    value: r?.trend ? esc(t(`scan.trend.${r.trend}`)) : '—',
+    sub: r
+      ? [
+        pb?.setups?.length ? esc(pb.setups.map((k) => setupWord(k).text).join(' · ')) : esc(t('scan.today.nosetup')),
+        pb?.size != null ? `${L('size', 'tỷ trọng')} ${Math.round(pb.size * 100)}%` : '',
+      ].filter(Boolean).join(' · ')
+      : none,
+    tone: trendTone,
+  };
+
+  const sectors: OvTile = {
+    id: 'sectors',
+    value: topSectors.length ? topSectors.map(esc).join(' · ') : '—',
+    sub: topSectors.length
+      ? esc(topSectors.map((x) => sectorName(x)).join(', '))
+      : none,
+    tone: topSectors.length ? 'var(--blue)' : undefined,
+  };
+
+  const wRows = watch?.rows?.length ?? 0;
+  const wTotal = watch?.total ?? wRows;
+  const watchTile: OvTile = {
+    id: 'watch',
+    value: watch ? String(wRows) : '—',
+    sub: watchBlocked
+      ? L('The filter stage did not run', 'Bước lọc không chạy')
+      : !watch ? none
+        : wRows
+          ? `${wTotal > wRows ? `${L('top', 'top')} ${wRows} / ${wTotal} · ` : ''}${esc(watch.d ?? '')}`
+          : L('Nothing passed tonight', 'Không mã nào qua đêm nay'),
+    tone: watchBlocked ? 'var(--danger)' : wRows ? 'var(--accent)' : undefined,
+  };
+
+  const last = night?.last;
+  const nightTile: OvTile = {
+    id: 'night',
+    value: !last ? '—' : last.ok ? L('Completed', 'Hoàn tất') : L('Failed', 'Lỗi'),
+    sub: last
+      ? `${esc((last.run_id ?? last.day ?? '').slice(0, 16))}${last.sec != null ? ` · ${last.sec.toFixed(0)}s` : ''}`
+      : none,
+    tone: !last ? undefined : last.ok && !night?.stale?.stale ? 'var(--up)' : 'var(--danger)',
+  };
+
+  const aRows = alerts?.rows ?? [];
+  // Newest by stamp, not by position: the row order is the VM's query order.
+  const lastAlert = aRows.map((x) => x.ts_et ?? '').sort().pop() || null;
+  const alertTile: OvTile = {
+    id: 'alerts',
+    value: alerts ? String(aRows.length) : '—',
+    sub: alerts
+      ? `${esc(alerts.day ?? '')}${lastAlert ? ` · ${L('last', 'gần nhất')} ${esc(lastAlert.slice(11, 16))}` : ''}`
+      : none,
+    tone: aRows.length ? 'var(--warn)' : undefined,
+  };
+
+  const statusTile: OvTile = {
+    id: 'status',
+    value: loadError ? L('Unreachable', 'Không đọc được')
+      : notes.length ? `${notes.length} ${t('scan.issues')}`
+        : status ? t('scan.ok') : '—',
+    sub: status?.beat?.session
+      ? `${esc(status.beat.session)}${status.beat.universe ? ` · ${status.beat.universe} ${L('names', 'mã')}` : ''}`
+      : status ? L('Bridge answering', 'Cầu nối đang trả lời') : none,
+    tone: loadError ? 'var(--danger)' : notes.length ? 'var(--warn)' : status ? 'var(--up)' : undefined,
+  };
+
+  const tiles = [today, sectors, watchTile, nightTile, statusTile, alertTile];
+  // `topN` is the sector tile's caption: "top 3" is the scanner's own number.
+  const label = (x: OvTile): string => x.id === 'sectors'
+    ? `${L('Sectors', 'Ngành')} · top ${topN}`
+    : t(SECS.find((q) => q.id === x.id)!.key);
+
+  return `<div class="scan-ov" role="list">${tiles.map((x) => {
+    const n = SECS.findIndex((q) => q.id === x.id) + 1;
+    return `<button class="scan-ov-tile${x.tone ? '' : ' is-quiet'}" role="listitem" data-ov="${x.id}"`
+      + `${x.tone ? ` style="--c:${x.tone}"` : ''}>`
+      + `<span class="scan-ov-top"><span class="scan-ov-n">${String(n).padStart(2, '0')}</span>`
+      + `<span class="scan-ov-k">${label(x)}</span><span class="scan-ov-go" aria-hidden="true">→</span></span>`
+      + `<b class="scan-ov-v">${x.value}</b><small class="scan-ov-s">${x.sub}</small></button>`;
+  }).join('')}</div>`;
+}
+
+/** The three things that have to be true before this page can show anything. */
+function connectHtml(): string {
+  const steps: [string, string, string][] = [
+    ['🔑', L('Set the access code', 'Đặt mã truy cập'),
+      L('The same code as sync — the ☁️ box. It is the only credential this page uses.',
+        'Cùng mã với đồng bộ — ô ☁️. Đây là thông tin đăng nhập duy nhất trang này dùng.')],
+    ['🖥️', L('The VM pushes snapshots', 'VM đẩy bản chụp lên'),
+      L('Cron on the Oracle VM runs the scanner and pushes JSON out. Nothing connects in.',
+        'Cron trên Oracle VM chạy scanner rồi đẩy JSON ra. Không có kết nối nào đi vào.')],
+    ['📡', L('This page reads them', 'Trang này đọc chúng'),
+      L('Regime, sectors, the watch list with plans, the nightly run, alerts — read-only.',
+        'Bối cảnh, ngành, watch list kèm kế hoạch, chuỗi chạy đêm, cảnh báo — chỉ đọc.')],
+  ];
+  return `<div class="card pg-panel scan-connect">
+    <div class="scan-connect-steps">${steps.map(([ic, h, p], i) => `
+      <div class="scan-connect-step">
+        <span class="scan-connect-n">${String(i + 1).padStart(2, '0')}</span>
+        <span class="scan-connect-ic" aria-hidden="true">${ic}</span>
+        <b>${h}</b><p>${p}</p>
+      </div>`).join('')}</div>
+    <div class="scan-connect-act">
+      <p>${t('scan.needcode')}</p>
+      <button class="btn" id="scan-setcode">${t('scan.setcode')}</button>
+    </div>
+  </div>`;
+}
+
 function draw(ctx: AppContext): void {
   const root = $('#tab-scanner')!;
 
   if (!isSyncEnabled()) {
     root.innerHTML = `
-      <h1>${t('scan.title')}</h1>
-      <p class="subtitle">${t('scan.sub')}</p>
-      <div class="card">
-        <p style="margin:0 0 12px">${t('scan.needcode')}</p>
-        <button class="btn" id="scan-setcode">${t('scan.setcode')}</button>
-      </div>
+      ${hero()}
+      ${connectHtml()}
       ${opsBanner()}`;
     root.querySelector('#scan-setcode')?.addEventListener('click', () => openSyncSettings(ctx));
     wireOpsBanner(root);
@@ -1986,9 +2136,7 @@ function draw(ctx: AppContext): void {
   const watchBlocked = !!setupsStage && !setupsStage.ok;
 
   root.innerHTML = `
-    <h1>${t('scan.title')}</h1>
-    <p class="subtitle">${t('scan.sub')}</p>
-    ${statusStrip(status, pushedAt, notes)}
+    ${hero(statusStrip(status, pushedAt, notes), overviewHtml(status, notes, topN, topSectors, watchBlocked))}
     ${opsBanner()}
     ${notes.map((n) => `<div class="notice" style="margin-bottom:8px">${esc(n)}</div>`).join('')}
     ${status || !lastLoad ? '' : `<p class="muted">${t('scan.nodata')}</p>`}
@@ -2024,6 +2172,14 @@ function draw(ctx: AppContext): void {
       if (cmd) void copyToClipboard(cmd, b);
     });
   });
+
+  root.querySelectorAll<HTMLElement>('[data-ov]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const target = root.querySelector(`#scan-sec-${b.dataset.ov}`);
+      revealCollapse(target);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }),
+  );
 
   wireJump(root);
   wireCollapse(root);
