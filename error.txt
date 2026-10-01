@@ -5913,3 +5913,17 @@ CHAT-62 (2026-10-01) - Segment kieu Wealth khap noi, subtitle rong, popup API ke
   - Story: lop phu 42/50% xuong 18/24%, mobile 36/42%.
 - Kiem tra: tsc, vitest 420/420 (playbookBroadcast/syncMerge chay lai rieng vi qua tai), vite build; anh headless popup sang/toi, landing, Picks, Portfolio, Lich, Watchlist sang, Story.
 - Chua thu tren thiet bi that.
+
+CHAT-63 (2026-10-01) - Chatbot, popup va Case Study kinh long; xem/in ke hoach dep lai
+- Yeu cau: (1) chatbot, popup trade plan va moi popup khac dep, chuyen nghiep, kinh long, chuan hoa giua cac trang; (2) Case Study khong thay cho xem lai trade plan - tai sao; (3) thay hinh am duong canh chu Assistant bang icon chuyen nghiep; (4) the Case Study: vach accent va bo goc qua nhieu, trang chi tiet dep hon; (5) "View plan" va ban in rat xau; giu nguyen moi yeu cau cu.
+- Code: 28000efd.
+  - portfolio/reportTheme.ts (moi): REPORT_CSS dung chung cho ban in ke hoach va bao cao case study - thanh cong cu kinh, bia gradient, the kinh, h2 tim. Che do Giay trang (#ink) ap dung ca tren man hinh, khong chi khi in; van la CSS thuan (:has) vi iframe tat script.
+  - openPlanReport: popup .dialog--report chua iframe (sandbox allow-same-origin allow-modals), html.embedded an thanh cong cu ben trong; seg Man hinh/Giay trang, Tai HTML, In / Luu PDF goi print() that cua iframe (loi thi tai file).
+  - Case Study khong thay ke hoach vi nut #cs-plan chi hien khi study.plan ton tai, ma plan chi duoc dong bang khi luu bang "Luu thanh case study" trong Trade Planner; ho so tao bang "Ho so moi" thi khong co. Nay trang chi tiet luon co muc "Ke hoach giao dich": co plan thi hien hang, diem, co lenh, 3 muc gia va nut lon "Mo ke hoach day du"; khong co thi giai thich cach tao.
+  - Danh sach Case Study: mot khung kinh, moi dong co o ma, tieu de, dong meta (setup - ngay - R) va chip Ke hoach/Hang/Ket qua; bo vach mau va quang sang cu. CaseStudyMeta them setupType, rMultiple, hasPlan (ho so cu hien it hon cho den khi luu lai). Thang = --up thay vi --accent.
+  - Chi tiet: pageHero + commandBar (Quay lai/Xem ke hoach/Sua/Tai HTML/Xoa), 2 nhom chi so Ke hoach / Ket qua, the Ly do thoat co icon.
+  - Chatbot: tam kinh noi cach mep 12px (desktop), nen aurora thay anh am duong chat-top.webp, ASSISTANT_GLYPH (bong chat + tia sang) o header, avatar va man hinh trong; goi y luoi 2 cot; bong nguoi dung tim gradient; o nhap kinh. ORB_MARK van con cho cac cho thuong hieu.
+  - Modal kinh long (stock modal, playbook, ly do thoat, sync); nut dong tron 32px chung cho #modal-close/.xr-x/.sync-x/.pb-x/.dialog-x (bo inline style o 2 file).
+  - Sua loi cu: .dialog dung keyframe modalIn co translateX(50%) cua stock modal nen popup truot tu nua phai man hinh; nay co dialogIn rieng. Luoi bieu do case study o theme sang khong con mau den.
+- Kiem tra: tsc, vitest 420/420, vite build; anh headless danh sach/chi tiet Case Study sang toi, popup ke hoach, chatbot sang toi.
+- Chua thu tren thiet bi that.
