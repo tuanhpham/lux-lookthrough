@@ -5837,3 +5837,18 @@ CHAT-56 (2026-10-01) - Darkmode cung co liquid glass
   - Token dark: --text #f2f2f8, --subtext #b4b3c8, --faint #8584a0, --border #2d2d3b (truoc toi hon -> kho doc).
 - Kiem tra: tsc, vite build OK; vitest 420/420 (1 lan timeout 5s o syncMerge "timestamp map once per batch" khi may tai nang, chay lai qua; khong lien quan CSS).
 - Chua thu tren thiet bi that.
+
+
+CHAT-57 (2026-10-01) - Learn gop Playbook, nen liquid hon, muc luc va cau hinh cam nang
+- Yeu cau: (1) nen liquid hon de panel va chu noi bat; (2) trang Playbook va Swing trading playbook trung nhau -> gop, chi giu mot ben trong Learn; muc luc va tieu de cap cuoi cua Learn chua ro rang; (3) bang Contents I-IV o dau Learn hai hoa hon, Phan II "Working the platform" cap nhat theo cac trang moi / da gop; (5) Playbook settings dep hon va co mat ca o Settings & Guides. Toi + sang, desktop + mobile.
+- Code: c81549f4.
+  - Nen: body::before 6 vung sang dam hon, inset -12% va troi cham 46s (chi transform; tat khi prefers-reduced-motion). Card toi co lop khoi rgba(13,12,22,.5) duoi kinh; card sang trang hon + bong dam hon.
+  - Gop: tab Playbook bi xoa (TABS, pages.ts, index.html). Checklist hang ngay + thu vien prompt nam o Learn muc 15 (tabs/playbookTools.ts, ex playbookTab.ts). The regime / rui ro cua tab cu bo vi trung muc 2 va hop cau hinh. Link #playbook cu: HASH_ALIAS trong main.ts -> learn + #swp-routine.
+  - Loi tim thay khi kiem tra: nhay #playbook khong cuon vi html co scroll-behavior: smooth (behavior 'auto' van luot 19000px). Sua: jumpToLearn(id, false) -> behavior 'instant'.
+  - Bia Learn: 4 the kinh (4/2/1 cot) co so La Ma, icon, thoi gian doc, so muc, mau rieng moi phan. Vach chia phan = bang mau co huy hieu so.
+  - Muc luc (cot trai + bang mobile): phan = huy hieu so La Ma; chuong = icon o cot co dinh (dong xuong dong thut dung); muc = so trong huy hieu mono + duong dan doc. .swp-h4 co vach nhan + gach mo.
+  - Phan II viet lai (learnPlatform.ts): phim tat, 4 nhom trang (Thi truong / Giao dich / Tien / Kien thuc) dang the, nguon du lieu.
+  - Cau hinh cam nang: 6 chuong danh so + thanh chip dinh (tu sang theo vi tri cuon), o nhap dang the hien "mac dinh X" va vien tim khi da sua, hang A/B/C/D co mau, chan hop (Ve mac dinh / Huy / Luu) luon hien. Mobile: toan man hinh, safe-area. Moi data-* / id giu nguyen -> logic luu khong doi.
+  - Settings & Guides: nhom moi "Giao dich" > Cau hinh cam nang: 4 o tom tat song (thi truong, rui ro moi lenh, setup da sua, sua khac) + nut mo hop + nut doc cam nang. openPlaybookSettingsHere tu chon tai khoan (chi 1 -> no; Overview -> khong, hop bao chua chon tai khoan).
+- Kiem tra: tsc 0, build OK, vitest 420/420 (lan dau 2 timeout 5s khi may dang chay Chrome + build, chay lai qua). Chup headless Learn bia / muc 15 / Settings / hop cau hinh, toi + sang, desktop 1440 + mobile 500 (Chrome headless khong nho hon 500px); khong co phan tu tran ngang o 500px.
+- Chua thu tren thiet bi that (iPhone 390px).
