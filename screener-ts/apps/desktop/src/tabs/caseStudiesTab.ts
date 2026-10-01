@@ -22,7 +22,9 @@ import {
 } from '../caseStudies/store.js';
 import { caseSvgChart, windowBars } from '../caseStudies/svgChart.js';
 import { countChip, sectionHead } from '../ui/sectionHead.js';
-import { cbButton, commandBar } from '../ui/commandBar.js';
+import { cbButton, cbIcon, commandBar } from '../ui/commandBar.js';
+import { setupName } from '../portfolio/planWords.js';
+import type { SetupKey } from '@screener/core';
 import { pageHero } from '../ui/pageHero.js';
 import { caseStudyHtml } from '../caseStudies/report.js';
 import { richNoteDialog, sanitizeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
@@ -90,7 +92,8 @@ async function fetchBars(ctx: AppContext, symbol: string): Promise<Bar[]> {
 
 const OUTCOMES: CaseOutcome[] = ['open', 'win', 'loss', 'scratch'];
 const OUTCOME_COLOR: Record<CaseOutcome, string> = {
-  win: 'var(--accent)',
+  // A gain is --up, never the brand violet.
+  win: 'var(--up)',
   loss: 'var(--danger)',
   open: '#5b8cff',
   scratch: 'var(--faint)',
@@ -103,18 +106,11 @@ function outcomeLabel(o: CaseOutcome, vi: boolean): string {
 const RATINGS: CaseRating[] = ['', 'A', 'B', 'C', 'D'];
 /** Grade → colour: A green, B blue, C amber, D red. */
 const RATING_COLOR: Record<string, string> = {
-  A: 'var(--accent)',
+  A: 'var(--up)',
   B: '#5b8cff',
   C: 'var(--warn, #ffb648)',
   D: 'var(--danger)',
 };
-/** A small "Rating A" badge, or '' when ungraded. */
-function ratingBadge(r: CaseRating | undefined, vi: boolean): string {
-  if (!r) return '';
-  const col = RATING_COLOR[r] ?? 'var(--faint)';
-  return `<span class="badge" style="border-color:${col};color:${col}" title="${vi ? 'Xếp hạng' : 'Rating'}">${vi ? 'Hạng' : 'Grade'} ${r}</span>`;
-}
-
 export function renderCaseStudies(ctx: AppContext): void {
   void renderList(ctx);
 }
@@ -155,24 +151,40 @@ async function renderList(ctx: AppContext): Promise<void> {
     return;
   }
 
+  /*
+   * One glass list, one row per study: a symbol tile, the title over a quiet meta line, and the
+   * chips on the right. The request-65 cards had a coloured bar down the left edge and a glow,
+   * which the user found too loud; the outcome is now a dot in its chip. `hasPlan` / `setupType` /
+   * `rMultiple` come from the index and are absent on studies saved before they were copied
+   * there, so a row simply shows less until that study is saved again.
+   */
+  const wrap = el(`<div class="cs-list"></div>`);
   for (const m of idx) {
-    const card = el(`
-      <div class="card cs-card" style="--tone:${OUTCOME_COLOR[m.outcome]}">
-        <div class="row" style="justify-content:space-between;align-items:center">
-          <div>
-            <strong style="font-size:15px">${m.symbol}</strong>
-            <span class="muted" style="margin-left:8px">${m.title ? escapeAttr(m.title) : ''}</span>
-          </div>
-          <div class="row" style="gap:8px">
-            ${ratingBadge(m.rating, vi)}
-            <span class="badge" style="border-color:${OUTCOME_COLOR[m.outcome]};color:${OUTCOME_COLOR[m.outcome]}">${outcomeLabel(m.outcome, vi)}</span>
-            <span class="muted" style="font-size:12px">${m.keyDate}</span>
-          </div>
-        </div>
-      </div>`);
-    card.addEventListener('click', () => void openDetail(ctx, m.id));
-    list.appendChild(card);
+    const meta = [
+      m.setupType ? escapeAttr(m.setupType) : '',
+      `<span class="mono">${m.keyDate}</span>`,
+      m.rMultiple != null
+        ? `<span class="mono" style="color:${m.rMultiple >= 0 ? 'var(--up)' : 'var(--danger)'}">${m.rMultiple >= 0 ? '+' : ''}${m.rMultiple.toFixed(2)}R</span>`
+        : '',
+    ].filter(Boolean).join('<i class="cs-dot-sep">·</i>');
+    const row = el(`
+      <button type="button" class="cs-row" style="--tone:${OUTCOME_COLOR[m.outcome]}">
+        <span class="cs-tile">${escapeAttr(m.symbol)}</span>
+        <span class="cs-main">
+          <span class="cs-name">${escapeAttr(m.title || m.symbol)}</span>
+          <span class="cs-meta">${meta}</span>
+        </span>
+        <span class="cs-chips">
+          ${m.hasPlan ? `<span class="cs-chip cs-chip--plan" title="${vi ? 'Có kế hoạch giao dịch đóng băng' : 'Has a frozen trade plan'}">${cbIcon('file', 12)}${vi ? 'Kế hoạch' : 'Plan'}</span>` : ''}
+          ${m.rating ? `<span class="cs-chip" style="--c:${RATING_COLOR[m.rating]}">${vi ? 'Hạng' : 'Grade'} ${m.rating}</span>` : ''}
+          <span class="cs-chip cs-chip--out" style="--c:${OUTCOME_COLOR[m.outcome]}"><i></i>${outcomeLabel(m.outcome, vi)}</span>
+        </span>
+        <svg class="cs-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+      </button>`);
+    row.addEventListener('click', () => void openDetail(ctx, m.id));
+    wrap.appendChild(row);
   }
+  list.appendChild(wrap);
 }
 
 // ── Detail view ─────────────────────────────────────────────────────────────────
@@ -209,52 +221,77 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   const caseFx = needsFx && hasEurUsd() ? eurUsdForDate(study.keyDate) : 0;
   const caseDiv = candleDivisor(study.symbol, caseCcy, caseFx);
 
+  const oc = OUTCOME_COLOR[study.outcome];
+  const subBits = [
+    study.title ? escapeAttr(study.title) : '',
+    study.setupType ? escapeAttr(study.setupType) : '',
+    `${vi ? 'ngày then chốt' : 'key date'} <b class="mono">${study.keyDate}</b>`,
+  ].filter(Boolean).join(' · ');
   root.innerHTML = `
-    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
-      <button id="cs-back" class="btn-outline">← ${vi ? 'Quay lại' : 'Back'}</button>
-      <div class="row" style="gap:8px">
-        ${study.plan
-          ? `<button id="cs-plan" class="btn-outline" title="${
-            vi
+    ${pageHero({
+      icon: '🗂', tone: oc,
+      kicker: vi ? 'Hồ sơ setup' : 'Case study',
+      title: `${escapeAttr(study.symbol)}<span class="cs-hero-chips"><span class="cs-chip cs-chip--out" style="--c:${oc}"><i></i>${outcomeLabel(study.outcome, vi)}</span>${
+        study.rating ? `<span class="cs-chip" style="--c:${RATING_COLOR[study.rating]}">${vi ? 'Hạng' : 'Grade'} ${study.rating}</span>` : ''}${
+        study.plan ? `<span class="cs-chip cs-chip--plan">${cbIcon('file', 12)}${vi ? 'Có kế hoạch' : 'Plan filed'}</span>` : ''}</span>`,
+      sub: subBits,
+    })}
+    ${commandBar({
+      actions: [
+        cbButton({ id: 'cs-back', label: vi ? 'Quay lại' : 'Back', icon: 'back' }),
+        ...(study.plan
+          ? [cbButton({
+            id: 'cs-plan', label: vi ? 'Xem kế hoạch' : 'View plan', icon: 'eye', primary: true,
+            title: vi
               ? 'Xem kế hoạch giao dịch đã được đóng băng khi lưu hồ sơ này — hạng, bảng tiêu chí và các mức giá lúc đó'
-              : 'Read the trade plan frozen when this study was filed — the grade, the scorecard and the levels as they stood'
-          }">👁 ${vi ? 'Xem kế hoạch' : 'View plan'}</button>`
-          : ''}
-        <button id="cs-edit" class="btn-outline">${vi ? '✎ Sửa' : '✎ Edit'}</button>
-        <button id="cs-download" class="btn-outline">${vi ? '⬇ Tải HTML' : '⬇ Download HTML'}</button>
-        <button id="cs-delete" class="btn-outline" style="color:var(--danger)">🗑</button>
-      </div>
-    </div>
-    <h1 style="margin-bottom:2px">${study.symbol} <span class="badge" style="border-color:${OUTCOME_COLOR[study.outcome]};color:${OUTCOME_COLOR[study.outcome]};vertical-align:middle">${outcomeLabel(study.outcome, vi)}</span>${study.rating ? ` <span style="vertical-align:middle">${ratingBadge(study.rating, vi)}</span>` : ''}</h1>
-    <p class="subtitle">${escapeAttr(study.title || '')} ${study.title ? '·' : ''} ${escapeAttr(study.setupType)} · ${vi ? 'ngày then chốt' : 'key date'} <b>${study.keyDate}</b></p>
-    <div class="card" style="padding:10px;margin-bottom:14px">
-      <div class="row" style="gap:6px;margin-bottom:8px">
-        <span class="muted" style="font-size:12px">${vi ? 'Cửa sổ' : 'Window'}:</span>
+              : 'Read the trade plan frozen when this study was filed — the grade, the scorecard and the levels as they stood',
+          })]
+          : []),
+        cbButton({ id: 'cs-edit', label: vi ? 'Sửa' : 'Edit', icon: 'edit' }),
+        cbButton({ id: 'cs-download', label: vi ? 'Tải HTML' : 'Download HTML', icon: 'download' }),
+        cbButton({ id: 'cs-delete', label: vi ? 'Xóa' : 'Delete', icon: 'trash' }),
+      ],
+    })}
+    <div class="card cs-chart-card">
+      <div class="cs-chart-bar">
+        <span class="cs-k">${vi ? 'Biểu đồ' : 'Chart'}</span>
         <div class="seg">${[1, 3, 6].map((mo) => `<button class="range-btn ${mo === study.windowMonths ? 'active' : ''}" data-win="${mo}">±${mo}M</button>`).join('')}</div>
       </div>
       <div id="cs-chart">${vi ? 'Đang tải…' : 'Loading…'}</div>
     </div>
-    <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-      ${detailStat(vi ? 'Mua' : 'Entry', money(study.entry, sym), '#5b8cff')}
-      ${detailStat(vi ? 'Cắt lỗ' : 'Stop', money(study.stop, sym), 'var(--danger)')}
-      ${detailStat(vi ? 'Mục tiêu' : 'Target', money(study.target, sym), 'var(--accent)')}
-      ${detailStat('R:R', plannedRr(study))}
-      ${detailStat(vi ? 'Ngày thoát' : 'Exit date', study.exitDate ?? '—')}
-      ${detailStat(vi ? 'Giá thoát' : 'Exit price', money(study.exitPrice, sym))}
-      ${detailStat(vi ? 'Kết quả R' : 'Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? 'var(--up)' : 'var(--danger)') : undefined)}
-      ${detailStat(vi ? 'Loại' : 'Setup', escapeAttr(study.setupType))}
-      ${detailStat(vi ? 'Xếp hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
+    <div class="cs-stat-groups">
+      <section class="cs-stat-group">
+        <div class="cs-k">${vi ? 'Kế hoạch' : 'The plan'}</div>
+        <div class="cs-stats">
+          ${detailStat(vi ? 'Mua' : 'Entry', money(study.entry, sym), '#5b8cff')}
+          ${detailStat(vi ? 'Cắt lỗ' : 'Stop', money(study.stop, sym), 'var(--danger)')}
+          ${detailStat(vi ? 'Mục tiêu' : 'Target', money(study.target, sym), 'var(--up)')}
+          ${detailStat('R:R', plannedRr(study))}
+        </div>
+      </section>
+      <section class="cs-stat-group">
+        <div class="cs-k">${vi ? 'Kết quả' : 'The result'}</div>
+        <div class="cs-stats">
+          ${detailStat(vi ? 'Ngày thoát' : 'Exit date', study.exitDate ?? '—')}
+          ${detailStat(vi ? 'Giá thoát' : 'Exit price', money(study.exitPrice, sym))}
+          ${detailStat(vi ? 'Kết quả R' : 'Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? 'var(--up)' : 'var(--danger)') : undefined)}
+          ${detailStat(vi ? 'Xếp hạng' : 'Rating', study.rating || '—', study.rating ? RATING_COLOR[study.rating] : undefined)}
+        </div>
+      </section>
     </div>
     ${study.exitReason
-      ? `<div class="card" style="padding:10px;margin-bottom:14px;border-left:3px solid var(--violet)">
-          <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">${vi ? 'Lý do thoát' : 'Why it was closed'}</div>
-          <div>${escapeAttr(study.exitReason)}</div>
+      ? `<div class="card cs-why">
+          <span class="cs-why-ic" aria-hidden="true">${cbIcon('clipboard', 16)}</span>
+          <div><div class="cs-k">${vi ? 'Lý do thoát' : 'Why it was closed'}</div>
+          <div class="cs-why-t">${escapeAttr(study.exitReason)}</div></div>
         </div>`
       : ''}
+    ${sectionHead(vi ? '📋 Kế hoạch giao dịch' : '📋 Trade plan')}
+    ${planSectionHtml(study, vi)}
     ${sectionHead(vi ? '📅 Chất xúc tác & tin tức' : '📅 Catalysts & news', [countChip(study.catalysts.length, undefined, vi ? 'mốc' : 'dated')])}
-    <div class="card" style="margin-bottom:14px">${catalystListHtml(study, vi)}</div>
+    <div class="card cs-cats">${catalystListHtml(study, vi)}</div>
     ${sectionHead(vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons')}
-    <div class="card note-html" style="line-height:1.7">${!isNoteEmpty(study.notes) ? sanitizeNoteHtml(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>
+    <div class="card note-html cs-notes">${!isNoteEmpty(study.notes) ? sanitizeNoteHtml(study.notes) : `<span class="muted">${vi ? 'Chưa có ghi chú.' : 'No notes.'}</span>`}</div>
     <div id="cs-ask" style="margin-top:14px"></div>`;
 
   $('#cs-back')!.addEventListener('click', () => void renderList(ctx));
@@ -337,8 +374,8 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   });
 
   // The frozen plan, read back in the planner's own layout. Only present on studies filed
-  // from the Trade Planner — the button is not rendered otherwise.
-  $('#cs-plan')?.addEventListener('click', async () => {
+  // from the Trade Planner — the buttons (command bar + the plan section) are not rendered otherwise.
+  const openPlan = async () => {
     const p = study.plan;
     if (!p) return;
     // A rate is needed only when the study and the plan disagree about the currency — which now
@@ -405,7 +442,8 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
         close: t('pf.tx.planclose'),
       },
     );
-  });
+  };
+  root.querySelectorAll('#cs-plan, [data-cs-plan]').forEach((b) => b.addEventListener('click', () => void openPlan()));
 
   // Last, and not awaited above: the ask section needs the configured GPT link from
   // storage, and the chart is what the user is waiting to see.
@@ -719,6 +757,49 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────────
+/**
+ * The detail view's "Trade plan" section — the answer to "where do I read the plan back?".
+ *
+ * The plan used to be reachable only from a small outline button that is rendered only when the
+ * study carries one, so a study written by hand (New case study) showed nothing at all and the
+ * feature looked gone. Now the section is always there: the frozen grade, levels and size with a
+ * large button into the full report, or — with no plan — a line saying how a plan gets frozen.
+ */
+function planSectionHtml(study: CaseStudy, vi: boolean): string {
+  const p = study.plan;
+  if (!p) {
+    return `<div class="card cs-plan cs-plan--none">
+      <span class="cs-plan-grade" aria-hidden="true">${cbIcon('file', 20)}</span>
+      <div class="cs-plan-body">
+        <b>${vi ? 'Hồ sơ này không kèm kế hoạch giao dịch' : 'No trade plan was filed with this study'}</b>
+        <p>${vi
+          ? 'Chỉ hồ sơ được tạo bằng nút <b>“Lưu thành case study”</b> trong Trade Planner (trang cổ phiếu) mới đóng băng kế hoạch — hạng, bảng tiêu chí và các mức giá. Hồ sơ tạo bằng “Hồ sơ mới” thì không có.'
+          : 'Only a study filed with <b>“Save as case study”</b> in the Trade Planner (stock page) freezes its plan — the grade, the scorecard and the levels. One made with “New case study” has none.'}</p>
+      </div>
+    </div>`;
+  }
+  const ps = p.currency === 'EUR' ? '€' : '$';
+  const letter = p.effective ?? '—';
+  const col = p.effective ? RATING_COLOR[p.effective] : 'var(--faint)';
+  const lv = (k: string, v: number | null, c: string) =>
+    `<span class="cs-plan-lv"><i>${k}</i><b class="mono" style="color:${c}">${money(v, ps)}</b></span>`;
+  return `<div class="card cs-plan" style="--c:${col}">
+    <span class="cs-plan-grade" title="${vi ? 'Hạng đang áp dụng' : 'Letter in force'}">${letter}</span>
+    <div class="cs-plan-body">
+      <b>${vi ? 'Kế hoạch đóng băng ngày' : 'Plan frozen on'} <span class="mono">${p.date}</span>${p.plan.setup ? ` · ${setupName(p.plan.setup as SetupKey, vi)}` : ''}</b>
+      <p>${p.grade
+        ? `${vi ? 'Điểm' : 'Score'} <b class="mono">${p.grade.score.toFixed(0)}</b>/100 · ${vi ? 'cỡ lệnh' : 'size'} <b class="mono">${p.pctOfFull}%</b>`
+        : `<span style="color:var(--warn,#ffb648)">${vi ? 'Chưa chấm điểm khi lưu' : 'Never graded when filed'}</span> · ${vi ? 'cỡ lệnh' : 'size'} <b class="mono">${p.pctOfFull}%</b>`}${
+        p.shares > 0 ? ` · <b class="mono">${p.shares}</b> ${vi ? 'cổ phiếu' : 'shares'}` : ''}</p>
+      <div class="cs-plan-lvs">
+        ${lv(vi ? 'Mua' : 'Entry', p.levels.entry, '#5b8cff')}
+        ${lv(vi ? 'Cắt lỗ' : 'Stop', p.levels.stop, 'var(--danger)')}
+        ${lv(vi ? 'Mục tiêu' : 'Target', p.levels.target, 'var(--up)')}
+      </div>
+    </div>
+    <button type="button" class="btn cs-plan-open" data-cs-plan>${cbIcon('eye', 16)}<span>${vi ? 'Mở kế hoạch đầy đủ' : 'Open the full plan'}</span></button>
+  </div>`;
+}
 function detailStat(k: string, v: string, color?: string): string {
   return `<div class="stat"><div class="k">${k}</div><div class="v"${color ? ` style="color:${color}"` : ''}>${v}</div></div>`;
 }

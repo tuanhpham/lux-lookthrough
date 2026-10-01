@@ -54,6 +54,20 @@
  * number whenever `emblem-assets.py` produces different bytes — v3 is the crop of
  * the sculpted disc, v2 was the drawn sphere.
  */
+/**
+ * The assistant's own mark: a chat bubble with a spark in it, line-drawn in currentColor.
+ *
+ * The user's "chatbot van con 1 cai hinh am duong canh chu assistant nua, thay no bang icon chuyen
+ * nghiep hon". The disc is the brand's emblem, and next to the word "Assistant" it read as an
+ * ornament rather than as the thing you talk to — so the panel header, the reply gutter and the
+ * app-menu row now draw the same glyph as the floating launcher (`FAB_FACE` in main.ts), which
+ * is what the user clicked to get there. `ORB_MARK` stays for the brand surfaces.
+ */
+export const ASSISTANT_GLYPH =
+  '<svg class="ai-glyph" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M12 3.6c4.7 0 8.4 3.2 8.4 7.2S16.7 18 12 18c-.9 0-1.8-.1-2.6-.3L5 19.6l1.2-3.5c-1.6-1.3-2.6-3.1-2.6-5.3 0-4 3.7-7.2 8.4-7.2z"/>' +
+  '<path class="ai-spark" d="M12 6.9l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z" fill="currentColor" stroke="none"/></svg>';
+
 export const ORB_MARK =
   '<img class="yy" src="/images/emblem-orb.webp?v=3" width="192" height="192"' +
   ' alt="" aria-hidden="true" draggable="false" decoding="async">';

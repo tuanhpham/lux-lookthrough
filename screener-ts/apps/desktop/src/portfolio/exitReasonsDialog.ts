@@ -78,7 +78,7 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
     <div class="modal-panel" style="max-width:700px">
       <div class="modal-head">
         <div>${w('ttl')}</div>
-        <button class="xr-x" style="background:0;border:0;color:var(--faint);font-size:22px;cursor:pointer">×</button>
+        <button class="xr-x" aria-label="Close">×</button>
       </div>
       <div class="modal-body" style="padding:16px;max-height:76vh;overflow:auto">
         <p class="muted" style="font-size:12px;line-height:1.6;margin:0 0 14px">${w('lead')}</p>

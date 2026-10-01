@@ -111,6 +111,14 @@ export interface CaseStudyMeta {
   keyDate: string;
   outcome: CaseOutcome;
   rating?: CaseRating;
+  /**
+   * Copied into the index so the list can show the setup, the result and whether a plan was
+   * frozen with the study without loading every study. Absent on entries saved before this;
+   * the list then simply leaves them out until the study is saved again.
+   */
+  setupType?: string;
+  rMultiple?: number | null;
+  hasPlan?: boolean;
 }
 
 const INDEX_KEY = 'casestudies:index';
@@ -139,6 +147,9 @@ export async function saveCase(ctx: AppContext, study: CaseStudy): Promise<void>
     keyDate: study.keyDate,
     outcome: study.outcome,
     rating: study.rating,
+    setupType: study.setupType,
+    rMultiple: study.rMultiple,
+    hasPlan: !!study.plan,
   };
   const i = idx.findIndex((m) => m.id === study.id);
   if (i >= 0) idx[i] = meta;

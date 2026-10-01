@@ -217,7 +217,7 @@ export function openSyncSettings(ctx: AppContext): void {
     <div class="modal-panel" style="max-width:440px">
       <div class="modal-head">
         <div>${vi ? '☁️ Đồng bộ thiết bị' : '☁️ Device Sync'}</div>
-        <button class="sync-x" style="background:0;border:0;color:var(--faint);font-size:22px;cursor:pointer">×</button>
+        <button class="sync-x" aria-label="Close">×</button>
       </div>
       <div class="modal-body" style="padding:16px">
         ${stateLineHtml(vi)}

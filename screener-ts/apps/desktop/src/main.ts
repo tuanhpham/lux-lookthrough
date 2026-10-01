@@ -23,7 +23,7 @@ import { openSyncSettings, onSynced } from './ui/syncSettings.js';
 import { mountSyncStatus, refreshSyncStatus } from './ui/syncStatus.js';
 import { openLlmSettings } from './ui/llmSettings.js';
 import { openChatPanel, closeChatPanel, isChatOpen } from './ui/chatPanel.js';
-import { ORB_MARK } from './ui/emblem.js';
+import { ASSISTANT_GLYPH } from './ui/emblem.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
 import { pullAndMerge, openSyncGate, isHydrated } from './adapters/storage.js';
 import { PAGES, PAGE_GROUPS, pageInfo, noteVisit, recentPages } from './ui/pages.js';
@@ -484,15 +484,13 @@ function discoverFromStory(trigger?: Element): void {
 }
 
 /**
- * The assistant's mark: the taijitu disc, in both the menu and the launcher.
- *
- * Why the small mark is the disc alone and not the whole painting — and why the
- * painting is a cropped image rather than SVG at all — is in `ui/emblem.ts`.
+ * The assistant's mark in the menu row: the launcher's bubble-and-spark glyph, the
+ * same one the panel header draws (`ASSISTANT_GLYPH`, `ui/emblem.ts`). The taijitu disc
+ * stays on the brand surfaces only.
  */
-const CHAT_ICON = ORB_MARK;
-/* The launcher's own face: a glass lens with a speech bubble and a spark in it.
-   The disc stays in the menu row and the panel; on the launcher it read as a
-   photo pasted onto the glass, so the button draws its glyph instead. */
+const CHAT_ICON = ASSISTANT_GLYPH;
+/* The launcher's own face: a glass lens with a speech bubble and a spark in it —
+   the glyph the menu row and the panel use too. */
 const FAB_FACE =
   '<span class="fab-halo" aria-hidden="true"></span><span class="fab-core" aria-hidden="true">' +
   '<svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">' +

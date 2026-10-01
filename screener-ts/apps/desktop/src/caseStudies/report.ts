@@ -15,6 +15,7 @@ import {
   scorecardBarsHtml, scorecardTableHtml, scorecardWords, SCORECARD_CSS,
 } from '../portfolio/scorecard.js';
 import { setupName } from '../portfolio/planWords.js';
+import { REPORT_CSS } from '../portfolio/reportTheme.js';
 
 function esc(s: string): string {
   return s
@@ -63,18 +64,12 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
   @media print {
     body { padding:0; max-width:none; }
     .toolbar { display:none; }
-    .chart,.stat,.notes,.why,.ack,.gbar,tr { break-inside:avoid; }
-    /* The root as well as the body — otherwise the 12mm page margins print black around a white
-       document. Why, in full, in the block comment above this string. */
-    html:has(#ink:checked) { background:#fff; color-scheme: light; }
-    body:has(#ink:checked) { background:#fff; color:#000; }
-    body:has(#ink:checked) .chart,
-    body:has(#ink:checked) .stat,
-    body:has(#ink:checked) .why,
-    body:has(#ink:checked) .ack,
-    body:has(#ink:checked) .notes { background:#fafafa; border-color:#ddd; }
-    body:has(#ink:checked) .muted { color:#555; }
+    body { background-image:none; }
+    .cover,.chart,.stat,.notes,.why,.ack,.gbar,tr { break-inside:avoid; }
+    h2 { break-after:avoid; }
   }`;
+// The white-paper rules themselves — root and body, on screen and on print — moved into
+// `REPORT_CSS` with the rest of the shared look (request 67).
 
 /**
  * Phone and narrow-iframe layout — the twin of the block in `portfolio/planReport.ts`, kept
@@ -85,7 +80,8 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
  */
 const NARROW_CSS = `  @media (max-width: 760px) {
     .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    h1 { font-size:20px; }
+    h1 { font-size:26px; }
+    .cover { padding:18px; }
     .stat .v { font-size:15px; }
     th,td { padding:6px; }
     .cat-date { width:auto; }
@@ -199,7 +195,7 @@ export function caseStudyHtml(
     ${stat('Target (planned)', pmoney(p.levels?.target), '#18d89a')}
     ${stat('Shares', p.shares > 0 ? String(p.shares) : '—')}
   </div>
-  ${pg ? `<h2>${esc(scorecardWords(false).title)}</h2>${scorecardBarsHtml(pg, false)}
+  ${pg ? `<h2>${esc(scorecardWords(false).title)}</h2><div class="gbars">${scorecardBarsHtml(pg, false)}</div>
   ${scorecardTableHtml(pg, false)}`
       : '<p class="sub" style="color:#ffb648">This trade was never graded — no setup was chosen, '
         + 'or the price history was too short.</p>'}
@@ -209,56 +205,38 @@ export function caseStudyHtml(
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(study.symbol)} — ${esc(study.title || 'Case Study')}</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { background:#07080b; color:#e9edf4; font:14px/1.6 'Hanken Grotesk',system-ui,sans-serif; margin:0; padding:clamp(14px,4vw,32px); max-width:1040px; }
-  h1 { font-size:24px; letter-spacing:-.03em; margin:0 0 2px; }
-  .sub { color:#99a2b2; margin:0 0 4px; font-size:14px; }
-  .pill { display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:3px 10px; border-radius:999px; border:1px solid; }
-  .toolbar { margin:16px 0; }
-  button { background:#18d89a; color:#04130d; border:0; border-radius:8px; padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
-  .chart { background:#0c0e13; border:1px solid #1d222c; border-radius:12px; padding:10px; margin:16px 0; }
-  .chart-note { font-size:11px; font-family:ui-monospace,monospace; margin-top:6px; }
-  .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0; }
-  .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; min-width:0; }
-  .stat .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
-  .stat .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:16px; margin-top:3px; overflow-wrap:anywhere; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#18d89a; margin:24px 0 8px; }
-  table { width:100%; border-collapse:collapse; }
-  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid #1d222c; font-size:13px; vertical-align:top; }
-  .cat-date { font-family:'JetBrains Mono',monospace; color:#c084fc; white-space:nowrap; width:120px; }
-  .notes { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:14px 16px; line-height:1.7; }
-  .ack { border-radius:10px; padding:10px 14px; margin:16px 0; font-size:13px; border:1px solid; }
-  .ack.ok { color:#18d89a; border-color:#18d89a44; background:#0d1a14; }
-  .ack.bad { color:#ffb648; border-color:#ffb64844; background:#1a1509; }
 ${SCORECARD_CSS}
-  .muted { color:#5c6575; }
-  .foot { color:#5c6575; font-size:11px; margin-top:28px; border-top:1px solid #1d222c; padding-top:12px; }
-  .why { background:#0c0e13; border:1px solid #1d222c; border-left:3px solid #e879f9; border-radius:10px; padding:12px 14px; margin:16px 0; }
-  .why .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
-  .ink { color:#5c6575; font-size:12px; margin-left:12px; cursor:pointer; user-select:none; }
+${REPORT_CSS}
+  .cat-date { font-family:'JetBrains Mono',monospace; color:#c4a8ff; white-space:nowrap; width:120px; }
+  body:has(#ink:checked) .cat-date { color:#6d4fd8; }
 ${NARROW_CSS}
 ${PRINT_CSS}
 </style></head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">🖨 Print / Save as PDF</button><label class="ink"><input type="checkbox" id="ink"> Print on white paper (saves ink)</label></div>
+  <div class="toolbar"><span class="brand">The Professional</span><span class="tb-doc">Case study · ${esc(study.symbol)}</span><span class="sp"></span><label class="ink"><input type="checkbox" id="ink"> Print on white paper (saves ink)</label><button onclick="window.print()">Print / Save as PDF</button></div>
 
-  <h1>${esc(study.symbol)} <span class="pill" style="color:${OUTCOME_COLOR[study.outcome]};border-color:${OUTCOME_COLOR[study.outcome]}">${OUTCOME_LABEL[study.outcome]}</span>${study.rating ? ` <span class="pill" style="color:${RATING_COLOR[study.rating] ?? '#99a2b2'};border-color:${RATING_COLOR[study.rating] ?? '#99a2b2'}">Grade ${esc(study.rating)}</span>` : ''}</h1>
-  <p class="sub">${esc(study.title || '')}</p>
+  <header class="cover">
+  <div class="kicker">Case study</div>
+  <div class="cover-row"><h1>${esc(study.symbol)}</h1><div class="pills"><span class="pill" style="color:${OUTCOME_COLOR[study.outcome]};border-color:${OUTCOME_COLOR[study.outcome]}">${OUTCOME_LABEL[study.outcome]}</span>${study.rating ? ` <span class="pill" style="color:${RATING_COLOR[study.rating] ?? '#99a2b2'};border-color:${RATING_COLOR[study.rating] ?? '#99a2b2'}">Grade ${esc(study.rating)}</span>` : ''}</div></div>
+  ${study.title ? `<p class="title">${esc(study.title)}</p>` : ''}
   <p class="sub">${esc(study.setupType)} · key date <b>${esc(study.keyDate)}</b> · ±${study.windowMonths} month window${
     // Said out loud only for a euro study. On a dollar one it would be noise on every document ever
     // exported; on a euro one it is the difference between a price the reader recognises and one
     // they think is wrong.
     eur ? ' · prices in <b>EUR</b>, chart converted at the key date’s rate' : ''
   }</p>
+  </header>
 
   <div class="chart">${svg}${earnNote}</div>
 
+  <h2>Levels and result</h2>
   <div class="grid">
     ${stat('Entry', money(study.entry), '#5b8cff')}
     ${stat('Stop', money(study.stop), '#ff5266')}
     ${stat('Target', money(study.target), '#18d89a')}
     ${stat('R:R (planned)', rr)}
+  </div>
+  <div class="grid g5">
     ${stat('Exit date', study.exitDate ? esc(study.exitDate) : '—')}
     ${stat('Exit price', money(study.exitPrice))}
     ${stat('Result R', study.rMultiple != null ? study.rMultiple.toFixed(2) + 'R' : '—', study.rMultiple != null ? (study.rMultiple >= 0 ? '#18d89a' : '#ff5266') : undefined)}
@@ -270,7 +248,7 @@ ${PRINT_CSS}
   ${planBlock}
 
   <h2>Catalysts &amp; news</h2>
-  <table><tbody>${catalystRows}</tbody></table>
+  <div class="cat"><table><tbody>${catalystRows}</tbody></table></div>
 
   <h2>Notes &amp; lessons</h2>
   <div class="notes">${notesHtml}</div>

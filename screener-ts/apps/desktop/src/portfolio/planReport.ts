@@ -26,6 +26,7 @@ import { setupName } from './planWords.js';
 import { scorecardBarsHtml, scorecardTableHtml, scorecardWords, SCORECARD_CSS } from './scorecard.js';
 import { safeNoteHtml, isNoteEmpty } from '../ui/richNote.js';
 import { downloadHtml } from '../ui/exportFile.js';
+import { REPORT_CSS } from './reportTheme.js';
 import { candleDivisor, inCurrency } from './planExit.js';
 import type { PlanLevels, SymbolPlan } from './planStore.js';
 
@@ -126,7 +127,8 @@ function planWindow(bars: readonly Bar[], date: string): Bar[] {
  *      document that looked broken rather than thrifty.
  *
  * Ink is still a real cost, so the choice moves to the reader instead of to this file: one
- * checkbox that restores the white document. It is done with `:has()` and NO script, because
+ * checkbox that restores the white document — and, since request 67, shows it on screen too, so
+ * its rules live in `REPORT_CSS` (`reportTheme.ts`) rather than in this print-only block. It is done with `:has()` and NO script, because
  * the on-screen viewer renders this same HTML in an iframe sandboxed without scripts (see
  * `openPlanReport`) — a toggle that only worked in the downloaded copy would be a dead control
  * on the very screen where the user first meets it. `display:none` on the toolbar does not
@@ -148,15 +150,9 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
     body { padding:0; max-width:none; }
     .toolbar { display:none; }
     /* Never split a chart, a stat, the note or a criterion row across a page break. */
-    .chart,.stat,.notes,.ack,.gbar,tr { break-inside:avoid; }
-    /* Opt in, per print: the old white document, for when ink matters more. The ROOT flips as
-       well as the body — why, in the block comment above this string. */
-    html:has(#ink:checked) { background:#fff; color-scheme: light; }
-    body:has(#ink:checked) { background:#fff; color:#000; }
-    body:has(#ink:checked) .chart,
-    body:has(#ink:checked) .stat,
-    body:has(#ink:checked) .notes { background:#fafafa; border-color:#ddd; }
-    body:has(#ink:checked) .muted { color:#555; }
+    body { background-image:none; }
+    .cover,.chart,.stat,.notes,.ack,.gbar,tr { break-inside:avoid; }
+    h2 { break-after:avoid; }
   }`;
 
 /**
@@ -169,7 +165,8 @@ const PRINT_CSS = `  html, body { -webkit-print-color-adjust: exact; print-color
  */
 const NARROW_CSS = `  @media (max-width: 760px) {
     .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    h1 { font-size:20px; }
+    h1 { font-size:26px; }
+    .cover { padding:18px; }
     .stat .v { font-size:15px; }
     th,td { padding:6px; }
   }
@@ -202,7 +199,8 @@ export function planReportHtml(i: PlanReportInput): string {
       ungraded: 'Kế hoạch này chưa được chấm điểm — không có thiết lập nào được chọn, hoặc dữ liệu giá quá ngắn.',
       overridden: 'Người dùng ghi đè hạng (điểm cho {auto})',
       // The scorecard's own words live in `scorecard.ts`, with the table that uses them.
-      print: '🖨 In / Lưu PDF',
+      print: 'In / Lưu PDF',
+      levels: 'Mức giá và vị thế', brand: 'The Professional',
       ink: 'In trên giấy trắng (tiết kiệm mực)',
       exit: 'Kết thúc giao dịch', exitdate: 'Ngày thoát', exitpx: 'Giá thoát',
       resultr: 'Kết quả R', pctgain: 'Lãi/lỗ %', held: 'Số ngày giữ', why: 'Lý do thoát',
@@ -222,7 +220,8 @@ export function planReportHtml(i: PlanReportInput): string {
       ungraded: 'This plan was never graded — no setup was chosen, or the price history was too short.',
       overridden: 'Grade overridden by hand (the score said {auto})',
       // See above: `scorecardWords`.
-      print: '🖨 Print / Save as PDF',
+      print: 'Print / Save as PDF',
+      levels: 'Levels and size', brand: 'The Professional',
       ink: 'Print on white paper (save ink)',
       exit: 'How it ended', exitdate: 'Exit date', exitpx: 'Exit price',
       resultr: 'Result R', pctgain: 'Gain/loss %', held: 'Days held', why: 'Why it was closed',
@@ -289,7 +288,7 @@ export function planReportHtml(i: PlanReportInput): string {
   // The bars and the table both come from `scorecard.ts`, which the case-study report also
   // renders — the two documents are read as a pair and must show the same checklist.
   const scorecard = grade
-    ? `<h2>${esc(scorecardWords(vi).title)}</h2>${scorecardBarsHtml(grade, vi)}
+    ? `<h2>${esc(scorecardWords(vi).title)}</h2><div class="gbars">${scorecardBarsHtml(grade, vi)}</div>
   ${scorecardTableHtml(grade, vi)}`
     : '';
 
@@ -318,7 +317,7 @@ export function planReportHtml(i: PlanReportInput): string {
   const outHex = x ? (OUT_HEX[x.outcome] ?? '#99a2b2') : '#99a2b2';
   const exitBlock = x
     ? `<h2>${esc(L.exit)}</h2>
-  <div class="grid">
+  <div class="grid g5">
     ${stat(L.exitdate, x.date ? esc(x.date) : '—')}
     ${stat(L.exitpx, money(x.price), '#e879f9')}
     ${stat(L.resultr, x.rMultiple != null ? x.rMultiple.toFixed(2) + 'R' : '—',
@@ -340,50 +339,31 @@ export function planReportHtml(i: PlanReportInput): string {
   return `<!doctype html>
 <html lang="${vi ? 'vi' : 'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(plan.symbol)} — ${esc(L.plan)}</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { background:#07080b; color:#e9edf4; font:14px/1.6 'Hanken Grotesk',system-ui,sans-serif; margin:0; padding:clamp(14px,4vw,32px); max-width:1040px; }
-  h1 { font-size:24px; letter-spacing:-.03em; margin:0 0 2px; }
-  .sub { color:#99a2b2; margin:0 0 4px; font-size:14px; }
-  .pill { display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:3px 10px; border-radius:999px; border:1px solid; }
-  .toolbar { margin:16px 0; }
-  button { background:#18d89a; color:#04130d; border:0; border-radius:8px; padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
-  .chart { background:#0c0e13; border:1px solid #1d222c; border-radius:12px; padding:10px; margin:16px 0; }
-  .chart-note { font-size:11px; font-family:ui-monospace,monospace; margin-top:6px; }
-  .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0; }
-  .stat { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:10px 12px; min-width:0; }
-  .stat .k { color:#5c6575; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
-  .stat .v { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:16px; margin-top:3px; overflow-wrap:anywhere; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#18d89a; margin:24px 0 8px; }
-  table { width:100%; border-collapse:collapse; }
-  th,td { text-align:left; padding:6px 10px; border-bottom:1px solid #1d222c; font-size:13px; vertical-align:top; }
 ${SCORECARD_CSS}
-  .notes { background:#0c0e13; border:1px solid #1d222c; border-radius:10px; padding:14px 16px; line-height:1.7; }
-  .ack { border-radius:10px; padding:10px 14px; margin:16px 0; font-size:13px; border:1px solid; }
-  .ack.ok { color:#18d89a; border-color:#18d89a44; background:#0d1a14; }
-  .ack.bad { color:#ffb648; border-color:#ffb64844; background:#1a1509; }
-  .muted { color:#5c6575; }
-  .foot { color:#5c6575; font-size:11px; margin-top:28px; border-top:1px solid #1d222c; padding-top:12px; }
-  .ink { color:#5c6575; font-size:12px; margin-left:12px; cursor:pointer; user-select:none; }
+${REPORT_CSS}
 ${NARROW_CSS}
 ${PRINT_CSS}
 </style></head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">${esc(L.print)}</button><label class="ink"><input type="checkbox" id="ink"> ${esc(L.ink)}</label></div>
+  <div class="toolbar"><span class="brand">${esc(L.brand)}</span><span class="tb-doc">${esc(L.plan)} · ${esc(plan.symbol)}</span><span class="sp"></span><label class="ink"><input type="checkbox" id="ink"> ${esc(L.ink)}</label><button onclick="window.print()">${esc(L.print)}</button></div>
 
-  <h1>${esc(plan.symbol)}
+  <header class="cover">
+  <div class="kicker">${esc(L.plan)}</div>
+  <div class="cover-row"><h1>${esc(plan.symbol)}</h1><div class="pills">
     <span class="pill" style="color:${gradeHex};border-color:${gradeHex}">${esc(L.grade)} ${esc(i.effective ?? '—')}</span>
     ${x ? `<span class="pill" style="color:${outHex};border-color:${outHex}">${esc(L.out[x.outcome] ?? x.outcome)}</span>` : ''}
     ${overridden ? `<span class="pill" style="color:#ffb648;border-color:#ffb648">${esc(L.overridden.replace('{auto}', grade?.grade ?? '—'))}</span>` : ''}
-  </h1>
-  <p class="sub">${esc(L.plan)} · ${esc(L.setup)} <b>${esc(setupWord)}</b> · ${esc(L.date)} <b>${esc(i.date)}</b></p>
+  </div></div>
+  <p class="sub">${esc(L.setup)} <b>${esc(setupWord)}</b> · ${esc(L.date)} <b>${esc(i.date)}</b></p>
   ${grade
     ? `<p class="sub">${esc(L.score)} <b>${grade.score.toFixed(0)}</b>/100 · ${esc(L.size)} <b>${i.pctOfFull}%</b></p>`
     : `<p class="sub" style="color:#ffb648">${esc(L.ungraded)}</p>`}
+  </header>
 
   ${ackLine}
   ${chart}
 
+  <h2>${esc(L.levels)}</h2>
   <div class="grid">
     ${stat(L.entry, money(levels.entry), '#5b8cff')}
     ${stat(L.stop, money(levels.stop), '#ff5266')}
@@ -420,32 +400,67 @@ export function printPlanReport(i: PlanReportInput): void {
  * user reads on screen would stop being the plan they printed. `srcdoc` puts the actual file
  * in front of them, so there is exactly one layout and looking is the same as printing.
  *
- * Sandboxed without `allow-scripts`, which disables the document's own print button — hence
- * the dialog's own. A stored snapshot is the oldest data in the app and may have been written
- * by a version of this code that is no longer here; it is rendered as a document, so it is
- * given no way to run anything.
+ * Sandboxed without `allow-scripts`: a stored snapshot is the oldest data in the app and may
+ * have been written by a version of this code that is no longer here, so it is rendered as a
+ * document and given no way to run anything — its own toolbar is hidden (`.embedded`) because
+ * that button is script. `allow-same-origin` + `allow-modals` are what let THIS side reach in:
+ * the paper switch ticks the document's own `#ink` box, and Print calls the frame's `print()`,
+ * so the user gets the real print dialog with the report's print stylesheet instead of the
+ * downloaded file the button used to hand over ("khi an vao view plan hoac in ra thi no rat la
+ * xau"). Saving the file is its own button now. If the frame refuses to print, it downloads.
  */
+const REPORT_ICON = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8.5 17v-3M12 17v-6M15.5 17v-4"/></svg>';
+
 export function openPlanReport(i: PlanReportInput, opts: { title: string; print: string; close: string }): void {
+  const vi = i.vi;
+  const W = vi
+    ? { dark: 'Màn hình', paper: 'Giấy trắng', save: 'Tải HTML', sub: 'Bản đóng băng của kế hoạch' }
+    : { dark: 'Screen', paper: 'Paper', save: 'Download HTML', sub: 'The plan as it was frozen' };
+  const meta = [i.plan.setup ? setupName(i.plan.setup as SetupKey, vi) : '', i.date].filter(Boolean).join(' · ');
   const host = document.createElement('div');
   host.className = 'dialog-host';
   host.innerHTML = `
     <div class="dialog-backdrop"></div>
-    <div class="dialog" style="width:min(1100px,96vw)">
-      <div class="dialog-title">${esc(opts.title)}</div>
-      <div class="dialog-body" style="padding:0">
-        <iframe sandbox style="width:100%;height:68vh;border:1px solid var(--border);border-radius:8px;background:#07080b"></iframe>
+    <div class="dialog dialog--report" role="dialog" aria-modal="true">
+      <div class="dialog-head">
+        <span class="dialog-ic">${REPORT_ICON}</span>
+        <div style="min-width:0;flex:1"><div class="dialog-title">${esc(opts.title)}</div>
+        <div class="dialog-sub">${esc(W.sub)}${meta ? ' · ' + esc(meta) : ''}</div></div>
+        <button class="dialog-x" data-act="close" aria-label="${esc(opts.close)}">✕</button>
       </div>
-      <div class="dialog-actions">
-        <button class="btn-outline" data-act="close">${esc(opts.close)}</button>
-        <button class="btn" data-act="print">⎙ ${esc(opts.print)}</button>
+      <div class="dialog-body rep-body">
+        <iframe class="rep-frame" sandbox="allow-same-origin allow-modals" title="${esc(opts.title)}"></iframe>
+      </div>
+      <div class="dialog-actions rep-actions">
+        <div class="seg" role="group"><button class="range-btn active" data-paper="0">${esc(W.dark)}</button><button class="range-btn" data-paper="1">${esc(W.paper)}</button></div>
+        <span style="flex:1"></span>
+        <button class="btn-outline" data-act="save">${esc(W.save)}</button>
+        <button class="btn" data-act="print">${esc(opts.print)}</button>
       </div>
     </div>`;
   document.body.appendChild(host);
+  const frame = host.querySelector<HTMLIFrameElement>('iframe')!;
+  frame.addEventListener('load', () => frame.contentDocument?.documentElement.classList.add('embedded'));
   // `srcdoc` after insertion: assigning it while the iframe is detached loads the document
   // twice in WebKit, and this one carries an inline SVG chart.
-  host.querySelector('iframe')!.srcdoc = planReportHtml(i);
-  const close = (): void => host.remove();
-  host.querySelector('[data-act="close"]')!.addEventListener('click', close);
+  frame.srcdoc = planReportHtml(i);
+  const close = (): void => { host.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  host.querySelectorAll('[data-act="close"]').forEach((b) => b.addEventListener('click', close));
   host.querySelector('.dialog-backdrop')!.addEventListener('click', close);
-  host.querySelector('[data-act="print"]')!.addEventListener('click', () => printPlanReport(i));
+  host.querySelector('[data-act="save"]')!.addEventListener('click', () => printPlanReport(i));
+  host.querySelectorAll<HTMLButtonElement>('[data-paper]').forEach((b) => b.addEventListener('click', () => {
+    const ink = frame.contentDocument?.getElementById('ink') as HTMLInputElement | null;
+    if (ink) ink.checked = b.dataset.paper === '1';
+    host.querySelectorAll('[data-paper]').forEach((x) => x.classList.toggle('active', x === b));
+  }));
+  host.querySelector('[data-act="print"]')!.addEventListener('click', () => {
+    try {
+      frame.contentWindow!.focus();
+      frame.contentWindow!.print();
+    } catch {
+      printPlanReport(i);
+    }
+  });
 }

@@ -51,7 +51,7 @@ import { renderLocalAnswer } from '../ai/localAnswer.js';
 import { getApiKey, loadLlmConfig, isConfigured } from '../ai/llmClient.js';
 import { openLlmSettings, onLlmConfigChange } from './llmSettings.js';
 import { askChatGpt } from './askChatGpt.js';
-import { ORB_MARK } from './emblem.js';
+import { ASSISTANT_GLYPH } from './emblem.js';
 import { t, onLangChange } from './i18n.js';
 import { accounts } from '../portfolio/store.js';
 import {
@@ -100,7 +100,7 @@ function build(): HTMLElement {
     <div class="chat-backdrop" data-act="close"></div>
     <aside class="chat-shell" role="dialog" aria-label="${t('chat.title')}">
       <header class="chat-head">
-        <span class="chat-mark">${ORB_MARK}</span>
+        <span class="chat-mark">${ASSISTANT_GLYPH}</span>
         <div class="chat-head-main">
           <span class="chat-title">${t('chat.title')}</span>
           <span class="chat-model" data-role="model"></span>
@@ -371,18 +371,17 @@ function costLine(usage?: TokenUsage, costUsd?: number | null): string {
 const SUGGESTIONS = ['chat.s1', 'chat.s2', 'chat.s3', 'chat.s4'];
 
 /**
- * Greeting, hint, four things to tap. No artwork of its own.
+ * Greeting, hint, four things to tap, under a small glass lens with the assistant's glyph.
  *
- * It used to hang the full painted plate at 184px right here, because an empty
- * transcript is the only moment in the panel's life with room to spare. The panel's
- * top is a picture now (`.chat-shell::before`, a taijitu ring around a tree), and
- * the plate landed in the middle of that ring — one taijitu inside another, at 440px
- * wide. The background won: it is bigger, it holds the whole header as well, and it
- * does not push the greeting down the column.
+ * The panel's top used to be a picture (a taijitu ring around a tree) and the empty state
+ * deliberately had no artwork so as not to put one ring inside another. Since request 67 the
+ * picture is gone — the user wanted a professional mark, not the emblem — so the lens is the
+ * one piece of artwork, and it is the launcher's face at a larger size.
  */
 function emptyState(): string {
   return `
     <div class="chat-empty">
+      <span class="chat-empty-orb" aria-hidden="true">${ASSISTANT_GLYPH}</span>
       <p class="chat-empty-title">${t('chat.empty.title')}</p>
       <p class="chat-empty-hint">${t(ready ? 'chat.empty.hint' : 'chat.empty.nokey')}</p>
       <div class="chat-suggests">
@@ -422,7 +421,7 @@ function recentStrip(): string {
 /** An assistant turn: the mark in the gutter, the words beside it. */
 function botTurn(body: string, live = false): string {
   return `<div class="chat-turn chat-turn--bot">
-    <span class="chat-avatar${live ? ' chat-avatar--live' : ''}">${ORB_MARK}</span>
+    <span class="chat-avatar${live ? ' chat-avatar--live' : ''}">${ASSISTANT_GLYPH}</span>
     ${body}
   </div>`;
 }
