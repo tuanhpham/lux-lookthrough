@@ -5947,3 +5947,16 @@ CHAT-65 (2026-10-01) - Trang co phieu: KPI noi bat, nut Trade Plan/Watchlist, co
   - Chu ghi chu: .tp-note 12.5px (truoc 13px), h3 13px; REPORT_CSS .notes 13px/1.65 (truoc ke thua 14px/1.75), h3 13.5px.
 - Kiem tra: tsc, vitest 420/420 (--testTimeout=30000), vite build; anh headless stock modal NVDA + planner sang va toi.
 - Chua thu tren thiet bi that.
+
+CHAT-66 (2026-10-01) - Tai chinh 26 tai khoan, bang tren mobile, chart khong bat chuot, tieng Viet tu nhien
+- Yeu cau: (1) theme sang: hover nut Trade Plan thanh trang, mat chu; (2) Financial Status: thanh phan bo rat roi voi 26 tai khoan; (3) bang tai khoan tren mobile: expand all khong chay, trang hay reset/loi, bang qua rong (nhat la khi mo rong) - ap dung cho moi bang; (4) chart equity: click nham lam chart xau va khong cuon trang duoc; (5) tieng Viet nhu dich tung chu - viet lai cho tu nhien, thuat ngu Anh giu duoc.
+- Code: f0c5a777.
+  - Hover: html button.btn-outline.sm-act--plan:hover dat lai nen tim (html.light button.btn-outline:hover son trang).
+  - Thanh phan bo: ALLOC_TOP=8 khoan lon nhat + "Khac (n)" xam (#8a8f9c); chu thich co % va so tien, mobile luoi 2 cot; <details> "Xem du n khoan" (collapse id wealth:alloc-all, mac dinh dong).
+  - charts.ts: Map container->chart, claim() huy chart cu cung container va chart co container da roi DOM truoc khi tao moi (truoc ro ri: moi draw() tao lai 27 chart ma khong remove - nghi la nguyen nhan Safari mobile reset trang).
+  - wealthTab: chart tai khoan ve qua IntersectionObserver (rootMargin 240px), doi range thi observe lai.
+  - drawLine/drawStacked: handleScroll/handleScale false (crosshair van con); drawCandles: handleScroll.vertTouchDrag false.
+  - CSS <=640px: #main td 8px 9px/12px; cot dau moi bang sticky left (nen --sticky-td, tru scan-gt/wl-chk/scan-cfg/scan-rej/w-hist-t); bang tai khoan (.w-acct-t) container-type inline-size, noi dung hang mo rong sticky rong 100cqi, .w-readings tu cuon ngang.
+  - i18n.ts: 500 chuoi vi viet lai; giu Scanner/Screener/Watchlist/Playbook/Trade plan/setup/entry/stop/target/size/chart/sync; Danh muc = Portfolio, KQKD = earnings. Chuoi vi inline o file khac chua doi.
+- Kiem tra: tsc, vitest 420/420 (--testTimeout=30000), vite build; anh headless Financial Status 26 tai khoan 1300 va 500 (expand all, sang/toi).
+- Chua thu tren thiet bi that.
