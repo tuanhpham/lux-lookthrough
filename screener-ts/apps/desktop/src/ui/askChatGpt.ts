@@ -84,6 +84,19 @@ export function askChatGpt(prompt: string, btn: HTMLElement): void {
  * the prompt is on the clipboard instead — implying it was sent would have the user
  * waiting for an answer to a question that was never asked.
  */
+/** Copy through a selected textarea. Throws when the browser refuses. */
+function legacyCopy(text: string): void {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  if (!ok) throw new Error('copy refused');
+}
+
 export async function copyToClipboard(
   text: string,
   btn: HTMLElement,
@@ -92,7 +105,10 @@ export async function copyToClipboard(
   const old = btn.textContent ?? '';
   const vi = getLang() === 'vi';
   try {
-    await navigator.clipboard.writeText(text);
+    // `navigator.clipboard` is missing on plain http (a LAN address, an old WebView) and
+    // can be refused; the hidden-textarea copy still works in both, so try it second.
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+    else legacyCopy(text);
     btn.textContent =
       sent === undefined ? t('prompts.copied') : sent ? t('prompts.sent') : t('prompts.toolong');
   } catch {

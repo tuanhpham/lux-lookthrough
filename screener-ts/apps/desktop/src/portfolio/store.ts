@@ -190,6 +190,17 @@ export async function ensureAccountsLoaded(ctx: AppContext): Promise<void> {
   await loadAccounts(ctx);
 }
 
+/**
+ * Forget that `accounts` was read, so the next `ensureAccountsLoaded` reads storage again.
+ *
+ * For a pull that lands mid-session (the foreground re-pull in main.ts). Without it the
+ * page keeps the copy it read at boot for the whole session, and the next buy or edit
+ * writes that copy, stamped now, over whatever another device saved in between.
+ */
+export function invalidateAccounts(): void {
+  if (loadedAt === 'hydrated') loadedAt = 'never';
+}
+
 export async function loadAccounts(ctx: AppContext): Promise<void> {
   loadedAt = isHydrated() ? 'hydrated' : 'pre-hydration';
   const stored = (await ctx.storage.get<AccountState[]>(ACCT_KEY)) ?? [];

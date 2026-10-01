@@ -12,8 +12,11 @@
 //   DELETE /api/sync/kv/<key>       → 204
 //   POST   /api/sync/pull           → body { since? } → { entries: [{key,value,updatedAt}] }
 //                                     (bulk download for merge-on-startup)
-//   GET    /api/sync/history[?key=] → { versions: [...] }  overwritten + deleted rows
+//   GET    /api/sync/history[?key=][&lite=1] → { versions: [...] }  overwritten + deleted rows
+//                                     (lite: sizes only, `value` null)
 //   POST   /api/sync/restore        → body { key, archivedAt } → promote a version back
+//   POST   /api/sync/restore-at     → body { at, keys?, dryRun? } → every key back to how it
+//                                     was at server time `at` (a preview when dryRun)
 //
 // `key` may contain ':' and '/', so we re-join the wildcard path segments after
 // the "kv" prefix and treat the remainder as the full key.
@@ -36,6 +39,8 @@ interface D1PreparedStatement {
 }
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
+  /** Runs the statements in one transaction: all of them apply, or none. */
+  batch(statements: D1PreparedStatement[]): Promise<unknown[]>;
 }
 
 interface Env {
@@ -126,27 +131,30 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
 
     // ── history: every archived version, newest first ────────────────────────
     // Recovery surface for the data-loss class of bug. `?key=` narrows to one key.
+    // `&lite=1` leaves the values out: 500 versions of a 40 KB portfolio is 20 MB, and a
+    // caller that only wants to find the moment of a loss needs the sizes, not the data.
     if (head === 'history' && request.method === 'GET') {
       const url = new URL(request.url);
       const wanted = url.searchParams.get('key');
+      const col = url.searchParams.get('lite') === '1' ? 'NULL' : 'value';
       const rows = await env.DB.prepare(
-        `SELECT key, value, updated_at AS updatedAt, archived_at AS archivedAt, 'overwrite' AS how
+        `SELECT key, ${col} AS value, length(value) AS bytes, updated_at AS updatedAt, archived_at AS archivedAt, 'overwrite' AS how
            FROM kv_history WHERE user_id = ? AND (? IS NULL OR key = ?)
          UNION ALL
-         SELECT key, value, updated_at AS updatedAt, deleted_at AS archivedAt, 'delete' AS how
+         SELECT key, ${col} AS value, length(value) AS bytes, updated_at AS updatedAt, deleted_at AS archivedAt, 'delete' AS how
            FROM kv_trash   WHERE user_id = ? AND (? IS NULL OR key = ?)
          ORDER BY archivedAt DESC LIMIT 500`,
       )
         .bind(user.id, wanted, wanted, user.id, wanted, wanted)
-        .all<{ key: string; value: string; updatedAt: number; archivedAt: number; how: string }>();
+        .all<{ key: string; value: string | null; bytes: number; updatedAt: number; archivedAt: number; how: string }>();
       const versions = (rows.results ?? []).map((r) => ({
         key: r.key,
-        value: JSON.parse(r.value),
+        value: r.value == null ? null : JSON.parse(r.value),
         updatedAt: r.updatedAt,
         archivedAt: r.archivedAt,
         how: r.how,
         // Rough size so a caller can eyeball "the big one" without downloading all.
-        bytes: r.value.length,
+        bytes: r.bytes,
       }));
       return json({ versions });
     }
@@ -185,6 +193,81 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
         .bind(user.id, body.key, row.value, now)
         .run();
       return json({ ok: true, key: body.key, updatedAt: now });
+    }
+
+    // ── restore-at: the whole account back to one moment ─────────────────────
+    // Body { at, keys?, dryRun? }. `at` is SERVER time in ms — the clock that stamps
+    // `archived_at` — so a device with a wrong clock cannot pick the wrong moment.
+    //
+    // A key's value at `at` is the value carried by its FIRST archive event after
+    // `at` (an overwrite in kv_history or a delete in kv_trash): that row holds what
+    // was live until then. A key with no event after `at` has not changed since, so
+    // it is left alone — and that includes keys first written after `at`. Nothing is
+    // ever deleted: a restore that removes data would be the bug it exists to undo.
+    // (A key deleted and re-created after `at` with no overwrite in between comes back
+    // as its pre-delete value; the trash cannot say it was absent, which is the safe
+    // way round.)
+    //
+    // Not `kv.updated_at > at`: an identical rewrite bumps updated_at without
+    // archiving anything, so "written after `at`" says nothing about "changed".
+    //
+    // dryRun → { changes: [{ key, thenBytes, nowBytes, changedAt, events }] }, sizes
+    // only, never values (the accounts blob alone is tens of KB). Otherwise the
+    // chosen keys (all changed ones when `keys` is absent) are restored in ONE
+    // transaction: their current values are archived first, so the restore can itself
+    // be undone by restoring to a moment just before it. Two statements total,
+    // whatever the number of keys, which keeps well inside D1's per-call query cap.
+    if (head === 'restore-at' && request.method === 'POST') {
+      const body = (await request.json().catch(() => null)) as
+        | { at?: number; keys?: string[]; dryRun?: boolean }
+        | null;
+      const at = body?.at;
+      if (typeof at !== 'number' || !Number.isFinite(at) || at <= 0 || at > Date.now()) {
+        return json({ error: 'need { at } as a past server time in ms' }, 400);
+      }
+      const then = `WITH ev AS (
+          SELECT key, value, archived_at AS at FROM kv_history WHERE user_id = ?1 AND archived_at > ?2
+          UNION ALL
+          SELECT key, value, deleted_at AS at FROM kv_trash WHERE user_id = ?1 AND deleted_at > ?2
+        ), pick AS (
+          SELECT key, value, at, COUNT(*) OVER (PARTITION BY key) AS events,
+                 ROW_NUMBER() OVER (PARTITION BY key ORDER BY at) AS rn
+          FROM ev
+        ), changed AS (
+          SELECT p.key, p.value, p.at, p.events, k.value AS cur
+          FROM pick p LEFT JOIN kv k ON k.user_id = ?1 AND k.key = p.key
+          WHERE p.rn = 1 AND (k.value IS NULL OR k.value <> p.value)
+        )`;
+      if (body!.dryRun) {
+        const rows = await env.DB.prepare(
+          `${then} SELECT key, length(value) AS thenBytes, length(cur) AS nowBytes, at AS changedAt, events
+             FROM changed ORDER BY key`,
+        )
+          .bind(user.id, at)
+          .all<{ key: string; thenBytes: number; nowBytes: number | null; changedAt: number; events: number }>();
+        return json({ at, changes: rows.results ?? [] });
+      }
+      // `json_each(?3)` is the chosen key list; NULL means every changed key.
+      const keys = Array.isArray(body!.keys) ? JSON.stringify(body!.keys.map(String)) : null;
+      const chosen = `(?3 IS NULL OR key IN (SELECT value FROM json_each(?3)))`;
+      const now = Date.now();
+      const archive = env.DB.prepare(
+        `${then} INSERT INTO kv_history (user_id, key, value, updated_at, archived_at)
+           SELECT user_id, key, value, updated_at, ?4 FROM kv
+           WHERE user_id = ?1 AND key IN (SELECT key FROM changed WHERE ${chosen})`,
+      ).bind(user.id, at, keys, now);
+      // `WHERE` before ON CONFLICT is required: without it SQLite parses the ON as a
+      // join constraint of the SELECT.
+      const write = env.DB.prepare(
+        `${then} INSERT INTO kv (user_id, key, value, updated_at)
+           SELECT ?1, key, value, ?4 FROM changed WHERE ${chosen}
+         ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      ).bind(user.id, at, keys, now);
+      const count = await env.DB.prepare(`${then} SELECT COUNT(*) AS n FROM changed WHERE ${chosen}`)
+        .bind(user.id, at, keys)
+        .first<{ n: number }>();
+      await env.DB.batch([archive, write]);
+      return json({ ok: true, at, restored: count?.n ?? 0, updatedAt: now });
     }
 
     // ── key/value ─────────────────────────────────────────────────────────────

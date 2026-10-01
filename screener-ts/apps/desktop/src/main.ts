@@ -6,13 +6,14 @@ import { renderPicks, renderScreener, renderSectors } from './tabs/screenerTabs.
 import { renderWatchlist, renderLearn } from './tabs/miscTabs.js';
 import { renderPortfolio } from './tabs/portfolioTab.js';
 import { renderWealth } from './tabs/wealthTab.js';
-import { migrateAccountsBlob } from './portfolio/store.js';
+import { migrateAccountsBlob, invalidateAccounts } from './portfolio/store.js';
 import { renderCalendar } from './tabs/calendarTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
 import { renderPlaybook } from './tabs/playbookTab.js';
 import { renderCaseStudies } from './tabs/caseStudiesTab.js';
 import { renderScanner } from './tabs/scannerTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
+import { renderSettings } from './tabs/settingsTab.js';
 import { renderLanding } from './ui/landing.js';
 import { runSplash } from './ui/splash.js';
 import { pageTransition } from './ui/transition.js';
@@ -25,7 +26,7 @@ import { openLlmSettings } from './ui/llmSettings.js';
 import { openChatPanel, closeChatPanel, isChatOpen } from './ui/chatPanel.js';
 import { ORB_MARK } from './ui/emblem.js';
 import { isSyncEnabled } from './adapters/syncClient.js';
-import { pullAndMerge, openSyncGate } from './adapters/storage.js';
+import { pullAndMerge, openSyncGate, isHydrated } from './adapters/storage.js';
 
 // Surface a FATAL init failure visibly (a blank screen hides the cause). This is
 // only used for the synchronous init below — we deliberately do NOT trap every
@@ -48,7 +49,7 @@ onModalClose(() => {
   if (entered && currentTab === 'watchlist') renderTab('watchlist');
 });
 
-const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'wealth', 'backtest', 'playbook', 'casestudies', 'scanner', 'learn', 'about'] as const;
+const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'wealth', 'backtest', 'playbook', 'casestudies', 'scanner', 'learn', 'about', 'settings'] as const;
 type Tab = (typeof TABS)[number];
 
 let entered = false;
@@ -116,6 +117,9 @@ function renderTab(tab: Tab): void {
       break;
     case 'about':
       renderAbout(discoverFromStory);
+      break;
+    case 'settings':
+      renderSettings(ctx);
       break;
   }
 }
@@ -312,6 +316,7 @@ function buildAppMenu(): HTMLElement {
         <button class="sl-menu-item" data-amtab="scanner">${t('nav.scanner')}</button>
         <button class="sl-menu-item" data-amtab="learn">${t('nav.learn')}</button>
         <button class="sl-menu-item" data-amtab="about">${t('nav.about')}</button>
+        <button class="sl-menu-item" data-amtab="settings">${t('nav.settings')}</button>
       </div>
     </nav>
     <div class="sl-menu-items app-menu-footer">
@@ -543,6 +548,36 @@ if (isSyncEnabled()) {
   // its own pullAndMerge, which re-shuts and re-opens it around that merge).
   openSyncGate();
 }
+
+/**
+ * Pull again whenever the app comes back to the foreground.
+ *
+ * The boot pull used to be the only one. A phone or a laptop tab left open for a day
+ * kept the data it had at boot, and the first edit made there wrote that whole blob
+ * (`accounts`, `wealth`) stamped "now" — last-write-wins then threw away everything the
+ * other device had saved in between. That is the "I lose data when I use two devices"
+ * report. The server kept the lost versions in `kv_history`, which is what Settings →
+ * Restore reads, but not losing them is better.
+ *
+ * At most once a minute: a pull downloads every row. Only after the boot pull has
+ * hydrated the device; before that the boot merge is still in charge.
+ */
+const REPULL_MS = 60_000;
+let lastForegroundPull = Date.now();
+function pullOnReturn(): void {
+  if (!isSyncEnabled() || !isHydrated() || document.visibilityState !== 'visible') return;
+  if (Date.now() - lastForegroundPull < REPULL_MS) return;
+  lastForegroundPull = Date.now();
+  void pullAndMerge(ctx.synced)
+    .then((n) => {
+      if (n <= 0) return;
+      invalidateAccounts();
+      if (entered) renderTab(currentTab);
+    })
+    .catch(() => {});
+}
+document.addEventListener('visibilitychange', pullOnReturn);
+window.addEventListener('focus', pullOnReturn);
 
 // Boot splash → access code → landing.
 //

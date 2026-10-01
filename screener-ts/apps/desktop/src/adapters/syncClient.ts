@@ -176,9 +176,13 @@ export interface SyncVersion {
  * recovery surface for a bad last-write-wins merge: the live `kv` row may be an
  * empty default, but the real value it replaced is here.
  */
-export async function remoteHistory(key?: string): Promise<SyncVersion[]> {
+export async function remoteHistory(key?: string, opts: { lite?: boolean } = {}): Promise<SyncVersion[]> {
   if (!isSyncEnabled()) return [];
-  const qs = key ? `?key=${encodeURIComponent(key)}` : '';
+  // `lite`: sizes only, `value` comes back null (an older server ignores it and sends values).
+  const params = new URLSearchParams();
+  if (key) params.set('key', key);
+  if (opts.lite) params.set('lite', '1');
+  const qs = params.toString() ? `?${params}` : '';
   const res = await req(`${BASE}/history${qs}`, { headers: headers() });
   if (!res.ok) throw new Error(`sync history: HTTP ${res.status}`);
   const body = (await res.json()) as { versions: SyncVersion[] };
@@ -194,6 +198,40 @@ export async function remoteRestore(key: string, archivedAt: number): Promise<vo
     body: JSON.stringify({ key, archivedAt }),
   });
   if (!res.ok) throw new Error(`sync restore ${key}: HTTP ${res.status}`);
+}
+
+/** One key whose value at the chosen moment differs from now. Sizes only, no values. */
+export interface RestoreAtChange {
+  key: string;
+  thenBytes: number;
+  /** null: the key no longer exists (it was deleted after the moment). */
+  nowBytes: number | null;
+  /** Server time of the first change after the moment. */
+  changedAt: number;
+  /** How many times it has changed since. */
+  events: number;
+}
+
+/**
+ * Point-in-time restore. `at` is server time in ms (archive stamps are server time).
+ * `dryRun` lists what would change; otherwise restores `keys` (every changed key when
+ * omitted). Keys created after `at` are kept, nothing is deleted, and the current
+ * values are archived first, so the restore itself can be undone the same way.
+ */
+export async function remoteRestoreAt(
+  at: number,
+  opts: { dryRun?: boolean; keys?: string[] } = {},
+): Promise<{ changes?: RestoreAtChange[]; restored?: number; updatedAt?: number }> {
+  if (!isSyncEnabled()) throw new Error('sync is not enabled on this device');
+  const res = await req(`${BASE}/restore-at`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ at, ...opts }),
+  });
+  // 404 from an older deploy: the route did not exist yet ("unknown route").
+  if (res.status === 404) throw new Error('the server does not have restore-at yet — deploy the latest build');
+  if (!res.ok) throw new Error(`sync restore-at: HTTP ${res.status}`);
+  return (await res.json()) as { changes?: RestoreAtChange[]; restored?: number; updatedAt?: number };
 }
 
 /** Bulk download every entry (optionally only those newer than `since`). */

@@ -23,6 +23,7 @@ import {
 } from '../adapters/storage.js';
 import { deriveSyncStatus } from '@screener/core';
 import { getLang } from './i18n.js';
+import { openSettingsAt } from '../tabs/settingsTab.js';
 
 let onSyncedCb: (() => void) | null = null;
 
@@ -44,7 +45,7 @@ interface BackupFile {
  * web (localStorage) and desktop (Tauri fs) via the portable Storage interface,
  * and does NOT depend on sync being enabled — this is the offline safety net.
  */
-async function exportAllData(ctx: AppContext): Promise<number> {
+export async function exportAllData(ctx: AppContext): Promise<number> {
   // The sync code stays out of the file: a backup is something people email to themselves.
   const keys = (await ctx.storage.list('')).filter((k) => !isDeviceBookkeeping(k));
   const data: Record<string, unknown> = {};
@@ -261,7 +262,10 @@ export function openSyncSettings(ctx: AppContext): void {
                 : 'Whenever an item is overwritten or deleted, the server keeps the old value. If data vanished after a sync, find it here and press Restore.'
             }
           </p>
-          <button id="data-history" class="btn-outline">${vi ? '🕘 Xem phiên bản cũ' : '🕘 Browse versions'}</button>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <button id="data-history" class="btn-outline">${vi ? '🕘 Xem phiên bản cũ' : '🕘 Browse versions'}</button>
+            <button id="data-restore-at" class="btn-outline">${vi ? '⏪ Khôi phục mọi thứ về một thời điểm' : '⏪ Restore everything to a moment'}</button>
+          </div>
           <div id="history-list" style="margin-top:10px;max-height:230px;overflow:auto"></div>
         </div>
       </div>
@@ -525,6 +529,10 @@ export function openSyncSettings(ctx: AppContext): void {
   }
 
   host.querySelector('#data-history')!.addEventListener('click', () => void showHistory());
+  host.querySelector('#data-restore-at')!.addEventListener('click', () => {
+    close();
+    openSettingsAt('restore');
+  });
 
   setTimeout(() => input.focus(), 30);
 }

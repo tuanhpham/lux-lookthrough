@@ -19,6 +19,7 @@ import { isSyncEnabled } from '../adapters/syncClient.js';
 import { scannerPull } from '../adapters/scannerClient.js';
 import { openSyncSettings } from '../ui/syncSettings.js';
 import { copyToClipboard } from '../ui/askChatGpt.js';
+import { openSettingsAt } from './settingsTab.js';
 import { rankChartSvg, rankChartColor, type RankHistory } from './scannerRankChart.js';
 import {
   chipHtml, countChip, rangeChip, sectionHead, type Chip, type ChipInput,
@@ -1215,6 +1216,35 @@ function renderGuide(night: NightBlock | null | undefined): string {
     </details>`;
 }
 
+/**
+ * The way into the VM operations guide on Settings & Guides.
+ *
+ * The runbook below covers re-running a night, which is what this page is for. Everything
+ * else about keeping the VM alive — SSH, updating, the service and its logs, the full
+ * crontab, the four common failures, where each threshold lives — is on the Settings page,
+ * with a copy button on every command; one chip per topic opens it at that topic.
+ */
+const OPS_LINKS: readonly { id: string; key: string }[] = [
+  { id: 'scan-connect', key: 'scan.ops.connect' },
+  { id: 'scan-service', key: 'scan.ops.service' },
+  { id: 'scan-cron', key: 'scan.ops.cron' },
+  { id: 'scan-trouble', key: 'scan.ops.trouble' },
+  { id: 'scan-config', key: 'scan.ops.config' },
+];
+
+function opsBanner(): string {
+  return `<div class="scan-ops">
+      <div class="scan-ops-h"><span aria-hidden="true">🛠</span><div><b>${t('scan.ops.title')}</b><span>${t('scan.ops.sub')}</span></div></div>
+      <div class="scan-ops-links">${OPS_LINKS.map((l) => `<button class="scan-ops-link" data-ops="${l.id}">${t(l.key)} →</button>`).join('')}</div>
+    </div>`;
+}
+
+function wireOpsBanner(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('[data-ops]').forEach((b) =>
+    b.addEventListener('click', () => openSettingsAt(b.dataset.ops!)),
+  );
+}
+
 /** One config value, flattened for display. Tuples arrive as JSON arrays. */
 function thValue(v: unknown): string {
   if (v == null) return '—';
@@ -1907,8 +1937,10 @@ function draw(ctx: AppContext): void {
       <div class="card">
         <p style="margin:0 0 12px">${t('scan.needcode')}</p>
         <button class="btn" id="scan-setcode">${t('scan.setcode')}</button>
-      </div>`;
+      </div>
+      ${opsBanner()}`;
     root.querySelector('#scan-setcode')?.addEventListener('click', () => openSyncSettings(ctx));
+    wireOpsBanner(root);
     return;
   }
 
@@ -1957,6 +1989,7 @@ function draw(ctx: AppContext): void {
     <h1>${t('scan.title')}</h1>
     <p class="subtitle">${t('scan.sub')}</p>
     ${statusStrip(status, pushedAt, notes)}
+    ${opsBanner()}
     ${notes.map((n) => `<div class="notice" style="margin-bottom:8px">${esc(n)}</div>`).join('')}
     ${status || !lastLoad ? '' : `<p class="muted">${t('scan.nodata')}</p>`}
     <nav class="scan-jump" aria-label="${t('scan.jump')}">
@@ -1994,6 +2027,7 @@ function draw(ctx: AppContext): void {
 
   wireJump(root);
   wireCollapse(root);
+  wireOpsBanner(root);
 
   // One button, two jobs: it folds everything, and once everything is folded it
   // unfolds everything. Two buttons for a binary state is one button too many.
