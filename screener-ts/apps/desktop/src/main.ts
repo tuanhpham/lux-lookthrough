@@ -423,7 +423,7 @@ function goToLanding(trigger?: Element): void {
   pageTransition(trigger ?? null, () => {
     $('#app')!.classList.add('hidden');
     $('#landing')!.classList.remove('hidden');
-    renderLanding($('#landing')!, requestPrivateAccess, openStory, openLearn);
+    renderLanding($('#landing')!, requestPrivateAccess, openStory, openLearn, openPage);
   });
 }
 
@@ -453,6 +453,20 @@ function openLearn(trigger?: Element): void {
     showGate(() => {
       $('#landing')!.classList.add('hidden');
       enterApp('learn');
+    }),
+  );
+}
+
+/**
+ * Any page by id, from the landing page's footer. Same shape as `openLearn`; an id
+ * that is not a tab falls back to Calendar, where "Enter the platform" lands.
+ */
+function openPage(id: string, trigger?: Element): void {
+  const tab: Tab = (TABS as readonly string[]).includes(id) ? (id as Tab) : 'calendar';
+  pageTransition(trigger ?? null, () =>
+    showGate(() => {
+      $('#landing')!.classList.add('hidden');
+      enterApp(tab);
     }),
   );
 }
@@ -728,7 +742,7 @@ function reRenderCurrentPage(): void {
   if (!$('#app')!.classList.contains('hidden')) {
     renderTab(currentTab);
   } else if (!$('#landing')!.classList.contains('hidden')) {
-    renderLanding($('#landing')!, requestPrivateAccess, openStory, openLearn);
+    renderLanding($('#landing')!, requestPrivateAccess, openStory, openLearn, openPage);
   }
 }
 
@@ -824,7 +838,7 @@ window.addEventListener('focus', pullOnReturn);
 // firing it off; the gate must not appear under a splash that is still animating.
 try {
   const landing = $('#landing')!;
-  renderLanding(landing, requestPrivateAccess, openStory, openLearn);
+  renderLanding(landing, requestPrivateAccess, openStory, openLearn, openPage);
   applyStaticI18n();
   (window as unknown as { __APP_READY__?: boolean }).__APP_READY__ = true;
 

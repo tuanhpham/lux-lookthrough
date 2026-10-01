@@ -1,6 +1,7 @@
 import { t, getLang, setLang } from './i18n.js';
 import { applyTheme } from './theme.js';
 import { pageTransition } from './transition.js';
+import { PAGES, PAGE_GROUPS, type PageGroup } from './pages.js';
 
 /**
  * The front door — a broker-style product page (hero, proof strip, capability
@@ -37,14 +38,20 @@ const EN = {
   featEyebrow: 'The loop',
   featTitle: 'Built around one loop',
   featSub: 'Find a candidate, size the risk, write down why, then check the tape against what you wrote.',
-  f1t: 'Screener',
-  f1d: 'Base-and-breakout, momentum and volume-surge scans over the whole US list, scored 0–100 with the reason shown.',
-  f2t: 'Market regime',
-  f2d: 'Breadth and index trend first, so a good setup in a bad tape is treated as what it is.',
-  f3t: 'Paper trading',
-  f3d: 'Positions, cash, stops and an equity curve — the same bookkeeping as a real account, none of the money.',
-  f4t: 'Journal & case studies',
-  f4d: 'Every entry keeps its thesis, so a review compares the decision against the outcome instead of memory.',
+  f1t: 'Screener & Top Picks',
+  f1d: 'Base-and-breakout, momentum and volume-surge scans over the whole US list, scored 0–100 with the reason shown — and the best of them ranked on one page.',
+  f2t: 'Regime, sectors & the live scanner',
+  f2d: 'Breadth and index trend first, then where the money is rotating. Every night a scanner on its own server pushes the regime, the leaders and the day\'s alerts.',
+  f3t: 'Trade planner',
+  f3d: 'Entry, stop, size and targets drawn from your own playbook, on a chart six months around the trade date — a date in the past included.',
+  f4t: 'Portfolio & Financial Status',
+  f4d: 'Paper accounts, positions, stops and an equity curve, next to bank and cash balances totalled in one currency.',
+  f5t: 'Journal & case studies',
+  f5d: 'Every entry keeps its thesis, and a filed study keeps the chart, the levels and how it ended — so a review compares the decision with the outcome, not with memory.',
+  f6t: 'Learn, with the playbook inside',
+  f6d: 'One handbook: the playbook and its rules, a daily checklist, AI prompts, page guides and a glossary — plus Settings & Guides for sync, restore and the scanner.',
+  stripTitle: '{n} workspaces, four groups.',
+  stripSub: 'The same list the menu and the Ctrl K palette open — every name here is a page you can reach.',
   stepsEyebrow: 'Getting started',
   stepsTitle: 'Three steps from here',
   s1t: 'Open the list',
@@ -53,11 +60,20 @@ const EN = {
   s2d: 'Entry, stop and size come out of the setup, not out of a feeling.',
   s3t: 'Keep the record',
   s3d: 'Log it, watch it, review it. That record is the whole point.',
+  closeEyebrow: 'Ready when you are',
   closeTitle: 'The list is waiting.',
   closeSub: 'Everything is already unlocked on this device.',
+  closeBtn: 'Enter',
+  closeHint: 'Calendar opens first — every other page is one click away in the menu, or Ctrl K.',
   footAbout: 'The story behind it',
   footPlatform: 'The platform',
   footLearn: 'Guides & glossary',
+  footExplore: 'Explore',
+  footBlurb: 'A screener, a trade planner, a journal and a paper desk — built for one desk, kept on your own devices.',
+  footTop: 'Back to top',
+  footTheme: 'Theme',
+  footLang: 'Language',
+  themeAria: 'Switch between dark and light',
   riskLabel: 'Risk warning',
 
   // The funnel: the one idea that explains the whole product in five rows.
@@ -81,7 +97,7 @@ const EN = {
   // claiming a live feed.
   insEyebrow: 'Inside',
   insTitle: 'What the screen actually looks like.',
-  insSub: 'Three of the twelve workspaces. Drawn, not fetched — nothing on this page is a live quote, and the numbers are shaped to be plausible rather than real.',
+  insSub: 'Three of the {n} workspaces. Drawn, not fetched — nothing on this page is a live quote, and the numbers are shaped to be plausible rather than real.',
   p1t: 'Ranked candidates',
   p1d: 'Scored 0–100, with the setup named and the reason kept.',
   p2t: 'Sector rotation',
@@ -126,14 +142,20 @@ const VI: typeof EN = {
   featEyebrow: 'Vòng lặp',
   featTitle: 'Xoay quanh một vòng lặp',
   featSub: 'Tìm ứng viên, tính rủi ro, viết lại lý do, rồi đối chiếu thị trường với đúng điều đã viết.',
-  f1t: 'Bộ lọc',
-  f1d: 'Quét nền–bứt phá, đà tăng và bùng nổ khối lượng trên toàn bộ danh sách Mỹ, cho điểm 0–100 và in ra lý do.',
-  f2t: 'Trạng thái thị trường',
-  f2d: 'Xem độ rộng và xu hướng chỉ số trước, để một mẫu hình đẹp trong phiên xấu được nhìn đúng bản chất.',
-  f3t: 'Giao dịch giấy',
-  f3d: 'Vị thế, tiền, cắt lỗ và đường vốn — sổ sách y như tài khoản thật, chỉ không có tiền thật.',
-  f4t: 'Nhật ký & case study',
-  f4d: 'Mỗi lệnh giữ lại luận điểm của nó, nên lúc xem lại là so quyết định với kết quả, không phải so với ký ức.',
+  f1t: 'Bộ lọc & Top Picks',
+  f1d: 'Quét nền–bứt phá, đà tăng và bùng nổ khối lượng trên toàn bộ danh sách Mỹ, cho điểm 0–100 và in ra lý do — rồi xếp hạng những mã tốt nhất trên một trang.',
+  f2t: 'Bối cảnh, ngành & scanner trực tiếp',
+  f2d: 'Xem độ rộng và xu hướng chỉ số trước, rồi dòng tiền đang xoay vào đâu. Mỗi đêm một scanner trên máy chủ riêng đẩy lên bối cảnh, mã dẫn dắt và cảnh báo trong ngày.',
+  f3t: 'Lập kế hoạch lệnh',
+  f3d: 'Điểm vào, cắt lỗ, khối lượng và mục tiêu suy ra từ cẩm nang của bạn, trên biểu đồ sáu tháng quanh ngày giao dịch — kể cả một ngày trong quá khứ.',
+  f4t: 'Danh mục & Tình hình tài chính',
+  f4d: 'Tài khoản giấy, vị thế, cắt lỗ và đường vốn, cạnh số dư ngân hàng và tiền mặt quy về một đồng tiền.',
+  f5t: 'Nhật ký & case study',
+  f5d: 'Mỗi lệnh giữ lại luận điểm, mỗi hồ sơ giữ biểu đồ, các mức giá và cách nó kết thúc — nên lúc xem lại là so quyết định với kết quả, không phải với ký ức.',
+  f6t: 'Tìm hiểu, có cẩm nang bên trong',
+  f6d: 'Một cuốn sổ tay: cẩm nang và các quy tắc, checklist hằng ngày, prompt AI, hướng dẫn từng trang và thuật ngữ — cùng Cài đặt & Hướng dẫn cho đồng bộ, khôi phục và scanner.',
+  stripTitle: '{n} không gian làm việc, bốn nhóm.',
+  stripSub: 'Đúng danh sách mà menu và bảng lệnh Ctrl K mở ra — mỗi tên ở đây là một trang có thật.',
   stepsEyebrow: 'Bắt đầu',
   stepsTitle: 'Từ đây, ba bước',
   s1t: 'Mở danh sách',
@@ -142,11 +164,20 @@ const VI: typeof EN = {
   s2d: 'Điểm vào, cắt lỗ và khối lượng suy ra từ mẫu hình, không từ cảm giác.',
   s3t: 'Giữ lại hồ sơ',
   s3d: 'Ghi lại, theo dõi, xem lại. Cuốn hồ sơ đó chính là mục đích.',
+  closeEyebrow: 'Khi bạn sẵn sàng',
   closeTitle: 'Danh sách đang đợi.',
   closeSub: 'Máy này đã mở khoá sẵn.',
+  closeBtn: 'Vào',
+  closeHint: 'Lịch mở ra trước — mọi trang khác chỉ cách một cú bấm trong menu, hoặc Ctrl K.',
   footAbout: 'Câu chuyện phía sau',
   footPlatform: 'Nền tảng',
   footLearn: 'Hướng dẫn & thuật ngữ',
+  footExplore: 'Khám phá',
+  footBlurb: 'Bộ lọc, kế hoạch lệnh, nhật ký và bàn giao dịch giấy — dựng cho một người, lưu trên chính thiết bị của bạn.',
+  footTop: 'Lên đầu trang',
+  footTheme: 'Giao diện',
+  footLang: 'Ngôn ngữ',
+  themeAria: 'Chuyển giữa nền tối và nền sáng',
   riskLabel: 'Cảnh báo rủi ro',
 
   hcRegime: 'Bối cảnh',
@@ -167,7 +198,7 @@ const VI: typeof EN = {
 
   insEyebrow: 'Bên trong',
   insTitle: 'Màn hình thật ra trông thế nào.',
-  insSub: 'Ba trong mười hai không gian làm việc. Được vẽ, không phải tải về — không có gì trên trang này là giá thật, các con số chỉ được dựng cho hợp lý.',
+  insSub: 'Ba trong {n} không gian làm việc. Được vẽ, không phải tải về — không có gì trên trang này là giá thật, các con số chỉ được dựng cho hợp lý.',
   p1t: 'Ứng viên đã xếp hạng',
   p1d: 'Cho điểm 0–100, gọi tên mẫu hình và giữ lại lý do.',
   p2t: 'Luân chuyển dòng tiền ngành',
@@ -205,6 +236,7 @@ export function renderLanding(
   onEnterPrivate: (trigger?: Element) => void,
   onOpenStory?: (trigger?: Element) => void,
   onOpenLearn?: (trigger?: Element) => void,
+  onOpenPage?: (id: string, trigger?: Element) => void,
 ): void {
   detachScroll?.();
   detachScroll = null;
@@ -218,18 +250,47 @@ export function renderLanding(
   const story = onOpenStory ?? onEnterPrivate;
   const learn = onOpenLearn ?? onEnterPrivate;
 
-  const chips = lang === 'vi'
-    ? ['Bộ lọc', 'Nền–bứt phá', 'Đà tăng', 'Bùng nổ khối lượng', 'Trạng thái thị trường',
-       'Xếp hạng ngành', 'Danh mục giấy', 'Kiểm định lịch sử', 'Sổ tay', 'Case study',
-       'Lịch kinh tế', 'Nhật ký']
-    : ['Screener', 'Base & breakout', 'Momentum', 'Volume surge', 'Market regime',
-       'Sector ranking', 'Paper portfolio', 'Backtest', 'Playbook', 'Case studies',
-       'Calendar', 'Journal'];
+  const page = onOpenPage ?? ((_id: string, trigger?: Element) => onEnterPrivate(trigger));
+  const nPages = String(PAGES.length);
+
+  // "What runs inside" is the app's own page list (ui/pages.ts), not a hand-written
+  // one: the strip used to name twelve things, two of which had since been merged.
+  // Each chip carries its group's colour; two rows run in opposite directions.
+  const chip = (p: (typeof PAGES)[number]) => `<span class="cl-chip" style="--g:${GROUP_TONE[p.group]}">
+      <span class="cl-chip-ic" aria-hidden="true">${p.icon}</span>
+      <span class="cl-chip-txt"><b>${t(`nav.${p.id}`)}</b><small>${p.desc[lang]}</small></span>
+    </span>`;
+  const half = Math.ceil(PAGES.length / 2);
   // Duplicated once so the marquee can loop without a visible seam.
-  const chipRow = chips.map((s) => `<span class="cl-chip">${s}</span>`).join('');
+  const rowA = PAGES.slice(0, half).map(chip).join('');
+  const rowB = PAGES.slice(half).map(chip).join('');
+  const legend = PAGE_GROUPS.map((g) =>
+    `<span class="cl-legend" style="--g:${GROUP_TONE[g.id]}"><i></i>${g.title[lang]}</span>`).join('');
+
+  // The theme switch: both icons are drawn, CSS shows the one for the current theme,
+  // so a switch needs no re-render and the page keeps its scroll position.
+  const themeSwitch = (id: string) => `<button class="cl-theme" id="${id}" data-cl-theme
+      aria-label="${c.themeAria}" title="${c.themeAria}">
+      <span class="cl-theme-ic cl-theme-ic--moon" aria-hidden="true">${icoMoon()}</span>
+      <span class="cl-theme-ic cl-theme-ic--sun" aria-hidden="true">${icoSun()}</span>
+      <span class="cl-theme-knob" aria-hidden="true"></span>
+    </button>`;
+  const langSeg = `<div class="cl-lang" role="group" aria-label="${c.footLang}">
+        <button class="cl-lang-btn${lang === 'en' ? ' active' : ''}" data-ml="en">EN</button>
+        <button class="cl-lang-btn${lang === 'vi' ? ' active' : ''}" data-ml="vi">VI</button>
+      </div>`;
+
+  // Footer columns: Explore, then the three working groups of the menu. The fourth
+  // group (Learn & system) is what Explore already links to.
+  const footCol = (g: PageGroup) => `<div class="cl-foot-col">
+      <h4 style="--g:${GROUP_TONE[g]}"><i></i>${PAGE_GROUPS.find((x) => x.id === g)!.title[lang]}</h4>
+      ${PAGES.filter((p) => p.group === g).map((p) =>
+        `<button class="cl-foot-link" data-cl-page="${p.id}"><span aria-hidden="true">${p.icon}</span>${t(`nav.${p.id}`)}</button>`).join('')}
+    </div>`;
 
   const feat = (n: string, title: string, desc: string, icon: string) => `
     <article class="cl-feat">
+      <span class="cl-feat-glow" aria-hidden="true"></span>
       <div class="cl-feat-icon">${icon}</div>
       <div class="cl-feat-n">${n}</div>
       <h3>${title}</h3>
@@ -271,16 +332,13 @@ export function renderLanding(
       <span class="app-brand-name">${t('brand.name')}</span>
     </button>
     <nav class="cl-nav-links">
-      <button class="cl-nav-link" id="cl-nav-platform">${c.navPlatform}</button>
-      <button class="cl-nav-link" id="cl-nav-learn">${c.navLearn}</button>
-      <button class="cl-nav-link" id="cl-nav-story">${c.navStory}</button>
+      <button class="cl-nav-link" id="cl-nav-platform">${icoGrid()}<span>${c.navPlatform}</span></button>
+      <button class="cl-nav-link" id="cl-nav-learn">${icoBook()}<span>${c.navLearn}</span></button>
+      <button class="cl-nav-link" id="cl-nav-story">${icoSpark()}<span>${c.navStory}</span></button>
     </nav>
     <div class="cl-nav-right">
-      <div class="cl-lang">
-        <button class="cl-lang-btn${lang === 'en' ? ' active' : ''}" data-ml="en">EN</button>
-        <button class="cl-lang-btn${lang === 'vi' ? ' active' : ''}" data-ml="vi">VI</button>
-      </div>
-      <button class="cl-nav-cta" id="cl-enter-top">${c.ctaPrimary}</button>
+      ${langSeg}
+      ${themeSwitch('cl-theme')}
       <button id="sl-menu-btn" aria-label="Open menu">
         <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="22" height="22">
           <line x1="3" y1="6" x2="19" y2="6"/>
@@ -298,8 +356,12 @@ export function renderLanding(
       <h1 class="cl-h1">${c.h1a}<br/><span class="accent">${c.h1b}</span></h1>
       <p class="cl-sub">${c.sub}</p>
       <div class="cl-cta-row">
-        <button class="cl-btn cl-btn--primary" id="cl-enter">${c.ctaPrimary} →</button>
-        <button class="cl-btn cl-btn--ghost" id="cl-story">${c.ctaSecondary}</button>
+        <button class="cl-btn cl-btn--primary" id="cl-enter">
+          <span>${c.ctaPrimary}</span><i class="cl-btn-arrow" aria-hidden="true">${icoArrow()}</i>
+        </button>
+        <button class="cl-btn cl-btn--ghost" id="cl-story">
+          <i class="cl-btn-lead" aria-hidden="true">${icoSpark()}</i><span>${c.ctaSecondary}</span>
+        </button>
       </div>
       <p class="cl-note">${c.note}</p>
     </div>
@@ -310,15 +372,25 @@ export function renderLanding(
   </section>
 
   <div class="cl-stats">
-    <div class="cl-stat"><span class="cl-stat-v">12</span><span class="cl-stat-l">${c.statModules}</span></div>
+    <div class="cl-stat"><span class="cl-stat-v">${nPages}</span><span class="cl-stat-l">${c.statModules}</span></div>
     <div class="cl-stat"><span class="cl-stat-v">0–100</span><span class="cl-stat-l">${c.statScore}</span></div>
     <div class="cl-stat"><span class="cl-stat-v">US + VN</span><span class="cl-stat-l">${c.statMarkets}</span></div>
     <div class="cl-stat"><span class="cl-stat-v">${c.statCost}</span><span class="cl-stat-l">${c.statCostL}</span></div>
   </div>
 
   <section class="cl-strip" aria-label="${c.stripLabel}">
-    <span class="cl-strip-label">${c.stripLabel}</span>
-    <div class="cl-marquee"><div class="cl-marquee-track">${chipRow}${chipRow}</div></div>
+    <div class="cl-strip-box">
+      <div class="cl-strip-head">
+        <div>
+          <span class="cl-strip-label"><i></i>${c.stripLabel}</span>
+          <h2 class="cl-strip-title">${c.stripTitle.replace('{n}', nPages)}</h2>
+          <p class="cl-strip-sub">${c.stripSub}</p>
+        </div>
+        <div class="cl-strip-legend">${legend}</div>
+      </div>
+      <div class="cl-marquee"><div class="cl-marquee-track">${rowA}${rowA}</div></div>
+      <div class="cl-marquee cl-marquee--rev"><div class="cl-marquee-track">${rowB}${rowB}</div></div>
+    </div>
   </section>
 
   <section class="cl-section">
@@ -326,8 +398,10 @@ export function renderLanding(
     <div class="cl-feat-grid cl-stagger">
       ${feat('01', c.f1t, c.f1d, icoScan())}
       ${feat('02', c.f2t, c.f2d, icoRegime())}
-      ${feat('03', c.f3t, c.f3d, icoDesk())}
-      ${feat('04', c.f4t, c.f4d, icoJournal())}
+      ${feat('03', c.f3t, c.f3d, icoPlan())}
+      ${feat('04', c.f4t, c.f4d, icoDesk())}
+      ${feat('05', c.f5t, c.f5d, icoJournal())}
+      ${feat('06', c.f6t, c.f6d, icoBook())}
     </div>
   </section>
 
@@ -337,7 +411,7 @@ export function renderLanding(
   </section>
 
   <section class="cl-section">
-    ${head(c.insEyebrow, c.insTitle, c.insSub)}
+    ${head(c.insEyebrow, c.insTitle, c.insSub.replace('{n}', nPages))}
     <div class="cl-panels cl-stagger">
       ${panel(c.p1t, c.p1d, panelCands(c))}
       ${panel(c.p2t, c.p2d, panelSectors(c))}
@@ -362,24 +436,48 @@ export function renderLanding(
   </section>
 
   <section class="cl-close">
-    <h2 class="cl-close-h">${c.closeTitle}</h2>
-    <p class="muted">${c.closeSub}</p>
-    <button class="cl-btn cl-btn--primary cl-btn--lg" id="cl-enter-bottom">${c.ctaPrimary} →</button>
+    <div class="cl-close-stage">
+      <span class="cl-head-eyebrow">${c.closeEyebrow}</span>
+      <h2 class="cl-close-h">${c.closeTitle}</h2>
+      <p class="muted">${c.closeSub}</p>
+      <button class="cl-orb" id="cl-enter-bottom" aria-label="${c.ctaPrimary}">
+        <span class="cl-orb-halo" aria-hidden="true"></span>
+        <span class="cl-orb-ring" aria-hidden="true"></span>
+        <span class="cl-orb-core"><b>${c.closeBtn}</b>${icoArrow()}</span>
+      </button>
+      <p class="cl-note">${c.closeHint}</p>
+    </div>
   </section>
 
   <footer class="cl-footer">
-    <div class="cl-footer-top">
-      <div class="cl-footer-brand">
-        <span class="app-brand-name">${t('brand.name')}</span>
-        <p class="muted">${c.eyebrow}</p>
+    <div class="cl-footer-panel">
+      <div class="cl-footer-top">
+        <div class="cl-footer-brand">
+          <span class="app-brand-name">${t('brand.name')}</span>
+          <span class="cl-footer-tag">${c.eyebrow}</span>
+          <p class="cl-footer-blurb">${c.footBlurb}</p>
+          <div class="cl-footer-prefs">
+            <span class="cl-footer-pref"><small>${c.footLang}</small>${langSeg}</span>
+            <span class="cl-footer-pref"><small>${c.footTheme}</small>${themeSwitch('cl-foot-theme')}</span>
+          </div>
+        </div>
+        <nav class="cl-footer-cols">
+          <div class="cl-foot-col">
+            <h4 style="--g:var(--accent)"><i></i>${c.footExplore}</h4>
+            <button class="cl-foot-link" id="cl-foot-platform"><span aria-hidden="true">🖥</span>${c.footPlatform}</button>
+            <button class="cl-foot-link" id="cl-foot-learn"><span aria-hidden="true">📖</span>${c.footLearn}</button>
+            <button class="cl-foot-link" id="cl-foot-story"><span aria-hidden="true">✨</span>${c.footAbout}</button>
+            <button class="cl-foot-link" data-cl-page="settings"><span aria-hidden="true">⚙️</span>${t('nav.settings')}</button>
+          </div>
+          ${footCol('market')}${footCol('trade')}${footCol('money')}
+        </nav>
       </div>
-      <div class="cl-footer-links">
-        <button class="cl-foot-link" id="cl-foot-platform">${c.footPlatform}</button>
-        <button class="cl-foot-link" id="cl-foot-learn">${c.footLearn}</button>
-        <button class="cl-foot-link" id="cl-foot-story">${c.footAbout}</button>
+      <p class="cl-risk"><span class="cl-risk-label">⚠ ${c.riskLabel}</span> ${t('foot.disclaimer')} ${c.n1d}</p>
+      <div class="cl-footer-base">
+        <span>© ${new Date().getFullYear()} ${t('brand.name')} · ${c.eyebrow}</span>
+        <button class="cl-foot-top" id="cl-foot-top">${c.footTop} <span aria-hidden="true">↑</span></button>
       </div>
     </div>
-    <p class="cl-risk"><span class="cl-risk-label">${c.riskLabel}:</span> ${t('foot.disclaimer')}</p>
   </footer>
 
 </div>
@@ -417,7 +515,6 @@ export function renderLanding(
     });
 
   wire('#cl-enter', onEnterPrivate);
-  wire('#cl-enter-top', onEnterPrivate);
   wire('#cl-enter-bottom', onEnterPrivate);
   wire('#cl-nav-platform', onEnterPrivate);
   wire('#cl-foot-platform', onEnterPrivate);
@@ -429,6 +526,8 @@ export function renderLanding(
   wire('#sl-menu-discover', onEnterPrivate, true);
   wire('#sl-menu-learn', learn, true);
   wire('#sl-menu-story', story, true);
+  host.querySelectorAll<HTMLElement>('[data-cl-page]').forEach((b) =>
+    b.addEventListener('click', () => page(b.dataset.clPage!, b)));
 
   // "The Professional" always means the landing page. From inside the app that is a
   // navigation; from here we are already on it, so the honest equivalent is the top
@@ -436,6 +535,15 @@ export function renderLanding(
   // no visible reason.
   const toTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
   host.querySelector('#cl-brand')?.addEventListener('click', toTop);
+  host.querySelector('#cl-foot-top')?.addEventListener('click', toTop);
+
+  // CSS draws the switch from <html>'s class, so nothing here needs re-rendering.
+  host.querySelectorAll<HTMLElement>('[data-cl-theme]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const light = document.documentElement.classList.contains('light');
+      pageTransition(b, () => applyTheme(light ? 'dark' : 'light'));
+    }),
+  );
   host.querySelector('#sl-menu-brand')?.addEventListener('click', () => {
     closeMenu();
     toTop();
@@ -462,7 +570,7 @@ export function renderLanding(
     pageTransition(btn, () => {
       closeMenu();
       applyTheme(light ? 'dark' : 'light');
-      renderLanding(host, onEnterPrivate, onOpenStory, onOpenLearn);
+      renderLanding(host, onEnterPrivate, onOpenStory, onOpenLearn, onOpenPage);
     });
   });
 
@@ -711,6 +819,11 @@ function panelEquity(c: typeof EN): string {
   </div>`;
 }
 
+/** One colour per menu group, shared by the strip chips, the legend and the footer. */
+const GROUP_TONE: Record<PageGroup, string> = {
+  market: 'var(--blue)', trade: 'var(--accent)', money: 'var(--up)', know: 'var(--warn)',
+};
+
 // ── Icons ────────────────────────────────────────────────────────────────────
 const SVG = (inner: string) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
@@ -718,3 +831,10 @@ const icoScan = () => SVG(`<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" 
 const icoRegime = () => SVG(`<path d="M3 17l5-6 4 3 4-6 5 5"/><line x1="3" y1="21" x2="21" y2="21"/>`);
 const icoDesk = () => SVG(`<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M8 6V4h8v2"/><line x1="2" y1="12" x2="22" y2="12"/>`);
 const icoJournal = () => SVG(`<path d="M5 3h12a2 2 0 0 1 2 2v16l-7-3-7 3V5a2 2 0 0 1 2-2z"/><path d="M9 8h6M9 12h4"/>`);
+const icoPlan = () => SVG(`<path d="M4 20V6"/><path d="M4 16h16"/><path d="M4 9h16" stroke-dasharray="2 3"/><path d="M7 13l3-3 3 2 4-5"/>`);
+const icoBook = () => SVG(`<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/><path d="M9 7h6"/>`);
+const icoGrid = () => SVG(`<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>`);
+const icoSpark = () => SVG(`<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"/>`);
+const icoArrow = () => SVG(`<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>`);
+const icoSun = () => SVG(`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>`);
+const icoMoon = () => SVG(`<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>`);
