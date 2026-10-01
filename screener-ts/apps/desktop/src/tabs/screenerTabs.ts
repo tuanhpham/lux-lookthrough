@@ -218,6 +218,10 @@ let screenSort: { key: ScreenerSortKey; desc: boolean } = { key: 'qualityScore',
 
 // Cancellation token for an in-flight scan; bumping it aborts the running scan.
 let scanToken = 0;
+/** Bumped by every Top Picks run, and again when it ends: the run whose number still matches owns the Run/Stop buttons. */
+let picksRunSeq = 0;
+/** The selection (cache id) the running Top Picks scan was started for. */
+let picksRunView = '';
 
 /** Cache id for the current picks selection (strategy + market + universe). The
  * day is appended by the scanCache layer; an as-of suffix keeps a historical
@@ -316,7 +320,7 @@ export function renderPicks(ctx: AppContext): void {
             `<button class="range-btn ${v === minAvgVol ? 'active' : ''}" data-minavgvol="${v}">${
               v === 0 ? t('opt.any') : v >= 1_000_000 ? '1M' : `${v / 1000}K`
             }</button>`
-          ).join('')}
+          ).join('')}</div>
         </div>
       </div>
       <div class="picks-config-row">
@@ -343,7 +347,7 @@ export function renderPicks(ctx: AppContext): void {
       const isVol = picksStrategy === 'volume';
       $('#picks-vol-period-row')!.classList.toggle('hidden', !isVol);
       $('#picks-vol-minavgvol-row')!.classList.toggle('hidden', !isVol);
-      void showPicks(ctx);
+      changePicks(ctx);
     }),
   );
   root.querySelectorAll<HTMLElement>('[data-market]').forEach((b) =>
@@ -356,7 +360,7 @@ export function renderPicks(ctx: AppContext): void {
       root.querySelectorAll('[data-market]').forEach((x) => x.classList.toggle('active', x === b));
       renderUniverseRow(ctx);
       renderMinPriceRow(ctx);
-      void showPicks(ctx);
+      changePicks(ctx);
     }),
   );
   renderUniverseRow(ctx);
@@ -367,25 +371,25 @@ export function renderPicks(ctx: AppContext): void {
   });
   $('#picks-prefilter')!.addEventListener('change', (e) => {
     momentumPrefilter = (e.target as HTMLInputElement).checked;
-    void showPicks(ctx);
+    changePicks(ctx);
   });
   root.querySelectorAll<HTMLElement>('[data-minavgvol]').forEach((b) =>
     b.addEventListener('click', () => {
       minAvgVol = parseInt(b.dataset.minavgvol!, 10) as MinAvgVolOpt;
       root.querySelectorAll('[data-minavgvol]').forEach((x) => x.classList.toggle('active', x === b));
-      void showPicks(ctx);
+      changePicks(ctx);
     }),
   );
   root.querySelectorAll<HTMLElement>('[data-volperiod]').forEach((b) =>
     b.addEventListener('click', () => {
       volumePeriod = b.dataset.volperiod as VolumePeriod;
       root.querySelectorAll('[data-volperiod]').forEach((x) => x.classList.toggle('active', x === b));
-      void showPicks(ctx);
+      changePicks(ctx);
     }),
   );
   wireAsOfControls('picks', root, () => {
     applyHistoricalFlag('picks', root);
-    void showPicks(ctx);
+    changePicks(ctx);
   });
   applyHistoricalFlag('picks', root);
 
@@ -484,7 +488,7 @@ function renderUniverseRow(ctx: AppContext): void {
       picksUniverse = b.dataset.universe as UniverseMode;
       row.querySelectorAll('[data-universe]').forEach((x) => x.classList.toggle('active', x === b));
       $('#picks-uni-hint')!.innerHTML = universeHintHtml();
-      void showPicks(ctx);
+      changePicks(ctx);
     }),
   );
 }
@@ -500,7 +504,7 @@ function renderMinPriceRow(ctx: AppContext): void {
     b.addEventListener('click', () => {
       minPicksPrice = parseInt(b.dataset.minprice!, 10) as MinPriceOpt;
       row.querySelectorAll('[data-minprice]').forEach((x) => x.classList.toggle('active', x === b));
-      void showPicks(ctx);
+      changePicks(ctx);
     }),
   );
 }
@@ -628,15 +632,41 @@ function rotationChips(hot: readonly string[], cold: readonly string[]): string 
  * scan, or the Volume surge scan.
  */
 async function runPicks(ctx: AppContext): Promise<void> {
-  if (picksStrategy === 'momentumscan' || picksStrategy === 'surge') {
-    await runMomentumPicks(ctx, picksStrategy === 'surge');
-    return;
+  // The one place the Run / Stop pair is flipped. Each scan used to restore Run itself, but only
+  // on some of its exits: a Stop pressed while the universe or SPY was still loading, or a
+  // fetch that threw, left Run hidden — and it is one button shared by every strategy.
+  const run = ++picksRunSeq;
+  picksRunView = picksCacheId();
+  $('#picks-stop')!.classList.remove('hidden');
+  $('#picks-refresh')!.classList.add('hidden');
+  try {
+    if (picksStrategy === 'momentumscan' || picksStrategy === 'surge') {
+      await runMomentumPicks(ctx, picksStrategy === 'surge');
+    } else if (picksStrategy === 'volume') {
+      await runVolumePicks(ctx);
+    } else {
+      await runQmPicks(ctx);
+    }
+  } catch (e) {
+    if (run === picksRunSeq) $('#picks-status')!.textContent = `${t('picks.stopped')} — ${String(e).slice(0, 200)}`;
+  } finally {
+    // A newer Run owns the buttons now; only the latest scan may hand them back.
+    if (run === picksRunSeq) {
+      picksRunSeq++;
+      $('#picks-progress')?.classList.add('hidden');
+      $('#picks-stop')?.classList.add('hidden');
+      $('#picks-refresh')?.classList.remove('hidden');
+    }
   }
-  if (picksStrategy === 'volume') {
-    await runVolumePicks(ctx);
-    return;
-  }
-  await runQmPicks(ctx);
+}
+
+/**
+ * A strategy, market, universe or filter change while a scan runs stops that scan. Its results
+ * belong to the old selection, and the page is about to show the new one.
+ */
+function changePicks(ctx: AppContext): void {
+  if (picksCacheId() !== picksRunView) scanToken++;
+  void showPicks(ctx);
 }
 
 /**
@@ -651,21 +681,12 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
   const out = $('#picks-results')!;
   const progress = $('#picks-progress')!;
   const bar = $('#picks-bar')!;
-  const stopBtn = $('#picks-stop')!;
-  const runBtn = $('#picks-refresh')!;
 
   out.innerHTML = '';
   progress.classList.remove('hidden');
-  stopBtn.classList.remove('hidden');
-  runBtn.classList.add('hidden');
   bar.style.width = '0%';
   status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
 
-  const finish = (): void => {
-    progress.classList.add('hidden');
-    stopBtn.classList.add('hidden');
-    runBtn.classList.remove('hidden');
-  };
 
   let symbols: string[];
   try {
@@ -728,11 +749,11 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
 
   for (let i = 0; i < symbols.length; i += BATCH) {
     if (myToken !== scanToken) {
+      if (picksCacheId() !== picksRunView) return;
       status.textContent =
         `${t('picks.stopped')} — ${matches.length} ${strategyLabel} ${t('picks.matches')}, ` +
         `${scanned}/${symbols.length} ${t('picks.scanned')}.`;
       if (matches.length) renderTable();
-      finish();
       return;
     }
     const batch = symbols.slice(i, i + BATCH);
@@ -771,10 +792,7 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
     await new Promise((r) => setTimeout(r, 0));
   }
 
-  if (myToken !== scanToken) {
-    finish();
-    return;
-  }
+  if (myToken !== scanToken) return;
   const dropped = symbols.length - fetched;
   status.textContent =
     `${t('picks.done')}: ${matches.length} ${strategyLabel} setup(s) from ${scanned}/${symbols.length} ${t('picks.scanned')}` +
@@ -793,9 +811,8 @@ async function runQmPicks(ctx: AppContext): Promise<void> {
   // and syncs across devices. Stored even when empty, so an empty day isn't
   // re-run on every open.
   matches.sort((a, b) => b.qualityScore - a.qualityScore);
-  void saveScan<QmRow>(ctx, picksCacheId(), matches.slice(0, 50), scanned);
+  void saveScan<QmRow>(ctx, picksRunView, matches.slice(0, 50), scanned);
   void enrichUnknownSymbols(ctx, matches.map((r) => r.symbol));
-  finish();
 }
 
 /**
@@ -854,21 +871,12 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
   const out = $('#picks-results')!;
   const progress = $('#picks-progress')!;
   const bar = $('#picks-bar')!;
-  const stopBtn = $('#picks-stop')!;
-  const runBtn = $('#picks-refresh')!;
 
   out.innerHTML = '';
   progress.classList.remove('hidden');
-  stopBtn.classList.remove('hidden');
-  runBtn.classList.add('hidden');
   bar.style.width = '0%';
   status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
 
-  const finish = (): void => {
-    progress.classList.add('hidden');
-    stopBtn.classList.add('hidden');
-    runBtn.classList.remove('hidden');
-  };
 
   let symbols: string[];
   try {
@@ -889,8 +897,8 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
   if (myToken !== scanToken) return;
   const fullMap = await fetchUniverseToMap(ctx, symbols, myToken, fetchPeriod, asOf);
   if (fullMap === null) {
+    if (picksCacheId() !== picksRunView) return;
     status.textContent = `${t('picks.stopped')}.`;
-    finish();
     return;
   }
 
@@ -938,10 +946,7 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
     );
   };
 
-  if (myToken !== scanToken) {
-    finish();
-    return;
-  }
+  if (myToken !== scanToken) return;
   const label = surgeOnly ? t('picks.surge') : t('picks.momentumscan');
   status.textContent =
     `${t('picks.done')}: ${rows.length} ${label} ${t('picks.matches')} (${t('picks.scanned')} ${fullMap.size}).`;
@@ -952,9 +957,8 @@ async function runMomentumPicks(ctx: AppContext, surgeOnly = false): Promise<voi
   }
   // Persist today's ranked movers (top 50, as displayed) so the scan sticks all
   // day and syncs across devices.
-  void saveScan<MomentumRow>(ctx, picksCacheId(), rows.slice(0, 50), fullMap.size);
+  void saveScan<MomentumRow>(ctx, picksRunView, rows.slice(0, 50), fullMap.size);
   void enrichUnknownSymbols(ctx, rows.map((r) => r.symbol));
-  finish();
 }
 
 // ── Volume Surge scan ──────────────────────────────────────────────────────────
@@ -1069,21 +1073,12 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
   const out = $('#picks-results')!;
   const progress = $('#picks-progress')!;
   const bar = $('#picks-bar')!;
-  const stopBtn = $('#picks-stop')!;
-  const runBtn = $('#picks-refresh')!;
 
   out.innerHTML = '';
   progress.classList.remove('hidden');
-  stopBtn.classList.remove('hidden');
-  runBtn.classList.add('hidden');
   bar.style.width = '0%';
   status.innerHTML = `<span class="spinner"></span> ${t('picks.loadinguni')}`;
 
-  const finish = (): void => {
-    progress.classList.add('hidden');
-    stopBtn.classList.add('hidden');
-    runBtn.classList.remove('hidden');
-  };
 
   let symbols: string[];
   try {
@@ -1098,8 +1093,8 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
 
   const fullMap = await fetchUniverseToMap(ctx, symbols, myToken, fetchPeriod, asOf);
   if (fullMap === null) {
+    if (picksCacheId() !== picksRunView) return;
     status.textContent = `${t('picks.stopped')}.`;
-    finish();
     return;
   }
 
@@ -1137,7 +1132,7 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
 
   rows.sort((a, b) => b.ratio - a.ratio);
 
-  if (myToken !== scanToken) { finish(); return; }
+  if (myToken !== scanToken) return;
 
   const label = t('picks.volume');
   const filterParts: string[] = [];
@@ -1166,9 +1161,8 @@ async function runVolumePicks(ctx: AppContext): Promise<void> {
     renderTable();
   }
 
-  void saveScan<VolumeRow>(ctx, picksCacheId(), rows.slice(0, 50), fullMap.size);
+  void saveScan<VolumeRow>(ctx, picksRunView, rows.slice(0, 50), fullMap.size);
   void enrichUnknownSymbols(ctx, rows.map((r) => r.symbol));
-  finish();
 }
 
 // ── Screener ────────────────────────────────────────────────────────────────────
@@ -1331,7 +1325,20 @@ export function screenSector(ctx: AppContext, sector: string): void {
   });
 }
 
+/** Bumped per Screener run: a slower, older run (Sectors → "Screen stocks" twice) must not paint over a newer one. */
+let screenRunSeq = 0;
+
 async function runScreen(ctx: AppContext): Promise<void> {
+  const run = ++screenRunSeq;
+  try {
+    await runScreenOnce(ctx, run);
+  } catch (e) {
+    // A failed fetch used to leave the spinner turning forever.
+    if (run === screenRunSeq) $('#screen-status')!.textContent = `${t('picks.stopped')} — ${String(e).slice(0, 200)}`;
+  }
+}
+
+async function runScreenOnce(ctx: AppContext, run: number): Promise<void> {
   const status = $('#screen-status')!;
   const out = $('#screen-results')!;
   const symInput = ($('#sym-input') as HTMLInputElement).value
@@ -1367,6 +1374,7 @@ async function runScreen(ctx: AppContext): Promise<void> {
   // Benchmark (SPY) for relative strength, sliced to the as-of date too.
   const { spy: spyRaw } = await fetchBenchmarks(ctx, fetchPeriod, screenerMarket);
   const spy = spyRaw ? sliceSeries(spyRaw, asOf) : null;
+  if (run !== screenRunSeq) return;
 
   // Sector volume ranks for industry comparison in each row.
   const screenerSectorStocks = screenerSectorMap();

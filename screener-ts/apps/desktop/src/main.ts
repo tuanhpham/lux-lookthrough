@@ -177,7 +177,7 @@ function syncHash(tab: Tab): void {
   history.replaceState(null, '', want);
 }
 
-function show(tab: Tab): void {
+function show(tab: Tab, render = true): void {
   currentTab = tab;
   $$('[data-tab]').forEach((b) =>
     b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab),
@@ -192,7 +192,7 @@ function show(tab: Tab): void {
   syncHash(tab);
   noteVisit(tab);
   paintCrumb();
-  renderTab(tab);
+  if (render) renderTab(tab);
 }
 
 /**
@@ -736,8 +736,9 @@ window.addEventListener('hashchange', () => {
 window.addEventListener('app:show-tab', (e) => {
   const tab = (e as CustomEvent<Tab>).detail;
   enterApp();
-  currentTab = tab;
-  TABS.forEach((name) => $(`#tab-${name}`)!.classList.toggle('hidden', name !== tab));
+  // The sender already drew the tab (Sectors → "Screen stocks" fills the Screener first), so
+  // no re-render — but the nav, crumb and #hash must follow, or a refresh lands back on Sectors.
+  show(tab, false);
 });
 
 $('#logo-home')?.addEventListener('click', (e) => goToLanding(e.currentTarget as Element));
