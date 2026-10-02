@@ -6054,3 +6054,43 @@ Kiem tra: bam nut "Trang thai" trong khung -> trong ~20-40 giay phai hien ket qu
     tail -30 ~/scanner/state/service.log | grep -i remote
   Bao "SCANNER_ADMIN is not set": chua deploy lai sau VMCMD-3.
   Bao "this sync code may not send VM commands": id trong SCANNER_ADMIN sai.
+
+CHAT-72 (2026-10-02) - Canh bao Telegram theo watchlist; mau Xanh ngoc bich; Cai dat & Huong dan dang tab
+- Yeu cau: (1) canh bao Telegram cho ma trong cac watchlist tren web (chon nhieu danh sach), muc gia rieng tung ma, khoi luong bat thuong, live, moi danh sach mot loai canh bao, cau hinh duoc; (2) them mau xanh la cho Giao dien; (3) Cai dat & Huong dan con lon xon -> chuyen nghiep, hien dai; landing ghi US + VN + DE.
+- Code: web 8fc98027 + scanner 1da6875.
+  - Web: portfolio/alertRules.ts (thuan) + alertsFeed.ts; luu alerts:config {on, lists:{id: {on, price, volume, rvol, move, movePct}}, levels:{SYM:{above, below}}}; day ban phang theo ma len scanner:alerts (ma o nhieu danh sach: hop cac loai, nguong nho nhat thang; toi da 120 ma; ma khong ro gio mo cua (vd .L) bi bo va duoc ghi canh bao).
+  - tabs/watchAlerts.ts: khung "Canh bao Telegram" tren tab Watchlist (mac dinh dong): bang 1 danh sach x loai, bang 2 muc gia tung ma (tien cua ma), muc 3 VM bao lai (scanner:alerts_seen). Moi thay doi tu luu; luu/xoa ma trong watchlist cung day lai.
+  - Function: scanner:alerts vao APP_KEYS (chi web ghi); VM ghi scanner:alerts_seen.
+  - Scanner useralerts.py chay trong watchd (task user_loop, 60 giay/vong): doc quy tac 5 phut/lan; chi lay gia ma cua thi truong DANG MO (My 9:30-16:00 NY, Duc/EU 9:00-17:30 Frankfurt, VN 9:00-15:00); gia cu (>20 phut) khong bao; khoi luong = luy ke tu dau phien / (TB 20 phien x ti le phien da qua theo vprofile), tat 15 phut dau, thieu TB thi bo qua co ly do; bien dong so voi dong cua hom qua. Bang rieng user_alert: moi quy tac 1 lan/ma/ngay, doi muc gia thi bao lai; ghi SAU khi gui; khong cham trang thai Tier 1.
+  - Mau: theme.ts them 'jade' (Xanh ngoc bich, toi #2fb36d / sang #0d6b3f) - dam va ngả lam hon xanh lai --up; do van danh rieng cho lo.
+  - Cai dat & Huong dan: hero pageHero + 6 o trang thai (Dong bo, Giao dien, Canh bao, Scanner VM = nhip watchd tu alerts_seen, Khoi phuc, Trang web); muc luc thanh tab - moi luc mot muc, nut Truoc/Tiep, o tim kiem, cham tim = cai dat truc tiep; muc moi scan-alerts; openSettingsAt(id) mo dung tab; muc dang mo nho trong sessionStorage.
+  - Landing: "US · VN · DE".
+- Mac dinh (doi duoc theo tung danh sach tren tab Watchlist): khoi luong x2, bien dong +-4%. Co dinh trong useralerts.py: 1 lan/ngay/quy tac, 120 ma, tat khoi luong 15 phut dau (VOL_MUTE_MIN), doc quy tac 5 phut (REFRESH_SEC).
+- Can lam: xem ALERT-1..ALERT-3 ngay duoi.
+- Kiem tra: tsc OK, vitest 433/433 (them 9), vite build OK, scanner pytest 805/805 (them 12), watchd --selftest OK, anh headless: khung canh bao (vi), Cai dat toi/sang/390px, muc Telegram (en).
+- Chua thu tren thiet bi that.
+
+================================================================================
+ALERT - BAT CANH BAO TELEGRAM THEO WATCHLIST (lam 1 lan)
+================================================================================
+Code: web 8fc98027 + scanner 1da6875 (CHAT-72). Khong dan ma sync, .env hay SCANNER_TOKEN vao dau ca.
+
+ALERT-1. Deploy web (Git Bash, tu thu muc Github, may KHONG bi chan wrangler)
+    cd lux-lookthrough && git pull
+    cd screener-ts && npm install && npm run build
+    cd apps/desktop
+    npx wrangler pages deploy dist --project-name the-professional
+  (Function phai deploy thi web moi ghi duoc scanner:alerts.)
+
+ALERT-2. Tren VM (SSH, user ubuntu). Nut "Cap nhat code" KHONG khoi dong lai watchd.
+    cd ~/scanner && git pull
+    .venv/bin/python -m pytest -q tests/test_useralerts.py
+    sudo systemctl restart watchd
+    systemctl status watchd --no-pager | head -15
+  Test phai bao "12 passed". Neu fail thi KHONG restart, gui lai output cho minh.
+  KHONG dung toi unit scanner / main.py.
+
+ALERT-3. Tren web: tab Watchlist > "Canh bao Telegram" (phai bat dong bo ☁️)
+  Bat danh sach, chon loai, go muc gia. Trong 5 phut muc "VM bao lai" phai hien gio.
+  Khong thay gi:
+    grep useralerts ~/scanner/state/watchd.log | tail -20
