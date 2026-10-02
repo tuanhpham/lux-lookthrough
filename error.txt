@@ -6017,3 +6017,40 @@ CHAT-71 (2026-10-02) - Chay lenh VM tu trang Settings & Guides (hang doi co danh
 - Can lam tren may kia: npx wrangler pages secret put SCANNER_ADMIN --project-name the-professional (dan id hien trong khung), deploy; tren VM: cd ~/scanner && git pull && sudo systemctl restart scanner (mot lan).
 - Kiem tra: tsc OK, vitest 424/424 (them 4 test function), vite build OK, scanner pytest 793/793 (them 15 test remote), anh headless: san sang / da gui / ket qua / lenh tat, ban vi + 390px.
 - Chua thu tren thiet bi that.
+
+================================================================================
+VMCMD - BAT NUT "CHAY LENH TREN VM" (lam 1 lan, tren may KHONG bi chan wrangler)
+================================================================================
+Code: web a6354ed3 + scanner 6fe2e1e (CHAT-71). Lam dung thu tu VMCMD-1 -> VMCMD-4.
+Khong dan ma sync, .env hay SCANNER_TOKEN vao dau ca; SCANNER_ADMIN chi la users.id.
+
+VMCMD-1. Lay id cua ban
+  Mo trang web > Cai dat & Huong dan > Scanner (VM) > "Chay lenh tren VM ngay tai day".
+  Khung bao "Lenh VM dang tat... Id cua ban la ..." -> copy id do.
+  (Neu trang ban cu chua co khung nay: lam VMCMD-2 truoc, roi quay lai.)
+
+VMCMD-2. Lay code moi + build + deploy (Git Bash, tu thu muc Github)
+    cd lux-lookthrough && git pull
+    cd screener-ts && npm install && npm run build
+    cd apps/desktop
+    npx wrangler pages deploy dist --project-name the-professional
+
+VMCMD-3. Dat secret admin (van trong screener-ts/apps/desktop)
+    npx wrangler pages secret put SCANNER_ADMIN --project-name the-professional
+  -> khi duoc hoi, dan id o VMCMD-1. Nhieu id: cach nhau bang dau phay (u1,u2).
+  Secret chi co hieu luc tu ban deploy KE TIEP, nen deploy lai mot lan nua:
+    npx wrangler pages deploy dist --project-name the-professional
+
+VMCMD-4. Tren VM (SSH, user ubuntu) - chi lan nay, lan sau dung nut "Cap nhat code"
+    cd ~/scanner && git pull
+    .venv/bin/python -m pytest -q tests/test_remote.py
+    sudo systemctl restart scanner
+    sudo systemctl status scanner --no-pager
+  Test phai bao "15 passed". Neu fail thi KHONG restart, gui lai output cho minh.
+
+Kiem tra: bam nut "Trang thai" trong khung -> trong ~20-40 giay phai hien ket qua.
+  Bao "VM chua nhan lenh" sau ~75 giay:
+    sudo systemctl status scanner --no-pager
+    tail -30 ~/scanner/state/service.log | grep -i remote
+  Bao "SCANNER_ADMIN is not set": chua deploy lai sau VMCMD-3.
+  Bao "this sync code may not send VM commands": id trong SCANNER_ADMIN sai.
