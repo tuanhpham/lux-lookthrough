@@ -5993,3 +5993,14 @@ CHAT-69 (2026-10-02) - Screener: nut Dung va thanh tien trinh
   - Bo loc va cache id doc luc bat dau; CSS #picks-bar dung chung cho #screen-bar.
 - Kiem tra: tsc OK, vitest 420/420, vite build OK, anh headless: dang chay (Stop + Scanning 0/52 + thanh), bam Stop (Run quay lai, Stopped.), chay xong (Run quay lai, khong con thanh).
 - Chua thu tren thiet bi that.
+
+CHAT-70 (2026-10-02) - Chon mau chu dao trong Cai dat; chay lenh VM tu web (nghien cuu)
+- Yeu cau: (1) co chay lenh tren VM ngay trong trang Settings & Guides duoc khong; (2) setting chon mau, luu lai thi web tu doi.
+- Code: 0004fef8.
+  - theme.ts: ACCENTS (6 mau, moi mau co ban toi + sang), savedAccent/applyAccent, mot <style id="accent-css"> voi :root:root va :root:root.light ghi de --accent/--accent2/--accent-ink.
+  - Mau rieng: theme sang tu lam dam den khi do sang <= 0.2 (chu tren the kem van doc duoc); --accent-ink tu chon trang/den theo do sang.
+  - settingsGuide.ts muc 'look' (Giao dien & mau sac); settingsTab.ts lookPanel: o mau, input color, khung xem truoc, Luu mau, Ve mac dinh; canh bao neu mau rieng giong xanh lai / do lo.
+  - applyAccent goi lai subscriber cua theme -> trang dang mo va chart ve lai bang mau moi.
+- (1) Chua lam, chi nghien cuu: VM chi goi ra ngoai, khong co cong vao; server da danh san scanner:commands (APP_KEYS) va push.get. Huong: hang doi lenh co danh sach trang (status, tail log, push, scan --once --dry, pull + restart), VM poll trong main.py, khong bao gio cho shell tu do. Can deploy wrangler + git pull tren VM.
+- Kiem tra: tsc OK, vitest 420/420, vite build OK, anh headless: Xanh Allianz va Hong tim phu ca trang, theme sang dung ban dam, mau rieng xanh la hien canh bao.
+- Chua thu tren thiet bi that.
