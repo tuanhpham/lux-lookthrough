@@ -20,7 +20,7 @@
 import type { AppContext } from '../context.js';
 import { $ } from '../ui/dom.js';
 import { getLang, setLang } from '../ui/i18n.js';
-import { applyTheme } from '../ui/theme.js';
+import { ACCENTS, DEFAULT_ACCENT, accentPair, applyAccent, applyTheme, clashesWithPnl, savedAccent } from '../ui/theme.js';
 import { openSyncSettings, exportAllData } from '../ui/syncSettings.js';
 import { openLlmSettings } from '../ui/llmSettings.js';
 import { copyToClipboard } from '../ui/askChatGpt.js';
@@ -94,7 +94,7 @@ function stepHtml(s: GuideStep, i: number): string {
 }
 
 function sectionHtml(s: GuideSection): string {
-  const panel = s.id === 'data' ? dataPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : '';
+  const panel = s.id === 'data' ? dataPanel() : s.id === 'look' ? lookPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : '';
   return `<section class="card st-sec" id="st-${s.id}" data-st-sec="${s.id}">
       <header class="st-sec-head">
         <span class="st-sec-icon" aria-hidden="true">${s.icon}</span>
@@ -147,6 +147,91 @@ function dataPanel(): string {
       </div>
       <div class="st-msg" id="st-data-msg"></div>
     </div>`;
+}
+
+// ── appearance panel ─────────────────────────────────────────────────────────
+
+/** The colour being looked at, saved or not. Survives a re-render of the page. */
+let lookPick: string | null = null;
+
+const lightNow = (): boolean => document.documentElement.classList.contains('light');
+
+/** `--accent`/`--accent2` set on one element, so only the preview wears the candidate. */
+function lookVars(choice: string): string {
+  const [a, b] = accentPair(choice, lightNow() ? 'light' : 'dark');
+  return `--accent:${a};--accent2:${b};--accent-wash:color-mix(in srgb, ${a} 12%, transparent);--accent-line:color-mix(in srgb, ${a} 45%, transparent)`;
+}
+
+function lookPanel(): string {
+  const saved = savedAccent();
+  const pick = lookPick ?? saved;
+  const custom = pick.startsWith('#') ? pick : saved.startsWith('#') ? saved : '#ff8a3d';
+  const sw = ACCENTS.map((a) => {
+    const [c1, c2] = lightNow() ? a.light : a.dark;
+    return `<button type="button" class="st-sw${pick === a.id ? ' on' : ''}" data-look="${a.id}" aria-pressed="${pick === a.id}">
+        <span class="st-sw-dot" style="background:linear-gradient(135deg, ${c1}, ${c2})"></span>${say(a.name)}${saved === a.id ? `<em>${L('saved', 'đang dùng')}</em>` : ''}</button>`;
+  }).join('');
+  return `<div class="st-panel st-look">
+      <div class="st-sw-grid">
+        ${sw}
+        <label class="st-sw st-sw-custom${pick.startsWith('#') ? ' on' : ''}" title="${L('Any colour you like', 'Màu bất kỳ bạn thích')}">
+          <input type="color" id="st-look-custom" value="${custom}" />${L('Your own', 'Màu riêng')}${saved.startsWith('#') ? `<em>${L('saved', 'đang dùng')}</em>` : ''}
+        </label>
+      </div>
+      <div class="st-look-prev" id="st-look-prev" style="${lookVars(pick)}">
+        <span class="st-look-cap">${L('Preview', 'Xem trước')}</span>
+        <button type="button" class="btn" tabindex="-1">${L('Run scan', 'Chạy quét')}</button>
+        <button type="button" class="btn-outline" tabindex="-1">${L('Secondary', 'Nút phụ')}</button>
+        <span class="st-look-chip">BO · 92</span>
+        <b class="st-look-sym">NVDA</b>
+        <span class="st-look-bar"><i></i></span>
+      </div>
+      <div class="st-msg" id="st-look-msg">${pick.startsWith('#') && clashesWithPnl(pick)
+        ? `⚠️ ${L('This looks like the gain/loss green or red — numbers may be harder to read.', 'Màu này giống màu xanh lãi / đỏ lỗ — đọc số lãi lỗ có thể bị nhầm.')}`
+        : ''}</div>
+      <div class="st-actions">
+        <button class="btn" data-look-save${pick === saved ? ' disabled' : ''}>💾 ${L('Save colour', 'Lưu màu')}</button>
+        <button class="btn-outline" data-look-reset${saved === DEFAULT_ACCENT && pick === DEFAULT_ACCENT ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
+      </div>
+    </div>`;
+}
+
+/** Re-draw only the panel, so picking a swatch does not jump the page to the top. */
+function repaintLook(root: HTMLElement): void {
+  const host = root.querySelector<HTMLElement>('.st-look');
+  if (!host) return;
+  host.outerHTML = lookPanel();
+  wireLook(root);
+}
+
+function wireLook(root: HTMLElement): void {
+  const host = root.querySelector<HTMLElement>('.st-look');
+  if (!host) return;
+  host.querySelectorAll<HTMLElement>('[data-look]').forEach((b) =>
+    b.addEventListener('click', () => {
+      lookPick = b.dataset.look!;
+      repaintLook(root);
+    }),
+  );
+  const input = host.querySelector<HTMLInputElement>('#st-look-custom');
+  // `input` fires while the native picker is dragged: move the preview only, re-draw on `change`.
+  input?.addEventListener('input', () => {
+    lookPick = input.value.toLowerCase();
+    host.querySelector<HTMLElement>('#st-look-prev')?.setAttribute('style', lookVars(lookPick));
+  });
+  input?.addEventListener('change', () => {
+    lookPick = input.value.toLowerCase();
+    repaintLook(root);
+  });
+  host.querySelector('[data-look-save]')?.addEventListener('click', () => {
+    const choice = lookPick ?? savedAccent();
+    lookPick = null;
+    applyAccent(choice); // re-renders the open page, this one included
+  });
+  host.querySelector('[data-look-reset]')?.addEventListener('click', () => {
+    lookPick = null;
+    applyAccent(DEFAULT_ACCENT);
+  });
 }
 
 // ── playbook panel ───────────────────────────────────────────────────────────
@@ -515,6 +600,7 @@ export function renderSettings(ctx: AppContext): void {
   );
 
   void fillPlaybookPanel(root, ctx);
+  wireLook(root);
 
   // Restore panel.
   root.querySelector('#st-preview')?.addEventListener('click', () => void preview(root));

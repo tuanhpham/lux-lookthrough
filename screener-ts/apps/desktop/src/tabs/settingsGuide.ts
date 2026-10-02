@@ -98,6 +98,21 @@ export const SECTIONS: readonly GuideSection[] = [
     ],
   },
   {
+    id: 'look',
+    group: 'data',
+    icon: '🎨',
+    title: { en: 'Appearance & colour', vi: 'Giao diện & màu sắc' },
+    lead: {
+      en: 'Pick the app’s main colour — buttons, links, highlights, progress bars and chart accents all follow it, on both the dark and the light theme. The preview shows it before you save; <b>Save colour</b> repaints the whole app at once.',
+      vi: 'Chọn màu chủ đạo của app — nút bấm, liên kết, điểm nhấn, thanh tiến trình và màu nhấn trên chart đều đổi theo, ở cả giao diện tối lẫn sáng. Khung xem trước cho thấy màu trước khi lưu; bấm <b>Lưu màu</b> là cả app đổi ngay.',
+    },
+    steps: [],
+    tip: {
+      en: 'Green and red are kept for gains and losses, so they are not offered — a custom colour close to either gets a warning. The choice is saved on this device, like the dark/light theme.',
+      vi: 'Xanh lá và đỏ được dành cho lãi và lỗ nên không có trong danh sách — chọn màu riêng gần hai màu đó sẽ có cảnh báo. Màu được lưu trên thiết bị này, giống như chế độ tối/sáng.',
+    },
+  },
+  {
     id: 'restore',
     group: 'data',
     icon: '⏪',

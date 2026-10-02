@@ -8174,3 +8174,40 @@ html.light .tp-tool.tp-tool--bot { background: color-mix(in srgb, var(--violet) 
 .chat-prompt > summary { cursor: pointer; opacity: .85; }
 .chat-prompt > pre { white-space: pre-wrap; max-height: 240px; overflow: auto; margin: 6px 0 0; font-size: 11px; line-height: 1.5; opacity: .92; }
 @media (max-width: 620px) { .tp-tools .tp-tool { flex: 1 1 calc(50% - 6px); } }
+
+/* ── Request 73: Settings & Guides › Appearance — pick the accent colour. ──
+   Swatches are drawn in the CURRENT theme's value of each preset; the preview box
+   re-declares --accent on itself, so only it wears the candidate until Save. */
+.st-sw-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+#main .st-sw {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 13px 0 8px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--card);
+  color: var(--text); font: 600 12.5px var(--font-ui, inherit); cursor: pointer; white-space: nowrap;
+  transition: border-color .15s ease, transform .12s ease, box-shadow .15s ease;
+}
+#main .st-sw:hover { transform: translateY(-1px); border-color: var(--accent-line); }
+#main .st-sw.on { border-color: var(--text); box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 18%, transparent); }
+#main .st-sw em { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--subtext); padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.st-sw-dot { width: 22px; height: 22px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+.st-sw-custom input[type="color"] {
+  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; flex: none;
+}
+.st-sw-custom input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.st-sw-custom input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.st-sw-custom input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
+.st-look-prev {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; padding: 14px 16px;
+  border-radius: var(--radius-sm); border: 1px dashed var(--accent-line); background: var(--card);
+}
+.st-look-prev .btn, .st-look-prev .btn-outline { pointer-events: none; }
+.st-look-cap { width: 100%; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--subtext); }
+.st-look-chip { padding: 3px 10px; border-radius: 999px; font: 600 11.5px var(--font-mono); color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent-line); }
+.st-look-sym { color: var(--accent); font: 700 13px var(--font-mono); }
+.st-look-bar { flex: 1 1 120px; height: 5px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.st-look-bar i { display: block; width: 62%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+#st-look-msg:empty { display: none; }
+#st-look-msg { color: var(--warn); margin-top: 10px; }
+.st-actions > button[disabled] { opacity: .45; cursor: default; }
+@media (max-width: 620px) {
+  #main .st-sw { flex: 1 1 calc(50% - 8px); }
+}
