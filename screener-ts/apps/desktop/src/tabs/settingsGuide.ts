@@ -29,6 +29,18 @@ export interface GuideStep {
   where?: Where;
   /** Read BEFORE the command: drawn above it in the warning colour. */
   warn?: Bi;
+  /** A legend of the panel's buttons, grouped by how much each one disturbs the VM. */
+  buttons?: ButtonTier[];
+  /** What no button can do, drawn as a ✕ list under the legend. */
+  never?: Bi[];
+}
+
+export interface ButtonTier {
+  /** safe = only reads; work = does a job, scanner keeps running; stop = scanner is down ~30 s. */
+  tone: 'safe' | 'work' | 'stop';
+  title: Bi;
+  note: Bi;
+  rows: { icon: string; name: Bi; does: Bi; runs: string }[];
 }
 
 export interface GuideSection {
@@ -569,20 +581,88 @@ export const SECTIONS: readonly GuideSection[] = [
         where: 'vm',
       },
       {
-        h: { en: 'What each button may do — and what none can', vi: 'Mỗi nút được làm gì — và không nút nào làm được gì' },
+        h: { en: 'What each button does', vi: 'Mỗi nút làm gì' },
         p: [
           {
-            en: '<b>Status</b>: systemd state, uptime, the scanner’s heartbeat, the commit, disk and memory. <b>Log</b>: the last 60 lines of one log in `state/`. <b>Push data now</b>: `push.py --all`. <b>Test scan</b>: one scoring pass inside the running scanner — nothing sent to Telegram, nothing saved. <b>Last nightly run</b>: `nightly.py --status`. <b>Who holds the DB</b>: `scripts/db_lock.py`.',
-            vi: '<b>Trạng thái</b>: trạng thái systemd, uptime, nhịp tim của scanner, commit đang chạy, ổ đĩa và RAM. <b>Log</b>: 60 dòng cuối của một file log trong `state/`. <b>Đẩy dữ liệu ngay</b>: `push.py --all`. <b>Quét thử</b>: một vòng chấm điểm ngay trong scanner đang chạy — không gửi Telegram, không lưu gì. <b>Lần chạy đêm gần nhất</b>: `nightly.py --status`. <b>Ai đang giữ DB</b>: `scripts/db_lock.py`.',
-          },
-          {
-            en: '<b>Update code + restart</b>: `git pull --ff-only`, then a check that the new code imports; only then does the scanner exit and systemd starts it again (~30 s). If `requirements.txt` changed it stops and tells you to run pip by hand. <b>Restart</b>: the same exit, without the pull.',
-            vi: '<b>Cập nhật code + khởi động lại</b>: `git pull --ff-only`, rồi kiểm tra code mới import được; chỉ khi đó scanner mới tự thoát và systemd chạy lại (~30 giây). Nếu `requirements.txt` đổi thì dừng lại và nhắc bạn chạy pip bằng tay. <b>Khởi động lại</b>: thoát y như vậy nhưng không pull.',
+            en: 'Grouped by how much they disturb the VM. The grey line under each one is exactly what runs there.',
+            vi: 'Xếp theo mức độ tác động lên VM. Dòng chữ xám dưới mỗi nút là đúng lệnh được chạy trên VM.',
           },
         ],
+        buttons: [
+          {
+            tone: 'safe',
+            title: { en: 'Look only', vi: 'Chỉ xem' },
+            note: { en: 'Changes nothing — press any time', vi: 'Không thay đổi gì — bấm lúc nào cũng được' },
+            rows: [
+              {
+                icon: '🩺', name: { en: 'Status', vi: 'Trạng thái' },
+                does: { en: 'Is the scanner alive: service state, uptime, last heartbeat, running commit, disk and RAM.', vi: 'Scanner có đang sống không: trạng thái service, uptime, nhịp tim gần nhất, commit đang chạy, ổ đĩa và RAM.' },
+                runs: 'systemctl is-active · uptime · git log -1 · df · free',
+              },
+              {
+                icon: '📄', name: { en: 'Last 60 lines', vi: 'Xem 60 dòng cuối' },
+                does: { en: 'The tail of one log — pick service, prep, push, watchd or bot in the list first.', vi: 'Đoạn cuối của một file log — chọn service, prep, push, watchd hoặc bot trong danh sách trước.' },
+                runs: 'tail -60 state/<name>.log',
+              },
+              {
+                icon: '🌙', name: { en: 'Last nightly run', vi: 'Lần chạy đêm gần nhất' },
+                does: { en: 'Which stages of last night’s job finished, and which failed.', vi: 'Các bước của job đêm qua: bước nào xong, bước nào lỗi.' },
+                runs: 'python nightly.py --status',
+              },
+              {
+                icon: '🔒', name: { en: 'Who holds the DB', vi: 'Ai đang giữ DB' },
+                does: { en: 'Which process has the database open — for a “database is locked” error.', vi: 'Tiến trình nào đang mở cơ sở dữ liệu — dùng khi gặp lỗi “database is locked”.' },
+                runs: 'python scripts/db_lock.py',
+              },
+            ],
+          },
+          {
+            tone: 'work',
+            title: { en: 'Does a job', vi: 'Làm một việc' },
+            note: { en: 'The scanner keeps running', vi: 'Scanner vẫn chạy bình thường' },
+            rows: [
+              {
+                icon: '⬆', name: { en: 'Push data now', vi: 'Đẩy dữ liệu ngay' },
+                does: { en: 'Sends the latest candidates, rejects and status to this website without waiting for the schedule.', vi: 'Gửi danh sách ứng viên, mã bị loại và trạng thái mới nhất lên trang web, không cần chờ lịch.' },
+                runs: 'python push.py --all',
+              },
+              {
+                icon: '🔎', name: { en: 'Test scan', vi: 'Quét thử' },
+                does: { en: 'One scoring pass inside the running scanner. Nothing goes to Telegram, nothing is saved.', vi: 'Chấm điểm một vòng ngay trong scanner đang chạy. Không gửi Telegram, không lưu gì.' },
+                runs: 'scorer.rank() — in the live process',
+              },
+            ],
+          },
+          {
+            tone: 'stop',
+            title: { en: 'Restarts the scanner', vi: 'Khởi động lại scanner' },
+            note: { en: 'No alerts for ~30 s · asks you first', vi: 'Khoảng 30 giây không có alert · hỏi bạn trước' },
+            rows: [
+              {
+                icon: '⟳', name: { en: 'Update code + restart', vi: 'Cập nhật code + khởi động lại' },
+                does: {
+                  en: 'Pulls the new code and checks it imports; only then restarts. Stops instead if `requirements.txt` changed — run pip by hand then.',
+                  vi: 'Kéo code mới và kiểm tra import được; chỉ khi đó mới khởi động lại. Nếu `requirements.txt` đổi thì dừng lại — lúc đó chạy pip bằng tay.',
+                },
+                runs: 'git pull --ff-only → import check → exit, systemd restarts it',
+              },
+              {
+                icon: '↻', name: { en: 'Restart scanner', vi: 'Khởi động lại scanner' },
+                does: { en: 'The same restart, without pulling any code.', vi: 'Khởi động lại y như trên, nhưng không kéo code.' },
+                runs: 'exit, systemd restarts it',
+              },
+            ],
+          },
+        ],
+        never: [
+          { en: 'Run a command you type', vi: 'Chạy lệnh tự gõ' },
+          { en: 'Edit `.env` or the crontab', vi: 'Sửa `.env` hay crontab' },
+          { en: 'Touch the firewall', vi: 'Đụng vào firewall' },
+          { en: 'Start a second `main.py`', vi: 'Mở `main.py` thứ hai' },
+        ],
         warn: {
-          en: 'Never possible from here: an arbitrary command, editing `.env` or the crontab, the firewall, or a second `main.py`. Each command runs once, and one older than 5 minutes is dropped.',
-          vi: 'Từ đây KHÔNG BAO GIỜ làm được: chạy lệnh tùy ý, sửa `.env` hay crontab, đụng firewall, hoặc mở `main.py` thứ hai. Mỗi lệnh chỉ chạy một lần, lệnh cũ hơn 5 phút bị bỏ qua.',
+          en: 'Each command runs once. One the VM has not picked up within 5 minutes is dropped, never run late.',
+          vi: 'Mỗi lệnh chỉ chạy một lần. Lệnh mà VM chưa nhận trong vòng 5 phút sẽ bị bỏ, không bao giờ chạy trễ.',
         },
       },
       {

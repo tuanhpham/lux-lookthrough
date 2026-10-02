@@ -95,6 +95,28 @@ function cmdBlock(cmd: string, where?: GuideStep['where']): string {
     </div>`;
 }
 
+/** The button legend: one card per tier, one row per button, and the ✕ list. */
+function buttonsHtml(s: GuideStep): string {
+  const tiers = (s.buttons ?? []).map((t) => `<div class="st-bt st-bt-${t.tone}">
+      <div class="st-bt-head"><span class="st-bt-dot" aria-hidden="true"></span><b>${say(t.title)}</b><span>${say(t.note)}</span></div>
+      ${t.rows.map((r) => `<div class="st-bt-row">
+          <span class="st-bt-ico" aria-hidden="true">${r.icon}</span>
+          <div class="st-bt-txt">
+            <div class="st-bt-name">${say(r.name)}</div>
+            <div class="st-bt-does">${prose(r.does)}</div>
+            <code class="st-bt-runs">${esc(r.runs)}</code>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+  const never = s.never?.length
+    ? `<div class="st-never">
+        <div class="st-never-h">🛡 ${L('No button can ever', 'Không nút nào làm được')}</div>
+        <ul>${s.never.map((n) => `<li>${prose(n)}</li>`).join('')}</ul>
+      </div>`
+    : '';
+  return tiers || never ? `<div class="st-bts">${tiers}${never}</div>` : '';
+}
+
 function stepHtml(s: GuideStep, i: number): string {
   return `<li class="st-step">
       <span class="st-num">${i + 1}</span>
@@ -104,6 +126,7 @@ function stepHtml(s: GuideStep, i: number): string {
           ${s.where && !s.cmd ? `<span class="st-where st-where-${s.where}">${say(WHERE[s.where])}</span>` : ''}
         </div>
         ${(s.p ?? []).map((p) => `<p>${prose(p)}</p>`).join('')}
+        ${buttonsHtml(s)}
         ${s.warn ? `<div class="st-warn">⚠ ${prose(s.warn)}</div>` : ''}
         ${s.cmd ? cmdBlock(s.cmd, s.where) : ''}
       </div>
