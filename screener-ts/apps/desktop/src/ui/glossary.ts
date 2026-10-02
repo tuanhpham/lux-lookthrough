@@ -360,20 +360,26 @@ export const GLOSSARY: Record<string, Entry> = {
   },
 };
 
-export const GLOSSARY_GROUPS: { title: { en: string; vi: string }; keys: string[] }[] = [
+/** `icon` leads the group's heading in Learn, so its row in the contents column gets
+ *  the same icon tile as every other chapter. */
+export const GLOSSARY_GROUPS: { icon: string; title: { en: string; vi: string }; keys: string[] }[] = [
   {
+    icon: '📐',
     title: { en: 'Qullamaggie Setup', vi: 'Setup Qullamaggie' },
     keys: ['quality', 'setup_type', 'trend_gate', 'prev_advance', 'vcp', 'atr_contraction', 'price_range', 'volume_dryup'],
   },
   {
+    icon: '🚀',
     title: { en: 'Momentum & Regime', vi: 'Động lượng & bối cảnh' },
     keys: ['momentum_score', 'rs', 'regime', 'volume_change'],
   },
   {
+    icon: '📍',
     title: { en: 'Pivots & Trade Levels', vi: 'Pivot & các mức giá giao dịch' },
     keys: ['pivot', 'distance', 'entry', 'stop', 'target', 'rr', 'r_multiple'],
   },
   {
+    icon: '📊',
     title: { en: 'Fundamentals', vi: 'Chỉ số cơ bản' },
     keys: ['pe_ratio', 'eps', 'market_cap', 'profit_margin', 'week52'],
   },

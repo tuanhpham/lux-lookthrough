@@ -6094,3 +6094,11 @@ ALERT-3. Tren web: tab Watchlist > "Canh bao Telegram" (phai bat dong bo ☁️)
   Bat danh sach, chon loai, go muc gia. Trong 5 phut muc "VM bao lai" phai hien gio.
   Khong thay gi:
     grep useralerts ~/scanner/state/watchd.log | tail -20
+
+CHAT-73 (2026-10-02) - Muc luc trang Tim hieu theo kieu Cai dat & Huong dan; Thuat ngu dong bo
+- Yeu cau: muc luc (cot trai) trang Learn - cac dong chuong co icon - giong muc luc Cai dat & Huong dan; phan Thuat ngu dong bo voi cac phan khac.
+- Code: chi web (styles.css khoi "Learn contents, in the Settings & Guides look", miscTabs.ts renderLearn, ui/glossary.ts).
+  - Dong chuong: icon nam trong o vuong bo goc 26px; dang doc = nen accent nhat, o icon mau accent, vach accent ben trai; tieu de phan (I-IV) chu hoa nho mau nhat. Bang muc luc tren dien thoai cung co o icon.
+  - Thuat ngu: moi nhom co icon (📐 Setup, 🚀 Dong luong, 📍 Pivot, 📊 Co ban) nen hien icon trong muc luc; moi nhom la mot the chuong nhu cac phan khac (bam tieu de de thu gon), dem so thuat ngu, cac thuat ngu la o nho ben trong thay vi the long trong the.
+- Kiem tra: tsc OK, vitest 433/433, vite build OK, anh headless toi/sang 1440 va 390.
+- Khong can deploy gi them ngoai lan deploy web thuong le (khong doi Function, khong doi VM).

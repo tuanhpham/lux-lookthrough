@@ -634,21 +634,19 @@ export function renderLearn(ctx: AppContext): void {
 
   // Part IV — the glossary, as an index at the back.
   const p4 = el(bookPartHtml(parts[3]!));
+  // Each group is a chapter card like the other parts' (an emoji-led <h2> that folds
+  // the card), with its terms as tiles inside rather than cards inside a card.
   for (const group of GLOSSARY_GROUPS) {
-    const section = el(`<div class="lb-gloss-group"></div>`);
-    section.appendChild(
-      el(`<h2 class="lb-gloss-h">${group.title[lang] ?? group.title.en}</h2>`),
+    const terms = group.keys.map((k) => gloss(k)).filter((g): g is NonNullable<typeof g> => !!g);
+    p4.appendChild(
+      el(`<div class="card analysis-card lb-gloss-group">
+        <h2 class="lb-gloss-h">${group.icon} ${group.title[lang] ?? group.title.en}</h2>
+        <p class="lb-gloss-lede">${vi ? `${terms.length} thuật ngữ` : `${terms.length} terms`}</p>
+        <div class="lb-gloss-grid">${terms
+          .map((g) => `<div class="lb-gloss-term"><strong>${g.term}</strong><p>${g.long}</p></div>`)
+          .join('')}</div>
+      </div>`),
     );
-    const grid = el(`<div class="grid grid-cards"></div>`);
-    for (const key of group.keys) {
-      const g = gloss(key);
-      if (!g) continue;
-      grid.appendChild(
-        el(`<div class="card"><strong>${g.term}</strong><p class="muted" style="margin:6px 0 0;line-height:1.55">${g.long}</p></div>`),
-      );
-    }
-    section.appendChild(grid);
-    p4.appendChild(section);
   }
   root.appendChild(p4);
 

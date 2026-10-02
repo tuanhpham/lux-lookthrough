@@ -8376,3 +8376,53 @@ html.light .st-toc {
   .st-pager { gap: 8px; }
   .st-pn { padding: 8px 10px; }
 }
+
+/* ══ Learn contents, in the Settings & Guides look ═════════════════════════════
+   A chapter row is a pill: its emoji in a rounded tile, and when it is the one on
+   screen an accent wash, an accent tile and a bar in the column's left gutter. The
+   gutter is padding on the list, because the list scrolls and would clip a bar
+   drawn outside its box. Parts stay small caps, in the faint group-header tone.
+   Glossary groups are chapter cards now, with their terms as tiles inside. */
+@media (min-width: 1100px) {
+  .lr-rail { padding: 14px 8px 10px 4px; }
+}
+.lr-rail-list { padding: 0 2px 0 9px; }
+.lr-item.lv0 { color: var(--faint); border-left: 0; border-radius: 8px; }
+.lr-item.lv0.in, .lr-item.lv0.active { color: var(--text); background: none; }
+.lr-item.lv1 {
+  position: relative; align-items: center; gap: 10px; padding: 5px 8px; margin: 1px 0;
+  border-left: 0; border-radius: 10px;
+}
+.lr-item.lv1 .lr-item-ic:not(.is-num):not(:empty) {
+  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13.5px; line-height: 1; border-radius: 8px; background: var(--surface); border: 1px solid var(--border-soft);
+  transition: background .12s ease, border-color .12s ease;
+}
+.lr-item.lv1.active { color: var(--text); background: var(--accent-wash); }
+.lr-item.lv1.active::before {
+  content: ''; position: absolute; left: -9px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent);
+}
+.lr-item.lv1.active .lr-item-ic:not(.is-num):not(:empty) { background: var(--accent); border-color: var(--accent); }
+.lr-item.lv1.active .lr-item-n { color: var(--accent); border-color: var(--accent-line); }
+.lr-item.lv2 { margin-left: 8px; }
+.lt-toc-item.lv1 { align-items: center; border-radius: 10px; }
+.lt-toc-item.lv1 .lt-toc-ic:not(.is-num):not(:empty) {
+  width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12.5px; line-height: 1; border-radius: 7px; background: var(--surface); border: 1px solid var(--border-soft);
+}
+.lt-toc-item.lv1.active .lt-toc-ic:not(.is-num):not(:empty) { background: var(--accent); border-color: var(--accent); }
+
+#main .card.lb-gloss-group { margin-bottom: 22px; }
+#main .lb-gloss-h {
+  margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text);
+}
+.lb-gloss-lede { margin: 4px 0 14px; font-size: 12px; color: var(--faint); }
+.lb-gloss-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 10px; }
+.lb-gloss-term {
+  min-width: 0; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--border-soft); background: var(--surface);
+}
+html:not(.light) .lb-gloss-term { background: rgba(255, 255, 255, .03); border-color: rgba(255, 255, 255, .08); }
+html.light .lb-gloss-term { background: rgba(255, 255, 255, .6); border-color: rgba(0, 0, 0, .06); }
+.lb-gloss-term strong { display: block; font-size: 13.5px; color: var(--text); }
+.lb-gloss-term p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--subtext); }
