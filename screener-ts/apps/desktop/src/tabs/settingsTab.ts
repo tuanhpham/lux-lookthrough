@@ -24,7 +24,7 @@
 import type { AppContext } from '../context.js';
 import { $ } from '../ui/dom.js';
 import { getLang, setLang } from '../ui/i18n.js';
-import { ACCENTS, DEFAULT_ACCENT, accentPair, applyAccent, applyTheme, clashesWithPnl, savedAccent } from '../ui/theme.js';
+import { ACCENTS, DEFAULT_ACCENT, TONE_RANGE, accentPair, applyAccent, applyTheme, applyTone, clashesWithPnl, previewTone, savedAccent, savedTone, type ToneTheme } from '../ui/theme.js';
 import { openSyncSettings, exportAllData } from '../ui/syncSettings.js';
 import { openLlmSettings } from '../ui/llmSettings.js';
 import { copyToClipboard } from '../ui/askChatGpt.js';
@@ -230,6 +230,35 @@ function lookPanel(): string {
         <button class="btn" data-look-save${pick === saved ? ' disabled' : ''}>💾 ${L('Save colour', 'Lưu màu')}</button>
         <button class="btn-outline" data-look-reset${saved === DEFAULT_ACCENT && pick === DEFAULT_ACCENT ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
       </div>
+      ${toneRows()}
+    </div>`;
+}
+
+/** One brightness slider per theme. The one for the theme on screen previews live;
+ *  the other saves, and shows once you switch. */
+function toneRows(): string {
+  const now: ToneTheme = lightNow() ? 'light' : 'dark';
+  const row = (t: ToneTheme): string => {
+    const [lo, hi] = TONE_RANGE[t];
+    const v = savedTone(t);
+    const name = t === 'dark' ? L('Dark background', 'Nền tối') : L('Light background', 'Nền sáng');
+    const ends =
+      t === 'dark'
+        ? [L('Darkest · default', 'Tối nhất · mặc định'), L('Lighter', 'Sáng hơn')]
+        : [L('Dimmer', 'Dịu hơn'), L('default', 'mặc định'), L('Brighter', 'Sáng hơn')];
+    return `<div class="st-tone-row${t === now ? ' on' : ''}">
+        <div class="st-tone-head">
+          <b>${t === 'dark' ? '🌙' : '☀️'} ${name}</b>${t === now ? `<em>${L('on screen', 'đang hiển thị')}</em>` : `<span class="muted">${L('switch theme to see it', 'chuyển giao diện để xem')}</span>`}
+          <output class="st-tone-v" data-tone-v="${t}">${v > 0 ? '+' : ''}${v}</output>
+        </div>
+        <input type="range" class="st-tone" data-tone="${t}" min="${lo}" max="${hi}" step="1" value="${v}" aria-label="${name}" />
+        <div class="st-tone-ends">${ends.map((e) => `<span>${e}</span>`).join('')}</div>
+      </div>`;
+  };
+  return `<div class="st-tone-box">
+      <div class="st-look-cap">${L('Background brightness', 'Độ sáng nền')}</div>
+      ${row('dark')}${row('light')}
+      <div class="st-actions"><button class="btn-outline" data-tone-reset${savedTone('dark') === 0 && savedTone('light') === 0 ? ' disabled' : ''}>↺ ${L('Default brightness', 'Độ sáng mặc định')}</button></div>
     </div>`;
 }
 
@@ -264,6 +293,31 @@ function wireLook(root: HTMLElement): void {
     const choice = lookPick ?? savedAccent();
     lookPick = null;
     applyAccent(choice); // re-renders the open page, this one included
+  });
+  host.querySelectorAll<HTMLInputElement>('input[data-tone]').forEach((inp) => {
+    const t = inp.dataset.tone as ToneTheme;
+    const out = host.querySelector<HTMLElement>(`[data-tone-v="${t}"]`);
+    const show = (): void => {
+      const v = Number(inp.value);
+      if (out) out.textContent = `${v > 0 ? '+' : ''}${v}`;
+    };
+    // Dragging paints at once; letting go saves. Snaps to 0 near the middle of light's
+    // two-way range so the shipped look is easy to find again.
+    inp.addEventListener('input', () => {
+      if (t === 'light' && Math.abs(Number(inp.value)) <= 2) inp.value = '0';
+      show();
+      previewTone(t, Number(inp.value));
+    });
+    inp.addEventListener('change', () => {
+      applyTone(t, Number(inp.value));
+      const reset = host.querySelector<HTMLButtonElement>('[data-tone-reset]');
+      if (reset) reset.disabled = savedTone('dark') === 0 && savedTone('light') === 0;
+    });
+  });
+  host.querySelector('[data-tone-reset]')?.addEventListener('click', () => {
+    applyTone('dark', 0);
+    applyTone('light', 0);
+    repaintLook(root);
   });
   host.querySelector('[data-look-reset]')?.addEventListener('click', () => {
     lookPick = null;

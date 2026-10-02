@@ -151,8 +151,93 @@ export function applyAccent(choice: string): void {
   subscribers.forEach((fn) => fn(theme));
 }
 
+// ── background brightness ────────────────────────────────────────────────────
+// One slider per theme, kept on this device. 0 is the shipped look. Dark only goes up
+// (the shipped canvas is already the darkest it should be); light goes both ways —
+// dimmer for less glare, or brighter. Two things move together: the opaque tokens
+// (`--bg`, `--card`, `--border`…) are mixed towards the target, and a fixed veil sits
+// over the glowing canvas (`body::before`) but under the app (`z-index: 1`), so the
+// many translucent glass panels drawn with literal rgba() lift with it for free.
+
+export type ToneTheme = Theme;
+export const TONE_RANGE: Record<ToneTheme, readonly [number, number]> = { dark: [0, 100], light: [-50, 50] };
+const TONE_KEY: Record<ToneTheme, string> = { dark: 'ui_tone_dark', light: 'ui_tone_light' };
+
+function clampTone(theme: ToneTheme, v: number): number {
+  const [lo, hi] = TONE_RANGE[theme];
+  return Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : 0;
+}
+
+export function savedTone(theme: ToneTheme): number {
+  try {
+    return clampTone(theme, Number(localStorage.getItem(TONE_KEY[theme]) ?? 0));
+  } catch {
+    return 0;
+  }
+}
+
+const mix = (base: string, to: string, pct: number): string => `color-mix(in srgb, ${base}, ${to} ${pct.toFixed(1)}%)`;
+
+/** The CSS for a pair of slider values; empty when both are at the shipped look. */
+export function toneCss(dark: number, light: number): string {
+  let css = '';
+  if (dark > 0) {
+    const t = dark / 100;
+    css +=
+      `html:not(.light){--bg:${mix('#0d0d12', '#fff', 14 * t)};--surface:${mix('#121219', '#fff', 13 * t)};--card:${mix('#16161e', '#fff', 13 * t)};` +
+      `--cardhover:${mix('#1e1e28', '#fff', 14 * t)};--border:${mix('#2d2d3b', '#fff', 16 * t)};--border-soft:${mix('#23232e', '#fff', 14 * t)};` +
+      `--subtext:${mix('#b4b3c8', '#fff', 12 * t)};--faint:${mix('#8584a0', '#fff', 18 * t)}}` +
+      `html:not(.light) body{background:${mix('#09090f', '#fff', 18 * t)}}` +
+      `html:not(.light) body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(170,168,210,${(0.2 * t).toFixed(3)})}`;
+  }
+  if (light < 0) {
+    const t = -light / 50;
+    css +=
+      `html.light{--bg:${mix('#eae4db', '#8a7f70', 18 * t)};--surface:${mix('#f5f1ea', '#8a7f70', 12 * t)};--card:${mix('#fffdf9', '#8a7f70', 11 * t)}}` +
+      `html.light body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(70,58,40,${(0.28 * t).toFixed(3)})}`;
+  } else if (light > 0) {
+    const t = light / 50;
+    css +=
+      `html.light{--bg:${mix('#eae4db', '#fff', 45 * t)};--surface:${mix('#f5f1ea', '#fff', 50 * t)}}` +
+      `html.light body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(255,255,255,${(0.45 * t).toFixed(3)})}`;
+  }
+  return css;
+}
+
+function paintTone(dark = savedTone('dark'), light = savedTone('light')): void {
+  document.getElementById('tone-css')?.remove();
+  const css = toneCss(dark, light);
+  if (!css) return;
+  const el = document.createElement('style');
+  el.id = 'tone-css';
+  el.textContent = css;
+  document.head.appendChild(el);
+}
+
+/** While a slider is dragged: paint, do not save. */
+export function previewTone(theme: ToneTheme, v: number): void {
+  const other: ToneTheme = theme === 'dark' ? 'light' : 'dark';
+  const pair = { [theme]: clampTone(theme, v), [other]: savedTone(other) } as Record<ToneTheme, number>;
+  paintTone(pair.dark, pair.light);
+}
+
+/** Save one theme's value and repaint. No subscriber run: that re-renders the open page,
+ *  which would yank the slider out from under the pointer; a chart picks the new
+ *  tokens up the next time its page draws. */
+export function applyTone(theme: ToneTheme, v: number): void {
+  const val = clampTone(theme, v);
+  try {
+    if (val === 0) localStorage.removeItem(TONE_KEY[theme]);
+    else localStorage.setItem(TONE_KEY[theme], String(val));
+  } catch {
+    /* ignore */
+  }
+  paintTone();
+}
+
 export function initTheme(): void {
   paintAccent(savedAccent());
+  paintTone();
   let saved: Theme = 'dark';
   try {
     saved = localStorage.getItem('theme') === 'light' ? 'light' : 'dark';

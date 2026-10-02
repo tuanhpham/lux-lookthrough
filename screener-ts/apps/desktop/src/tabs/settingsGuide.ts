@@ -103,8 +103,8 @@ export const SECTIONS: readonly GuideSection[] = [
     icon: '🎨',
     title: { en: 'Appearance & colour', vi: 'Giao diện & màu sắc' },
     lead: {
-      en: 'Pick the app’s main colour — buttons, links, highlights, progress bars and chart accents all follow it, on both the dark and the light theme. The preview shows it before you save; <b>Save colour</b> repaints the whole app at once.',
-      vi: 'Chọn màu chủ đạo của app — nút bấm, liên kết, điểm nhấn, thanh tiến trình và màu nhấn trên chart đều đổi theo, ở cả giao diện tối lẫn sáng. Khung xem trước cho thấy màu trước khi lưu; bấm <b>Lưu màu</b> là cả app đổi ngay.',
+      en: 'Pick the app’s main colour — buttons, links, highlights, progress bars and chart accents all follow it, on both the dark and the light theme. The preview shows it before you save; <b>Save colour</b> repaints the whole app at once. Below it, <b>Background brightness</b> has one slider per theme: lift the dark background if it feels too black, or dim / brighten the light one.',
+      vi: 'Chọn màu chủ đạo của app — nút bấm, liên kết, điểm nhấn, thanh tiến trình và màu nhấn trên chart đều đổi theo, ở cả giao diện tối lẫn sáng. Khung xem trước cho thấy màu trước khi lưu; bấm <b>Lưu màu</b> là cả app đổi ngay. Bên dưới, <b>Độ sáng nền</b> có một thanh trượt cho mỗi giao diện: nâng nền tối lên nếu thấy quá đen, hoặc làm nền sáng dịu đi / sáng hơn.',
     },
     steps: [],
     tip: {
