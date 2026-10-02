@@ -8211,3 +8211,18 @@ html.light .tp-tool.tp-tool--bot { background: color-mix(in srgb, var(--violet) 
 @media (max-width: 620px) {
   #main .st-sw { flex: 1 1 calc(50% - 8px); }
 }
+
+/* ── Request 74: Settings & Guides › Run on the VM. ── */
+.st-vm-log { display: inline-flex; gap: 6px; align-items: center; }
+#main .st-vm-log select { height: 32px; padding: 0 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); color: var(--text); font: 12.5px var(--font-mono); }
+.st-vm-danger { padding-top: 10px; border-top: 1px dashed var(--border); }
+.st-vm-you { user-select: all; }
+.st-vm-out { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); overflow: hidden; }
+.st-vm-out.busy { border-color: var(--accent-line); }
+.st-vm-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 9px 12px; font-size: 12.5px; border-bottom: 1px solid var(--border); }
+.st-vm-head .muted { margin-left: auto; font-family: var(--font-mono); }
+#main .st-vm-out pre { margin: 0; padding: 12px; max-height: 420px; overflow: auto; font: 11.5px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; color: var(--text); background: transparent; }
+@media (max-width: 620px) {
+  .st-vm-log { width: 100%; }
+  .st-vm-log select { flex: 1; }
+}

@@ -32,6 +32,7 @@ import { currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, playbook
 import { REGIME_DOC } from '../ui/playbookHelp.js';
 import { openPlaybookSettingsHere } from '../ui/playbookSettings.js';
 import { SECTIONS, GROUPS, WHERE, type GuideSection, type GuideStep } from './settingsGuide.js';
+import { vmPanel, wireVm } from './vmPanel.js';
 
 const UNDO_KEY = 'settings:lastRestore';
 
@@ -94,7 +95,7 @@ function stepHtml(s: GuideStep, i: number): string {
 }
 
 function sectionHtml(s: GuideSection): string {
-  const panel = s.id === 'data' ? dataPanel() : s.id === 'look' ? lookPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : '';
+  const panel = s.id === 'data' ? dataPanel() : s.id === 'look' ? lookPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : s.id === 'scan-remote' ? vmPanel() : '';
   return `<section class="card st-sec" id="st-${s.id}" data-st-sec="${s.id}">
       <header class="st-sec-head">
         <span class="st-sec-icon" aria-hidden="true">${s.icon}</span>
@@ -601,6 +602,7 @@ export function renderSettings(ctx: AppContext): void {
 
   void fillPlaybookPanel(root, ctx);
   wireLook(root);
+  wireVm(root);
 
   // Restore panel.
   root.querySelector('#st-preview')?.addEventListener('click', () => void preview(root));

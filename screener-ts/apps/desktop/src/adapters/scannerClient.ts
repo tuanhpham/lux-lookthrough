@@ -78,3 +78,55 @@ export async function scannerPut(key: string, value: unknown): Promise<boolean> 
     return false;
   }
 }
+
+/** One key, or null when it is not there yet / the bridge is off. */
+export async function scannerGet<T = unknown>(key: string): Promise<{ value: T; updatedAt: number } | null> {
+  if (!isSyncEnabled()) return null;
+  const res = await fetch(`${BASE}/kv/${encodeURI(key)}`, { headers: headers() });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`scanner get: HTTP ${res.status}`);
+  return (await res.json()) as { value: T; updatedAt: number };
+}
+
+export interface ScannerPing {
+  ok: boolean;
+  role?: string;
+  /** This sync code's `users.id` — the value SCANNER_ADMIN needs. */
+  you?: string;
+  admin?: boolean;
+  /** False while SCANNER_ADMIN is unset on the server: commands are off for everyone. */
+  commands?: boolean;
+  error?: string;
+}
+
+export async function scannerPing(): Promise<ScannerPing> {
+  if (!isSyncEnabled()) return { ok: false, error: 'sync off' };
+  try {
+    const res = await fetch(`${BASE}/ping`, { headers: headers() });
+    const body = (await res.json().catch(() => ({}))) as ScannerPing;
+    return res.ok ? body : { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message ?? e) };
+  }
+}
+
+/**
+ * Queue one VM command (`scanner:commands`). Unlike scannerPut this hands back the
+ * server's reason: "not an admin" and "SCANNER_ADMIN unset" must reach the user,
+ * not turn into a silent false. The server rebuilds the value from its whitelist.
+ */
+export async function scannerCommand(id: string, cmd: string, arg = ''): Promise<{ ok: boolean; error?: string }> {
+  if (!isSyncEnabled()) return { ok: false, error: 'sync off' };
+  try {
+    const res = await fetch(`${BASE}/kv/scanner:commands`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ value: { id, cmd, arg } }),
+    });
+    if (res.ok) return { ok: true };
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: body.error ?? `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message ?? e) };
+  }
+}

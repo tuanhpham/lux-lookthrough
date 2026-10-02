@@ -49,8 +49,20 @@
 // cash, equity, total P&L, account ids, or anything dated. See
 // src/portfolio/positionsFeed.ts for the exact shape and why each field is there.
 //
+// COMMANDS — the one key that can make the VM do something
+// -----------------------------------------------------------
+// `scanner:commands` is a single pending command the VM's main.py polls every
+// 20 s (remote.py in the scanner repo). Holding a sync code must NOT mean holding
+// a shell on the VM, so a write to it is checked here, not just there:
+//   - only user ids listed in env.SCANNER_ADMIN (comma-separated) may write it,
+//     and with SCANNER_ADMIN unset nobody can — the feature is off by default;
+//   - the value is rebuilt from a whitelist: `cmd` from COMMANDS, `arg` only for
+//     `log` and only a name from LOG_NAMES. Anything else is a 400, and nothing
+//     the browser sent besides those fields is stored.
+// The VM re-checks the same lists; both copies must change together.
+//
 // ROUTES (all under /api/scanner)
-//   GET    /api/scanner/ping            → { ok, role, keys }
+//   GET    /api/scanner/ping            → { ok, role, keys, you?, admin? }
 //   GET    /api/scanner/kv              → { keys: [...] }        (?prefix=)
 //   GET    /api/scanner/kv/<key>        → { value, updatedAt } | 404
 //   PUT    /api/scanner/kv/<key>        → body { value } → upsert
@@ -60,6 +72,7 @@
 // SETUP
 //   wrangler d1 execute screener-sync --file=./schema.sql --remote
 //   wrangler pages secret put SCANNER_TOKEN --project-name the-professional
+//   wrangler pages secret put SCANNER_ADMIN --project-name the-professional   (optional: VM commands)
 
 interface D1Result<T = unknown> {
   results?: T[];
@@ -77,6 +90,8 @@ interface D1Database {
 interface Env {
   DB: D1Database;
   SCANNER_TOKEN?: string;
+  /** Comma-separated `users.id` values allowed to write `scanner:commands`. */
+  SCANNER_ADMIN?: string;
 }
 interface Ctx {
   request: Request;
@@ -113,6 +128,28 @@ const MAX_BYTES = 512_000;
 
 type Role = 'writer' | 'reader';
 
+/** Must match CMDS / LOGS in the scanner repo's remote.py and src/tabs/vmPanel.ts. */
+const COMMANDS = new Set(['status', 'log', 'push', 'scan', 'nightly', 'dblock', 'update', 'restart']);
+const LOG_NAMES = new Set(['service', 'prep', 'push', 'watchd', 'bot']);
+const CMD_ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
+
+function isAdmin(env: Env, userId: string | null): boolean {
+  if (!userId || !env.SCANNER_ADMIN) return false;
+  return env.SCANNER_ADMIN.split(',').map((s) => s.trim()).filter(Boolean).includes(userId);
+}
+
+/** The stored command, rebuilt field by field; a string is the 400 reason. */
+function cleanCommand(v: unknown, userId: string, now: number): Record<string, unknown> | string {
+  const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  const id = String(o.id ?? '');
+  const cmd = String(o.cmd ?? '');
+  const arg = o.arg == null ? '' : String(o.arg);
+  if (!CMD_ID_RE.test(id)) return 'command id must match ' + CMD_ID_RE;
+  if (!COMMANDS.has(cmd)) return `unknown command: ${cmd}`;
+  if (cmd === 'log' ? !LOG_NAMES.has(arg) : arg !== '') return `bad argument for ${cmd}`;
+  return { id, cmd, arg, at: now, by: userId };
+}
+
 /** Constant-time string compare. `a === b` on a secret leaks its length and a
  *  prefix through timing; this is cheap enough not to think about. */
 function tokenEq(a: string, b: string): boolean {
@@ -122,16 +159,16 @@ function tokenEq(a: string, b: string): boolean {
   return diff === 0;
 }
 
-async function resolveRole(env: Env, request: Request): Promise<Role | null> {
+async function resolveRole(env: Env, request: Request): Promise<{ role: Role; userId: string | null } | null> {
   const tok = request.headers.get('x-scanner-token')?.trim();
-  if (tok && env.SCANNER_TOKEN && tokenEq(tok, env.SCANNER_TOKEN)) return 'writer';
+  if (tok && env.SCANNER_TOKEN && tokenEq(tok, env.SCANNER_TOKEN)) return { role: 'writer', userId: null };
 
   const code = request.headers.get('x-sync-code')?.trim();
   if (code) {
     const row = await env.DB.prepare('SELECT id FROM users WHERE code = ?')
       .bind(code)
       .first<{ id: string }>();
-    if (row) return 'reader';
+    if (row) return { role: 'reader', userId: String(row.id) };
   }
   return null;
 }
@@ -158,8 +195,9 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
   const segments = ctx.params.path ?? [];
   const head = segments[0] ?? '';
 
-  const role = await resolveRole(env, request);
-  if (!role) return json({ error: 'invalid or missing credential' }, 401);
+  const who = await resolveRole(env, request);
+  if (!who) return json({ error: 'invalid or missing credential' }, 401);
+  const { role, userId } = who;
 
   try {
     if (head === 'ping') {
@@ -168,7 +206,12 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
       const rows = await env.DB.prepare(
         'SELECT COUNT(*) AS n, MAX(updated_at) AS newest FROM scanner_kv',
       ).first<{ n: number; newest: number | null }>();
-      return json({ ok: true, role, keys: rows?.n ?? 0, newest: rows?.newest ?? null });
+      // `you` is the caller's own users.id — the value to put in SCANNER_ADMIN.
+      // Not a secret: it is useless without the sync code that produced it.
+      return json({
+        ok: true, role, keys: rows?.n ?? 0, newest: rows?.newest ?? null,
+        ...(userId ? { you: userId, admin: isAdmin(env, userId), commands: !!env.SCANNER_ADMIN } : {}),
+      });
     }
 
     // Bulk read: the tab wants status + candidates + rejects + today's alerts in
@@ -224,7 +267,16 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
 
         const body = (await request.json().catch(() => null)) as { value?: unknown } | null;
         if (!body || !('value' in body)) return json({ error: 'missing value' }, 400);
-        const value = JSON.stringify(body.value);
+        const now = Date.now();
+        let stored: unknown = body.value;
+        if (key === 'scanner:commands') {
+          if (!env.SCANNER_ADMIN) return json({ error: 'VM commands are off: SCANNER_ADMIN is not set', key }, 403);
+          if (!isAdmin(env, userId)) return json({ error: 'this sync code may not send VM commands', key }, 403);
+          const cmd = cleanCommand(body.value, userId!, now);
+          if (typeof cmd === 'string') return json({ error: cmd, key }, 400);
+          stored = cmd;
+        }
+        const value = JSON.stringify(stored);
         if (value.length > MAX_BYTES) {
           return json(
             { error: 'value too large', key, bytes: value.length, max: MAX_BYTES },
@@ -236,7 +288,6 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
         // exactly one writer per key and the newest snapshot is always the one
         // that matters — an older one arriving late is worthless, not a
         // conflict. No history table either: see the header note.
-        const now = Date.now();
         await env.DB.prepare(
           `INSERT INTO scanner_kv (key, value, updated_at) VALUES (?, ?, ?)
            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,

@@ -489,6 +489,72 @@ export const SECTIONS: readonly GuideSection[] = [
     ],
   },
   {
+    id: 'scan-remote',
+    group: 'scanner',
+    icon: '📡',
+    title: { en: 'Run on the VM from here', vi: 'Chạy lệnh trên VM ngay tại đây' },
+    lead: {
+      en: 'Fixed buttons, no free-text box: each one queues a single whitelisted command, the running scanner picks it up within ~20 s, and the answer appears below. Tokens in the output are blanked out on the VM before they leave it.',
+      vi: 'Chỉ có nút bấm cố định, không có ô gõ lệnh: mỗi nút xếp một lệnh nằm trong danh sách cho phép, scanner đang chạy sẽ nhận lệnh trong khoảng 20 giây và kết quả hiện ngay bên dưới. Token trong kết quả bị che ngay trên VM trước khi gửi ra ngoài.',
+    },
+    steps: [
+      {
+        h: { en: 'Turn it on, once: name yourself the admin', vi: 'Bật một lần: đặt bạn làm admin' },
+        p: [
+          {
+            en: 'Until this secret exists the server refuses every command, for everyone. Paste the id shown in the panel above when wrangler asks for the value, then deploy again (Website › Deploy). Several ids: separate them with commas.',
+            vi: 'Khi chưa có secret này, server từ chối mọi lệnh của tất cả mọi người. Khi wrangler hỏi giá trị, dán id đang hiện ở khung phía trên, rồi deploy lại (Trang web › Deploy). Nhiều id thì cách nhau bằng dấu phẩy.',
+          },
+        ],
+        cmd: 'cd lux-lookthrough/screener-ts/apps/desktop\nnpx wrangler pages secret put SCANNER_ADMIN --project-name the-professional\nnpx wrangler pages deploy dist --project-name the-professional',
+        where: 'cf',
+      },
+      {
+        h: { en: 'Get the new scanner code onto the VM, once', vi: 'Đưa code scanner mới lên VM, một lần' },
+        p: [
+          {
+            en: 'The listener lives in `main.py`, so the service needs one restart by hand. After that, “Update code + restart” does this for you.',
+            vi: 'Phần nhận lệnh nằm trong `main.py`, nên lần đầu phải khởi động lại service bằng tay. Từ lần sau, nút “Cập nhật code + khởi động lại” sẽ tự làm việc này.',
+          },
+        ],
+        cmd: 'cd ~/scanner && git pull\n.venv/bin/python -m pytest -q tests/test_remote.py\nsudo systemctl restart scanner',
+        where: 'vm',
+      },
+      {
+        h: { en: 'What each button may do — and what none can', vi: 'Mỗi nút được làm gì — và không nút nào làm được gì' },
+        p: [
+          {
+            en: '<b>Status</b>: systemd state, uptime, the scanner’s heartbeat, the commit, disk and memory. <b>Log</b>: the last 60 lines of one log in `state/`. <b>Push data now</b>: `push.py --all`. <b>Test scan</b>: one scoring pass inside the running scanner — nothing sent to Telegram, nothing saved. <b>Last nightly run</b>: `nightly.py --status`. <b>Who holds the DB</b>: `scripts/db_lock.py`.',
+            vi: '<b>Trạng thái</b>: trạng thái systemd, uptime, nhịp tim của scanner, commit đang chạy, ổ đĩa và RAM. <b>Log</b>: 60 dòng cuối của một file log trong `state/`. <b>Đẩy dữ liệu ngay</b>: `push.py --all`. <b>Quét thử</b>: một vòng chấm điểm ngay trong scanner đang chạy — không gửi Telegram, không lưu gì. <b>Lần chạy đêm gần nhất</b>: `nightly.py --status`. <b>Ai đang giữ DB</b>: `scripts/db_lock.py`.',
+          },
+          {
+            en: '<b>Update code + restart</b>: `git pull --ff-only`, then a check that the new code imports; only then does the scanner exit and systemd starts it again (~30 s). If `requirements.txt` changed it stops and tells you to run pip by hand. <b>Restart</b>: the same exit, without the pull.',
+            vi: '<b>Cập nhật code + khởi động lại</b>: `git pull --ff-only`, rồi kiểm tra code mới import được; chỉ khi đó scanner mới tự thoát và systemd chạy lại (~30 giây). Nếu `requirements.txt` đổi thì dừng lại và nhắc bạn chạy pip bằng tay. <b>Khởi động lại</b>: thoát y như vậy nhưng không pull.',
+          },
+        ],
+        warn: {
+          en: 'Never possible from here: an arbitrary command, editing `.env` or the crontab, the firewall, or a second `main.py`. Each command runs once, and one older than 5 minutes is dropped.',
+          vi: 'Từ đây KHÔNG BAO GIỜ làm được: chạy lệnh tùy ý, sửa `.env` hay crontab, đụng firewall, hoặc mở `main.py` thứ hai. Mỗi lệnh chỉ chạy một lần, lệnh cũ hơn 5 phút bị bỏ qua.',
+        },
+      },
+      {
+        h: { en: 'When a button says the VM did not pick it up', vi: 'Khi nút báo VM chưa nhận lệnh' },
+        p: [
+          {
+            en: 'The listener is part of the live scanner, so a stopped service means no buttons — that is the one case that still needs SSH.',
+            vi: 'Phần nhận lệnh nằm trong scanner đang chạy, nên service dừng thì nút cũng không chạy — đây là trường hợp duy nhất vẫn phải SSH.',
+          },
+        ],
+        cmd: 'sudo systemctl status scanner\ntail -30 ~/scanner/state/service.log | grep -i remote',
+        where: 'vm',
+      },
+    ],
+    tip: {
+      en: 'The commands travel with your sync code, so the admin list is what keeps a shared code from becoming a key to the VM. The VM’s `SCANNER_TOKEN` never reaches the browser.',
+      vi: 'Lệnh đi kèm mã sync của bạn, nên danh sách admin là thứ ngăn một mã sync dùng chung trở thành chìa khóa vào VM. `SCANNER_TOKEN` của VM không bao giờ xuống trình duyệt.',
+    },
+  },
+  {
     id: 'scan-cron',
     group: 'scanner',
     icon: '⏰',
