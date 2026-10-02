@@ -7,9 +7,13 @@
  * panels (data & sync, restore to a moment).
  *
  * ── LAYOUT ──────────────────────────────────────────────────────────────────
- * A sticky table of contents on the left on a wide screen, a sticky strip of chips on
- * a narrow one. The TOC links are buttons that scroll, NOT `#anchors`: the hash is the
- * app's tab router (`#scanner`, `#settings`), and an anchor would be read as a tab.
+ * A hero with status tiles (sync, colour, alerts, the VM…), then a sticky contents
+ * column that works as TABS: one section is on screen at a time, with previous/next
+ * at its foot, instead of fifteen cards in one endless scroll. Every section is still
+ * in the DOM (hidden), so each live panel is wired once and keeps its state while the
+ * user looks elsewhere. The open section survives a reload in sessionStorage.
+ * The TOC links are buttons, NOT `#anchors`: the hash is the app's tab router
+ * (`#scanner`, `#settings`), and an anchor would be read as a tab.
  *
  * ── RESTORE TO A MOMENT ─────────────────────────────────────────────────────
  * Server time decides (`archived_at` is stamped by the server), so the moment typed
@@ -33,23 +37,35 @@ import { REGIME_DOC } from '../ui/playbookHelp.js';
 import { openPlaybookSettingsHere } from '../ui/playbookSettings.js';
 import { SECTIONS, GROUPS, WHERE, type GuideSection, type GuideStep } from './settingsGuide.js';
 import { vmPanel, wireVm } from './vmPanel.js';
+import { pageHero } from '../ui/pageHero.js';
+import { currentAlertsDigest, readAlertsSeen } from '../portfolio/alertsFeed.js';
 
 const UNDO_KEY = 'settings:lastRestore';
+const SEC_KEY = 'settings:section';
 
 let pendingSection: string | null = null;
-let observer: IntersectionObserver | null = null;
 let ctxRef: AppContext | null = null;
 
-/** Open the page scrolled to one section, e.g. `openSettingsAt('scan-trouble')`. */
+/** Open the page on one section, e.g. `openSettingsAt('scan-trouble')`. */
 export function openSettingsAt(id: string): void {
   pendingSection = id;
   const root = $('#tab-settings');
   if (root && !root.classList.contains('hidden') && root.childElementCount) {
-    scrollToSection(id);
+    showSection(root, id);
     pendingSection = null;
     return;
   }
   location.hash = '#settings'; // main.ts's hashchange handler switches tabs
+}
+
+function lastSection(): string {
+  let id: string | null = null;
+  try {
+    id = sessionStorage.getItem(SEC_KEY);
+  } catch {
+    /* private mode */
+  }
+  return SECTIONS.some((s) => s.id === id) ? id! : SECTIONS[0]!.id;
 }
 
 function esc(s: string): string {
@@ -94,20 +110,37 @@ function stepHtml(s: GuideStep, i: number): string {
     </li>`;
 }
 
-function sectionHtml(s: GuideSection): string {
+/** The sections that carry a live control, not only words. Marked in the TOC. */
+const LIVE = new Set(['data', 'look', 'restore', 'playbook', 'scan-remote']);
+
+function sectionHtml(s: GuideSection, i: number, active: string): string {
   const panel = s.id === 'data' ? dataPanel() : s.id === 'look' ? lookPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : s.id === 'scan-remote' ? vmPanel() : '';
-  return `<section class="card st-sec" id="st-${s.id}" data-st-sec="${s.id}">
+  const prev = SECTIONS[i - 1];
+  const next = SECTIONS[i + 1];
+  const nav = (x: GuideSection | undefined, dir: 'prev' | 'next'): string => x
+    ? `<button class="st-pn st-pn-${dir}" data-st-go="${x.id}">
+        <small>${dir === 'prev' ? L('← Previous', '← Trước') : L('Next →', 'Tiếp →')}</small>
+        <span><i aria-hidden="true">${x.icon}</i>${say(x.title)}</span>
+      </button>`
+    : '<span></span>';
+  const chips = [
+    LIVE.has(s.id) ? `<span class="st-chip st-chip-live">${L('Live setting', 'Cài đặt trực tiếp')}</span>` : '',
+    s.steps.length ? `<span class="st-chip">${s.steps.length} ${L(s.steps.length > 1 ? 'steps' : 'step', 'bước')}</span>` : '',
+  ].join('');
+  return `<section class="card st-sec" id="st-${s.id}" data-st-sec="${s.id}"${s.id === active ? '' : ' hidden'}>
       <header class="st-sec-head">
         <span class="st-sec-icon" aria-hidden="true">${s.icon}</span>
-        <div>
-          <div class="st-kicker">${say(GROUPS[s.group])}</div>
+        <div class="st-sec-tt">
+          <div class="st-kicker">${say(GROUPS[s.group])} <span class="st-kicker-n">${String(i + 1).padStart(2, '0')} / ${String(SECTIONS.length).padStart(2, '0')}</span></div>
           <h2>${say(s.title)}</h2>
         </div>
+        <div class="st-sec-chips">${chips}</div>
       </header>
       <p class="st-lead">${prose(s.lead)}</p>
-      ${panel}
+      ${panel ? `<div class="st-panel">${panel}</div>` : ''}
       ${s.steps.length ? `<ol class="st-steps">${s.steps.map(stepHtml).join('')}</ol>` : ''}
       ${s.tip ? `<div class="st-tip">💡 ${prose(s.tip)}</div>` : ''}
+      <footer class="st-pager">${nav(prev, 'prev')}${nav(next, 'next')}</footer>
     </section>`;
 }
 
@@ -117,13 +150,14 @@ function tocHtml(): string {
       const items = SECTIONS.filter((s) => s.group === g);
       return `<div class="st-toc-group">
           <div class="st-toc-gh">${say(GROUPS[g])}</div>
-          ${items.map((s) => `<button class="st-toc-link" data-st-go="${s.id}"><span aria-hidden="true">${s.icon}</span>${say(s.title)}</button>`).join('')}
+          ${items.map((s) => `<button class="st-toc-link" data-st-go="${s.id}" data-st-find="${esc(`${s.title.en} ${s.title.vi} ${s.lead.en} ${s.lead.vi}`.toLowerCase())}"><span class="st-toc-ic" aria-hidden="true">${s.icon}</span><span class="st-toc-t">${say(s.title)}</span>${LIVE.has(s.id) ? `<i class="st-toc-live" title="${L('Live setting', 'Cài đặt trực tiếp')}"></i>` : ''}</button>`).join('')}
         </div>`;
     })
     .join('');
   return `<nav class="st-toc" aria-label="${L('Contents', 'Mục lục')}">
-      <div class="st-toc-title">${L('Contents', 'Mục lục')}</div>
+      <label class="st-find"><span aria-hidden="true">⌕</span><input type="search" id="st-find" placeholder="${L('Search settings & guides', 'Tìm cài đặt & hướng dẫn')}" autocomplete="off" /></label>
       ${groups}
+      <div class="st-find-none muted" hidden>${L('Nothing matches.', 'Không có mục nào khớp.')}</div>
     </nav>`;
 }
 
@@ -189,7 +223,9 @@ function lookPanel(): string {
       </div>
       <div class="st-msg" id="st-look-msg">${pick.startsWith('#') && clashesWithPnl(pick)
         ? `⚠️ ${L('This looks like the gain/loss green or red — numbers may be harder to read.', 'Màu này giống màu xanh lãi / đỏ lỗ — đọc số lãi lỗ có thể bị nhầm.')}`
-        : ''}</div>
+        : pick === 'jade'
+          ? `ℹ️ ${L('Gains stay the brighter mint green; jade is darker, so the two still read apart.', 'Lãi vẫn là màu xanh bạc hà sáng hơn; ngọc bích đậm hơn nên vẫn phân biệt được.')}`
+          : ''}</div>
       <div class="st-actions">
         <button class="btn" data-look-save${pick === saved ? ' disabled' : ''}>💾 ${L('Save colour', 'Lưu màu')}</button>
         <button class="btn-outline" data-look-reset${saved === DEFAULT_ACCENT && pick === DEFAULT_ACCENT ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
@@ -508,8 +544,23 @@ async function restore(root: HTMLElement, at: number, keys: string[]): Promise<v
 
 // ── page ─────────────────────────────────────────────────────────────────────
 
-function scrollToSection(id: string): void {
-  document.getElementById(`st-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+/** Show one section, hide the rest, and bring its top into view if the page has
+ * scrolled past it (switching from the foot of a long section). */
+function showSection(root: HTMLElement, id: string): void {
+  const el = root.querySelector<HTMLElement>(`#st-${CSS.escape(id)}`);
+  if (!el) return;
+  root.querySelectorAll<HTMLElement>('[data-st-sec]').forEach((s) => (s.hidden = s !== el));
+  el.classList.remove('st-in');
+  void el.offsetWidth; // restart the entrance animation
+  el.classList.add('st-in');
+  markToc(root, id);
+  try {
+    sessionStorage.setItem(SEC_KEY, id);
+  } catch {
+    /* private mode */
+  }
+  const layout = root.querySelector<HTMLElement>('.st-layout');
+  if (layout && layout.getBoundingClientRect().top < 0) layout.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function markToc(root: HTMLElement, id: string): void {
@@ -525,29 +576,34 @@ export function renderSettings(ctx: AppContext): void {
   const root = $('#tab-settings');
   if (!root) return;
   ctxRef = ctx;
+  const active = pendingSection && SECTIONS.some((s) => s.id === pendingSection) ? pendingSection : lastSection();
+  pendingSection = null;
   root.innerHTML = `
-    <div class="st-hero">
-      <h1>${L('Settings & Guides', 'Cài đặt & Hướng dẫn')}</h1>
-      <p class="subtitle">${L(
-        'Your data and its sync, restoring to a point in time, running and deploying the website, and keeping the scanner alive — step by step, every command one click from the clipboard.',
-        'Dữ liệu và sync, khôi phục về một thời điểm, chạy và deploy trang web, giữ Scanner luôn chạy — từng bước một, lệnh nào cũng chỉ một cú bấm là vào clipboard.',
-      )}</p>
-      <div class="st-hero-note">🔒 ${L(
-        'No secret appears on this page. Anything in <code>&lt;ANGLE_BRACKETS&gt;</code> is a placeholder you replace; secrets are typed only where a command asks for them.',
-        'Trang này không chứa secret nào. Mọi thứ trong <code>&lt;NGOẶC_NHỌN&gt;</code> là chỗ cần thay bằng giá trị thật; secret chỉ gõ vào khi lệnh hỏi.',
-      )}</div>
-    </div>
+    ${pageHero({
+      icon: '⚙️',
+      kicker: L('Workspace', 'Không gian làm việc'),
+      title: L('Settings & Guides', 'Cài đặt & Hướng dẫn'),
+      sub: L(
+        'Your data and its sync, the look of the app, restoring to a point in time, deploying the website and keeping the scanner alive — every command one click from the clipboard.',
+        'Dữ liệu và đồng bộ, giao diện, khôi phục về một thời điểm, deploy trang web và giữ Scanner luôn chạy — lệnh nào cũng chỉ một cú bấm là vào clipboard.',
+      ),
+      tone: 'var(--accent)',
+      foot: `${overviewHtml()}
+        <div class="st-hero-note">🔒 ${L(
+          'No secret appears on this page. Anything in <code>&lt;ANGLE_BRACKETS&gt;</code> is a placeholder you replace; secrets are typed only where a command asks for them.',
+          'Trang này không chứa secret nào. Mọi thứ trong <code>&lt;NGOẶC_NHỌN&gt;</code> là chỗ cần thay bằng giá trị thật; secret chỉ gõ vào khi lệnh hỏi.',
+        )}</div>`,
+    })}
     <div class="st-layout">
       ${tocHtml()}
-      <div class="st-body">${SECTIONS.map(sectionHtml).join('')}</div>
+      <div class="st-body">${SECTIONS.map((s, i) => sectionHtml(s, i, active)).join('')}</div>
     </div>`;
 
-  root.querySelectorAll<HTMLElement>('[data-st-go]').forEach((b) =>
-    b.addEventListener('click', () => {
-      scrollToSection(b.dataset.stGo!);
-      markToc(root, b.dataset.stGo!);
-    }),
+  root.querySelectorAll<HTMLElement>('[data-st-go], [data-ov-go]').forEach((b) =>
+    b.addEventListener('click', () => showSection(root, (b.dataset.stGo ?? b.dataset.ovGo)!)),
   );
+  wireFind(root);
+  void fillOverview(root, ctx);
   root.querySelectorAll<HTMLElement>('[data-st-copy]').forEach((b) =>
     b.addEventListener('click', () => {
       const text = b.closest('.st-cmd')?.querySelector('pre')?.textContent ?? '';
@@ -618,21 +674,127 @@ export function renderSettings(ctx: AppContext): void {
     void preview(root);
   });
 
-  // TOC follows the reading position: the section nearest the top is the current one.
-  observer?.disconnect();
-  observer = new IntersectionObserver(
-    (entries) => {
-      const top = entries.filter((en) => en.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-      if (top) markToc(root, (top.target as HTMLElement).dataset.stSec!);
-    },
-    { rootMargin: '-80px 0px -60% 0px' },
-  );
-  root.querySelectorAll('[data-st-sec]').forEach((s) => observer!.observe(s));
-  markToc(root, SECTIONS[0]!.id);
+  markToc(root, active);
+}
 
-  if (pendingSection) {
-    const id = pendingSection;
-    pendingSection = null;
-    requestAnimationFrame(() => scrollToSection(id));
+// ── overview tiles ───────────────────────────────────────────────────────────
+
+interface OvTile {
+  go: string;
+  icon: string;
+  k: string;
+  v: string;
+  s: string;
+  tone?: string;
+  /** Filled after the first paint (it needs the bridge or storage). */
+  slot?: string;
+}
+
+function overviewHtml(): string {
+  const sync = isSyncEnabled();
+  const light = document.documentElement.classList.contains('light');
+  const ac = savedAccent();
+  const preset = ACCENTS.find((a) => a.id === ac);
+  const tiles: OvTile[] = [
+    {
+      go: 'data', icon: '☁️', k: L('Sync', 'Đồng bộ'),
+      v: sync ? L('On', 'Đang bật') : L('Off', 'Đang tắt'),
+      s: sync ? L('Every device shares one account', 'Mọi thiết bị dùng chung một tài khoản') : L('Data lives only on this device', 'Dữ liệu chỉ nằm trên máy này'),
+      tone: sync ? 'var(--up)' : 'var(--warn)',
+    },
+    {
+      go: 'look', icon: '🎨', k: L('Appearance', 'Giao diện'),
+      v: preset ? say(preset.name) : ac.startsWith('#') ? ac.toUpperCase() : say(ACCENTS[0]!.name),
+      s: `${light ? L('Light theme', 'Nền sáng') : L('Dark theme', 'Nền tối')} · ${vi() ? 'Tiếng Việt' : 'English'}`,
+      tone: 'var(--accent)',
+    },
+    {
+      go: 'scan-alerts', icon: '🔔', k: L('Telegram alerts', 'Cảnh báo Telegram'),
+      v: '—', s: L('Set on the Watchlist tab', 'Cài ở tab Watchlist'), slot: 'alerts',
+    },
+    {
+      go: 'scan-remote', icon: '🛰️', k: L('Scanner VM', 'Scanner VM'),
+      v: '—', s: L('Run commands from here', 'Chạy lệnh ngay tại đây'), slot: 'vm',
+    },
+    {
+      go: 'restore', icon: '⏪', k: L('Restore', 'Khôi phục'),
+      v: L('Any moment', 'Mọi thời điểm'), s: L('Roll the account back, with undo', 'Đưa tài khoản về quá khứ, có hoàn tác'),
+    },
+    {
+      go: 'deploy', icon: '🚀', k: L('Website', 'Trang web'),
+      v: L('Build & deploy', 'Build & deploy'), s: L('Cloudflare Pages, step by step', 'Cloudflare Pages, từng bước'),
+    },
+  ];
+  return `<div class="scan-ov st-ov" role="list">${tiles.map((x) =>
+    `<button class="scan-ov-tile${x.tone ? '' : ' is-quiet'}" role="listitem" data-ov-go="${x.go}"${x.slot ? ` data-ov-slot="${x.slot}"` : ''}${x.tone ? ` style="--c:${x.tone}"` : ''}>`
+    + `<span class="scan-ov-top"><span class="st-ov-ic" aria-hidden="true">${x.icon}</span>`
+    + `<span class="scan-ov-k">${x.k}</span><span class="scan-ov-go" aria-hidden="true">→</span></span>`
+    + `<b class="scan-ov-v">${x.v}</b><small class="scan-ov-s">${x.s}</small></button>`).join('')}</div>`;
+}
+
+function setTile(root: HTMLElement, slot: string, v: string, s: string, tone?: string): void {
+  const t = root.querySelector<HTMLElement>(`[data-ov-slot="${slot}"]`);
+  if (!t) return;
+  t.querySelector('.scan-ov-v')!.textContent = v;
+  t.querySelector('.scan-ov-s')!.textContent = s;
+  t.classList.toggle('is-quiet', !tone);
+  if (tone) t.style.setProperty('--c', tone);
+}
+
+/** The two tiles that need storage or the bridge. `scanner:alerts_seen` doubles as the
+ * VM's heartbeat: watchd rewrites it at least every 30 minutes. */
+async function fillOverview(root: HTMLElement, ctx: AppContext): Promise<void> {
+  try {
+    const d = await currentAlertsDigest(ctx);
+    if (!d.on) setTile(root, 'alerts', L('Off', 'Đang tắt'), L('Master switch is off', 'Công tắc chính đang tắt'));
+    else if (d.n) setTile(root, 'alerts', L(`${d.n} tickers`, `${d.n} mã`), L('Watched while their market is open', 'Canh khi thị trường của mã đang mở'), 'var(--up)');
+    else setTile(root, 'alerts', L('No list on', 'Chưa bật danh sách'), L('Pick lists on the Watchlist tab', 'Chọn danh sách ở tab Watchlist'));
+  } catch {
+    /* the tile keeps its placeholder */
   }
+  if (!isSyncEnabled()) {
+    setTile(root, 'vm', L('Needs sync', 'Cần đồng bộ'), L('The VM talks through the sync bridge', 'VM nói chuyện qua bridge đồng bộ'));
+    return;
+  }
+  const seen = await readAlertsSeen().catch(() => null);
+  if (!root.isConnected) return;
+  const at = seen ? Date.parse(seen.value.at) : NaN;
+  if (!Number.isFinite(at)) {
+    setTile(root, 'vm', L('No heartbeat yet', 'Chưa có nhịp'), L('Restart watchd once after updating', 'Khởi động lại watchd sau khi cập nhật'));
+    return;
+  }
+  const min = Math.max(0, Math.round((Date.now() - at) / 60000));
+  const ago = min < 60 ? L(`${min} min ago`, `${min} phút trước`)
+    : min < 2880 ? L(`${Math.round(min / 60)} h ago`, `${Math.round(min / 60)} giờ trước`)
+      : L(`${Math.round(min / 1440)} days ago`, `${Math.round(min / 1440)} ngày trước`);
+  const fresh = min <= 45;
+  setTile(root, 'vm', fresh ? L('Alive', 'Đang chạy') : L('Quiet', 'Im lặng'), L(`watchd answered ${ago}`, `watchd trả lời ${ago}`), fresh ? 'var(--up)' : 'var(--warn)');
+}
+
+/** The TOC filter: matches title and lead in both languages, Enter opens the first hit. */
+function wireFind(root: HTMLElement): void {
+  const inp = root.querySelector<HTMLInputElement>('#st-find');
+  if (!inp) return;
+  const links = [...root.querySelectorAll<HTMLElement>('.st-toc-link')];
+  const run = (): HTMLElement[] => {
+    const q = inp.value.trim().toLowerCase();
+    const hits = links.filter((b) => !q || (b.dataset.stFind ?? '').includes(q));
+    links.forEach((b) => (b.hidden = !hits.includes(b)));
+    root.querySelectorAll<HTMLElement>('.st-toc-group').forEach((g) => {
+      g.hidden = ![...g.querySelectorAll<HTMLElement>('.st-toc-link')].some((b) => !b.hidden);
+    });
+    const none = root.querySelector<HTMLElement>('.st-find-none');
+    if (none) none.hidden = hits.length > 0;
+    return hits;
+  };
+  inp.addEventListener('input', () => void run());
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const first = run()[0];
+      if (first) showSection(root, first.dataset.stGo!);
+    } else if (e.key === 'Escape') {
+      inp.value = '';
+      run();
+    }
+  });
 }

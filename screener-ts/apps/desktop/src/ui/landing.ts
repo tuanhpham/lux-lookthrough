@@ -376,7 +376,7 @@ export function renderLanding(
   <div class="cl-stats">
     <div class="cl-stat"><span class="cl-stat-v">${nPages}</span><span class="cl-stat-l">${c.statModules}</span></div>
     <div class="cl-stat"><span class="cl-stat-v">0–100</span><span class="cl-stat-l">${c.statScore}</span></div>
-    <div class="cl-stat"><span class="cl-stat-v">US + VN</span><span class="cl-stat-l">${c.statMarkets}</span></div>
+    <div class="cl-stat"><span class="cl-stat-v">US · VN · DE</span><span class="cl-stat-l">${c.statMarkets}</span></div>
     <div class="cl-stat"><span class="cl-stat-v">${c.statCost}</span><span class="cl-stat-l">${c.statCostL}</span></div>
   </div>
 

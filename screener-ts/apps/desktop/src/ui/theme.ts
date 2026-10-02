@@ -40,13 +40,16 @@ export interface AccentPreset {
   light: [string, string];
 }
 
-/** No green and no red: those are gain (`--up`) and loss (`--down`) and must stay unmistakable. */
+/** No red: that is loss (`--down`). Jade is the one green, asked for in request 75, and is
+ * kept apart from the mint gain colour (`--up` #18d89a / #0b8f69) by being deeper and
+ * yellower on dark and forest-dark on cream; the panel still says so when it is picked. */
 export const ACCENTS: readonly AccentPreset[] = [
   { id: 'violet', name: { en: 'Violet (default)', vi: 'Tím (mặc định)' }, dark: ['#8b6cff', '#5b8cff'], light: ['#6a3de8', '#3a6fe0'] },
   { id: 'indigo', name: { en: 'Indigo', vi: 'Chàm' }, dark: ['#6d7cff', '#a78bfa'], light: ['#4048d6', '#7c3aed'] },
   { id: 'allianz', name: { en: 'Allianz blue', vi: 'Xanh Allianz' }, dark: ['#4a7dff', '#7ea6ff'], light: ['#003781', '#1d5fd1'] },
   { id: 'sky', name: { en: 'Sky', vi: 'Xanh da trời' }, dark: ['#38bdf8', '#4d9bff'], light: ['#0369a1', '#1d5fd1'] },
   { id: 'fuchsia', name: { en: 'Fuchsia', vi: 'Hồng tím' }, dark: ['#e062d8', '#8b6cff'], light: ['#b02aa6', '#6a3de8'] },
+  { id: 'jade', name: { en: 'Jade green', vi: 'Xanh ngọc bích' }, dark: ['#2fb36d', '#1fa39a'], light: ['#0d6b3f', '#0f6f6a'] },
   { id: 'graphite', name: { en: 'Graphite', vi: 'Than chì' }, dark: ['#a3acc2', '#7d8ba8'], light: ['#3d4657', '#5b6b85'] },
 ];
 

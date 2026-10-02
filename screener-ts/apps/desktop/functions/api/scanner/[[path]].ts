@@ -49,6 +49,12 @@
 // cash, equity, total P&L, account ids, or anything dated. See
 // src/portfolio/positionsFeed.ts for the exact shape and why each field is there.
 //
+// `scanner:alerts` is the user's own alert list: tickers from the watchlists they
+// chose, the price levels they typed per ticker, and the volume / day-move
+// thresholds per list. List NAMES cross (the alert says which list fired), list
+// ids and everything else in the watchlist store do not. See
+// src/portfolio/alertsFeed.ts. The VM answers on `scanner:alerts_seen`.
+//
 // COMMANDS — the one key that can make the VM do something
 // -----------------------------------------------------------
 // `scanner:commands` is a single pending command the VM's main.py polls every
@@ -116,7 +122,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 /** Keys the APP owns. The VM is refused on these; it only reads them. */
-const APP_KEYS = new Set(['scanner:config', 'scanner:commands', 'scanner:positions']);
+const APP_KEYS = new Set(['scanner:config', 'scanner:commands', 'scanner:positions', 'scanner:alerts']);
 
 // Everything lives under one prefix so a leaked writer token cannot reach
 // anything else, and so `pull` can hand the tab the whole world in one request.

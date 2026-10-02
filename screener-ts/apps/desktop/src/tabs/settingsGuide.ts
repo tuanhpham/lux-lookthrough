@@ -108,8 +108,8 @@ export const SECTIONS: readonly GuideSection[] = [
     },
     steps: [],
     tip: {
-      en: 'Green and red are kept for gains and losses, so they are not offered — a custom colour close to either gets a warning. The choice is saved on this device, like the dark/light theme.',
-      vi: 'Xanh lá và đỏ được dành cho lãi và lỗ nên không có trong danh sách — chọn màu riêng gần hai màu đó sẽ có cảnh báo. Màu được lưu trên thiết bị này, giống như chế độ tối/sáng.',
+      en: 'Red stays reserved for losses. Green is offered once, as <b>Jade</b> — deeper and bluer than the bright mint that marks a gain, so a button never reads as a profit. A custom colour close to either still gets a warning. The choice is saved on this device, like the dark/light theme.',
+      vi: 'Đỏ vẫn dành riêng cho lỗ. Xanh lá có đúng một lựa chọn là <b>Xanh ngọc bích</b> — đậm và ngả lam hơn màu xanh bạc hà sáng dùng cho lãi, nên nút bấm không bị đọc nhầm thành lãi. Chọn màu riêng gần hai màu đó vẫn có cảnh báo. Màu được lưu trên thiết bị này, giống như chế độ tối/sáng.',
     },
   },
   {
@@ -487,6 +487,54 @@ export const SECTIONS: readonly GuideSection[] = [
         where: 'vm',
       },
     ],
+  },
+  {
+    id: 'scan-alerts',
+    group: 'scanner',
+    icon: '🔔',
+    title: { en: 'Telegram alerts from watchlists', vi: 'Cảnh báo Telegram theo watchlist' },
+    lead: {
+      en: 'You pick the lists and the rules on the <b>Watchlist</b> tab (🔔 Telegram alerts): a price level per ticker, unusual volume, a big move from yesterday’s close — each list with its own switches and thresholds. The app publishes them as `scanner:alerts`; `watchd` on the VM reads them every 5 minutes, checks every minute while that market is open (US, Germany/EU, Vietnam) and messages the same Telegram chat as the scanner.',
+      vi: 'Bạn chọn danh sách và quy tắc ở tab <b>Watchlist</b> (🔔 Cảnh báo Telegram): mức giá cho từng mã, khối lượng bất thường, biến động mạnh so với giá đóng cửa hôm qua — mỗi danh sách có công tắc và ngưỡng riêng. App đẩy quy tắc lên khoá `scanner:alerts`; `watchd` trên VM đọc 5 phút một lần, kiểm tra mỗi phút khi thị trường đó đang mở (Mỹ, Đức/EU, Việt Nam) và nhắn vào cùng nhóm Telegram với Scanner.',
+    },
+    steps: [
+      {
+        h: { en: 'Once: update the VM and restart watchd', vi: 'Một lần: cập nhật VM rồi khởi động lại watchd' },
+        p: [
+          {
+            en: 'The alerter lives inside `watchd`, which is its own systemd unit. The <b>Update</b> button on the VM panel pulls the code but does not restart `watchd` — this restart does. It never touches `main.py`.',
+            vi: 'Bộ cảnh báo nằm trong `watchd`, một unit systemd riêng. Nút <b>Cập nhật</b> ở bảng điều khiển VM chỉ kéo code, không khởi động lại `watchd` — lệnh dưới đây mới làm. Nó không đụng tới `main.py`.',
+          },
+        ],
+        cmd: 'cd ~/scanner && git pull\n.venv/bin/python -m pytest -q tests/test_useralerts.py && sudo systemctl restart watchd\nsystemctl status watchd --no-pager | head -15',
+        where: 'vm',
+      },
+      {
+        h: { en: 'Switch lists on and type the levels', vi: 'Bật danh sách và gõ mức giá' },
+        p: [
+          {
+            en: 'Levels are in the ticker’s own currency (EUR for `.DE`, VND for `.VN`). Sync must be on, otherwise the VM cannot see the rules. Under “What the VM says” the panel shows when the VM last read them and what it sent today.',
+            vi: 'Mức giá tính theo tiền của chính mã đó (EUR cho `.DE`, VND cho `.VN`). Phải bật đồng bộ ☁️, nếu không VM không đọc được quy tắc. Mục “VM báo lại” cho biết lần cuối VM đọc quy tắc và hôm nay đã gửi gì.',
+          },
+        ],
+        where: 'app',
+      },
+      {
+        h: { en: 'Nothing arrives?', vi: 'Không thấy tin nào?' },
+        p: [
+          {
+            en: 'Look for `useralerts:` lines in the watchd log. A stale quote, a closed market or a missing 20-day volume average is skipped on purpose and named in the panel’s warnings, never sent as an alert.',
+            vi: 'Tìm các dòng `useralerts:` trong log của watchd. Báo giá cũ, thị trường đang đóng hay chưa có khối lượng trung bình 20 phiên đều được bỏ qua có chủ đích và hiện trong mục cảnh báo của panel, không bao giờ gửi thành tin.',
+          },
+        ],
+        cmd: 'grep useralerts ~/scanner/state/watchd.log | tail -20',
+        where: 'vm',
+      },
+    ],
+    tip: {
+      en: 'Defaults: volume ×2 the usual pace for the time of day, move ±4% — both per list. Each rule fires at most once per ticker per day; changing a level arms it again. At most 120 tickers are watched; quotes are about 15 minutes late.',
+      vi: 'Mặc định: khối lượng ×2 nhịp thường theo giờ trong phiên, biến động ±4% — cả hai chỉnh theo từng danh sách. Mỗi quy tắc báo tối đa một lần mỗi mã mỗi ngày; đổi mức giá là quy tắc được bật lại. Tối đa 120 mã; giá trễ khoảng 15 phút.',
+    },
   },
   {
     id: 'scan-remote',

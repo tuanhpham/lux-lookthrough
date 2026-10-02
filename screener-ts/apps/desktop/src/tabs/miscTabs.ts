@@ -16,6 +16,7 @@ import { t, getLang } from '../ui/i18n.js';
 import { GLOSSARY_GROUPS, gloss } from '../ui/glossary.js';
 import { formDialog } from '../ui/forms.js';
 import { loadIndex, loadItems, saveItems, saveIndex, itemsKey, newId } from '../ui/watchlists.js';
+import { mountWatchAlerts, refreshWatchAlerts, watchAlertsHtml } from './watchAlerts.js';
 import { swingPlaybookHtml, wireSwingPlaybook } from './swingPlaybook.js';
 import { wirePlaybookTools } from './playbookTools.js';
 import { platformGuideHtml, wirePlatformGuide } from './learnPlatform.js';
@@ -62,10 +63,12 @@ export function renderWatchlist(ctx: AppContext): void {
         <input id="wl-import-file" type="file" accept="application/json,.json" style="display:none" />
       </div>
     </div>
+    ${watchAlertsHtml()}
     <div id="wl-plan-panel"></div>
     <div id="wl-results"></div>`;
 
   void refreshAll(ctx);
+  void mountWatchAlerts(ctx, root);
 
   $('#wl-export')!.addEventListener('click', () => void exportWatchlists(ctx));
   const importFile = $('#wl-import-file') as HTMLInputElement;
@@ -256,6 +259,8 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
     await refreshAll(ctx);
   });
   tabs.appendChild(add);
+  // Counts, names and tickers all feed the alerts fold; it is cheap to redraw.
+  void refreshWatchAlerts(ctx);
 }
 
 // Cache scan rows per list so switching tabs is instant. Each entry remembers

@@ -2,6 +2,8 @@
  * detail modal. Stored as: `watchlists:index` → [{id,name}],
  * `watchlists:items:<id>` → string[]. */
 import type { AppContext } from '../context.js';
+// Circular on purpose and safe: both sides only call each other at run time.
+import { publishAlerts } from '../portfolio/alertsFeed.js';
 
 export interface WatchlistMeta {
   id: string;
@@ -48,6 +50,8 @@ export async function loadIndex(ctx: AppContext): Promise<WatchlistMeta[]> {
 
 export async function saveIndex(ctx: AppContext, idx: WatchlistMeta[]): Promise<void> {
   await ctx.storage.set(INDEX_KEY, idx);
+  // A renamed list changes what the alert says; a deleted one must stop alerting.
+  void publishAlerts(ctx);
 }
 
 export async function loadItems(ctx: AppContext, id: string): Promise<string[]> {
@@ -57,6 +61,8 @@ export async function loadItems(ctx: AppContext, id: string): Promise<string[]> 
 export async function saveItems(ctx: AppContext, id: string, syms: string[]): Promise<void> {
   await ctx.storage.set(itemsKey(id), [...new Set(syms)]);
   _version++;
+  // An alerting list's tickers are what the VM watches. Skips itself when nothing it publishes moved.
+  void publishAlerts(ctx);
 }
 
 export async function createList(ctx: AppContext, name: string): Promise<WatchlistMeta> {
