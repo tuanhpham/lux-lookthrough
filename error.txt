@@ -6004,3 +6004,16 @@ CHAT-70 (2026-10-02) - Chon mau chu dao trong Cai dat; chay lenh VM tu web (nghi
 - (1) Chua lam, chi nghien cuu: VM chi goi ra ngoai, khong co cong vao; server da danh san scanner:commands (APP_KEYS) va push.get. Huong: hang doi lenh co danh sach trang (status, tail log, push, scan --once --dry, pull + restart), VM poll trong main.py, khong bao gio cho shell tu do. Can deploy wrangler + git pull tren VM.
 - Kiem tra: tsc OK, vitest 420/420, vite build OK, anh headless: Xanh Allianz va Hong tim phu ca trang, theme sang dung ban dam, mau rieng xanh la hien canh bao.
 - Chua thu tren thiet bi that.
+
+CHAT-71 (2026-10-02) - Chay lenh VM tu trang Settings & Guides (hang doi co danh sach trang)
+- Yeu cau: lam kenh lenh VM da de xuat o CHAT-70; scanner da day du lieu lai den 01/10 nen khong can sua push truoc.
+- Code: a6354ed3 (web) + scanner 6fe2e1e.
+  - Function scanner/[[path]].ts: resolveRole tra ve ca users.id; PUT scanner:commands chi cho id trong secret SCANNER_ADMIN (chua dat = tat voi moi nguoi); gia tri dung lai {id, cmd, arg, at, by} tu danh sach trang; ping tra ve you/admin/commands.
+  - Danh sach trang (3 ban phai trung nhau: function, remote.py, vmPanel.ts): status, log (service/prep/push/watchd/bot), push, scan, nightly, dblock, update, restart.
+  - scanner remote.py: doc scanner:commands moi 20 giay (loop_remote trong main.py, to_thread, khong chay trong --dry); ghi id da xu ly TRUOC khi chay; bo lenh cu hon 5 phut; che token/ma trong .env truoc khi gui, cat 6000 ky tu cuoi; ket qua vao scanner:command_results.
+  - Quet thu chay ngay trong process dang chay (scorer.rank, khong Telegram, khong DB) - khong bao gio mo main.py thu hai.
+  - Restart = process tu thoat duoi systemd (Restart=always bat lai sau ~30 giay), khong can sudo; chay tay ngoai systemd thi tu choi. Update = git pull --ff-only + cong import; requirements.txt doi thi dung lai.
+  - Web: vmPanel.ts (nut co dinh, khong o go lenh, hoi lai truoc update/restart, poll ket qua), muc huong dan scan-remote, CSS .st-vm-*.
+- Can lam tren may kia: npx wrangler pages secret put SCANNER_ADMIN --project-name the-professional (dan id hien trong khung), deploy; tren VM: cd ~/scanner && git pull && sudo systemctl restart scanner (mot lan).
+- Kiem tra: tsc OK, vitest 424/424 (them 4 test function), vite build OK, scanner pytest 793/793 (them 15 test remote), anh headless: san sang / da gui / ket qua / lenh tat, ban vi + 390px.
+- Chua thu tren thiet bi that.
