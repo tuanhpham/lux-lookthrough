@@ -298,11 +298,15 @@ export async function askAssistantText(
   prompt: string,
   onDelta: (chunk: string) => void,
   signal?: AbortSignal,
+  /** `web: true` hands the model web_search whatever the panel's 🌐 switch says — for a task
+   *  that IS a search (the event finder), where switching it off would only produce an empty list. */
+  opts: { web?: boolean } = {},
 ): Promise<AskResult | null> {
   const c = await loadLlmConfig(ctx);
   const key = c ? await getApiKey(ctx, c.providerId) : '';
   if (!c || !isConfigured(c, !!key)) return null;
-  return new AssistantSession(ctx, c, webSearchOn).ask(prompt, signal, onDelta);
+  const web = opts.web === undefined ? webSearchOn : () => opts.web!;
+  return new AssistantSession(ctx, c, web).ask(prompt, signal, onDelta);
 }
 
 export function closeChatPanel(): void {

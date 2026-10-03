@@ -26,6 +26,7 @@
  */
 import type { AppContext } from '../context.js';
 import type { ConvictionRating, SetupKey } from '@screener/core';
+import type { Catalyst } from '../caseStudies/store.js';
 
 /** The answers to the manual criteria: criterion key → the user's yes/no. */
 export type PlanAnswers = Record<string, boolean>;
@@ -90,6 +91,11 @@ export interface SymbolPlan {
   reviewedGrade: ConvictionRating | null;
   /** ISO timestamp of the last write, for the report footer and for "is this stale". */
   updatedAt: string;
+  /**
+   * Dated events and catalysts around the trade, picked by the user from the event finder.
+   * Frozen with the plan into every snapshot, and copied into the case study a buy opens.
+   */
+  events?: Catalyst[];
 }
 
 const PREFIX = 'plan:';
@@ -165,6 +171,9 @@ export function normalizePlan(raw: Partial<SymbolPlan>, symbol: string): SymbolP
       : null,
     reviewedGrade: raw.reviewedGrade ?? null,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : base.updatedAt,
+    ...(Array.isArray(raw.events)
+      ? { events: raw.events.filter((e) => e && typeof e.date === 'string' && typeof e.text === 'string').map((e) => ({ ...e })) }
+      : {}),
   };
 }
 

@@ -354,7 +354,9 @@ export function caseStudyFromPlan(i: CaseFromPlan): CaseStudy {
     ...(i.currency === 'EUR' ? { currency: 'EUR' as const } : {}),
     // Not derived from the note: catalysts are dated events the user adds in the journal's own
     // editor, and inventing them from a criteria summary would put made-up dates on a timeline.
-    catalysts: [],
+    // Only events the user picked and saved on the plan (the event finder) — never invented
+    // from a criteria summary, which would put made-up dates on a timeline.
+    catalysts: (i.plan.plan.events ?? []).map((e) => ({ ...e })),
     notes: i.notes,
     ...(reason ? { exitReason: reason } : {}),
     // The key as well as the sentence. The sentence is what the report prints and what the user

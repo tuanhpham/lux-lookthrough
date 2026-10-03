@@ -6172,3 +6172,13 @@ CHAT-80 (2026-10-03) - Tram giao dich: thanh gia moi, cot can deu, chart cua tra
 - Tien te: nut EUR/USD (mac dinh = tien cua tai khoan). Nen ve bang tien da chon theo ty gia ngay giao dich (inCurrency/candleDivisor), moi muc gia/thang gia/lenh cho hien bang tien do; doi tien te la doi luon cac o gia.
 - Goi y gia: gia mua theo ngay da chon (gia dong cua ngay do), gia ban theo ngay ban khi tick "Da ban roi"; neu khong co gia hom nay thi lay gia dong cua gan nhat.
 - Kiem tra: tsc OK, vitest 449, vite build OK, anh headless 1920/1400 toi/sang, ngay ban 01/07 -> goi y 177,79.
+
+CHAT-81 (2026-10-03) - Tram: thang muc gia len tren; Tim su kien & catalyst bang tro ly (chon bang checkbox, luu vao case study / trade plan, ghi chu sua duoc)
+- Cot trai: thang muc gia tren cung, danh sach dang giu/watchlist ben duoi cuon rieng (tieu de nhom dinh).
+- core analysis/eventFinder.ts: buildEventFinderPrompt (60 ngay truoc / 30 ngay sau ngay giao dich, goi web_search nhieu lan + get_quote, chi ngay tim thay hoac ngay KQKD app da biet, toi da 12 su kien, tra ve MOT khoi ```json {events[{date,kind,title,detail,source}], note{summary,metrics[],risks[]}}) + parseEventFinderAnswer (bo tung dong sai, khu trung, chi giu link http). Test core (3). prompt.ts: muc "Event finder" cho tro ly.
+- app ui/eventFinder.ts: hop thoai "Su kien & catalyst": hoi tro ly (askAssistantText, bat buoc co web search), them ngay KQKD tu Nasdaq neu tro ly bo sot; moi su kien mot dong co checkbox (tick san), loai mau, nguon ↗; Chon het/Bo het; ghi chu dung san (h4 + ul: tom tat, chi so, su kien da chon, rui ro) sua duoc bang trinh soan rich text; chon noi luu su kien va noi luu ghi chu. Chua cau hinh AI -> nut mo cai dat AI; tra loi khong co JSON -> xem cau tra loi + Tim lai.
+- caseStudies/eventNotes.ts: catalystOf (tag loai co mau, tieu de dam, chi tiet, nguon), mergeCatalysts (khong lap), noteHtmlOf. Test (3). Catalyst co them kind/source; SymbolPlan co events (normalizePlan giu lai).
+- Tram: o Ke hoach giao dich co khung "Su kien & catalyst" + nut "Tim bang tro ly"; su kien luu vao plan:<SYM> (danh sach, xoa duoc, hien ◆ tren chart) va/hoac case study cua lenh mua; ghi chu vao case study / ghi chu lenh / ghi chu trade plan. Mua -> case study nhan catalysts + ghi chu.
+- Case Study editor: nut "Tim su kien & catalyst bang tro ly" quanh ngay then chot -> them vao catalyst + ghi chu & bai hoc. Case study lap tu Trade Planner nhan su kien cua plan.
+- Kiem tra: tsc OK, vitest core 840 + desktop 452, vite build OK, anh headless voi tro ly gia (hop thoai 6 su kien, bo tick 1, luu -> 5 su kien trong plan + ◆ tren chart).
+- Can co tro ly AI da cau hinh (Cai dat AI). Chi can deploy web.

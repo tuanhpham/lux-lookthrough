@@ -37,6 +37,10 @@ export interface CaseFill {
 export interface Catalyst {
   date: string; // ISO YYYY-MM-DD
   text: string;
+  /** What kind of event, when it came from the event finder (earnings, analyst, macro, …). */
+  kind?: string;
+  /** Where it was found: an http(s) URL, 'nasdaq' for the app's own earnings dates. Absent = typed by hand. */
+  source?: string;
 }
 
 export type CaseOutcome = 'win' | 'loss' | 'open' | 'scratch';

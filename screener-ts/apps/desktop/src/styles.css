@@ -8932,3 +8932,54 @@ html.light #main .stn .stn-bar { box-shadow: inset 0 1px 0 #fff, 0 18px 40px -30
   .stn { grid-template-areas: "bar bar bar bar" "side main plan ticket" "side bottom plan ticket"; grid-template-rows: auto auto 1fr; }
   .stn-bottom { align-self: start; }
 }
+
+/* left column: the level ladder on top, the held/watchlist list below it scrolling on its own */
+.stn-side-in .stn-ladder { border-top: 0; padding-top: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border-soft); }
+.stn-side-in .stn-list { padding-right: 2px; scrollbar-width: thin; }
+.stn-side-in .stn-list .stn-lh { position: sticky; top: 0; z-index: 1; background: var(--card); }
+
+/* ── Event finder: a checklist of what the assistant found, a note to edit, where it all goes ── */
+.dialog.evf { width: min(760px, 96vw); max-height: 92vh; display: flex; flex-direction: column; }
+.evf-body { overflow-y: auto; display: grid; gap: 10px; }
+.evf-status { display: flex; align-items: center; gap: 10px; padding: 26px 10px; color: var(--subtext); font-size: 13px; }
+.evf-status small { font-family: var(--font-mono); color: var(--faint); }
+.evf-head { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--subtext); }
+.evf-list { display: grid; border: 1px solid var(--border-soft); border-radius: 12px; overflow: hidden; }
+.evf-row {
+  display: grid; grid-template-columns: 18px 86px auto minmax(0, 1fr) 28px; align-items: start; gap: 10px;
+  padding: 9px 12px; cursor: pointer; transition: background .12s ease;
+}
+.evf-row + .evf-row { border-top: 1px solid var(--border-soft); }
+.evf-row:hover { background: var(--cardhover); }
+.evf-row input { margin-top: 2px; accent-color: var(--accent); }
+.evf-row:has(input:not(:checked)) { opacity: .5; }
+.evf-date { font: 600 12px var(--font-mono); color: var(--text); padding-top: 1px; }
+.evf-kind {
+  justify-self: start; padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
+  color: var(--k); border: 1px solid color-mix(in srgb, var(--k) 45%, transparent); background: color-mix(in srgb, var(--k) 10%, transparent);
+}
+.evf-txt { display: grid; gap: 2px; font-size: 13px; color: var(--text); min-width: 0; }
+.evf-txt small { font-size: 12px; color: var(--subtext); line-height: 1.45; }
+.evf-src { justify-self: end; color: var(--accent); text-decoration: none; font-size: 14px; }
+.evf-src-n { font-size: 10px; color: var(--faint); }
+.evf-sec { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 6px 0 4px; }
+.evf-dest { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border-soft); }
+.evf-dest .stn-check { margin-top: 6px; }
+.evf-raw { max-height: 240px; overflow: auto; white-space: pre-wrap; font: 11.5px var(--font-mono); }
+@media (max-width: 620px) {
+  .evf-row { grid-template-columns: 18px minmax(0, 1fr) 24px; }
+  .evf-date, .evf-kind { grid-column: 2; }
+  .evf-dest { grid-template-columns: 1fr; }
+}
+/* the events on the station's plan */
+.stn-evs { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--surface); }
+.stn-evs-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); }
+.stn-evs-list { display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
+.stn-ev { display: grid; grid-template-columns: 78px minmax(0, 1fr) 20px; gap: 8px; align-items: start; font-size: 12px; }
+.stn-ev-d { font-family: var(--font-mono); color: var(--violet, #a855f7); }
+.stn-ev-t { color: var(--subtext); line-height: 1.45; }
+.stn-ev-t b { color: var(--text); }
+.stn-ev-x { border: 0; background: none; color: var(--faint); cursor: pointer; padding: 0; }
+.stn-ev-x:hover { color: var(--down); }
+.stn-evs-empty { font-size: 11.5px; color: var(--faint); line-height: 1.5; }
+.stn-evs-pend { font-size: 11.5px; color: var(--up); }

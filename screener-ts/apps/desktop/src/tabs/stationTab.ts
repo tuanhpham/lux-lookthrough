@@ -46,6 +46,9 @@ import { loadCase, loadCaseIndex, saveCase, type CaseRating, type CaseStudy } fr
 import { applySell, caseForBuy, studyForLots } from '../portfolio/stationCase.js';
 import { loadIndex as loadWatchlists, loadItems as loadWatchItems } from '../ui/watchlists.js';
 import { sanitizeNoteHtml } from '../ui/richNote.js';
+import { openEventFinder } from '../ui/eventFinder.js';
+import { mergeCatalysts } from '../caseStudies/eventNotes.js';
+import type { Catalyst } from '../caseStudies/store.js';
 
 const vi = (): boolean => getLang() === 'vi';
 const L = (en: string, viText: string): string => (vi() ? viText : en);
@@ -97,6 +100,11 @@ interface Ticket {
   /** Still the close of the exit date this page put there — moving the date replaces it. */
   exitAuto: boolean;
   exitReason: string;
+  /** Events picked in the finder for the case study this buy opens. */
+  events: Catalyst[];
+  /** The finder's note, headed for the case study and/or the order's own note. */
+  caseNote: string;
+  orderNote: string;
 }
 
 let sym = '';
@@ -131,6 +139,7 @@ function freshTicket(acctId = ''): Ticket {
     side: 'buy', mode: 'fill', orderType: 'STOP_LOSS', acctId, price: null, priceAuto: true, ccy: 'USD', date: today(),
     shares: null, stop: null, target: null, setup: '', fee: null, note: '', caseOn: true,
     closedOn: false, exitDate: today(), exitPrice: null, exitAuto: true, exitReason: '',
+    events: [], caseNote: '', orderNote: '',
   };
 }
 
@@ -358,7 +367,7 @@ function paint(ctx: AppContext, root: HTMLElement): void {
   root.innerHTML = `
     <div class="stn">
       ${tickerBarHtml()}
-      <aside class="stn-side card"><div class="stn-side-in">${listHtml()}${ladderHtml()}</div></aside>
+      <aside class="stn-side card"><div class="stn-side-in">${ladderHtml()}${listHtml()}</div></aside>
       <section class="stn-main card">
         ${pickBarHtml()}
         <div class="stn-emas">${EMA_CONFIG.map((e) => `<button class="range-btn${emaState[e.period] ? ' active' : ''}" data-stn-ema="${e.period}">EMA${e.period}</button>`).join('')}
@@ -509,7 +518,29 @@ function planPanelHtml(): string {
       <div><span>${L('Full size → grade', 'Cỡ đầy đủ → theo điểm')}</span><b>${fmt(s.size.fullShares, 0)} → ${pct}% → ${fmt(s.size.shares, 0)} ${L('sh', 'cp')}</b></div>
       ${s.budget.pct === 0 ? `<div class="stn-warnline">${L('The playbook says no new longs in this market.', 'Playbook: không mở lệnh mua mới trong thị trường này.')}</div>` : ''}
     </div>` : '';
-  return `${head}<div class="stn-grade">${body}</div>${sizing}`;
+  return `${head}${eventsHtml()}<div class="stn-grade">${body}</div>${sizing}`;
+}
+
+/** The events saved on the plan, with the finder's button — the catalysts this trade is taken against. */
+function eventsHtml(): string {
+  const list = (plan?.events ?? []).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  const pend = ticket.events.length || ticket.caseNote || ticket.orderNote;
+  return `<div class="stn-evs">
+      <div class="stn-evs-h">
+        <b>📅 ${L('Events & catalysts', 'Sự kiện & catalyst')}${list.length ? ` · ${list.length}` : ''}</b>
+        <button class="btn-outline stn-mini" data-stn-find${sym ? '' : ' disabled'}>🔎 ${L('Find with the assistant', 'Tìm bằng trợ lý')}</button>
+      </div>
+      ${list.length ? `<div class="stn-evs-list">${list.map((e, i) => `<div class="stn-ev">
+          <span class="stn-ev-d">${esc(e.date)}</span><span class="stn-ev-t note-html">${sanitizeNoteHtml(e.text)}</span>
+          <button class="stn-ev-x" data-stn-evdel="${i}" title="${L('Remove', 'Xoá')}">✕</button></div>`).join('')}</div>`
+        : `<div class="stn-evs-empty">${L(`Search the news around ${ticket.date}: the picked events are saved here, drawn on the chart as ◆ and filed with the case study.`,
+          `Tìm tin tức quanh ngày ${ticket.date}: sự kiện được chọn sẽ lưu ở đây, hiện trên chart dạng ◆ và đi theo case study.`)}</div>`}
+      ${pend ? `<div class="stn-evs-pend">✓ ${L('Waiting for the buy', 'Chờ lệnh mua')}: ${[
+        ticket.events.length ? L(`${ticket.events.length} events → case study`, `${ticket.events.length} sự kiện → case study`) : '',
+        ticket.caseNote ? L('note → case study', 'ghi chú → case study') : '',
+        ticket.orderNote ? L('note → order', 'ghi chú → lệnh') : '',
+      ].filter(Boolean).join(' · ')}</div>` : ''}
+    </div>`;
 }
 
 function acctOptions(): string {
@@ -779,7 +810,10 @@ function drawChart(root: HTMLElement): void {
 }
 
 function paintEarnings(): void {
-  chart?.setEarnings(showEarnings ? earnReports.map((r) => ({ date: r.date })) : []);
+  const marks: { date: string; label?: string }[] = showEarnings ? earnReports.map((r) => ({ date: r.date })) : [];
+  const evs = mergeCatalysts(plan?.events ?? [], ticket.events).filter((e) => e.kind !== 'earnings');
+  for (const e of evs) if (!marks.some((m) => m.date === e.date)) marks.push({ date: e.date, label: '◆' });
+  chart?.setEarnings(marks);
 }
 
 function repaintPickBar(ctx: AppContext, root: HTMLElement): void {
@@ -900,6 +934,17 @@ function wirePlan(ctx: AppContext, root: HTMLElement): void {
   if (!box) return;
   box.addEventListener('click', (ev) => {
     const hit = ev.target as HTMLElement;
+    if (hit.closest('[data-stn-find]')) { void findEvents(ctx, root); return; }
+    const del = hit.closest<HTMLElement>('[data-stn-evdel]');
+    if (del && plan?.events) {
+      const sorted = plan.events.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+      const gone = sorted[Number(del.dataset.stnEvdel)];
+      plan.events = plan.events.filter((e) => e !== gone);
+      storePlan(ctx);
+      repaintLive(ctx, root);
+      paintEarnings();
+      return;
+    }
     if (hit.closest('[data-stn-crit]')) { critOpen = !critOpen; repaintLive(ctx, root); return; }
     const btn = hit.closest<HTMLElement>('[data-stn-ans]');
     if (!btn || !plan) return;
@@ -928,6 +973,28 @@ function wirePlan(ctx: AppContext, root: HTMLElement): void {
     repaintLive(ctx, root);
     drawChart(root);
   });
+}
+
+async function findEvents(ctx: AppContext, root: HTMLElement): Promise<void> {
+  if (!sym || !plan) return;
+  const res = await openEventFinder(ctx, {
+    symbol: sym, date: ticket.date, setup: ticket.setup || undefined, entry: ticket.price, stop: ticket.stop, currency: ticket.ccy,
+  }, [
+    { id: 'plan', what: 'events', label: L(`The ${sym} trade plan (kept for the next trades too)`, `Trade plan của ${sym} (giữ cho cả các lệnh sau)`), on: true },
+    { id: 'case', what: 'events', label: L('The case study this buy opens', 'Case study mà lệnh mua này mở'), on: ticket.caseOn },
+    { id: 'case-note', what: 'note', label: L('The case study’s notes', 'Ghi chú của case study'), on: ticket.caseOn },
+    { id: 'order-note', what: 'note', label: L('The buy’s own note (in Portfolio)', 'Ghi chú của lệnh mua (trong Danh mục)'), on: false },
+    { id: 'plan-note', what: 'note', label: L('The trade plan’s note', 'Ghi chú của trade plan'), on: false },
+  ]);
+  if (!res) return;
+  if (res.targets.has('plan') && res.events.length) plan.events = mergeCatalysts(plan.events ?? [], res.events);
+  if (res.targets.has('plan-note') && res.noteHtml) { plan.note = (plan.note || '') + res.noteHtml; plan.noteEdited = true; }
+  if (res.targets.has('plan') || res.targets.has('plan-note')) storePlan(ctx);
+  if (res.targets.has('case')) { ticket.events = mergeCatalysts(ticket.events, res.events); ticket.caseOn = true; }
+  if (res.targets.has('case-note')) { ticket.caseNote = res.noteHtml; ticket.caseOn = true; }
+  if (res.targets.has('order-note')) ticket.orderNote = res.noteHtml;
+  repaintLive(ctx, root);
+  paintEarnings();
 }
 
 function wireBottomTabs(ctx: AppContext, root: HTMLElement): void {
@@ -1142,7 +1209,11 @@ function priced(v: number, date: string): PlannedPrice | null {
   return 'error' in p ? null : p;
 }
 
-const noteHtml = (): string | undefined => (ticket.note.trim() ? sanitizeNoteHtml(`<p>${esc(ticket.note.trim())}</p>`) : undefined);
+const noteHtml = (): string | undefined => {
+  const own = ticket.note.trim() ? `<p>${esc(ticket.note.trim())}</p>` : '';
+  const html = own + (ticket.side === 'buy' ? ticket.orderNote : '');
+  return html ? sanitizeNoteHtml(html) : undefined;
+};
 
 async function submit(ctx: AppContext, root: HTMLElement): Promise<void> {
   const st = acct();
@@ -1235,9 +1306,11 @@ async function submitBuy(ctx: AppContext, st: (typeof accounts)[number], shares:
     const study = caseForBuy({
       symbol: sym, accountId: account.id, lotId, date: ticket.date, shares, price: ticket.price!, currency: ticket.ccy,
       ...(fee ? { fee } : {}), stop: ticket.stop, target: ticket.target, setup: ticket.setup,
-      rating: (g ?? '') as CaseRating, notes: noteHtml() ?? '', todayIso: today(),
+      rating: (g ?? '') as CaseRating, notes: sanitizeNoteHtml((noteHtml() ?? '') + ticket.caseNote), todayIso: today(),
     });
     if (snap) study.plan = snap;
+    // The events this trade was taken against: the ones picked for it, and the plan's own.
+    study.catalysts = mergeCatalysts(plan?.events ?? [], ticket.events);
     if (exit) {
       applySell(study, {
         date: exit.date, shares: soldShares, price: ticket.exitPrice!, ...(fee ? { fee } : {}), heldAfter: 0,

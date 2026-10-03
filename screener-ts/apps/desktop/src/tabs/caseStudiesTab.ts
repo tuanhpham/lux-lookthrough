@@ -4,6 +4,8 @@
  * static SVG chart of the ±window around the key date, downloadable as a
  * self-contained HTML report (print → Save as PDF).
  */
+import { openEventFinder } from '../ui/eventFinder.js';
+import { mergeCatalysts } from '../caseStudies/eventNotes.js';
 import type { Bar, OHLCV } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { $, el } from '../ui/dom.js';
@@ -614,6 +616,10 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         <div class="cs-cat-input note-html field" id="cs-cat-text" contenteditable="true" data-placeholder="${vi ? 'Tin tức / KQKD / catalyst… (định dạng được)' : 'News / earnings / catalyst… (formatting supported)'}" style="flex:1;min-height:38px"></div>
         <button id="cs-cat-add" class="btn-outline">${vi ? '＋ Thêm' : '＋ Add'}</button>
       </div>
+      <div class="row" style="margin-top:10px;gap:8px;align-items:center">
+        <button id="cs-cat-ai" class="btn-outline">🔎 ${vi ? 'Tìm sự kiện & catalyst bằng trợ lý' : 'Find events & catalysts with the assistant'}</button>
+        <span class="muted" style="font-size:12px">${vi ? 'Quanh ngày then chốt ở trên — bạn chọn sự kiện nào giữ lại.' : 'Around the key date above — you choose which to keep.'}</span>
+      </div>
     </div>
 
     ${sectionHead(vi ? '📝 Ghi chú & bài học' : '📝 Notes & lessons')}
@@ -670,6 +676,34 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
 
   // Rich-text notes editor + live view.
   let notesHtml = study.notes;
+  const paintNotes = (): void => {
+    const view = $('#f-notes')!;
+    view.innerHTML = isNoteEmpty(notesHtml)
+      ? `<span class="muted">${vi ? 'Chưa có ghi chú — bấm ✎ để thêm.' : 'No notes — click ✎ to add.'}</span>`
+      : sanitizeNoteHtml(notesHtml);
+  };
+
+  // The event finder: the assistant searches around the key date, the user ticks what to keep.
+  $('#cs-cat-ai')!.addEventListener('click', async () => {
+    const sym = ($('#f-symbol') as HTMLInputElement).value.trim().toUpperCase();
+    const date = ($('#f-keydate') as HTMLInputElement).value;
+    if (!sym || !date) return;
+    const num = (id: string): number | null => { const v = Number(($(id) as HTMLInputElement).value); return v > 0 ? v : null; };
+    const res = await openEventFinder(ctx, {
+      symbol: sym, date, setup: ($('#f-setup') as HTMLSelectElement).value,
+      entry: num('#f-entry'), stop: num('#f-stop'), currency: ($('#f-ccy') as HTMLSelectElement).value,
+    }, [
+      { id: 'cats', what: 'events', label: vi ? 'Catalyst của case study này' : 'This case study’s catalysts', on: true },
+      { id: 'notes', what: 'note', label: vi ? 'Ghi chú & bài học' : 'Notes & lessons', on: true },
+    ]);
+    if (!res) return;
+    if (res.targets.has('cats')) {
+      const merged = mergeCatalysts(catalysts, res.events);
+      catalysts.splice(0, catalysts.length, ...merged);
+      renderCatRows();
+    }
+    if (res.targets.has('notes') && res.noteHtml) { notesHtml = (notesHtml || '') + res.noteHtml; paintNotes(); }
+  });
   $('#f-notes-edit')!.addEventListener('click', async () => {
     const res = await richNoteDialog(vi ? 'Ghi chú & bài học' : 'Notes & lessons', notesHtml, { lang: vi ? 'vi' : 'en' });
     if (res === null) return;
