@@ -22,6 +22,12 @@ const EN = {
   navPlatform: 'Platform',
   navLearn: 'Learn',
   navStory: 'Story',
+  menuPlatformSub: 'Calendar, scanner, plans, portfolio — the working app.',
+  menuLearnSub: 'Playbook, glossary and how every page works.',
+  menuStorySub: 'Why it was built, and how it thinks.',
+  menuPrefs: 'Look & language',
+  menuAria: 'Menu',
+  menuClose: 'Close menu',
   eyebrow: 'Private research terminal',
   h1a: 'Every setup on the list,',
   h1b: 'with the reason it is there.',
@@ -126,6 +132,12 @@ const VI: typeof EN = {
   navPlatform: 'Nền tảng',
   navLearn: 'Tìm hiểu',
   navStory: 'Câu chuyện',
+  menuPlatformSub: 'Lịch, scanner, trade plan, danh mục — phần làm việc.',
+  menuLearnSub: 'Playbook, thuật ngữ và cách mỗi trang hoạt động.',
+  menuStorySub: 'Vì sao nó được dựng, và nó suy nghĩ thế nào.',
+  menuPrefs: 'Giao diện & ngôn ngữ',
+  menuAria: 'Menu',
+  menuClose: 'Đóng menu',
   eyebrow: 'Bàn nghiên cứu riêng',
   h1a: 'Mỗi mã trong danh sách,',
   h1b: 'kèm lý do nó có mặt ở đó.',
@@ -241,7 +253,6 @@ export function renderLanding(
   detachScroll?.();
   detachScroll = null;
 
-  const isLight = document.documentElement.classList.contains('light');
   const lang = getLang();
   const c = lang === 'vi' ? VI : EN;
   // Both fall back to the main entry point rather than being conditionally rendered:
@@ -275,6 +286,12 @@ export function renderLanding(
       <span class="cl-theme-ic cl-theme-ic--sun" aria-hidden="true">${icoSun()}</span>
       <span class="cl-theme-knob" aria-hidden="true"></span>
     </button>`;
+  const menuLink = (id: string, ico: string, name: string, sub: string, primary = false) =>
+    `<button class="slm-link${primary ? ' slm-link--primary' : ''}" id="${id}">
+        <span class="slm-ic" aria-hidden="true">${ico}</span>
+        <span class="slm-txt"><b>${name}</b><small>${sub}</small></span>
+        <span class="slm-go" aria-hidden="true">→</span>
+      </button>`;
   const langSeg = `<div class="cl-lang" role="group" aria-label="${c.footLang}">
         <button class="cl-lang-btn${lang === 'en' ? ' active' : ''}" data-ml="en">EN</button>
         <button class="cl-lang-btn${lang === 'vi' ? ' active' : ''}" data-ml="vi">VI</button>
@@ -484,21 +501,23 @@ export function renderLanding(
 
 </div>
 
-<!-- Full-screen menu overlay (shared styling with the tool landing) -->
-<div id="sl-menu">
-  <header class="sl-menu-header">
-    <button class="sl-menu-brand" id="sl-menu-brand">${t('brand.name')}</button>
-    <button id="sl-menu-close" aria-label="Close menu">✕</button>
-  </header>
-  <div class="sl-menu-items">
-    <button class="sl-menu-item" id="sl-menu-discover">${c.navPlatform}</button>
-    <button class="sl-menu-item" id="sl-menu-learn">${c.navLearn}</button>
-    <button class="sl-menu-item" id="sl-menu-story">${c.navStory}</button>
-    <div class="sl-menu-controls">
-      <button class="sl-menu-ctrl${lang === 'en' ? ' active' : ''}" data-ml="en">EN</button>
-      <button class="sl-menu-ctrl${lang === 'vi' ? ' active' : ''}" data-ml="vi">VI</button>
+<!-- The phone menu: a glass sheet that drops from the top, same pieces as the bar above. -->
+<div id="sl-menu" role="dialog" aria-modal="true" aria-label="${c.menuAria}">
+  <div class="slm-sheet">
+    <header class="sl-menu-header">
+      <button class="sl-menu-brand" id="sl-menu-brand">${t('brand.name')}</button>
+      <button id="sl-menu-close" aria-label="${c.menuClose}">${icoClose()}</button>
+    </header>
+    <nav class="slm-links">
+      ${menuLink('sl-menu-discover', icoGrid(), c.navPlatform, c.menuPlatformSub, true)}
+      ${menuLink('sl-menu-learn', icoBook(), c.navLearn, c.menuLearnSub)}
+      ${menuLink('sl-menu-story', icoSpark(), c.navStory, c.menuStorySub)}
+    </nav>
+    <div class="slm-prefs">
+      <small>${c.menuPrefs}</small>
+      ${langSeg}
+      ${themeSwitch('sl-menu-theme')}
     </div>
-    <button class="sl-menu-ctrl" id="sl-menu-theme">${isLight ? '☀️' : '🌙'}</button>
   </div>
 </div>`;
 
@@ -556,6 +575,9 @@ export function renderLanding(
     document.body.style.overflow = 'hidden';
   });
   host.querySelector('#sl-menu-close')!.addEventListener('click', closeMenu);
+  // A tap on the dimmed page below the sheet closes it, as does Escape.
+  menu.addEventListener('click', (e) => { if (e.target === menu) closeMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu.classList.contains('sl-menu--open')) closeMenu(); });
 
   host.querySelectorAll<HTMLElement>('[data-ml]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -565,16 +587,6 @@ export function renderLanding(
       });
     }),
   );
-
-  host.querySelector('#sl-menu-theme')!.addEventListener('click', (e) => {
-    const btn = e.currentTarget as Element;
-    const light = document.documentElement.classList.contains('light');
-    pageTransition(btn, () => {
-      closeMenu();
-      applyTheme(light ? 'dark' : 'light');
-      renderLanding(host, onEnterPrivate, onOpenStory, onOpenLearn, onOpenPage);
-    });
-  });
 
   // How far down the page you are, as a hairline under the sticky bar. The page is
   // long now; this is the cheapest possible answer to "how much is left".
@@ -835,6 +847,7 @@ const icoDesk = () => SVG(`<rect x="2" y="6" width="20" height="13" rx="2"/><pat
 const icoJournal = () => SVG(`<path d="M5 3h12a2 2 0 0 1 2 2v16l-7-3-7 3V5a2 2 0 0 1 2-2z"/><path d="M9 8h6M9 12h4"/>`);
 const icoPlan = () => SVG(`<path d="M4 20V6"/><path d="M4 16h16"/><path d="M4 9h16" stroke-dasharray="2 3"/><path d="M7 13l3-3 3 2 4-5"/>`);
 const icoBook = () => SVG(`<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/><path d="M9 7h6"/>`);
+const icoClose = () => SVG(`<path d="M6 6l12 12"/><path d="M18 6L6 18"/>`);
 const icoGrid = () => SVG(`<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>`);
 const icoSpark = () => SVG(`<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"/>`);
 const icoArrow = () => SVG(`<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>`);

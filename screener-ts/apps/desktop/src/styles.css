@@ -8553,3 +8553,70 @@ html:not(.light) .chat-field { background: rgba(255, 255, 255, .075); border-col
   .st-us-row { grid-template-columns: 36px minmax(0, 1fr); }
   .st-us-row > button { grid-column: 1 / -1; justify-self: start; }
 }
+
+/* ══ The landing's phone menu in glass: a sheet from the top, not the old full-screen type list ══ */
+#sl-menu {
+  inset: 0; height: auto; padding: max(10px, env(safe-area-inset-top)) 10px 10px;
+  display: block; overflow-y: auto; background: rgba(4, 4, 10, .42);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: opacity .3s ease;
+}
+html.light #sl-menu { background: rgba(120, 100, 76, .16); }
+.slm-sheet {
+  max-width: 560px; margin: 0 auto; padding: 6px 14px 14px; border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: linear-gradient(180deg, rgba(30, 26, 48, .82), rgba(16, 14, 26, .78));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 30px 60px -20px rgba(0, 0, 0, .6);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+  transform: translateY(-14px) scale(.98); transform-origin: top center;
+  transition: transform .4s cubic-bezier(.22, 1, .36, 1);
+}
+#sl-menu.sl-menu--open .slm-sheet { transform: none; }
+html.light .slm-sheet {
+  border-color: rgba(255, 255, 255, .9);
+  background: linear-gradient(180deg, rgba(255, 253, 250, .9), rgba(255, 253, 250, .78));
+  box-shadow: inset 0 1px 0 #fff, 0 30px 60px -24px rgba(60, 45, 25, .35);
+}
+#sl-menu .sl-menu-header { height: 52px; padding: 0 2px 0 6px; }
+#sl-menu .sl-menu-brand { font-size: 13px; }
+#sl-menu-close { width: 36px; height: 36px; border-color: var(--border-soft); color: var(--subtext); }
+#sl-menu-close svg { width: 16px; height: 16px; }
+html:not(.light) #sl-menu-close { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .12); }
+html.light #sl-menu-close { background: rgba(255, 255, 255, .6); border-color: rgba(255, 255, 255, .95); }
+
+.slm-links { display: grid; gap: 8px; margin-top: 4px; }
+.slm-link {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  width: 100%; padding: 12px; text-align: left; cursor: pointer; color: var(--text); font-family: var(--font-ui);
+  border-radius: 16px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(255, 255, 255, .035);
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.slm-link:hover { background: rgba(255, 255, 255, .07); border-color: var(--accent-line); }
+.slm-link:active { transform: scale(.985); }
+.slm-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+html.light .slm-link { border-color: rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .55); box-shadow: 0 1px 2px rgba(60, 45, 25, .06); }
+html.light .slm-link:hover { background: rgba(255, 255, 255, .85); }
+.slm-ic {
+  width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px;
+  color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent-line);
+}
+.slm-ic svg { width: 19px; height: 19px; }
+.slm-txt { display: grid; gap: 2px; min-width: 0; }
+.slm-txt b { font-size: 15.5px; font-weight: 650; letter-spacing: -.005em; }
+.slm-txt small { font-size: 12.5px; line-height: 1.4; color: var(--subtext); }
+.slm-go { font-size: 16px; color: var(--faint); transition: transform .15s ease, color .15s ease; }
+.slm-link:hover .slm-go { color: var(--accent); transform: translateX(3px); }
+.slm-link--primary {
+  border-color: var(--accent-line);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 6%, transparent));
+}
+html.light .slm-link--primary { border-color: var(--accent-line); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, #fff), rgba(255, 255, 255, .7)); }
+.slm-link--primary .slm-ic { color: #fff; background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent)); border-color: transparent; }
+.slm-link--primary .slm-go { color: var(--accent); }
+
+.slm-prefs {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 4px 2px;
+  border-top: 1px solid var(--border-soft);
+}
+.slm-prefs small { flex: 1 1 auto; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.slm-prefs .cl-lang { display: inline-flex; }
+@media (min-width: 901px) { #sl-menu { display: none; } }
