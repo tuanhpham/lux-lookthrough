@@ -94,10 +94,15 @@ export interface PlaybookConfig {
    * shape and validates on the way out, because this blob is synced and hand-editable.
    */
   exitReasons?: { key: string; label: string; group: string }[];
+  /**
+   * Shipped exit reasons the user took off the list. Hidden, not deleted: a trade filed under
+   * one still reads its label (see `exitReasonLabel`), and the dialog can bring it back.
+   */
+  hiddenExitReasons?: string[];
 }
 
 export const EMPTY_PLAYBOOK_CONFIG: PlaybookConfig = {
-  setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {}, exitReasons: [],
+  setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {}, exitReasons: [], hiddenExitReasons: [],
 };
 
 let cfg: PlaybookConfig = EMPTY_PLAYBOOK_CONFIG;
@@ -149,6 +154,7 @@ export async function loadPlaybookConfig(ctx: AppContext): Promise<PlaybookConfi
     exitReasons: (Array.isArray(stored?.exitReasons) ? stored.exitReasons : [])
       .filter((r) => r && typeof r.key === 'string' && r.key !== '' && typeof r.label === 'string')
       .map((r) => ({ key: r.key, label: r.label, group: typeof r.group === 'string' ? r.group : 'mine' })),
+    hiddenExitReasons: (Array.isArray(stored?.hiddenExitReasons) ? stored.hiddenExitReasons : []).filter((k) => typeof k === 'string'),
   };
   cfgLoaded = true;
   return cfg;

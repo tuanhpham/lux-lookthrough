@@ -46,7 +46,9 @@ import { setupName } from '../portfolio/planWords.js';
 import { loadCase, loadCaseIndex, saveCase, type CaseRating, type CaseStudy } from '../caseStudies/store.js';
 import { applySell, caseForBuy, studyForLots } from '../portfolio/stationCase.js';
 import { loadIndex as loadWatchlists, loadItems as loadWatchItems } from '../ui/watchlists.js';
-import { sanitizeNoteHtml } from '../ui/richNote.js';
+import { richNoteDialog, sanitizeNoteHtml } from '../ui/richNote.js';
+import { openPlaybookSettings } from '../ui/playbookSettings.js';
+import { openExitReasonsDialog } from '../portfolio/exitReasonsDialog.js';
 import { openEventFinder } from '../ui/eventFinder.js';
 import { eventMarksOf, mergeCatalysts } from '../caseStudies/eventNotes.js';
 import type { Catalyst } from '../caseStudies/store.js';
@@ -466,6 +468,19 @@ function tickerBarHtml(): string {
     </header>`;
 }
 
+const GRP_KEY = 'stn_groups';
+function groupOpen(id: string): boolean {
+  try { return (JSON.parse(localStorage.getItem(GRP_KEY) ?? '{}') as Record<string, boolean>)[id] !== false; } catch { return true; }
+}
+function setGroupOpen(id: string, open: boolean): void {
+  try {
+    const m = JSON.parse(localStorage.getItem(GRP_KEY) ?? '{}') as Record<string, boolean>;
+    m[id] = open;
+    localStorage.setItem(GRP_KEY, JSON.stringify(m));
+  } catch { /* private mode */ }
+}
+
+/** Held and every watchlist, each a fold of its own that remembers whether it was open. */
 function listHtml(): string {
   const row = (s: string, tag = ''): string =>
     `<button class="stn-li${s === sym ? ' on' : ''}" data-stn-sym="${esc(s)}"><b>${esc(s)}</b>${tag ? `<small>${tag}</small>` : ''}</button>`;
@@ -473,9 +488,14 @@ function listHtml(): string {
     const n = accounts.reduce((t, a) => t + heldShares(a, s), 0);
     return n ? `${fmt(n, 0)} ${L('sh', 'cp')}` : '';
   };
+  const grp = (id: string, icon: string, name: string, syms: string[], tag: (s: string) => string = () => ''): string =>
+    `<details class="stn-grp" data-stn-grp="${esc(id)}"${groupOpen(id) ? ' open' : ''}>
+      <summary><span class="stn-grp-ic">${icon}</span><span class="stn-grp-n">${esc(name)}</span><span class="stn-grp-c">${syms.length}</span><span class="stn-grp-chev" aria-hidden="true"></span></summary>
+      <div class="stn-grp-b">${syms.map((s) => row(s, tag(s))).join('')}</div>
+    </details>`;
   const groups = [
-    list.held.length ? `<div class="stn-lh">💼 ${L('Held', 'Đang giữ')}</div>${list.held.map((s) => row(s, heldTag(s))).join('')}` : '',
-    ...list.watch.map((w) => `<div class="stn-lh">⭐ ${esc(w.name)}</div>${w.syms.map((s) => row(s)).join('')}`),
+    list.held.length ? grp('held', '💼', L('Held', 'Đang giữ'), list.held, heldTag) : '',
+    ...list.watch.map((w) => grp(`wl:${w.name}`, '⭐', w.name, w.syms)),
   ].join('');
   return `<div class="stn-list">${groups || `<div class="stn-empty">${L('No positions or watchlists yet — type a symbol above.', 'Chưa có vị thế hay watchlist — gõ mã ở ô phía trên.')}</div>`}</div>`;
 }
@@ -525,8 +545,12 @@ function planPanelHtml(): string {
   const pct = g ? ladderConfig().ratingPct[g] : 100;
   const s = suggestion;
   const head = `<div class="stn-ph">
-      <b>📋 ${L('Trade plan', 'Kế hoạch giao dịch')}</b>
-      <small>${L('scored live from the chart and the ticket', 'tự chấm theo chart và phiếu lệnh')}</small>
+      <div class="stn-ph-t"><b>📋 ${L('Trade plan', 'Kế hoạch giao dịch')}</b>
+        <small>${L('scored live from the chart and the ticket', 'tự chấm theo chart và phiếu lệnh')}</small></div>
+      <div class="stn-tools">
+        <button class="stn-tool" data-stn-playbook title="${L('The playbook: stops, targets and size per setup, the risk ladder, the grade lines', 'Playbook: stop, target và cỡ lệnh theo từng setup, thang rủi ro, ngưỡng điểm')}"><span>⚙</span>Playbook</button>
+        <button class="stn-tool" data-stn-reasons title="${L('The exit-reason list: add yours, remove the ones you never use', 'Danh sách lý do bán: thêm lý do của bạn, bỏ những lý do không dùng')}"><span>🏷</span>${L('Exit reasons', 'Lý do bán')}</button>
+      </div>
     </div>
     <div class="stn-row2">
       <label class="stn-f"><span>Setup</span><select class="field" data-stnp="setup">
@@ -665,6 +689,7 @@ function ticketHtml(): string {
         <option value="">—</option>${exitReasonOptgroupsHtml(ticket.exitReason, vi(), esc)}</select></label>`}
     ${field('fee', `${L('Fee this order', 'Phí lệnh này')} (${ac})`, ticket.fee === null ? '' : String(ticket.fee), ` placeholder="${fmt(st ? feeOf(st.account) : 0)}"`)}
     <label class="stn-f"><span>${L('Note', 'Ghi chú')}</span><textarea class="field" rows="2" data-stn="note" placeholder="${isBuy ? L('Why this trade, in one line', 'Vì sao vào lệnh này, một dòng') : L('What happened, in one line', 'Chuyện gì đã xảy ra, một dòng')}">${esc(ticket.note)}</textarea></label>
+    ${pendingHtml(isBuy && !isOrder)}
     ${isBuy && !isOrder ? `<label class="stn-check"><input type="checkbox" data-stn="closedOn"${ticket.closedOn ? ' checked' : ''}> ${L('Already sold — book the exit too (closed case study)', 'Đã bán rồi — ghi luôn lệnh bán (case study đóng)')}</label>
       ${ticket.closedOn ? `<div class="stn-exit">
         <div class="stn-row2">
@@ -692,6 +717,22 @@ function ticketHtml(): string {
         ? `${L('Place', 'Đặt')} ${isBuy ? 'buy stop' : ticket.orderType === 'STOP_LOSS' ? L('stop loss', 'lệnh cắt lỗ') : L('take profit', 'lệnh chốt lời')} · ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`
         : `${isBuy ? L('Buy', 'Mua') : L('Sell', 'Bán')} ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`}
     </button>`;
+}
+
+/** The finder's note and events waiting for this buy: shown, editable, removable. */
+function pendingHtml(show: boolean): string {
+  if (!show) return '';
+  const note = ticket.caseNote || ticket.orderNote;
+  if (!note && !ticket.events.length) return '';
+  const where = [ticket.caseNote ? L('case study', 'case study') : '', ticket.orderNote ? L('the buy’s note', 'ghi chú lệnh') : ''].filter(Boolean).join(' · ');
+  return `<div class="stn-pnote">
+      <div class="stn-pnote-h"><b>✦ ${L('From the assistant', 'Từ trợ lý')}</b>
+        <span>${ticket.events.length ? L(`${ticket.events.length} events`, `${ticket.events.length} sự kiện`) : ''}${note && where ? ` · ${L('note', 'ghi chú')} → ${esc(where)}` : ''}</span>
+        ${note ? `<button class="stn-ev-x" data-stn-pnote-edit title="${L('Edit', 'Sửa')}">✎</button>` : ''}
+        <button class="stn-ev-x" data-stn-pnote-del title="${L('Remove', 'Bỏ')}">✕</button></div>
+      ${note ? `<div class="note-html stn-pnote-b">${sanitizeNoteHtml(note)}</div>` : ''}
+      ${ticket.events.length ? `<div class="stn-pnote-evs">${ticket.events.slice(0, 6).map((e) => `<span><b>${esc(e.date)}</b> ${esc(e.text.replace(/<[^>]+>/g, ' ').replace(/\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60))}</span>`).join('')}${ticket.events.length > 6 ? `<span>+${ticket.events.length - 6}</span>` : ''}</div>` : ''}
+    </div>`;
 }
 
 /** Which lots a sale of `shares` takes from, oldest first — the order core's `sell` uses. */
@@ -944,6 +985,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     (e.currentTarget as HTMLElement).classList.toggle('active', showEarnings);
     paintEarnings();
   });
+  root.querySelectorAll<HTMLDetailsElement>('[data-stn-grp]').forEach((d) =>
+    d.addEventListener('toggle', () => setGroupOpen(d.dataset.stnGrp!, d.open)));
   root.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>
     b.addEventListener('click', () => void loadSymbol(ctx, b.dataset.stnSym!, root)));
   wirePlan(ctx, root);
@@ -968,6 +1011,14 @@ function wirePlan(ctx: AppContext, root: HTMLElement): void {
   box.addEventListener('click', (ev) => {
     const hit = ev.target as HTMLElement;
     if (hit.closest('[data-stn-find]')) { void findEvents(ctx, root); return; }
+    if (hit.closest('[data-stn-playbook]')) {
+      void openPlaybookSettings(ctx, acct(), () => { ticket.stop = null; ticket.target = null; ticket.shares = null; suggest(); paint(ctx, root); });
+      return;
+    }
+    if (hit.closest('[data-stn-reasons]')) {
+      void openExitReasonsDialog(ctx).then((changed) => { if (changed) repaintLive(ctx, root); });
+      return;
+    }
     const del = hit.closest<HTMLElement>('[data-stn-evdel]');
     if (del && plan?.events) {
       const sorted = plan.events.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -1074,6 +1125,18 @@ function wireTicket(ctx: AppContext, root: HTMLElement): void {
   t.querySelectorAll<HTMLElement>('[data-stn-pct]').forEach((b) =>
     b.addEventListener('click', () => { setPct(Number(b.dataset.stnPct)); repaintLive(ctx, root); }));
   t.querySelector('#stn-fee-edit')?.addEventListener('click', () => void editFee(ctx, root));
+  t.querySelector('[data-stn-pnote-del]')?.addEventListener('click', () => {
+    ticket.caseNote = ''; ticket.orderNote = ''; ticket.events = [];
+    repaintLive(ctx, root);
+    paintEarnings();
+  });
+  t.querySelector('[data-stn-pnote-edit]')?.addEventListener('click', async () => {
+    const res = await richNoteDialog(L('Note from the assistant', 'Ghi chú từ trợ lý'), ticket.caseNote || ticket.orderNote, { lang: vi() ? 'vi' : 'en' });
+    if (res === null) return;
+    if (ticket.caseNote) ticket.caseNote = res;
+    if (ticket.orderNote) ticket.orderNote = res;
+    repaintLive(ctx, root);
+  });
   t.querySelector('#stn-go')?.addEventListener('click', () => void submit(ctx, root));
   t.querySelector<HTMLElement>('[data-stn-opencase]')?.addEventListener('click', (e) =>
     window.dispatchEvent(new CustomEvent('app:open-case', { detail: (e.currentTarget as HTMLElement).dataset.stnOpencase })));

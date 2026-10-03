@@ -6202,3 +6202,13 @@ CHAT-83 (2026-10-03) - Gop Trade Planner vao Tram giao dich; the plan gon o tran
 - Xoa portfolio/tradePlanner.ts (2523 dong, khong con ai dung). Luu y: trang co phieu khong con tu doi sang che do "tinh den ngay" theo ngay cua planner — ngay qua khu lam trong Tram.
 - Kiem tra: tsc OK, vitest 452, vite build OK, anh headless the plan tren trang co phieu, Tram ngay 15/05 (cham D 19/100, stop/target moi).
 - Chi can deploy web.
+
+CHAT-84 (2026-10-03) - Tram: nut Playbook + Ly do ban, an ly do co san; cot trai gap/mo; ghi chu tu tro ly hien tren phieu lenh; form Mua o Danh muc gon dep hon
+- Ly do ban: lý do co san gio "bo khoi danh sach" duoc (✕) va khoi phuc (↺) trong hop thoai; an chu khong xoa: lenh cu van doc dung ten (exitReasonLabel dung exitReasonListAll), dropdown dung exitReasonList (da loc). Luu o pf_playbook_cfg.hiddenExitReasons (playbookSettings Save/Reset giu lai truong nay).
+- Tram: nut ⚙ Playbook va 🏷 Ly do ban canh tieu de Ke hoach giao dich (luu playbook -> tinh lai stop/target/co lenh).
+- Phieu lenh: khung "✦ Tu tro ly" hien ghi chu (sua ✎ / bo ✕) va su kien se di vao case study / ghi chu lenh sau khi luu o Tim su kien.
+- Cot trai: thang muc gia tren cung (sticky), ben duoi la cac nhom Dang giu / tung watchlist dang the gap-mo (nho trang thai tren may), chiem het phan con lai va cuon rieng; tieu de nhom dinh khi cuon.
+- Dien thoai: o Ngay khong con rong hon o Gia (min-width 0, width 100%).
+- Nut tro ly (chat) khong che nut cua Tram: chua cho trong duoi trang va duoi phieu lenh.
+- Danh muc > Mua/Ban: 3 nut Lam lai / Playbook / Ly do ban dang vien tron co khoang cach voi hang duoi; bang diem (B 72/100, cac nhom) co khung bao tron.
+- Kiem tra: tsc OK, vitest 452, vite build OK, anh headless 1600 / 420 / form Mua; kiem tra sticky bang JS (position sticky, chieu cao con cho de dinh).

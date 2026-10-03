@@ -189,13 +189,26 @@ export function customExitReasons(): CustomExitReason[] {
   }));
 }
 
-/** The vocabulary in force. Reads the config, so `loadPlaybookConfig` must have run. */
-export function exitReasonList(): ExitReason[] {
+/** Shipped reasons the user took off the list. */
+export function hiddenExitReasons(): string[] {
+  return [...(playbookConfig().hiddenExitReasons ?? [])];
+}
+
+/** Every reason there is, hidden ones included — what a stored key is read back with. */
+export function exitReasonListAll(): ExitReason[] {
   return exitReasonsFrom(customExitReasons());
 }
 
-export async function saveCustomExitReasons(ctx: AppContext, rows: readonly CustomExitReason[]): Promise<void> {
-  await savePlaybookConfig(ctx, { ...playbookConfig(), exitReasons: [...rows] });
+/** The reasons offered in a dropdown: the vocabulary minus what the user hid. */
+export function exitReasonList(): ExitReason[] {
+  const hidden = new Set(hiddenExitReasons());
+  return exitReasonListAll().filter((r) => !hidden.has(r.key));
+}
+
+export async function saveCustomExitReasons(ctx: AppContext, rows: readonly CustomExitReason[], hidden?: readonly string[]): Promise<void> {
+  await savePlaybookConfig(ctx, {
+    ...playbookConfig(), exitReasons: [...rows], hiddenExitReasons: [...(hidden ?? hiddenExitReasons())],
+  });
 }
 
 /**
@@ -205,7 +218,7 @@ export async function saveCustomExitReasons(ctx: AppContext, rows: readonly Cust
  * from a trade filed under it in January. An ugly `my:sold-too-early` on screen is a record;
  * a blank is a loss.
  */
-export function exitReasonLabel(key: ExitReasonKey | '', vi: boolean, list = exitReasonList()): string {
+export function exitReasonLabel(key: ExitReasonKey | '', vi: boolean, list = exitReasonListAll()): string {
   if (!key) return '';
   const r = list.find((x) => x.key === key);
   return r ? (vi ? r.vi : r.en) : key;

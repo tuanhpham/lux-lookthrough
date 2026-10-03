@@ -31,6 +31,7 @@ import {
   EXIT_GROUPS,
   asExitGroup,
   customExitReasons,
+  hiddenExitReasons,
   exitReasonKeyFor,
   exitReasonsFrom,
   saveCustomExitReasons,
@@ -54,6 +55,9 @@ const WORDS = {
   newLabel: { vi: 'Lý do mới…', en: 'New reason…' },
   group: { vi: 'Nhóm', en: 'Group' },
   del: { vi: 'Xóa', en: 'Delete' },
+  hide: { vi: 'Bỏ khỏi danh sách (lệnh cũ vẫn giữ tên)', en: 'Take off the list (old trades keep the name)' },
+  restore: { vi: 'Khôi phục', en: 'Restore' },
+  hidden: { vi: 'Đã bỏ', en: 'Removed' },
   empty: { vi: 'Chưa có lý do tự thêm nào.', en: 'You have not added any reasons yet.' },
   cancel: { vi: 'Hủy', en: 'Cancel' },
   save: { vi: 'Lưu', en: 'Save' },
@@ -70,6 +74,7 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
   const w = (k: keyof typeof WORDS): string => (vi ? WORDS[k].vi : WORDS[k].en);
   // A working copy. Nothing is stored until Save, which is what makes Cancel an undo.
   let mine: CustomExitReason[] = customExitReasons();
+  let hidden = new Set(hiddenExitReasons());
 
   const host = document.createElement('div');
   host.className = 'modal';
@@ -108,10 +113,14 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
       const rows = all.filter((r) => r.group === g.key);
       const cells = rows.map((r) => `
         <tr>
-          <td style="padding:3px 6px">${esc(vi ? r.vi : r.en)}</td>
+          <td style="padding:3px 6px${hidden.has(r.key) ? ';text-decoration:line-through;opacity:.5' : ''}">${esc(vi ? r.vi : r.en)}</td>
           <td style="padding:3px 6px;text-align:right;white-space:nowrap">
             ${r.builtin
-              ? `<span class="badge" style="font-size:10px;background:color-mix(in srgb,var(--faint) 14%,transparent);color:var(--faint)">${w('builtin')}</span>`
+              ? hidden.has(r.key)
+                ? `<span class="badge" style="font-size:10px;color:var(--faint)">${w('hidden')}</span>
+                   <button type="button" class="btn-outline mini-btn" data-xr-show="${esc(r.key)}">↺ ${w('restore')}</button>`
+                : `<span class="badge" style="font-size:10px;background:color-mix(in srgb,var(--faint) 14%,transparent);color:var(--faint)">${w('builtin')}</span>
+                   <button type="button" class="btn-outline mini-btn" data-xr-hide="${esc(r.key)}" title="${w('hide')}">✕</button>`
               : `<button type="button" class="btn-outline mini-btn" data-xr-del="${esc(r.key)}"
                    title="${w('del')}">✕</button>`}
           </td>
@@ -136,6 +145,10 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
         <button type="button" class="btn-outline" id="xr-add">${w('add')}</button>
       </div>`;
 
+    list.querySelectorAll<HTMLElement>('[data-xr-hide]').forEach((b) =>
+      b.addEventListener('click', () => { hidden.add(b.dataset.xrHide!); draw(); }));
+    list.querySelectorAll<HTMLElement>('[data-xr-show]').forEach((b) =>
+      b.addEventListener('click', () => { hidden.delete(b.dataset.xrShow!); draw(); }));
     list.querySelectorAll<HTMLElement>('[data-xr-del]').forEach((b) =>
       b.addEventListener('click', () => {
         mine = mine.filter((r) => r.key !== b.dataset.xrDel);
@@ -171,7 +184,7 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
     host.querySelector('.xr-x')!.addEventListener('click', () => close(false));
     host.querySelector('#xr-cancel')!.addEventListener('click', () => close(false));
     host.querySelector('#xr-save')!.addEventListener('click', () => {
-      void saveCustomExitReasons(ctx, mine).then(() => close(true), () => close(false));
+      void saveCustomExitReasons(ctx, mine, [...hidden]).then(() => close(true), () => close(false));
     });
   });
 }

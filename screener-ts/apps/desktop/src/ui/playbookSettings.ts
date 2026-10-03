@@ -778,7 +778,7 @@ export async function openPlaybookSettings(
     // override of a number this app shipped, so resetting it restores a default; a reason the
     // user typed has no default to restore to, and dropping it here would be a silent delete of
     // their writing from a button that says it is putting things back the way they were.
-    await savePlaybookConfig(ctx, { ...EMPTY_PLAYBOOK_CONFIG, exitReasons: cfg.exitReasons ?? [] });
+    await savePlaybookConfig(ctx, { ...EMPTY_PLAYBOOK_CONFIG, exitReasons: cfg.exitReasons ?? [], hiddenExitReasons: cfg.hiddenExitReasons ?? [] });
     notifyPlaybookChanged();
     onSaved?.();
     close();
@@ -791,6 +791,7 @@ export async function openPlaybookSettings(
     const next: PlaybookConfig = {
       setups: {}, ladder: {}, pinnedRiskPct: null, gradeThresholds: {},
       exitReasons: cfg.exitReasons ?? [],
+      hiddenExitReasons: cfg.hiddenExitReasons ?? [],
     };
 
     // Ladder: keep only what differs from the default, and reject nonsense rather
