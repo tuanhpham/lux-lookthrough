@@ -1140,7 +1140,7 @@ const GUIDE: readonly GuideStep[] = [
     crontab: true,
     cmd:
       'CRON_TZ=America/New_York\n'
-      + '0 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1\n'
+      + '0 8 * * 2-6  cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1\n'
       + '5 9 * * 1-5  /usr/bin/systemctl restart scanner',
   },
   { h: 'scan.g.s9.h', p: ['scan.g.s9.a', 'scan.g.s9.b'] },

@@ -761,6 +761,12 @@ export const SECTIONS: readonly GuideSection[] = [
       },
       {
         h: { en: 'The lines that should be there', vi: 'Các dòng cần có' },
+        p: [
+          {
+            en: '`nightly.py` and `push.py --all` run Tuesday to Saturday (`2-6`): each morning works on the session that closed the day before, so Friday’s candle is processed on Saturday. With `1-5` it would wait for Monday. The live-session lines stay `1-5`.',
+            vi: '`nightly.py` và `push.py --all` chạy thứ Ba đến thứ Bảy (`2-6`): mỗi sáng xử lý phiên đã đóng hôm trước, nên nến thứ Sáu được xử lý sáng thứ Bảy. Để `1-5` thì nến thứ Sáu phải chờ tới thứ Hai. Các dòng của phiên live vẫn giữ `1-5`.',
+          },
+        ],
         warn: {
           en: 'These are crontab CONTENT. Pasted into the shell instead of the editor, bash answers `0: command not found` — nothing is broken, it was just the wrong window.',
           vi: 'Đây là NỘI DUNG crontab. Lỡ dán vào shell thay vì editor, bash sẽ báo `0: command not found` — không hỏng gì cả, chỉ là dán nhầm chỗ.',
@@ -768,10 +774,10 @@ export const SECTIONS: readonly GuideSection[] = [
         cmd:
           'CRON_TZ=America/New_York\n'
           + '30 6 * * 6    cd /home/ubuntu/scanner && .venv/bin/python prep.py >> state/prep.log 2>&1\n'
-          + '0 8 * * 1-5   cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1\n'
+          + '0 8 * * 2-6   cd /home/ubuntu/scanner && .venv/bin/python nightly.py >> state/prep.log 2>&1\n'
           + '0 9 * * 1-5   cd /home/ubuntu/scanner && .venv/bin/python scripts/mark_etf.py >> state/prep.log 2>&1\n'
           + '5 9 * * 1-5   /usr/bin/systemctl restart scanner\n'
-          + '30 8 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python push.py --all >> state/push.log 2>&1\n'
+          + '30 8 * * 2-6  cd /home/ubuntu/scanner && .venv/bin/python push.py --all >> state/push.log 2>&1\n'
           + '* 4-20 * * 1-5  cd /home/ubuntu/scanner && .venv/bin/python push.py --status >> state/push.log 2>&1',
         where: 'crontab',
       },
