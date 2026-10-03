@@ -617,7 +617,7 @@ function openEditor(ctx: AppContext, study: CaseStudy): void {
         <button id="cs-cat-add" class="btn-outline">${vi ? '＋ Thêm' : '＋ Add'}</button>
       </div>
       <div class="row" style="margin-top:10px;gap:8px;align-items:center">
-        <button id="cs-cat-ai" class="btn-outline">🔎 ${vi ? 'Tìm sự kiện & catalyst bằng trợ lý' : 'Find events & catalysts with the assistant'}</button>
+        <button id="cs-cat-ai" class="ai-find-btn"><span class="ai-find-ic" aria-hidden="true">✦</span>${vi ? 'Tìm sự kiện & catalyst bằng trợ lý' : 'Find events & catalysts with the assistant'}</button>
         <span class="muted" style="font-size:12px">${vi ? 'Quanh ngày then chốt ở trên — bạn chọn sự kiện nào giữ lại.' : 'Around the key date above — you choose which to keep.'}</span>
       </div>
     </div>

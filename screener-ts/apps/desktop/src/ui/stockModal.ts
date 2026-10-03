@@ -1,3 +1,5 @@
+import { loadPlan } from '../portfolio/planStore.js';
+import { eventMarksOf } from '../caseStudies/eventNotes.js';
 import { openStation } from '../tabs/stationTab.js';
 import { cbIcon } from './commandBar.js';
 import {
@@ -143,6 +145,12 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
 
     const chartEl = $('#detail-chart')!;
     chart = drawCandles(chartEl, ohlcv.bars, qmOverlay(qm), emaState);
+    const paintEvents = (): void => {
+      void loadPlan(ctx, symbol).then((p) => {
+        if (myToken === openToken) chart?.setEvents(eventMarksOf(asOf ? (p.events ?? []).filter((e) => e.date <= asOf) : p.events, getLang() === 'vi'));
+      }).catch(() => {});
+    };
+    paintEvents();
 
     // EMA legend toggles
     body.querySelectorAll<HTMLElement>('[data-ema]').forEach((btn) =>
@@ -193,6 +201,7 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
         chart?.destroy();
         chart = drawCandles(chartEl, bars, qmOverlay(q2), emaState);
         paintEarnings();
+        paintEvents();
       }),
     );
 

@@ -34,3 +34,5 @@ export type {
   ParsedCriteriaReply,
 } from './criteriaPrompt.js';
 export { NOTE_COLORS, remapLegacyNoteColor } from './noteColors.js';
+export { parseFinnhubNews, parseGoogleNewsRss, mergeNews } from './newsSources.js';
+export type { NewsItem } from './newsSources.js';

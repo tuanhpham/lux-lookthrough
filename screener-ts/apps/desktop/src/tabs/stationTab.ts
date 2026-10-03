@@ -47,7 +47,7 @@ import { applySell, caseForBuy, studyForLots } from '../portfolio/stationCase.js
 import { loadIndex as loadWatchlists, loadItems as loadWatchItems } from '../ui/watchlists.js';
 import { sanitizeNoteHtml } from '../ui/richNote.js';
 import { openEventFinder } from '../ui/eventFinder.js';
-import { mergeCatalysts } from '../caseStudies/eventNotes.js';
+import { eventMarksOf, mergeCatalysts } from '../caseStudies/eventNotes.js';
 import type { Catalyst } from '../caseStudies/store.js';
 
 const vi = (): boolean => getLang() === 'vi';
@@ -126,6 +126,8 @@ let ticket: Ticket = freshTicket();
 let bottom: BottomTab = 'pos';
 let chart: CandleChart | null = null;
 let msg: { err: boolean; text: string } | null = null;
+/** The study the last "case study only" filed, so the message can open it. */
+let lastCaseId: string | null = null;
 let busy = false;
 let loadToken = 0;
 /** The level the next click on the chart sets, or null when clicks only pan. */
@@ -528,7 +530,7 @@ function eventsHtml(): string {
   return `<div class="stn-evs">
       <div class="stn-evs-h">
         <b>📅 ${L('Events & catalysts', 'Sự kiện & catalyst')}${list.length ? ` · ${list.length}` : ''}</b>
-        <button class="btn-outline stn-mini" data-stn-find${sym ? '' : ' disabled'}>🔎 ${L('Find with the assistant', 'Tìm bằng trợ lý')}</button>
+        <button class="ai-find-btn" data-stn-find${sym ? '' : ' disabled'}><span class="ai-find-ic" aria-hidden="true">✦</span>${L('Find events with the assistant', 'Tìm sự kiện bằng trợ lý')}</button>
       </div>
       ${list.length ? `<div class="stn-evs-list">${list.map((e, i) => `<div class="stn-ev">
           <span class="stn-ev-d">${esc(e.date)}</span><span class="stn-ev-t note-html">${sanitizeNoteHtml(e.text)}</span>
@@ -652,7 +654,8 @@ function ticketHtml(): string {
     </div>
     ${isOrder ? '' : fifo}
     ${block ? `<div class="stn-block">${block}</div>` : ''}
-    ${msg ? `<div class="stn-msg${msg.err ? ' err' : ''}">${esc(msg.text)}</div>` : ''}
+    ${msg ? `<div class="stn-msg${msg.err ? ' err' : ''}">${esc(msg.text)}${!msg.err && lastCaseId ? ` <button class="stn-link" data-stn-opencase="${esc(lastCaseId)}">${L('Open it', 'Mở case study')} →</button>` : ''}</div>` : ''}
+    ${isBuy && !isOrder ? `<button class="stn-case-only" id="stn-case-only"${!sym || !px || busy ? ' disabled' : ''} title="${L('No trade, no account: file the setup as a case study — reverse-engineering a past chart, or a trade you passed on.', 'Không giao dịch, không cần tài khoản: lưu setup thành case study — dựng lại một chart cũ, hoặc một lệnh bạn đã bỏ qua.')}">🗂 ${L('Save as a case study only — no buy', 'Chỉ lưu case study — không mua')}</button>` : ''}
     <button class="stn-go ${isBuy ? 'stn-go-buy' : 'stn-go-sell'}" id="stn-go"${block || busy || !shares || !px ? ' disabled' : ''}>
       ${busy ? '…' : isOrder
         ? `${L('Place', 'Đặt')} ${isBuy ? 'buy stop' : ticket.orderType === 'STOP_LOSS' ? L('stop loss', 'lệnh cắt lỗ') : L('take profit', 'lệnh chốt lời')} · ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`
@@ -810,10 +813,9 @@ function drawChart(root: HTMLElement): void {
 }
 
 function paintEarnings(): void {
-  const marks: { date: string; label?: string }[] = showEarnings ? earnReports.map((r) => ({ date: r.date })) : [];
-  const evs = mergeCatalysts(plan?.events ?? [], ticket.events).filter((e) => e.kind !== 'earnings');
-  for (const e of evs) if (!marks.some((m) => m.date === e.date)) marks.push({ date: e.date, label: '◆' });
-  chart?.setEarnings(marks);
+  chart?.setEarnings(showEarnings ? earnReports.map((r) => ({ date: r.date })) : []);
+  // The events this trade is taken against, as flags above the bars — like the case study chart.
+  chart?.setEvents(eventMarksOf(mergeCatalysts(plan?.events ?? [], ticket.events), vi()));
 }
 
 function repaintPickBar(ctx: AppContext, root: HTMLElement): void {
@@ -1042,6 +1044,9 @@ function wireTicket(ctx: AppContext, root: HTMLElement): void {
     b.addEventListener('click', () => { setPct(Number(b.dataset.stnPct)); repaintLive(ctx, root); }));
   t.querySelector('#stn-fee-edit')?.addEventListener('click', () => void editFee(ctx, root));
   t.querySelector('#stn-go')?.addEventListener('click', () => void submit(ctx, root));
+  t.querySelector<HTMLElement>('[data-stn-opencase]')?.addEventListener('click', (e) =>
+    window.dispatchEvent(new CustomEvent('app:open-case', { detail: (e.currentTarget as HTMLElement).dataset.stnOpencase })));
+  t.querySelector('#stn-case-only')?.addEventListener('click', () => void saveCaseOnly(ctx, root));
 
   t.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('[data-stn]').forEach((f) => {
     const key = f.dataset.stn!;
@@ -1359,6 +1364,54 @@ async function submitOrder(ctx: AppContext, st: (typeof accounts)[number], share
   await applyWrite(ctx, { kind: 'place_order', account, ticker: sym, type, threshold, shares, date });
   msg = { err: false, text: L(`Order placed: ${type.replace('_', ' ')} ${shares} ${sym} @ ${qs}${fmt(q)}.`, `Đã đặt lệnh chờ: ${shares} ${sym} @ ${qs}${fmt(q)}.`) };
   bottom = 'orders';
+}
+
+/**
+ * A case study with no trade behind it: the ticket's levels, grade, events and notes, filed
+ * straight to Case Studies. "Already sold" fills its exit, so a reverse-engineered past setup
+ * is filed closed with its R; otherwise it is filed open, as an idea being followed.
+ */
+async function saveCaseOnly(ctx: AppContext, root: HTMLElement): Promise<void> {
+  if (!sym || !ticket.price) return;
+  const g = effective();
+  const shares = Math.max(0, Math.round(ticket.shares ?? 0)) || 1;
+  if (ticket.closedOn && !ticket.exitPrice) { msg = { err: true, text: L('Give the exit price.', 'Nhập giá bán.') }; repaintLive(ctx, root); return; }
+  const snap = plan ? {
+    symbol: sym, savedAt: new Date().toISOString(), date: ticket.date, plan: { ...plan, answers: { ...plan.answers } }, grade, effective: g,
+    levels: { entry: ticket.price, stop: ticket.stop, target: ticket.target }, shares, currency: ticket.ccy,
+    pctOfFull: g ? ladderConfig().ratingPct[g] : 100,
+  } : null;
+  const study = caseForBuy({
+    symbol: sym, accountId: '', lotId: '', date: ticket.date, shares, price: ticket.price, currency: ticket.ccy,
+    stop: ticket.stop, target: ticket.target, setup: ticket.setup, rating: (g ?? '') as CaseRating,
+    notes: sanitizeNoteHtml((noteHtml() ?? '') + ticket.caseNote), todayIso: today(),
+  });
+  // Not a position in any account, so nothing for a later sale to find.
+  delete study.accountId;
+  delete study.lotIds;
+  if (snap) study.plan = snap;
+  study.catalysts = mergeCatalysts(plan?.events ?? [], ticket.events);
+  if (ticket.closedOn) {
+    applySell(study, {
+      date: ticket.exitDate, shares, price: ticket.exitPrice!, heldAfter: 0,
+      reason: ticket.exitReason ? exitReasonLabel(ticket.exitReason, vi()) : '', ...(ticket.exitReason ? { reasonKey: ticket.exitReason } : {}),
+    }, today());
+  }
+  try {
+    await saveCase(ctx, study);
+  } catch (e) {
+    msg = { err: true, text: (e as Error).message };
+    repaintLive(ctx, root);
+    return;
+  }
+  if (plan) storePlan(ctx);
+  ticket.events = [];
+  ticket.caseNote = '';
+  lastCaseId = study.id;
+  msg = { err: false, text: ticket.closedOn
+    ? L(`Case study filed (closed, ${study.rMultiple ?? '—'}R). No trade was recorded.`, `Đã lưu case study (đã đóng, ${study.rMultiple ?? '—'}R). Không ghi lệnh nào.`)
+    : L('Case study filed (open). No trade was recorded.', 'Đã lưu case study (đang mở). Không ghi lệnh nào.') };
+  repaintLive(ctx, root);
 }
 
 async function submitSell(ctx: AppContext, st: (typeof accounts)[number], shares: number): Promise<void> {

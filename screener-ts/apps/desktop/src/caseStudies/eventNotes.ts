@@ -30,6 +30,16 @@ export const KIND_TONE: Record<FoundEventKind, string> = {
 
 export const kindWord = (k: FoundEventKind, vi: boolean): string => KIND_WORDS[k]?.[vi ? 1 : 0] ?? k;
 
+/** Saved catalysts as chart flags: the kind's colour and word; hand-typed ones in violet. */
+export function eventMarksOf(cats: readonly Catalyst[] | undefined, vi: boolean, skipEarnings = true): { date: string; color: string; text: string }[] {
+  return (cats ?? [])
+    .filter((c) => !(skipEarnings && c.kind === 'earnings'))
+    .map((c) => {
+      const k = (c.kind ?? '') as FoundEventKind;
+      return { date: c.date, color: KIND_TONE[k] ?? '#c084fc', text: KIND_WORDS[k] ? kindWord(k, vi) : '◆' };
+    });
+}
+
 /** A picked event as a catalyst: "[KQKD] **Q4 beat** — EPS +12% · source". */
 export function catalystOf(e: FoundEvent, vi: boolean): Catalyst {
   const tag = `<span style="color:${KIND_TONE[e.kind]}">[${esc(kindWord(e.kind, vi))}]</span>`;

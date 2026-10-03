@@ -90,6 +90,14 @@ const EMA_CONFIG: { period: number; color: string; on: boolean }[] = [
 
 /** One earnings-report marker. `date` is a calendar date (YYYY-MM-DD) that need
  * not be a trading day — it gets snapped to a real bar. */
+export interface EventMark {
+  date: string;
+  /** Hex colour (the canvas cannot read CSS variables). */
+  color: string;
+  /** A few characters drawn beside the flag. */
+  text: string;
+}
+
 export interface EarningsMark {
   date: string;
   /** Glyph drawn under the bar. Default 'E'. */
@@ -102,6 +110,12 @@ export interface CandleChart {
   /** Replace the earnings markers (pass `[]` to clear). Safe to call late — the
    * chart is drawn synchronously and the dates arrive from the network after. */
   setEarnings(marks: EarningsMark[]): void;
+  /**
+   * Dated events and catalysts (the event finder's picks) as flags ABOVE the bars, coloured by
+   * kind with a short label — kept apart from the earnings dots below, so neither call clears
+   * the other. Pass `[]` to clear.
+   */
+  setEvents(marks: EventMark[]): void;
   /**
    * Replace the entry/stop/target lines, keeping the candles as they are.
    *
@@ -213,6 +227,16 @@ export function drawCandles(
   });
   ro.observe(container);
 
+  let earnOut: SeriesMarker<Time>[] = [];
+  let eventOut: SeriesMarker<Time>[] = [];
+  /** One setMarkers call for both layers — the library keeps a single marker list per series. */
+  const applyMarkers = (): void => {
+    const all = [...earnOut, ...eventOut];
+    // setMarkers requires ascending time; `bars` is ascending, the inputs may not be.
+    all.sort((a, b) => (String(a.time) < String(b.time) ? -1 : String(a.time) > String(b.time) ? 1 : 0));
+    candle.setMarkers(all);
+  };
+
   return {
     chart,
     priceAt(y) {
@@ -243,9 +267,29 @@ export function drawCandles(
           text: m.label ?? 'E',
         });
       }
-      // setMarkers requires ascending time; `bars` is ascending, the input may not be.
-      out.sort((a, b) => (String(a.time) < String(b.time) ? -1 : 1));
-      candle.setMarkers(out);
+      earnOut = out;
+      applyMarkers();
+    },
+    setEvents(marks) {
+      const first = bars[0]?.date;
+      const seen = new Set<string>();
+      const out: SeriesMarker<Time>[] = [];
+      for (const m of marks) {
+        if (!first || m.date < first) continue;
+        const bar = bars.find((b) => b.date >= m.date);
+        if (!bar) continue;
+        // Two events on one session share a flag; the label says how many.
+        const k = bar.date;
+        if (seen.has(k)) {
+          const had = out.find((o) => o.time === k);
+          if (had) had.text = `${had.text?.replace(/ \+\d+$/, '')} +${(Number(had.text?.match(/\+(\d+)$/)?.[1] ?? 0) || 0) + 1}`;
+          continue;
+        }
+        seen.add(k);
+        out.push({ time: k as Time, position: 'aboveBar', color: m.color, shape: 'arrowDown', text: m.text.slice(0, 14) });
+      }
+      eventOut = out;
+      applyMarkers();
     },
     setOverlay(o) {
       applyOverlay(o);

@@ -6182,3 +6182,14 @@ CHAT-81 (2026-10-03) - Tram: thang muc gia len tren; Tim su kien & catalyst bang
 - Case Study editor: nut "Tim su kien & catalyst bang tro ly" quanh ngay then chot -> them vao catalyst + ghi chu & bai hoc. Case study lap tu Trade Planner nhan su kien cua plan.
 - Kiem tra: tsc OK, vitest core 840 + desktop 452, vite build OK, anh headless voi tro ly gia (hop thoai 6 su kien, bo tick 1, luu -> 5 su kien trong plan + ◆ tren chart).
 - Can co tro ly AI da cau hinh (Cai dat AI). Chi can deploy web.
+
+CHAT-82 (2026-10-03) - Su kien & catalyst: nhieu nguon tin, danh sach cuon duoc, nut moi, co tren chart moi noi; "Chi luu case study"; thang muc gia dinh
+- Nguon tin: truoc day chi co web_search cua tro ly (Yahoo tin moi + DuckDuckGo hay bi chan). Nay app tu gom truoc: Finnhub company-news theo khoang ngay (secret FINNHUB_API_KEY co san), Google News RSS co after:/before: (Function moi functions/api/gnews + proxy dev), Yahoo; gop, khu trung, rai deu toi da 60 tin; dua 45 tin vao prompt lam bang chung chinh (tro ly gom nhom, chon loc, dung url lam nguon). Hop thoai ghi so tin tung nguon. Chua cai AI -> van hien danh sach tin tho de chon.
+- core analysis/newsSources.ts: parseFinnhubNews, parseGoogleNewsRss (regex, tach ten bao), mergeNews. Test 3. eventFinder prompt nhan headlines.
+- Hop thoai: danh sach su kien cuon rieng (max 46vh) -> nhieu su kien van tick/bo tick duoc.
+- Nut "✦ Tim su kien bang tro ly" kieu moi (vien sang, icon tron gradient) dung chung: Tram, Case Study editor, Trade Planner (ngay duoi chart cua the + canh nut luu case study) -> co tren trang co phieu va watchlist.
+- Chart: lop co su kien rieng (CandleChart.setEvents, mau theo loai, nhan chu) ben tren nen, khong de len cham E; co o Tram, Trade Planner, trang co phieu (doc plan.events).
+- Tram: nut "Chi luu case study — khong mua" (khong can tai khoan, khong ghi lenh): lay muc gia, diem, plan, su kien, ghi chu; tick "Da ban roi" -> case dong co R. Thong bao co link mo case study. Van con "Mua" (co/khong mo case study).
+- Cot trai: thang muc gia dinh (sticky) khi cuon trang, danh sach cuon ben trong.
+- Kiem tra: tsc OK, vitest desktop 452 + core 843, vite build OK, anh headless hop thoai man hinh thap + Tram co co su kien, chay thu "chi luu case study".
+- Can deploy web (co Function moi gnews).

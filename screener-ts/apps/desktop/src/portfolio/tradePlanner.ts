@@ -52,6 +52,8 @@
  * Getting any of this backwards is a silent error exactly the size of the EURUSD rate, which
  * is why the conversions live in three named functions and nowhere else.
  */
+import { eventMarksOf, mergeCatalysts } from '../caseStudies/eventNotes.js';
+import { openEventFinder } from '../ui/eventFinder.js';
 import { feeOf, loadBrokerFees } from './brokerFees.js';
 import {
   scanQm, fetchMany, buildTradePlan, explainPlan, computeCash, computeEquity,
@@ -577,6 +579,7 @@ async function computePlans(ctx: AppContext): Promise<void> {
 
         <div class="tp-chart" data-tp-chart="${S}"></div>
         <div class="tp-earnhint" data-tp-earnhint="${S}"></div>
+        <div class="tp-findrow"><button type="button" class="ai-find-btn" data-tp-find="${S}"><span class="ai-find-ic" aria-hidden="true">✦</span>${getLang() === 'vi' ? 'Tìm sự kiện & catalyst bằng trợ lý' : 'Find events & catalysts with the assistant'}${(planStored.get(S)?.events ?? []).length ? ` · ${(planStored.get(S)?.events ?? []).length}` : ''}</button></div>
         <div class="tp-derived" data-tp-derived="${S}"></div>
 
         <div class="tp-buy-row">
@@ -1721,6 +1724,7 @@ function exitSectionHtml(S: string, edit: PlanEdit, vi: boolean): string {
                something here was styled as a utility. Violet rather than the accent green so it
                does not read as a second Buy — it is the journal's colour, the same one the exit
                price and the case-study dates already use. -->
+          <button type="button" class="ai-find-btn" data-tp-find="${S}"><span class="ai-find-ic" aria-hidden="true">✦</span>${getLang() === 'vi' ? 'Tìm sự kiện bằng trợ lý' : 'Find events with the assistant'}${(planStored.get(S)?.events ?? []).length ? ` · ${(planStored.get(S)?.events ?? []).length}` : ''}</button>
           <button type="button" class="btn tp-case-btn" data-tp-case="${S}"
             title="${t('wl.plan.case.title')}">🗂 ${t('wl.plan.case')}</button>
           <span class="tp-exit-msg" data-tp-casemsg="${S}"></span>
@@ -2195,6 +2199,7 @@ function paintPlanChart(symbol: string): void {
   // every widening of the window — recording an exit date, moving the trade date — builds a new
   // chart, and the dots would silently disappear on exactly the view they matter most on.
   paintPlanEarnings(symbol);
+  planCharts.get(symbol)?.setEvents(eventMarksOf(planStored.get(symbol)?.events, getLang() === 'vi'));
 }
 
 /**
@@ -2454,6 +2459,31 @@ function wirePlanEdits(ctx: AppContext, root: HTMLElement): void {
         sel.innerHTML = `<option value="">${t('wl.plan.exit.noreason')}</option>`
           + exitReasonOptgroupsHtml(e.exit.reason, getLang() === 'vi', esc);
       });
+    });
+  });
+
+  // The event finder: what happened around the plan's date, saved on the plan (and so on every
+  // case study filed from it), with the note going into the plan's own note when asked.
+  root.querySelectorAll<HTMLElement>('[data-tp-find]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const sym = b.dataset.tpFind!;
+      const e = planEdits.get(sym);
+      if (!e) return;
+      const vi = getLang() === 'vi';
+      const res = await openEventFinder(ctx, {
+        symbol: sym, date: planDate, setup: e.setup || undefined, entry: e.entry, stop: e.stop, currency: planCcy,
+      }, [
+        { id: 'plan', what: 'events', label: vi ? `Trade plan của ${sym} (và case study lập từ plan)` : `The ${sym} trade plan (and case studies filed from it)`, on: true },
+        { id: 'note', what: 'note', label: vi ? 'Ghi chú của plan' : 'The plan’s note', on: true },
+      ]);
+      if (!res) return;
+      const stored = planStored.get(sym) ?? emptyPlan(sym);
+      if (res.targets.has('plan')) planStored.set(sym, { ...stored, events: mergeCatalysts(stored.events ?? [], res.events) });
+      if (res.targets.has('note') && res.noteHtml) { e.note = (e.note || '') + res.noteHtml; e.noteEdited = true; }
+      persistPlan(sym);
+      planCharts.get(sym)?.setEvents(eventMarksOf(planStored.get(sym)?.events, vi));
+      const lbl = res.events.length && res.targets.has('plan') ? ` · ${(planStored.get(sym)?.events ?? []).length}` : '';
+      b.innerHTML = `<span class="ai-find-ic" aria-hidden="true">✦</span>${vi ? 'Tìm sự kiện bằng trợ lý' : 'Find events with the assistant'}${lbl}`;
     });
   });
 

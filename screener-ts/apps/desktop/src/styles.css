@@ -8983,3 +8983,52 @@ html.light #main .stn .stn-bar { box-shadow: inset 0 1px 0 #fff, 0 18px 40px -30
 .stn-ev-x:hover { color: var(--down); }
 .stn-evs-empty { font-size: 11.5px; color: var(--faint); line-height: 1.5; }
 .stn-evs-pend { font-size: 11.5px; color: var(--up); }
+
+/* ── The assistant's "find events" button, the same everywhere: a soft glow pill with a spark ── */
+.ai-find-btn {
+  position: relative; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 6px;
+  border-radius: 999px; cursor: pointer; white-space: nowrap;
+  font: 650 12.5px var(--font-ui); letter-spacing: -.005em; color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, #22c1a5 12%, transparent)),
+    var(--card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 8px 22px -14px var(--accent);
+  transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.ai-find-btn:hover:not([disabled]) { transform: translateY(-1px); border-color: var(--accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 12px 26px -12px var(--accent); }
+.ai-find-btn:active:not([disabled]) { transform: none; }
+.ai-find-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.ai-find-ic {
+  width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; color: #fff;
+  background: conic-gradient(from 200deg, var(--accent), #22c1a5, #5b8cff, var(--accent));
+  box-shadow: 0 0 12px -2px var(--accent);
+}
+html.light .ai-find-btn { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, #fff), color-mix(in srgb, #22c1a5 10%, #fff)); box-shadow: 0 8px 20px -16px var(--accent); }
+
+/* the finder dialog: the list scrolls on its own, so a long list never hides rows */
+.dialog.evf { overflow: hidden; }
+.dialog.evf .dialog-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; }
+.evf-list { max-height: 42vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.evf-srcs { font-size: 11.5px; color: var(--faint); }
+.evf-banner { font-size: 12px; color: var(--warn); padding: 8px 10px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+
+/* left column: the ladder stays on screen while the page scrolls; the list scrolls inside */
+.stn-side { contain: size; }
+.stn-side-in { position: sticky; top: 72px; inset: auto; height: min(calc(100vh - 96px), 100%); }
+
+/* "case study only" — a quieter second action under the buy */
+.stn-case-only {
+  width: 100%; height: 38px; border-radius: 12px; cursor: pointer; font: 650 13px var(--font-ui);
+  color: var(--violet, #a855f7); background: color-mix(in srgb, #a855f7 8%, transparent);
+  border: 1px dashed color-mix(in srgb, #a855f7 50%, transparent);
+}
+.stn-case-only:hover:not([disabled]) { background: color-mix(in srgb, #a855f7 15%, transparent); }
+.stn-case-only[disabled] { opacity: .45; cursor: not-allowed; }
+.tp-exit-actions .ai-find-btn { margin-right: 6px; }
+@media (max-width: 900px) {
+  .stn-side { contain: none; }
+  .stn-side-in { position: static; height: auto; }
+}
+.tp-findrow { display: flex; justify-content: flex-end; margin: 6px 0 2px; }
+.evf-list { max-height: 46vh; }

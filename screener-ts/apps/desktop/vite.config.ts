@@ -127,6 +127,13 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/finnhub/, ''),
       },
+      // Google News RSS search — the event finder's dated headlines. Mirrors functions/api/gnews.
+      '/api/gnews': {
+        target: 'https://news.google.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/gnews/, '/rss/search').replace(/([?&])hl=en-US/, '$1hl=en-US&gl=US&ceid=US:en'),
+        headers: { 'User-Agent': UA },
+      },
       '/api/wiki': {
         target: 'https://en.wikipedia.org/wiki',
         changeOrigin: true,

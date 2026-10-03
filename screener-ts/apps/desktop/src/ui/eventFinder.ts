@@ -17,6 +17,7 @@ import { askAssistantText } from './chatPanel.js';
 import { openLlmSettings } from './llmSettings.js';
 import { richEditorHtml, sanitizeNoteHtml, wireRichEditor } from './richNote.js';
 import { fetchEarningsReports } from '../adapters/earningsDates.js';
+import { gatherNews, type GatheredNews } from '../adapters/newsSources.js';
 import { catalystOf, KIND_TONE, kindWord, noteHtmlOf } from '../caseStudies/eventNotes.js';
 import type { Catalyst } from '../caseStudies/store.js';
 
@@ -77,6 +78,8 @@ export function openEventFinder(ctx: AppContext, input: FinderInput, targets: Fi
     let getNote: (() => string) | null = null;
     let noteDirty = false;
     let noteData: Parameters<typeof noteHtmlOf>[0]['note'] = { summary: '', metrics: [], risks: [] };
+    let news: GatheredNews = { items: [], counts: { finnhub: 0, google: 0, yahoo: 0 } };
+    const sourcesLine = (): string => `Finnhub ${news.counts.finnhub} · Google News ${news.counts.google} · Yahoo ${news.counts.yahoo}`;
 
     const done = (r: FinderResult | null): void => { ctrl?.abort(); host.remove(); resolve(r); };
     host.querySelector('.dialog-backdrop')!.addEventListener('click', () => done(null));
@@ -97,7 +100,7 @@ export function openEventFinder(ctx: AppContext, input: FinderInput, targets: Fi
       }
     };
 
-    const paintResult = (): void => {
+    const paintResult = (banner = ''): void => {
       const rows = events.map((e, i) => `<label class="evf-row">
           <input type="checkbox" data-evf-i="${i}" checked>
           <span class="evf-date">${esc(e.date)}</span>
@@ -109,6 +112,8 @@ export function openEventFinder(ctx: AppContext, input: FinderInput, targets: Fi
       const tg = (what: FinderTarget['what']): string => targets.filter((t) => t.what === what).map((t) =>
         `<label class="stn-check"><input type="checkbox" data-evf-t="${esc(t.id)}"${t.on ? ' checked' : ''}> ${esc(t.label)}</label>`).join('');
       body.innerHTML = `
+        ${banner ? `<div class="evf-banner">${esc(banner)} <button class="stn-link" data-evf-llm>${L('AI settings', 'Cài đặt AI')}</button></div>` : ''}
+        <div class="evf-srcs">${L('Sources', 'Nguồn')}: ${esc(sourcesLine())}</div>
         <div class="evf-head"><b class="evf-count"></b>
           <span><button class="stn-link" data-evf-all="1">${L('Tick all', 'Chọn hết')}</button> · <button class="stn-link" data-evf-all="0">${L('Untick all', 'Bỏ hết')}</button></span></div>
         <div class="evf-list">${rows || `<div class="stn-empty">${L('The assistant found no dated events in this window.', 'Trợ lý không tìm thấy sự kiện có ngày nào trong khoảng này.')}</div>`}</div>
@@ -147,7 +152,16 @@ export function openEventFinder(ctx: AppContext, input: FinderInput, targets: Fi
         date: r.date,
         text: `${L('Earnings', 'KQKD')} ${r.fiscalQtr}${r.surprisePct === null ? '' : ` (${r.surprisePct >= 0 ? '+' : ''}${r.surprisePct.toFixed(1)}% vs consensus)`}`,
       }));
-      const prompt = buildEventFinderPrompt({ ...input, symbol: sym, known }, vi ? 'vi' : 'en');
+      // Then the news itself, from three sources, so the model reads a dated window instead of
+      // whatever its own few searches return.
+      const st = host.querySelector<HTMLElement>('.evf-status');
+      if (st) st.innerHTML = `<span class="spinner"></span> ${L('Gathering news: Finnhub · Google News · Yahoo…', 'Đang gom tin: Finnhub · Google News · Yahoo…')}`;
+      const lo0 = shift(input.date, -60);
+      const hi0 = shift(input.date, 30);
+      news = await gatherNews(sym, lo0, hi0 > today() ? today() : hi0).catch(() => ({ items: [], counts: { finnhub: 0, google: 0, yahoo: 0 } }));
+      if (!host.isConnected) return;
+      if (st) st.innerHTML = `<span class="spinner"></span> ${L('Asking the assistant to sort', 'Trợ lý đang chọn lọc')} ${news.items.length} ${L('headlines', 'tin')} (${sourcesLine()})… <small class="evf-n"></small>`;
+      const prompt = buildEventFinderPrompt({ ...input, symbol: sym, known, headlines: news.items.slice(0, 45) }, vi ? 'vi' : 'en');
       ctrl = new AbortController();
       let chars = 0;
       const res = await askAssistantText(ctx, prompt, (c) => {
@@ -157,7 +171,18 @@ export function openEventFinder(ctx: AppContext, input: FinderInput, targets: Fi
       }, ctrl.signal, { web: true }).catch((e: unknown) => ({ kind: 'error' as const, message: String(e).slice(0, 300), tools: [] }));
       if (!host.isConnected) return;
       if (!res) {
-        fail(`${L('No assistant is set up yet.', 'Chưa cài đặt trợ lý AI.')} <button class="stn-link" data-evf-llm>${L('Open AI settings', 'Mở cài đặt AI')}</button>`);
+        // No model: the gathered headlines and the earnings dates are still facts worth picking from.
+        events = [
+          ...earn.filter((r) => r.date >= lo0 && r.date <= hi0).map((r) => ({ date: r.date, kind: 'earnings' as const, title: `${L('Earnings', 'KQKD')} ${r.fiscalQtr}`, detail: known.find((k) => k.date === r.date)?.text ?? '', source: 'nasdaq' })),
+          ...news.items.map((n) => ({ date: n.date, kind: 'news' as const, title: n.title, detail: [n.source, n.summary].filter(Boolean).join(' — ').slice(0, 220), source: n.url })),
+        ].sort((a, b) => (a.date < b.date ? -1 : 1));
+        noteData = { summary: '', metrics: [], risks: [] };
+        if (!events.length) {
+          fail(`${L('No assistant is set up, and no headlines came back.', 'Chưa cài trợ lý AI và cũng không lấy được tin nào.')} <button class="stn-link" data-evf-llm>${L('Open AI settings', 'Mở cài đặt AI')}</button>`);
+          body.querySelector('[data-evf-llm]')?.addEventListener('click', () => void openLlmSettings(ctx));
+          return;
+        }
+        paintResult(L('No assistant set up — these are the raw headlines. Set one up to have them sorted and summarised.', 'Chưa cài trợ lý AI — đây là danh sách tin thô. Cài trợ lý để được chọn lọc và tóm tắt.'));
         body.querySelector('[data-evf-llm]')?.addEventListener('click', () => void openLlmSettings(ctx));
         return;
       }
@@ -194,6 +219,8 @@ export function openEventFinder(ctx: AppContext, input: FinderInput, targets: Fi
     void run();
   });
 }
+
+const today = (): string => new Date().toISOString().slice(0, 10);
 
 function shift(date: string, days: number): string {
   const d = new Date(date + 'T00:00:00Z');

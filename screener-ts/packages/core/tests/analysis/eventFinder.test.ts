@@ -9,6 +9,8 @@ describe('event finder', () => {
     expect(p).not.toContain('2025-01-01');
     expect(p).toContain('```json');
     expect(p).toContain('Vietnamese');
+    const h = buildEventFinderPrompt({ symbol: 'nvda', date: '2026-03-10', headlines: [{ date: '2026-03-01', title: 'Beat', source: 'Reuters', url: 'https://r.com' }] });
+    expect(h).toContain('- 2026-03-01 | Reuters | Beat | https://r.com');
   });
 
   it('keeps good rows, drops undated or malformed ones, de-duplicates and sorts', () => {
