@@ -6212,3 +6212,11 @@ CHAT-84 (2026-10-03) - Tram: nut Playbook + Ly do ban, an ly do co san; cot trai
 - Nut tro ly (chat) khong che nut cua Tram: chua cho trong duoi trang va duoi phieu lenh.
 - Danh muc > Mua/Ban: 3 nut Lam lai / Playbook / Ly do ban dang vien tron co khoang cach voi hang duoi; bang diem (B 72/100, cac nhom) co khung bao tron.
 - Kiem tra: tsc OK, vitest 452, vite build OK, anh headless 1600 / 420 / form Mua; kiem tra sticky bang JS (position sticky, chieu cao con cho de dinh).
+
+CHAT-85 (2026-10-03) - Tram: bo cuc moi (trai: phieu lenh + thang gia + danh sach; giua: chart; phai: ke hoach), dai so lieu tren chart, bang duoi chart dep hon, mo Tram dung tai khoan, dropdown doc duoc
+- Bo cuc >= 1600px: cot trai 360px = phieu Mua/Ban, roi thang muc gia + Dang giu/watchlist (gap/mo); giua = dai so lieu + chart + cac tab; phai 400px = Ke hoach giao dich. 900-1600px: trai | giua, ke hoach duoi chart. Dien thoai: chart, phieu lenh, ke hoach, cac tab.
+- Dai so lieu tren chart (stripHtml, cap nhat khi go): Phieu lenh (Mua/Ban N ma), Tong tien / Tien thu, Phi, Rui ro €·% (mua) hoac Lai/lo thuc hien (ban, FIFO, tru phi), R:R, Tien mat sau. Bo khoi tong ket cu trong phieu lenh (phai cuon moi thay).
+- Cac tab duoi chart: bang co dong tieu de cot. Vi the: tai khoan (so lo, tu ngay), so luong, gia von, gia, cat lo, lai/lo dang vien, nut "Ban →" mau do. Lenh cho: ngay dat, loai lenh (vien mau), tai khoan, so luong, gia kich hoat, nut Huy. Lich su khop: ngay, Mua/Ban, tai khoan + ly do, khop, phi, lai/lo. Case study: ngay, tieu de, ket qua (vien mau), R. Dien thoai: moi dong 2 cot, an tieu de.
+- openStation(sym, date, accountId): nut Mo Tram o form Mua va dong vi the cua Danh muc chon san tai khoan dang mo.
+- Dropdown (option/optgroup) co nen + chu theo giao dien (toi: nen toi chu sang; sang: nen trang chu toi) -> het chu trang tren nen trang o "Ly do ban".
+- Kiem tra: tsc OK, vitest 452, vite build OK, anh headless 1920 toi / 1400 sang.

@@ -2040,9 +2040,9 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
     // sell from a position row (in-app form, not prompt)
     root.querySelectorAll<HTMLElement>('[data-station]').forEach((b) =>
-      b.addEventListener('click', () => openStation(b.dataset.station!)));
+      b.addEventListener('click', () => openStation(b.dataset.station!, null, activeId() === OVERVIEW_ID ? null : activeId())));
     root.querySelector('#station-go')?.addEventListener('click', () =>
-      openStation((($('#b-ticker') as HTMLInputElement | null)?.value ?? '').trim()));
+      openStation((($('#b-ticker') as HTMLInputElement | null)?.value ?? '').trim(), null, activeId() === OVERVIEW_ID ? null : activeId()));
     root.querySelectorAll<HTMLElement>('[data-sell]').forEach((b) =>
       b.addEventListener('click', async () => {
         const t = b.dataset.sell!;

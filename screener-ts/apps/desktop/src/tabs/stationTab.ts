@@ -149,8 +149,12 @@ function freshTicket(acctId = ''): Ticket {
 /** A trade date to open on, handed over by `openStation` and taken once by `renderStation`. */
 let pendingDate: string | null = null;
 
-/** Open the station on a symbol — from the stock page, a position row or a plan card — optionally on a date. */
-export function openStation(symbol: string, date?: string | null): void {
+/** An account to select, handed over by `openStation` (the Portfolio account the user came from). */
+let pendingAcct: string | null = null;
+
+/** Open the station on a symbol — from the stock page, a position row or a plan card — optionally on a date and an account. */
+export function openStation(symbol: string, date?: string | null, accountId?: string | null): void {
+  pendingAcct = accountId || null;
   const s = symbol.trim().toUpperCase();
   if (s) {
     try { localStorage.setItem(SYM_KEY, s); } catch { /* private mode */ }
@@ -379,8 +383,13 @@ export async function renderStation(ctx: AppContext): Promise<void> {
   let want = '';
   try { want = localStorage.getItem(SYM_KEY) ?? ''; } catch { /* private mode */ }
   want = want || list.held[0] || list.watch[0]?.syms[0] || 'NVDA';
+  if (pendingAcct && accounts.some((a) => a.account.id === pendingAcct)) {
+    ticket.acctId = pendingAcct;
+    ccyChoice = null;
+  }
+  pendingAcct = null;
   if (want !== sym || !bars.length) await loadSymbol(ctx, want, root);
-  else { pickAccount(); paint(ctx, root); }
+  else { pickAccount(); ticket.ccy = defaultCcy(); suggest(); paint(ctx, root); }
   if (pendingDate) {
     ticket.date = pendingDate;
     pendingDate = null;
@@ -400,15 +409,18 @@ function paint(ctx: AppContext, root: HTMLElement): void {
   root.innerHTML = `
     <div class="stn">
       ${tickerBarHtml()}
-      <aside class="stn-side card"><div class="stn-side-in">${ladderHtml()}${listHtml()}</div></aside>
+      <div class="stn-left">
+        <aside class="stn-ticket card"><div class="stn-ticket-in" id="stn-ticket">${ticketHtml()}</div></aside>
+        <aside class="stn-side card"><div class="stn-side-in">${ladderHtml()}${listHtml()}</div></aside>
+      </div>
       <section class="stn-main card">
+        <div class="stn-strip2" id="stn-strip">${stripHtml()}</div>
         ${pickBarHtml()}
         <div class="stn-emas">${EMA_CONFIG.map((e) => `<button class="range-btn${emaState[e.period] ? ' active' : ''}" data-stn-ema="${e.period}">EMA${e.period}</button>`).join('')}
           <button class="range-btn${showEarnings ? ' active' : ''}" data-stn-earn title="${L('Earnings report dates', 'Ngày công bố KQKD')}">⬤ E</button></div>
         <div class="stn-chart${pick ? ' picking' : ''}" id="stn-chart"></div>
       </section>
       <section class="stn-plan card" id="stn-plan">${planPanelHtml()}</section>
-      <aside class="stn-ticket card"><div class="stn-ticket-in" id="stn-ticket">${ticketHtml()}</div></aside>
       <section class="stn-bottom card">${bottomHtml()}</section>
     </div>
     <div class="stn-dock">
@@ -701,13 +713,6 @@ function ticketHtml(): string {
     ${isOrder ? '' : `<label class="stn-check"><input type="checkbox" data-stn="caseOn"${ticket.caseOn ? ' checked' : ''}> ${isBuy
       ? L('Open a case study for this trade', 'Mở case study cho lệnh này')
       : L('Write this sale into its case study', 'Ghi lệnh bán vào case study của nó')}</label>`}
-    <div class="stn-sum">
-      <div><span>${isBuy ? L('Cost', 'Tổng tiền') : L('Proceeds', 'Tiền thu')}</span><b>${cash(gross, ac)}</b></div>
-      ${fee ? `<div><span>${L('Fee', 'Phí')}</span><b>${cash(fee, ac)}</b></div>` : ''}
-      ${isBuy && risk !== null ? `<div><span>${L('Risk', 'Rủi ro')}</span><b class="stn-down">${cash(risk, ac)} · ${equity > 0 ? fmt((risk / equity) * 100) : '—'}%</b></div>` : ''}
-      ${isBuy && rr !== null ? `<div><span>R:R</span><b>${fmt(rr, 1)}R</b></div>` : ''}
-      <div><span>${L('Cash after', 'Tiền mặt sau lệnh')}</span><b class="${nowCash < 0 ? 'stn-down' : ''}">${cash(nowCash, ac)}</b></div>
-    </div>
     ${isOrder ? '' : fifo}
     ${block ? `<div class="stn-block">${block}</div>` : ''}
     ${msg ? `<div class="stn-msg${msg.err ? ' err' : ''}">${esc(msg.text)}${!msg.err && lastCaseId ? ` <button class="stn-link" data-stn-opencase="${esc(lastCaseId)}">${L('Open it', 'Mở case study')} →</button>` : ''}</div>` : ''}
@@ -717,6 +722,45 @@ function ticketHtml(): string {
         ? `${L('Place', 'Đặt')} ${isBuy ? 'buy stop' : ticket.orderType === 'STOP_LOSS' ? L('stop loss', 'lệnh cắt lỗ') : L('take profit', 'lệnh chốt lời')} · ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`
         : `${isBuy ? L('Buy', 'Mua') : L('Sell', 'Bán')} ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`}
     </button>`;
+}
+
+/** Cost, fee, risk, R:R and the cash left — the ticket's arithmetic, shown above the chart. */
+function stripHtml(): string {
+  const st = acct();
+  const isBuy = ticket.side === 'buy';
+  const isOrder = ticket.mode === 'order';
+  const ac = acctCcy();
+  const fee = feeNow();
+  const shares = Math.max(0, Math.round(ticket.shares ?? 0));
+  const px = ticket.price ?? 0;
+  const gross = shares && px ? costInAcct(shares, px, ticket.date) : 0;
+  const cashNow = st ? computeCash(st) : 0;
+  const equity = st ? computeEquity(st, accountPrices(st.account.id)) : 0;
+  const riskPer = isBuy && ticket.stop !== null && px > ticket.stop ? px - ticket.stop : null;
+  const risk = riskPer !== null ? costInAcct(shares, riskPer, ticket.date) + fee : null;
+  const rr = riskPer !== null && ticket.target !== null && ticket.target > px ? (ticket.target - px) / riskPer : null;
+  const nowCash = isOrder ? cashNow : isBuy ? cashNow - gross - fee : cashNow + gross - fee;
+  let pnl: number | null = null;
+  if (!isBuy && st && shares && px) {
+    const pxA = px * ccyFactor(ticket.ccy, ac, ticket.date);
+    let left = shares;
+    pnl = 0;
+    for (const l of openLots(st, sym).slice().sort((a, b) => (a.buyDate < b.buyDate ? -1 : 1))) {
+      if (left <= 0) break;
+      const take = Math.min(left, l.remainingShares);
+      pnl += (pxA - l.buyPrice) * take;
+      left -= take;
+    }
+    pnl -= fee;
+  }
+  const cell = (k: string, v: string, cls = ''): string => `<div class="stn-k ${cls}"><small>${k}</small><b>${v}</b></div>`;
+  const side = isBuy ? L('Buy', 'Mua') : L('Sell', 'Bán');
+  return `<div class="stn-k stn-k-side ${isBuy ? 'buy' : 'sell'}"><small>${isOrder ? L('Pending', 'Lệnh chờ') : L('Ticket', 'Phiếu lệnh')}</small><b>${side} ${shares ? fmt(shares, 0) : '—'} ${esc(sym)}</b></div>
+    ${cell(isBuy ? L('Cost', 'Tổng tiền') : L('Proceeds', 'Tiền thu'), cash(gross, ac))}
+    ${cell(L('Fee', 'Phí'), cash(fee, ac))}
+    ${isBuy ? cell(L('Risk', 'Rủi ro'), risk === null ? '—' : `${cash(risk, ac)} · ${equity > 0 ? fmt((risk / equity) * 100) : '—'}%`, 'down') : cell(L('Realised', 'Lãi/lỗ thực hiện'), pnl === null ? '—' : `${pnl >= 0 ? '+' : ''}${cash(pnl, ac)}`, pnl !== null && pnl < 0 ? 'down' : 'up')}
+    ${isBuy ? cell('R:R', rr === null ? '—' : `${fmt(rr, 1)}R`, rr !== null && rr >= 2 ? 'up' : '') : ''}
+    ${cell(L('Cash after', 'Tiền mặt sau'), cash(nowCash, ac), nowCash < 0 ? 'down' : '')}`;
 }
 
 /** The finder's note and events waiting for this buy: shown, editable, removable. */
@@ -782,10 +826,12 @@ async function paintBottom(ctx: AppContext, root: HTMLElement): Promise<void> {
   if (bottom === 'cases') {
     const idx = (await loadCaseIndex(ctx).catch(() => [])).filter((m) => m.symbol === sym);
     body.innerHTML = idx.length
-      ? `<div class="stn-tbl">${idx.map((m) => `<button class="stn-tr stn-case" data-stn-case="${esc(m.id)}">
-          <span>${esc(m.keyDate)}</span><span class="stn-grow">${esc(m.title)}</span>
-          <span class="stn-out stn-out-${m.outcome}">${outcomeWord(m.outcome)}</span>
-          <span>${m.rMultiple === null || m.rMultiple === undefined ? '' : `${fmt(m.rMultiple, 1)}R`}</span></button>`).join('')}</div>`
+      ? `<div class="stn-table">
+          <div class="stn-row stn-row-c stn-row-h"><span>${L('Key date', 'Ngày')}</span><span>${L('Title', 'Tiêu đề')}</span><span>${L('Outcome', 'Kết quả')}</span><span class="stn-c-n">R</span><span></span></div>
+          ${idx.map((m) => `<button class="stn-row stn-row-c stn-case" data-stn-case="${esc(m.id)}">
+          <span class="stn-c-d">${esc(m.keyDate)}</span><span class="stn-c-a"><b>${esc(m.title)}</b></span>
+          <span><i class="stn-pill o-${m.outcome}">${outcomeWord(m.outcome)}</i></span>
+          <span class="stn-c-n">${m.rMultiple === null || m.rMultiple === undefined ? '—' : `${fmt(m.rMultiple, 1)}R`}</span><span class="stn-c-x stn-open">→</span></button>`).join('')}</div>`
       : `<div class="stn-empty">${L(`No case study for ${sym} yet.`, `Chưa có case study nào cho ${sym}.`)}</div>`;
     body.querySelectorAll<HTMLElement>('[data-stn-case]').forEach((b) => b.addEventListener('click', () =>
       window.dispatchEvent(new CustomEvent('app:open-case', { detail: b.dataset.stnCase }))));
@@ -805,13 +851,20 @@ function ordersHtml(): string {
   const qs = SYM[ticket.ccy] ?? '';
   const inTicket = (v: number): number => v * ccyFactor(quoteCcy() ?? 'USD', ticket.ccy, today());
   const word = (t: string): string => ({
-    BUY_STOP: L('BUY STOP', 'MUA KHI ≥'), STOP_LOSS: L('STOP LOSS', 'CẮT LỖ ≤'), TAKE_PROFIT: L('TAKE PROFIT', 'CHỐT LỜI ≥'),
+    BUY_STOP: L('Buy stop ≥', 'Mua khi ≥'), STOP_LOSS: L('Stop loss ≤', 'Cắt lỗ ≤'), TAKE_PROFIT: L('Take profit ≥', 'Chốt lời ≥'),
   } as Record<string, string>)[t] ?? t;
   const rows = accounts.flatMap((a) => (a.orders ?? []).filter((o) => o.ticker === sym && o.status === 'pending').map((o) =>
-    `<div class="stn-tr"><span>${esc(o.createdDate)}</span><span class="${o.type === 'BUY_STOP' ? 'stn-side-b' : 'stn-side-s'}">${word(o.type)}</span>
-      <span class="stn-grow">${esc(a.account.name)}</span><span>${fmt(o.shares, 0)} @ ${qs}${fmt(inTicket(o.threshold))}</span>
-      <button class="btn-outline stn-mini" data-stn-cancel="${esc(a.account.id)}|${esc(o.id)}">${L('Cancel', 'Huỷ')}</button></div>`));
-  return rows.length ? `<div class="stn-tbl">${rows.join('')}</div>`
+    `<div class="stn-row stn-row-o">
+      <span class="stn-c-d">${esc(o.createdDate)}</span>
+      <span><i class="stn-pill ${o.type === 'BUY_STOP' ? 'buy' : o.type === 'STOP_LOSS' ? 'sell' : 'tgt'}">${word(o.type)}</i></span>
+      <span class="stn-c-a">${esc(a.account.name)}</span>
+      <span class="stn-c-n">${fmt(o.shares, 0)}</span>
+      <span class="stn-c-n"><b>${qs}${fmt(inTicket(o.threshold))}</b></span>
+      <span class="stn-c-x"><button class="stn-act ghost" data-stn-cancel="${esc(a.account.id)}|${esc(o.id)}">✕ ${L('Cancel', 'Huỷ')}</button></span>
+    </div>`));
+  return rows.length ? `<div class="stn-table">
+      <div class="stn-row stn-row-o stn-row-h"><span>${L('Placed', 'Ngày đặt')}</span><span>${L('Order', 'Lệnh')}</span><span>${L('Account', 'Tài khoản')}</span><span class="stn-c-n">${L('Shares', 'Số lượng')}</span><span class="stn-c-n">${L('Trigger', 'Kích hoạt')}</span><span></span></div>
+      ${rows.join('')}</div>`
     : `<div class="stn-empty">${L(`No pending orders for ${sym}.`, `Không có lệnh chờ nào cho ${sym}.`)}</div>`;
 }
 
@@ -819,21 +872,29 @@ function positionsHtml(): string {
   const lp = last()?.close ?? null;
   const rows = accounts.map((a) => {
     const lots = openLots(a, sym);
-    const n = lots.reduce((s, l) => s + l.remainingShares, 0);
+    const n = lots.reduce((t, l) => t + l.remainingShares, 0);
     if (!n) return '';
     const ac = a.account.currency;
-    const avg = lots.reduce((s, l) => s + l.buyPrice * l.remainingShares, 0) / n;
+    const avg = lots.reduce((t, l) => t + l.buyPrice * l.remainingShares, 0) / n;
     const now = lp === null ? null : lp * ccyFactor(ticket.ccy, ac, today());
     const pnl = now === null ? null : (now - avg) * n;
     const pct = now === null ? null : ((now - avg) / avg) * 100;
-    return `<div class="stn-tr">
-        <span class="stn-grow"><b>${esc(a.account.name)}</b></span>
-        <span>${fmt(n, 0)} ${L('sh', 'cp')}</span><span>${L('avg', 'TB')} ${cash(avg, ac)}</span>
-        <span class="${(pnl ?? 0) >= 0 ? 'stn-up' : 'stn-down'}">${pnl === null ? '—' : `${pnl >= 0 ? '+' : ''}${cash(pnl, ac)} · ${fmt(pct, 1)}%`}</span>
-        <button class="btn-outline stn-mini" data-stn-sellacct="${esc(a.account.id)}">${L('Sell', 'Bán')}</button>
+    const stop = lots.find((l) => l.stop)?.stop ?? null;
+    const up = (pnl ?? 0) >= 0;
+    return `<div class="stn-row stn-row-p">
+        <span class="stn-c-a"><b>${esc(a.account.name)}</b><small>${lots.length} ${L(lots.length === 1 ? 'lot' : 'lots', 'lô')} · ${L('since', 'từ')} ${esc(lots.map((l) => l.buyDate).sort()[0] ?? '')}</small></span>
+        <span class="stn-c-n">${fmt(n, 0)}</span>
+        <span class="stn-c-n">${cash(avg, ac)}</span>
+        <span class="stn-c-n">${now === null ? '—' : cash(now, ac)}</span>
+        <span class="stn-c-n">${stop ? cash(stop, ac) : '<i class="stn-warn">—</i>'}</span>
+        <span class="stn-c-n"><i class="stn-pnl ${up ? 'up' : 'down'}">${pnl === null ? '—' : `${up ? '+' : ''}${cash(pnl, ac)} · ${up ? '+' : ''}${fmt(pct, 1)}%`}</i></span>
+        <span class="stn-c-x"><button class="stn-act sell" data-stn-sellacct="${esc(a.account.id)}">${L('Sell', 'Bán')} →</button></span>
       </div>`;
   }).join('');
-  return rows ? `<div class="stn-tbl">${rows}</div>` : `<div class="stn-empty">${L(`No account holds ${sym}.`, `Không tài khoản nào đang giữ ${sym}.`)}</div>`;
+  return rows ? `<div class="stn-table">
+      <div class="stn-row stn-row-p stn-row-h"><span>${L('Account', 'Tài khoản')}</span><span class="stn-c-n">${L('Shares', 'Số lượng')}</span><span class="stn-c-n">${L('Avg cost', 'Giá vốn TB')}</span><span class="stn-c-n">${L('Last', 'Giá')}</span><span class="stn-c-n">${L('Stop', 'Cắt lỗ')}</span><span class="stn-c-n">${L('P&L', 'Lãi/lỗ')}</span><span></span></div>
+      ${rows}</div>`
+    : `<div class="stn-empty">${L(`No account holds ${sym}.`, `Không tài khoản nào đang giữ ${sym}.`)}</div>`;
 }
 
 function historyHtml(): string {
@@ -842,14 +903,17 @@ function historyHtml(): string {
   for (const a of accounts) {
     const ac = a.account.currency;
     for (const l of a.lots.filter((x) => x.ticker === sym)) {
-      out.push({ date: l.buyDate, html: `<span>${l.buyDate}</span><span class="stn-side-b">${L('BUY', 'MUA')}</span><span class="stn-grow">${esc(a.account.name)}</span><span>${fmt(l.shares, 0)} @ ${cash(l.buyPrice, ac)}</span><span>${l.fee ? `${L('fee', 'phí')} ${cash(l.fee, ac)}` : ''}</span>` });
+      out.push({ date: l.buyDate, html: `<span class="stn-c-d">${l.buyDate}</span><span><i class="stn-pill buy">${L('Buy', 'Mua')}</i></span><span class="stn-c-a">${esc(a.account.name)}</span><span class="stn-c-n">${fmt(l.shares, 0)} @ ${cash(l.buyPrice, ac)}</span><span class="stn-c-n">${l.fee ? cash(l.fee, ac) : '—'}</span><span class="stn-c-n">—</span>` });
     }
     for (const r of a.sells.filter((x) => x.ticker === sym)) {
-      out.push({ date: r.sellDate, html: `<span>${r.sellDate}</span><span class="stn-side-s">${L('SELL', 'BÁN')}</span><span class="stn-grow">${esc(a.account.name)}${r.exitReasonKey ? ` · ${esc(exitReasonLabel(r.exitReasonKey, vi()))}` : ''}</span><span>${fmt(r.shares, 0)} @ ${cash(r.sellPrice, ac)}</span><span class="${r.realizedPnL >= 0 ? 'stn-up' : 'stn-down'}">${r.realizedPnL >= 0 ? '+' : ''}${cash(r.realizedPnL, ac)}</span>` });
+      const up = r.realizedPnL >= 0;
+      out.push({ date: r.sellDate, html: `<span class="stn-c-d">${r.sellDate}</span><span><i class="stn-pill sell">${L('Sell', 'Bán')}</i></span><span class="stn-c-a">${esc(a.account.name)}${r.exitReasonKey ? `<small>${esc(exitReasonLabel(r.exitReasonKey, vi()))}</small>` : ''}</span><span class="stn-c-n">${fmt(r.shares, 0)} @ ${cash(r.sellPrice, ac)}</span><span class="stn-c-n">${r.fee ? cash(r.fee, ac) : '—'}</span><span class="stn-c-n"><i class="stn-pnl ${up ? 'up' : 'down'}">${up ? '+' : ''}${cash(r.realizedPnL, ac)}</i></span>` });
     }
   }
   out.sort((a, b) => (a.date < b.date ? 1 : -1));
-  return out.length ? `<div class="stn-tbl">${out.map((r) => `<div class="stn-tr">${r.html}</div>`).join('')}</div>`
+  return out.length ? `<div class="stn-table">
+      <div class="stn-row stn-row-f stn-row-h"><span>${L('Date', 'Ngày')}</span><span>${L('Side', 'Lệnh')}</span><span>${L('Account', 'Tài khoản')}</span><span class="stn-c-n">${L('Fill', 'Khớp')}</span><span class="stn-c-n">${L('Fee', 'Phí')}</span><span class="stn-c-n">${L('Realised', 'Lãi/lỗ')}</span></div>
+      ${out.map((r) => `<div class="stn-row stn-row-f">${r.html}</div>`).join('')}</div>`
     : `<div class="stn-empty">${L(`No fills for ${sym} yet.`, `Chưa có lệnh khớp nào cho ${sym}.`)}</div>`;
 }
 
@@ -945,6 +1009,8 @@ function repaintLive(ctx: AppContext, root: HTMLElement, focusKey?: string): voi
   if (lad) lad.outerHTML = ladderHtml();
   const pp = root.querySelector<HTMLElement>('#stn-plan');
   if (pp) pp.innerHTML = planPanelHtml();
+  const sp = root.querySelector<HTMLElement>('#stn-strip');
+  if (sp) sp.innerHTML = stripHtml();
   chart?.setOverlay({
     entry: ticket.price, stop: ticket.side === 'buy' ? ticket.stop : null,
     target: ticket.side === 'buy' ? ticket.target : null,
