@@ -415,6 +415,25 @@ native option lists stay legible. Labels: `600 11px uppercase .06em --subtext`, 
 **Form panels**: a long filter form is one card with NUMBERED rows (`01 Strategy`, `02 Universe` …
 label = mono number + name, counter skips hidden rows) and an actions band at the bottom.
 
+## 6a. Glass controls — ONE button language (supersedes the button recipes in §6)
+
+Taken from the landing page, the screen the owner likes best. Every legacy class is mapped onto
+these tokens (`.btn`, `.btn-outline`, `.mini-btn`, `.cb-btn`, `.range-btn`, `.seg`, `.ui-btn`), so
+old and new screens draw the same control; change a token and the whole app follows.
+
+- Shape: capsules everywhere (`--ctl-radius: 999px`); fields stay 10px.
+- **Primary** = the landing CTA: `--cta-bg` = `linear-gradient(135deg, accent+12% white 0%, accent
+  45%, accent·60% + blue 100%)`, 1px `--cta-line`, `--cta-shadow` (white inset top edge, dark inset
+  bottom, accent glow), white 700 text, a skewed white sheen that crosses on hover, lift 1px.
+- **Secondary** = frosted ghost: `--glass-bg` (white 10% → 3.5% vertical; light theme white 92% →
+  64%), 1px `--glass-line`, `--glass-hi` inset top highlight, `--glass-drop`; hover brighter glass +
+  accent line + a 3px accent-wash ring. Toggled on = accent text on an accent 22% → 8% wash.
+- **Segmented / tracks** (`.seg`, `.cb-seg`, the station's Buy/Sell, mode, tabs, currency, %):
+  capsule track `--track-bg`/`--track-line` with a soft inner shadow; the selected thumb is
+  `--thumb-bg` with `--thumb-shadow` (lit edge + accent ring). Buy/Sell keep green/red fills.
+- **Toggle chips** (EMA, filters): glass capsule; active = accent wash.
+- **Icon buttons**: glass circles; danger fills red on hover.
+
 ## 6b. Component standards (the UI kit — use these, never a local one-off)
 
 Added 2026-10-03 after the Trade Station grew five button styles and three dropdown looks.

@@ -62,7 +62,7 @@ function esc(s: string): string {
 
 type Ccy = 'EUR' | 'USD';
 type Side = 'buy' | 'sell';
-type BottomTab = 'list' | 'pos' | 'orders' | 'hist' | 'cases';
+type BottomTab = 'held' | 'watch' | 'pos' | 'orders' | 'hist' | 'cases';
 type Pick = 'price' | 'stop' | 'target';
 
 const SYM_KEY = 'station_sym';
@@ -124,7 +124,7 @@ let earnReports: EarningsReport[] = [];
 /** The ticket's currency picked by the user, kept across symbols. Null = follow the account. */
 let ccyChoice: Ccy | null = null;
 let ticket: Ticket = freshTicket();
-let bottom: BottomTab = 'list';
+let bottom: BottomTab = 'held';
 let chart: CandleChart | null = null;
 let msg: { err: boolean; text: string } | null = null;
 /** The study the last "case study only" filed, so the message can open it. */
@@ -414,14 +414,14 @@ function paint(ctx: AppContext, root: HTMLElement): void {
         <aside class="stn-ticket card"><div class="stn-ticket-in" id="stn-ticket">${ticketHtml()}</div></aside>
       </div>
       <div class="stn-center">
-      <div class="stn-strip2" id="stn-strip">${stripHtml()}</div>
-      <section class="stn-bottom card">${bottomHtml()}</section>
       <section class="stn-main card">
+        <div class="stn-strip2" id="stn-strip">${stripHtml()}</div>
         ${pickBarHtml()}
         <div class="stn-emas">${EMA_CONFIG.map((e) => `<button class="range-btn${emaState[e.period] ? ' active' : ''}" data-stn-ema="${e.period}">EMA${e.period}</button>`).join('')}
           <button class="range-btn${showEarnings ? ' active' : ''}" data-stn-earn title="${L('Earnings report dates', 'Ngày công bố KQKD')}">⬤ E</button></div>
         <div class="stn-chart${pick ? ' picking' : ''}" id="stn-chart"></div>
       </section>
+      <section class="stn-bottom card">${bottomHtml()}</section>
       </div>
       <section class="stn-plan card" id="stn-plan">${planPanelHtml()}</section>
     </div>
@@ -494,8 +494,8 @@ function setGroupOpen(id: string, open: boolean): void {
   } catch { /* private mode */ }
 }
 
-/** Held and every watchlist, each a fold of its own that remembers whether it was open. */
-function listHtml(): string {
+/** Held, or every watchlist — each list a fold of its own that remembers whether it was open. */
+function listHtml(which: 'held' | 'watch' = 'held'): string {
   const row = (s: string, tag = ''): string =>
     `<button class="stn-li${s === sym ? ' on' : ''}" data-stn-sym="${esc(s)}"><b>${esc(s)}</b>${tag ? `<small>${tag}</small>` : ''}</button>`;
   const heldTag = (s: string): string => {
@@ -507,11 +507,13 @@ function listHtml(): string {
       <summary><span class="stn-grp-ic">${icon}</span><span class="stn-grp-n">${esc(name)}</span><span class="stn-grp-c">${syms.length}</span><span class="stn-grp-chev" aria-hidden="true"></span></summary>
       <div class="stn-grp-b">${syms.map((s) => row(s, tag(s))).join('')}</div>
     </details>`;
-  const groups = [
-    list.held.length ? grp('held', '💼', L('Held', 'Đang giữ'), list.held, heldTag) : '',
-    ...list.watch.map((w) => grp(`wl:${w.name}`, '⭐', w.name, w.syms)),
-  ].join('');
-  return `<div class="stn-list stn-list-tab">${groups || `<div class="stn-empty">${L('No positions or watchlists yet — type a symbol above.', 'Chưa có vị thế hay watchlist — gõ mã ở ô phía trên.')}</div>`}</div>`;
+  if (which === 'held') {
+    return list.held.length
+      ? `<div class="stn-list stn-list-tab"><div class="stn-chips">${list.held.map((s) => row(s, heldTag(s))).join('')}</div></div>`
+      : `<div class="stn-empty">${L('No open positions in any account.', 'Chưa có vị thế nào đang mở.')}</div>`;
+  }
+  const groups = list.watch.map((w) => grp(`wl:${w.name}`, '⭐', w.name, w.syms)).join('');
+  return `<div class="stn-list stn-list-tab">${groups || `<div class="stn-empty">${L('No watchlists yet — make one on the Watchlist page.', 'Chưa có watchlist nào — tạo ở trang Watchlist.')}</div>`}</div>`;
 }
 
 /** The plan's levels against the price — the swing trader's order book. */
@@ -821,7 +823,7 @@ function fifoPreview(st: (typeof accounts)[number], shares: number, px: number):
 function bottomHtml(): string {
   const tab = (k: BottomTab, label: string): string => `<button class="${bottom === k ? 'on' : ''}" data-stn-bottom="${k}">${label}</button>`;
   return `<div class="stn-btabs seg">
-      ${tab('list', `${L('Lists', 'Danh sách')}${list.held.length + list.watch.length ? ` · ${list.held.length + list.watch.length}` : ''}`)}${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}
+      ${tab('held', `💼 ${L('Held', 'Đang giữ')}${list.held.length ? ` · ${list.held.length}` : ''}`)}${tab('watch', `⭐ Watchlist${list.watch.length ? ` · ${list.watch.length}` : ''}`)}${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}
     </div>
     <div class="stn-bbody" id="stn-bbody"></div>`;
 }
@@ -829,8 +831,8 @@ function bottomHtml(): string {
 async function paintBottom(ctx: AppContext, root: HTMLElement): Promise<void> {
   const body = root.querySelector<HTMLElement>('#stn-bbody');
   if (!body) return;
-  if (bottom === 'list') {
-    body.innerHTML = listHtml();
+  if (bottom === 'held' || bottom === 'watch') {
+    body.innerHTML = listHtml(bottom);
     body.querySelectorAll<HTMLDetailsElement>('[data-stn-grp]').forEach((d) =>
       d.addEventListener('toggle', () => setGroupOpen(d.dataset.stnGrp!, d.open)));
     body.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>

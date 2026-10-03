@@ -9333,3 +9333,156 @@ html #main .stn-f select.field, html #main .stn select.field { height: 38px; fon
 /* strip cells size to what they say and wrap to a second row, rather than cutting a number off */
 .stn-k { flex: 1 1 auto; }
 .stn-k b { overflow: visible; text-overflow: clip; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   GLASS CONTROLS (CHAT-87, 2026-10-03) — one button language for the WHOLE app, taken from
+   the landing page (the user's favourite): the primary is the landing CTA (violet → blue
+   gradient, a lit top edge, a sheen on hover), everything else is the landing's frosted
+   ghost. Every legacy class (.btn, .btn-outline, .mini-btn, .cb-btn, .range-btn, .seg, the
+   station's tracks) is mapped onto these tokens here, so a screen built years ago and one
+   built tomorrow draw the same control. Change a token, the whole app follows.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --ctl-radius: 999px;
+  --ctl-h: 36px;
+  --ctl-h-sm: 30px;
+  --ctl-font: 650 13px var(--font-ui);
+  --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .035));
+  --glass-bg-hover: linear-gradient(180deg, rgba(255, 255, 255, .15), rgba(255, 255, 255, .06));
+  --glass-line: rgba(255, 255, 255, .15);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, .13);
+  --glass-drop: 0 10px 24px -18px rgba(0, 0, 0, .85);
+  --cta-bg: linear-gradient(135deg, color-mix(in srgb, var(--accent) 88%, #fff) 0%, var(--accent) 45%, color-mix(in srgb, var(--accent) 60%, var(--blue)) 100%);
+  --cta-line: color-mix(in srgb, var(--accent) 50%, #fff);
+  --cta-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 -10px 20px -12px rgba(0, 0, 0, .35), 0 12px 28px -14px color-mix(in srgb, var(--accent) 80%, transparent);
+  --cta-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -10px 20px -12px rgba(0, 0, 0, .35), 0 18px 38px -14px color-mix(in srgb, var(--accent) 90%, transparent);
+  --track-bg: rgba(255, 255, 255, .045);
+  --track-line: rgba(255, 255, 255, .11);
+  --thumb-bg: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .07));
+  --thumb-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 4px 12px -6px rgba(0, 0, 0, .7), 0 0 0 1px var(--accent-line);
+}
+html.light {
+  --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .64));
+  --glass-bg-hover: linear-gradient(180deg, #fff, rgba(255, 255, 255, .82));
+  --glass-line: rgba(255, 255, 255, .98);
+  --glass-hi: inset 0 1px 0 #fff;
+  --glass-drop: 0 6px 16px -12px rgba(60, 45, 25, .35), 0 0 0 1px rgba(92, 72, 46, .08);
+  --track-bg: rgba(255, 255, 255, .5);
+  --track-line: rgba(92, 72, 46, .12);
+  --thumb-bg: #fff;
+  --thumb-shadow: 0 1px 3px rgba(40, 30, 60, .16), 0 0 0 1px var(--accent-line);
+}
+
+/* ── secondary: frosted glass capsule ── */
+html button.btn-outline, html #main button.btn-outline, html .cb-btn, html #main .cb-btn,
+html .ui-btn, html #main .ui-btn {
+  border-radius: var(--ctl-radius); border: 1px solid var(--glass-line);
+  background: var(--glass-bg); color: var(--text);
+  box-shadow: var(--glass-hi), var(--glass-drop);
+  font-weight: 650; letter-spacing: -.003em;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, box-shadow .2s ease, transform .2s cubic-bezier(.22, 1, .36, 1);
+}
+html button.btn-outline:hover:not(:disabled), html #main button.btn-outline:hover:not(:disabled),
+html .cb-btn:hover:not(:disabled), html #main .cb-btn:hover:not(:disabled),
+html .ui-btn:hover:not([disabled]), html #main .ui-btn:hover:not([disabled]) {
+  background: var(--glass-bg-hover); border-color: var(--accent-line); color: var(--text);
+  box-shadow: var(--glass-hi), 0 0 0 3px var(--accent-wash), var(--glass-drop); transform: translateY(-1px);
+}
+html button.btn-outline:active, html .cb-btn:active, html .ui-btn:active { transform: translateY(0); }
+html button.btn-outline.active, html #main button.btn-outline.active {
+  color: var(--accent); border-color: var(--accent-line);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+}
+html .cb-btn { height: 34px; padding: 0 14px; }
+html .mini-btn, html #main .mini-btn { border-radius: var(--ctl-radius); }
+
+/* ── primary: the landing CTA ── */
+html button.btn, html #main button.btn, html .cb-btn.cb-primary, html #main .cb-btn.cb-primary,
+html .ui-btn.primary, html #main .ui-btn.primary, html .pc-go {
+  position: relative; overflow: hidden; isolation: isolate;
+  border-radius: var(--ctl-radius); border: 1px solid var(--cta-line);
+  background: var(--cta-bg); color: #fff; box-shadow: var(--cta-shadow);
+  font-weight: 700; letter-spacing: -.003em;
+  transition: transform .25s cubic-bezier(.22, 1, .36, 1), box-shadow .25s ease, filter .2s ease;
+}
+html button.btn::after, html .cb-btn.cb-primary::after, html .ui-btn.primary::after, html .pc-go::after {
+  content: ''; position: absolute; z-index: -1; top: 0; bottom: 0; left: -60%; width: 45%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .32), transparent);
+  transform: skewX(-18deg); transition: left .7s cubic-bezier(.22, 1, .36, 1);
+}
+html button.btn:hover:not(:disabled), html #main button.btn:hover:not(:disabled),
+html .cb-btn.cb-primary:hover:not(:disabled), html #main .cb-btn.cb-primary:hover:not(:disabled),
+html .ui-btn.primary:hover:not([disabled]), html #main .ui-btn.primary:hover:not([disabled]), html .pc-go:hover {
+  color: #fff; border-color: var(--cta-line); background: var(--cta-bg); filter: none;
+  transform: translateY(-1px); box-shadow: var(--cta-shadow-hover);
+}
+html button.btn:hover::after, html .cb-btn.cb-primary:hover::after, html .ui-btn.primary:hover::after, html .pc-go:hover::after { left: 120%; }
+html .cb-btn.cb-primary .cb-ic { color: #fff; }
+html button.btn:disabled, html .ui-btn.primary[disabled] { filter: saturate(.6); opacity: .5; box-shadow: none; transform: none; }
+
+/* ── destructive ── */
+html .ui-btn.danger, html #main .ui-btn.danger {
+  color: var(--down); border-color: color-mix(in srgb, var(--down) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--down) 16%, transparent), color-mix(in srgb, var(--down) 6%, transparent));
+}
+html .ui-btn.danger:hover:not([disabled]), html #main .ui-btn.danger:hover:not([disabled]) {
+  color: #fff; border-color: var(--down); background: linear-gradient(180deg, color-mix(in srgb, var(--down) 85%, #fff), var(--down));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 10px 22px -12px var(--down);
+}
+
+/* ── round icon buttons ── */
+html .ui-icon-btn, html #main .ui-icon-btn, html .pc-x, html .stn-icon {
+  border-radius: 50%; border: 1px solid var(--glass-line); background: var(--glass-bg);
+  box-shadow: var(--glass-hi), var(--glass-drop); color: var(--subtext);
+}
+html .ui-icon-btn:hover, html #main .ui-icon-btn:hover, html .pc-x:hover, html .stn-icon:hover {
+  color: var(--accent); border-color: var(--accent-line); background: var(--glass-bg-hover);
+}
+html .ui-icon-btn.danger:hover, html #main .ui-icon-btn.danger:hover { color: #fff; border-color: var(--down); background: var(--down); }
+.stn-icon { border-radius: 50%; }
+
+/* ── toggle chips outside a track (EMA chips, filters) ── */
+html .range-btn:not(.seg > .range-btn), html #main .range-btn:not(.seg > .range-btn) {
+  border-radius: var(--ctl-radius); border: 1px solid var(--glass-line); background: var(--glass-bg);
+  box-shadow: var(--glass-hi); color: var(--subtext); font-weight: 650;
+}
+html .range-btn:not(.seg > .range-btn):hover, html #main .range-btn:not(.seg > .range-btn):hover { color: var(--text); border-color: var(--accent-line); }
+html .range-btn.active:not(.seg > .range-btn), html #main .range-btn.active:not(.seg > .range-btn) {
+  color: var(--accent); border-color: var(--accent-line);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+}
+
+/* ── segmented tracks: one track, one thumb, everywhere ── */
+html .seg, html .cb-seg, html .stn-tabs, html .stn-mode, html .stn-btabs, html .stn-ccy, html .stn-pcts, html .tp-seg {
+  border-radius: var(--ctl-radius); background: var(--track-bg); border: 1px solid var(--track-line);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .18);
+}
+html .seg > .range-btn, html #main .seg > .range-btn, html .cb-seg > button,
+html .stn-tabs > button, html .stn-mode > button, html .stn-btabs > button, html .stn-ccy > button {
+  border-radius: var(--ctl-radius);
+}
+html .seg > .range-btn.active, html #main .seg > .range-btn.active, html .modal-body .seg > .range-btn.active,
+html .cb-seg > button.on, html .stn-mode > button.on, html .stn-btabs > button.on, html .stn-ccy > button.on {
+  color: var(--accent); background: var(--thumb-bg); box-shadow: var(--thumb-shadow);
+}
+html .stn-pcts { display: grid; padding: 3px; gap: 3px; }
+html .stn-pcts button { border: 0; border-radius: var(--ctl-radius); background: transparent; }
+html .stn-pcts button.on, html .stn-pcts button:hover { color: var(--accent); background: var(--thumb-bg); box-shadow: var(--thumb-shadow); }
+/* Buy / Sell keep their meaning colours, on the same capsule */
+html .stn-tabs .stn-t-buy { color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--up) 85%, #fff), var(--up)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 6px 16px -8px var(--up); }
+html .stn-tabs .stn-t-sell { color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--down) 85%, #fff), var(--down)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 6px 16px -8px var(--down); }
+
+/* ── the big order button and the case-only action, same capsule family ── */
+html .stn-go { border-radius: var(--ctl-radius); position: relative; overflow: hidden; isolation: isolate; }
+html .stn-go::after {
+  content: ''; position: absolute; z-index: -1; top: 0; bottom: 0; left: -60%; width: 45%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .3), transparent); transform: skewX(-18deg); transition: left .7s cubic-bezier(.22, 1, .36, 1);
+}
+html .stn-go:hover:not([disabled])::after { left: 120%; }
+html .stn-case-only { border-radius: var(--ctl-radius); }
+html .stn-dock-b { border-radius: var(--ctl-radius); }
+
+/* ── the strip inside the chart card ── */
+.stn-main > .stn-strip2 { margin: 0 0 12px; }
+.stn-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.stn-list-tab .stn-li { border-radius: var(--ctl-radius); border: 1px solid var(--glass-line); background: var(--glass-bg); box-shadow: var(--glass-hi); }
