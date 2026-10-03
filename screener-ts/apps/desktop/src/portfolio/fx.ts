@@ -116,3 +116,19 @@ export async function ensureEurUsd(ctx: AppContext): Promise<void> {
   const bars = (await ctx.storage.get<Bar[]>(EURUSD_CACHE_KEY)) ?? [];
   applyEurUsdBars(bars);
 }
+
+/**
+ * `ensureEurUsd`, then ONE download when the device has no cached rate at all.
+ *
+ * For the screens whose chart cannot be drawn without it: a euro plan of NVDA needs the rate to
+ * put dollar candles under euro levels, and with none the report rightly drops the chart rather
+ * than misplace the lines. A phone that never opened Portfolio has no cache, so "Open the full
+ * plan" of a study filed from the Trade Station showed no chart after every reload (CHAT-91).
+ * Kept in memory only: the cache key belongs to Portfolio's Update.
+ */
+export async function ensureEurUsdLive(ctx: AppContext): Promise<void> {
+  await ensureEurUsd(ctx).catch(() => {});
+  if (hasEurUsd()) return;
+  const fx = await ctx.data.getOHLCV('EURUSD=X', '2y').catch(() => null);
+  if (fx?.bars.length) applyEurUsdBars(fx.bars);
+}

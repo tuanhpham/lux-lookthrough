@@ -47,7 +47,7 @@ import { openPlanReport } from '../portfolio/planReport.js';
 // The study's levels are stored in dollars; the plan it came from was typed in the planner's
 // currency, usually euros. Reading one document in two currencies needs the rate — see
 // `planReportInputFor`.
-import { ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
+import { ensureEurUsdLive, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
 // One window rule for a plan's chart, shared with the planner so a filed study draws the same
 // picture the card it came from drew.
 import { candleDivisor, inCurrency, planChartWindow } from '../portfolio/planExit.js';
@@ -227,7 +227,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
   // study of AAPL, or a dollar study of ALV.DE.
   const caseCcy = eurCase ? 'EUR' : 'USD';
   const needsFx = candleDivisor(study.symbol, caseCcy, 1) !== 0;
-  if (needsFx) await ensureEurUsd(ctx).catch(() => {});
+  if (needsFx) await ensureEurUsdLive(ctx);
   const caseFx = needsFx && hasEurUsd() ? eurUsdForDate(study.keyDate) : 0;
   const caseDiv = candleDivisor(study.symbol, caseCcy, caseFx);
 
@@ -393,7 +393,7 @@ async function openDetail(ctx: AppContext, id: string): Promise<void> {
     // before writing them (`CaseStudy.currency` did not exist yet). On anything filed since, both
     // halves are in one currency and nothing is converted. Cache only: opening a report must not
     // start a market-data download.
-    await ensureEurUsd(ctx).catch(() => {});
+    await ensureEurUsdLive(ctx);
     const eur = p.currency === 'EUR';
     const sameCcy = (study.currency ?? 'USD') === p.currency;
     // Two different jobs, and conflating them was a bug worth naming: `planFx` lets the report draw

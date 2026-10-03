@@ -9693,3 +9693,114 @@ html .action-btn.action-btn--target, html .action-btn.action-btn--plan, html .ac
 html .action-btn.action-btn--sell { --ab: var(--down); }
 html .action-btn.action-btn--chart { --ab: var(--blue); }
 html.light .action-btn:not(:hover) { box-shadow: var(--glass-drop); }
+
+/* ══ CHAT-91 ═════════════════════════════════════════════════════════════════
+   Trạm: the steps of a trade as one bar under the ticker (date & account → setup → score →
+   events → price & size → confirm → buy), step 1 heading the plan, a real "Confirm the plan"
+   step, a phone order that follows the decision, the dock as a floating glass capsule, and the
+   iOS date field that grew past its column. */
+.stn { grid-template-areas: "bar bar bar" "steps steps steps" "plan center left"; grid-template-rows: auto auto 1fr; }
+@media (max-width: 1599px) and (min-width: 1200px) {
+  .stn { grid-template-areas: "bar bar bar" "steps steps steps" "plan center left"; grid-template-rows: auto auto 1fr; }
+}
+@media (max-width: 1199px) and (min-width: 901px) {
+  .stn { grid-template-areas: "bar bar" "steps steps" "center left" "plan left"; grid-template-rows: auto auto auto 1fr; }
+}
+/* the phone: the chart, then the plan (step 1 to 6), then the ladder and the ticket (5 and 7) */
+@media (max-width: 900px) {
+  .stn { grid-template-areas: "bar" "steps" "center" "plan" "left"; grid-template-rows: none; }
+}
+
+.stn-steps {
+  grid-area: steps; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px;
+  border-radius: 18px; border: 1px solid var(--glass-line); background: var(--glass-bg); box-shadow: var(--glass-hi), var(--glass-drop);
+  scroll-snap-type: x proximity;
+}
+.stn-steps::-webkit-scrollbar { display: none; }
+.stn-step {
+  flex: 1 0 auto; min-width: 128px; display: flex; align-items: center; gap: 9px; padding: 7px 12px 7px 8px; cursor: pointer;
+  border-radius: 13px; border: 1px solid transparent; background: transparent; color: var(--text); text-align: left; scroll-snap-align: start;
+  transition: background .15s ease, border-color .15s ease;
+}
+.stn-step:hover { background: var(--glass-bg-hover); border-color: var(--glass-line); }
+.stn-step > i {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 800 11.5px var(--font-mono); font-style: normal;
+  color: var(--subtext); border: 1.5px solid var(--border); background: var(--surface);
+}
+.stn-step > span { display: grid; gap: 1px; min-width: 0; }
+.stn-step b { font: 700 12px var(--font-ui); white-space: nowrap; }
+.stn-step small { font: 600 11px var(--font-mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.stn-step.done > i { color: #fff; border-color: transparent; background: var(--cta-bg); box-shadow: 0 4px 10px -5px var(--accent); }
+.stn-step.done small { color: var(--subtext); }
+.stn-step.todo > i { border-color: var(--accent-line); color: var(--accent); }
+.stn-step.todo small { color: var(--accent); }
+.stn-step.warn > i { border-color: var(--warn); color: var(--warn); }
+.stn-step.warn small { color: var(--warn); }
+.stn-step.opt > i { border-style: dashed; }
+.stn-step.go { background: var(--buy-bg); border-color: var(--cta-line); box-shadow: var(--buy-shadow); color: #fff; }
+.stn-step.go > i { color: #fff; border-color: rgba(255, 255, 255, .55); background: rgba(255, 255, 255, .16); }
+.stn-step.go small { color: rgba(255, 255, 255, .85); }
+.stn-step.go:hover { filter: brightness(1.06); }
+
+/* the step numbers on the controls themselves, so the bar and the page say the same thing */
+.stn-no {
+  display: inline-grid; place-items: center; width: 17px; height: 17px; margin-right: 6px; border-radius: 50%; vertical-align: -3px;
+  font: 800 10px var(--font-mono); font-style: normal; color: var(--accent); border: 1.5px solid var(--accent-line); background: var(--accent-wash);
+}
+.stn-ctx { padding: 10px; border-radius: 14px; border: 1px solid var(--accent-line); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent); }
+.stn-levels-h { display: flex; align-items: center; font: 800 11px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--subtext); margin-top: 2px; }
+.stn-acct-name { font-weight: 700; color: var(--text); }
+
+/* step 6 */
+.stn-confirm {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+  border: 1px dashed var(--accent-line); background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.stn-confirm-t { flex: 1 1 auto; display: grid; gap: 4px; min-width: 0; }
+.stn-confirm-t b { font: 750 13px var(--font-ui); }
+.stn-confirm-t small { font-size: 11.5px; line-height: 1.45; color: var(--subtext); }
+.stn-confirm.ok { border-style: solid; border-color: color-mix(in srgb, var(--up) 45%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--up) 12%, transparent), color-mix(in srgb, var(--up) 4%, transparent)); }
+.stn-confirm.ok .stn-no { color: #fff; background: var(--up); border-color: var(--up); }
+.stn-confirm.stale { border-style: solid; border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.stn-confirm.stale .stn-no { color: var(--warn); border-color: var(--warn); background: transparent; }
+.stn-confirm .ui-btn { flex: none; }
+
+/* where a step jumped to, for a moment */
+@keyframes stn-flash { 0% { box-shadow: 0 0 0 0 var(--accent); } 30% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.stn-flash { animation: stn-flash 1.2s ease-out; border-radius: 12px; }
+
+@media (max-width: 900px) {
+  /* sticky under the app bar: the map of the page is also the way back up */
+  .stn-steps { position: sticky; top: 62px; z-index: 25; border-radius: 16px; padding: 5px; -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); background: color-mix(in srgb, var(--card) 72%, transparent); }
+  .stn-step { min-width: 0; flex: 0 0 auto; padding: 5px 10px 5px 6px; }
+  .stn-step small { max-width: 110px; }
+  .stn-confirm { flex-wrap: wrap; }
+  .stn-confirm .ui-btn { width: 100%; height: 40px; }
+
+  /* the dock: a floating glass capsule, not a black band across the page */
+  html .stn-dock {
+    left: 0; right: 0; margin: 14px 8px 0; padding: 6px; padding-right: 6px; gap: 6px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    border-radius: 999px; border: 1px solid var(--glass-line);
+    background: color-mix(in srgb, var(--card) 55%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(170%); backdrop-filter: blur(20px) saturate(170%);
+    box-shadow: var(--glass-hi), 0 18px 40px -18px rgba(0, 0, 0, .7);
+    margin-right: 72px;
+  }
+  html.light .stn-dock { background: rgba(255, 255, 255, .62); box-shadow: 0 0 0 1px rgba(92, 72, 46, .08), 0 14px 32px -16px rgba(60, 45, 25, .4); }
+  html .stn-dock .stn-dock-b { height: 44px; border-radius: 999px; font: 800 15px var(--font-ui); }
+}
+
+/* ── iOS date fields: Safari gives <input type=date> its own appearance with an intrinsic width
+   and height that ignore width:100%, so it grew past its half of a two-column row and sat on
+   the field beside it ("Exit price"). Plain appearance, the box the other fields have. ── */
+@supports (-webkit-touch-callout: none) {
+  html input[type="date"].field, html #main input[type="date"].field {
+    -webkit-appearance: none; appearance: none; display: block; box-sizing: border-box;
+    width: 100%; min-width: 0; max-width: 100%; min-height: 38px; line-height: 1.2; text-align: left;
+  }
+  html input[type="date"].field::-webkit-date-and-time-value { text-align: left; margin: 0; }
+}
+.stn-row2 > .stn-f, .stn-row2 > label { min-width: 0; }
+.stn-acct-info { flex-wrap: wrap; row-gap: 4px; margin-top: 0; }
+.stn-acct-info .stn-acct-name { flex: 1 0 100%; text-align: left; padding: 0; }

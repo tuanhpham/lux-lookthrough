@@ -6254,3 +6254,10 @@ CHAT-90 (2026-10-03) Vien duoi .seg bi mat; mot kieu nut cuoi hang cho moi bang
   Mau theo y nghia: them = accent (hover CTA), xoa = do ngay ca khi khong hover, chart = xanh, plan/target/Tram = accent, stop = vang, ban = do. action-btn dung --ab voi fallback (khai bao --ab trong rule goc `html #main .action-btn` se de len modifier).
 - Plan trong Lich su giao dich: bo ky tu ⎙, dung icon file (cbIcon). Xoa giao dich: icon thung rac thay dau x 10px. Financial Status: + doc so du / luu = icon check / nut Danh muc = icon chart.
 - commandBar cbIcon them 'check' va 'chart'.
+
+CHAT-91 (2026-10-04) Chart trong "Mo ke hoach day du"; Chot ke hoach; Tram theo thu tu cac buoc; dien thoai
+- Khong co chart: ke hoach EUR cua ma USD (NVDA) can ty gia EUR/USD de dat nen duoi muc gia; caseStudiesTab chi doc cache, ma may chua mo Danh muc (dien thoai) khong co cache -> sau khi tai lai, report bo chart. Them fx.ensureEurUsdLive(ctx): cache, roi tai EURUSD=X 1 lan (chi trong bo nho). Dung o Case Studies (chi tiet + ke hoach), planCards, Tram.
+- Chot ke hoach: truoc chi ngam khi bam Mua; "Chi luu case study" khong bao gio chot -> report luon "chua xac nhan". Gio co buoc 6 "Chot ke hoach" (nut, trang thai da chot / da doi sau khi chot / chua) dung reviewCurrent; Mua va Chi luu case study deu chot (confirmPlan).
+- Thanh cac buoc #stn-steps duoi thanh ma: 1 Ngay & tai khoan, 2 Setup, 3 Cham diem, 4 Su kien, 5 Gia & khoi luong, 6 Chot, 7 Mua (ban: 1, gia & so luong, ly do, Ban). Bam -> cuon toi o do + nhay sang. Dien thoai: dinh tren cung (top 62px).
+- Ngay + tai khoan chuyen tu phieu lenh len dau cot Ke hoach (ctxHtml, buoc 1); phieu lenh: dong ten tai khoan · ngay (bam -> buoc 1), Gia | So luong cung hang. Plan panel uy quyen 'change' cua [data-stn] cho fieldChanged().
+- Dien thoai: thu tu bar, steps, chart, plan, ladder+ticket. Dock Mua/Ban = vien kinh noi (bo dai nen den). iOS: input[type=date] appearance none + width 100% trong @supports (-webkit-touch-callout) -> het tran sang Gia ban.

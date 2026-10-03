@@ -20,7 +20,7 @@ import { drawCandles, type CandleChart } from '../ui/charts.js';
 import { fetchEarningsReports } from '../adapters/earningsDates.js';
 import { openEventFinder } from '../ui/eventFinder.js';
 import { accounts, ensureAccountsLoaded, today } from './store.js';
-import { ccyFactor, ensureEurUsd, eurUsdForDate } from './fx.js';
+import { ccyFactor, ensureEurUsdLive, eurUsdForDate } from './fx.js';
 import { ensureRegime, currentRegime, ladderConfig, loadPlaybookConfig } from './playbook.js';
 import { loadPlan, savePlan, type SymbolPlan } from './planStore.js';
 import { candleDivisor, closeOnOrBefore, inCurrency, planChartWindow } from './planExit.js';
@@ -85,7 +85,7 @@ export async function openPlanCards(ctx: AppContext, m: CardMount): Promise<void
 
   await Promise.all([
     ensureAccountsLoaded(ctx).catch(() => {}),
-    ensureEurUsd(ctx).catch(() => {}),
+    ensureEurUsdLive(ctx),
     loadPlaybookConfig(ctx).catch(() => null),
     currentRegime() ? Promise.resolve(null) : ensureRegime(ctx).catch(() => null),
   ]);
