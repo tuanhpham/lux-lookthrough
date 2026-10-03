@@ -6240,3 +6240,10 @@ CHAT-88 (2026-10-03) - Tram 3 cot tu 1200px (MacBook), Dang giu/Watchlist tren c
 - Nut Mua (phieu lenh, thanh Mua/Ban, dock dien thoai, o Phieu lenh tren chart, vien "Mua") dung mau nhan cua Giao dien & mau sac (--cta-bg) thay cho xanh la --up qua sang; Ban = do diu hon (gradient do + vien sang).
 - Hop thoai Ly do ban: khoi "Them ly do cua ban" noi bat o tren cung (vien + nen mau nhan); "Ly do cua ban" to mau nhan, co nut xoa; ly do co san xep luoi 2 cot theo nhom co icon + dem so, khong con nhan "Co san", nut bo chi hien khi re chuot; "Da bo khoi danh sach" gom lai cuoi, bam vien de khoi phuc.
 - Kiem tra: tsc OK, vitest 452, vite build OK, anh headless 1512 (mau Xanh ngoc bich), hop thoai toi/sang.
+
+CHAT-89 (2026-10-03) Tram: tat ca tab tren chart, thanh chuyen watchlist ngang, Plan trai / Ladder+Ticket phai; emoji giong nhau Win/Mac; .seg mat padding duoi
+- Tram: Dang giu | Watchlist | Vi the | Lenh cho | Lich su khop | Case study = MOT thanh tab tren chart (card stn-bottom dat truoc stn-main trong .stn-center). Bo card stn-lists rieng.
+- Nhieu watchlist: .stn-wl-nav = thanh ngang cuon duoc, moi watchlist mot nut capsule (so ma o <small>); activeWatch nho cai dang chon; ma cua watchlist do hien ben duoi dang chip.
+- Cot: grid-template-areas "bar bar bar" "plan center left" (380/1fr/320, 1200-1599: 340/1fr/300); 901-1199: "center left" "plan left"; mobile: bar, center, left, plan.
+- Icon khac nhau Windows/Mac: emoji ve bang font he thong (Segoe UI Emoji vs Apple Color Emoji). Them Noto Color Emoji (Google Fonts) va --font-emoji o cuoi --font-ui / --font-mono -> cung mot bo emoji moi OS. Mui ten va dau x khong phai emoji nen van theo font chu.
+- .seg mat padding duoi: `#main .toolbar { padding-bottom:0; margin-bottom:24px }` (1,1,0) de len `.seg { padding:3px }` o moi cho dung class "toolbar seg"/"row seg" (17 cho: Tinh trang tai chinh Tong/Phan bo + khoang thoi gian, cac chart Danh muc, stock modal, screener). Sua: `html #main .toolbar.seg, html #main .row.seg ... { padding:3px }` + margin-bottom 0 (cac cho dung da co margin inline).
