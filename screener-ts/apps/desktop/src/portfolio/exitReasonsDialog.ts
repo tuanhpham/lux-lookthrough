@@ -62,6 +62,10 @@ const WORDS = {
   cancel: { vi: 'Hủy', en: 'Cancel' },
   save: { vi: 'Lưu', en: 'Save' },
   dupe: { vi: 'Lý do này đã có trong danh sách.', en: 'That reason is already on the list.' },
+  addTitle: { vi: 'Thêm lý do của bạn', en: 'Add your own reason' },
+  mineTitle: { vi: 'Lý do của bạn', en: 'Your reasons' },
+  hiddenTitle: { vi: 'Đã bỏ khỏi danh sách', en: 'Taken off the list' },
+  hiddenHint: { vi: 'Bấm để đưa lại vào danh sách.', en: 'Click one to put it back.' },
 } as const;
 
 /**
@@ -104,38 +108,58 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
       (g) => `<option value="${g.key}"${g.key === sel ? ' selected' : ''}>${esc(vi ? g.vi : g.en)}</option>`,
     ).join('');
 
+  const GROUP_IC: Record<string, string> = { plan: '🎯', ma: '📈', candle: '🕯', volume: '📊', context: '🌐', discipline: '🧠', mine: '✍️' };
+
   const draw = (): void => {
     // Drawn through `exitReasonsFrom` rather than from the two arrays by hand, so what the list
     // shows is exactly what the dropdown will show — including a row dropped for a key collision.
     const all = exitReasonsFrom(mine);
-    const sections = EXIT_GROUPS.map((g) => {
-      const rows = all.filter((r) => r.group === g.key);
-      if (!rows.length && g.key !== 'mine') return '';
-      const live = rows.filter((r) => !hidden.has(r.key)).length;
-      const cells = rows.map((r) => {
-        const off = hidden.has(r.key);
-        const tag = r.builtin
-          ? `<span class="ui-pill${off ? ' muted' : ''}">${off ? w('hidden') : w('builtin')}</span>`
-          : `<span class="ui-pill accent">${w('mine')}</span>`;
-        const act = r.builtin
-          ? off
-            ? `<button type="button" class="ui-btn sm ghost" data-xr-show="${esc(r.key)}">↺ ${w('restore')}</button>`
-            : `<button type="button" class="ui-icon-btn danger" data-xr-hide="${esc(r.key)}" title="${w('hide')}" aria-label="${w('hide')}">✕</button>`
-          : `<button type="button" class="ui-icon-btn danger" data-xr-del="${esc(r.key)}" title="${w('del')}" aria-label="${w('del')}">✕</button>`;
-        return `<div class="xr-row${off ? ' off' : ''}"><span class="xr-label">${esc(vi ? r.vi : r.en)}</span>${tag}${act}</div>`;
-      }).join('');
-      return `<section class="xr-group">
-          <div class="xr-gh"><span>${esc(vi ? g.vi : g.en)}</span><span class="xr-gc">${live}/${rows.length}</span></div>
-          ${rows.length ? `<div class="xr-rows">${cells}</div>` : `<div class="xr-empty">${w('empty')}</div>`}
+    const ownRows = all.filter((r) => !r.builtin);
+    const off = all.filter((r) => r.builtin && hidden.has(r.key));
+
+    // 1. The one thing to DO here, first and lit: add a reason.
+    const addCard = `<div class="xr-add">
+        <div class="xr-add-h">✍️ ${w('addTitle')}</div>
+        <div class="xr-add-row">
+          <input class="field" id="xr-new" type="text" placeholder="${w('newLabel')}" aria-label="${w('newLabel')}" />
+          <select class="field" id="xr-newgroup" aria-label="${w('group')}">${groupOpts('mine')}</select>
+          <button type="button" class="ui-btn primary" id="xr-add">${w('add')}</button>
+        </div>
+      </div>`;
+
+    // 2. The user's own words, highlighted: they are the editable part.
+    const own = `<section class="xr-sec xr-own">
+        <div class="xr-gh"><span>✍️ ${w('mineTitle')}</span><span class="xr-gc">${ownRows.length}</span></div>
+        ${ownRows.length
+          ? `<div class="xr-grid">${ownRows.map((r) => `<div class="xr-item mine">
+              <span class="xr-label">${esc(vi ? r.vi : r.en)}</span>
+              <span class="xr-g">${esc(vi ? EXIT_GROUPS.find((g) => g.key === r.group)?.vi ?? '' : EXIT_GROUPS.find((g) => g.key === r.group)?.en ?? '')}</span>
+              <button type="button" class="ui-icon-btn danger xr-x" data-xr-del="${esc(r.key)}" title="${w('del')}" aria-label="${w('del')}">✕</button>
+            </div>`).join('')}</div>`
+          : `<div class="xr-empty">${w('empty')}</div>`}
+      </section>`;
+
+    // 3. The shipped vocabulary, quiet: a label per tile, the remove control only on hover.
+    const shipped = EXIT_GROUPS.filter((g) => g.key !== 'mine').map((g) => {
+      const rows = all.filter((r) => r.builtin && r.group === g.key && !hidden.has(r.key));
+      if (!rows.length) return '';
+      return `<section class="xr-sec">
+          <div class="xr-gh"><span>${GROUP_IC[g.key] ?? '•'} ${esc(vi ? g.vi : g.en)}</span><span class="xr-gc">${rows.length}</span></div>
+          <div class="xr-grid">${rows.map((r) => `<div class="xr-item">
+              <span class="xr-label">${esc(vi ? r.vi : r.en)}</span>
+              <button type="button" class="xr-x xr-hide" data-xr-hide="${esc(r.key)}" title="${w('hide')}" aria-label="${w('hide')}">✕</button>
+            </div>`).join('')}</div>
         </section>`;
     }).join('');
 
-    list.innerHTML = `${sections}
-      <div class="xr-add">
-        <input class="field" id="xr-new" type="text" placeholder="${w('newLabel')}" aria-label="${w('newLabel')}" />
-        <select class="field" id="xr-newgroup" aria-label="${w('group')}">${groupOpts('mine')}</select>
-        <button type="button" class="ui-btn primary" id="xr-add">${w('add')}</button>
-      </div>`;
+    // 4. What was taken off, out of the way but one click from coming back.
+    const gone = off.length ? `<details class="xr-gone">
+        <summary>${w('hiddenTitle')} <span class="xr-gc">${off.length}</span></summary>
+        <p>${w('hiddenHint')}</p>
+        <div class="xr-chips">${off.map((r) => `<button type="button" class="xr-chip" data-xr-show="${esc(r.key)}">↺ ${esc(vi ? r.vi : r.en)}</button>`).join('')}</div>
+      </details>` : '';
+
+    list.innerHTML = addCard + own + shipped + gone;
 
     list.querySelectorAll<HTMLElement>('[data-xr-hide]').forEach((b) =>
       b.addEventListener('click', () => { hidden.add(b.dataset.xrHide!); draw(); }));

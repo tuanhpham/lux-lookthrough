@@ -6233,3 +6233,10 @@ CHAT-87 (2026-10-03) - Mot kieu nut kinh cho ca app (theo trang chu); Tram: dai 
 - "Glass controls" trong styles.css (+ design-system-prompt.md 6a): token --ctl-radius/--glass-bg/--glass-line/--glass-hi/--cta-bg/--cta-shadow/--track-bg/--thumb-bg (toi/sang). Nut chinh = nut CTA trang chu (gradient tim -> xanh, vien sang, vet sang luot khi re chuot); nut phu = kinh mo vien sang; thanh chon (seg, cb-seg, Mua/Ban, Khop ngay/Lenh cho, tab, EUR/USD, %) = ranh vien tron + con truot sang; chip bat/tat va nut tron cung kieu. Ap len moi lop cu (.btn, .btn-outline, .mini-btn, .cb-btn, .range-btn, .seg, .ui-btn) -> moi trang deu doi.
 - Tram: dai Phieu lenh/Tong tien/... nam lai trong the chart; khoi tab ve duoi chart; tab "Dang giu" va "Watchlist" tach rieng.
 - Kiem tra: tsc OK, vitest 452, vite build OK, anh headless Tram toi/sang, Danh muc, Watchlist, Screener, Cai dat, Case Study.
+
+CHAT-88 (2026-10-03) - Tram 3 cot tu 1200px (MacBook), Dang giu/Watchlist tren chart, nut Mua theo mau Giao dien, hop thoai Ly do ban noi bat
+- MacBook 13-16 inch rong 1440-1728 CSS px -> truoc day duoi 1600px Ke hoach bi day xuong duoi chart. Nay 3 cot tu 1200px (300 | giua | 340), 2 cot 900-1199, 1 cot dien thoai.
+- Thanh chon ma "Dang giu | Watchlist" la the rieng tren cung cot giua (cuon trong 168px); Vi the / Lenh cho / Lich su / Case study van duoi chart.
+- Nut Mua (phieu lenh, thanh Mua/Ban, dock dien thoai, o Phieu lenh tren chart, vien "Mua") dung mau nhan cua Giao dien & mau sac (--cta-bg) thay cho xanh la --up qua sang; Ban = do diu hon (gradient do + vien sang).
+- Hop thoai Ly do ban: khoi "Them ly do cua ban" noi bat o tren cung (vien + nen mau nhan); "Ly do cua ban" to mau nhan, co nut xoa; ly do co san xep luoi 2 cot theo nhom co icon + dem so, khong con nhan "Co san", nut bo chi hien khi re chuot; "Da bo khoi danh sach" gom lai cuoi, bam vien de khoi phuc.
+- Kiem tra: tsc OK, vitest 452, vite build OK, anh headless 1512 (mau Xanh ngoc bich), hop thoai toi/sang.

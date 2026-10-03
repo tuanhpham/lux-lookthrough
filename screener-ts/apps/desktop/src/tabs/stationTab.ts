@@ -62,7 +62,8 @@ function esc(s: string): string {
 
 type Ccy = 'EUR' | 'USD';
 type Side = 'buy' | 'sell';
-type BottomTab = 'held' | 'watch' | 'pos' | 'orders' | 'hist' | 'cases';
+type BottomTab = 'pos' | 'orders' | 'hist' | 'cases';
+type ListTab = 'held' | 'watch';
 type Pick = 'price' | 'stop' | 'target';
 
 const SYM_KEY = 'station_sym';
@@ -124,7 +125,8 @@ let earnReports: EarningsReport[] = [];
 /** The ticket's currency picked by the user, kept across symbols. Null = follow the account. */
 let ccyChoice: Ccy | null = null;
 let ticket: Ticket = freshTicket();
-let bottom: BottomTab = 'held';
+let bottom: BottomTab = 'pos';
+let listTab: ListTab = 'held';
 let chart: CandleChart | null = null;
 let msg: { err: boolean; text: string } | null = null;
 /** The study the last "case study only" filed, so the message can open it. */
@@ -414,6 +416,7 @@ function paint(ctx: AppContext, root: HTMLElement): void {
         <aside class="stn-ticket card"><div class="stn-ticket-in" id="stn-ticket">${ticketHtml()}</div></aside>
       </div>
       <div class="stn-center">
+      <section class="stn-lists card" id="stn-lists">${listsBarHtml()}</section>
       <section class="stn-main card">
         <div class="stn-strip2" id="stn-strip">${stripHtml()}</div>
         ${pickBarHtml()}
@@ -495,6 +498,29 @@ function setGroupOpen(id: string, open: boolean): void {
 }
 
 /** Held, or every watchlist — each list a fold of its own that remembers whether it was open. */
+/** The symbol picker above the chart: held positions, or the watchlists. */
+function listsBarHtml(): string {
+  const t = (k: ListTab, label: string): string => `<button class="${listTab === k ? 'on' : ''}" data-stn-ltab="${k}">${label}</button>`;
+  return `<div class="stn-lists-h">
+      <div class="stn-btabs seg">${t('held', `💼 ${L('Held', 'Đang giữ')}${list.held.length ? ` · ${list.held.length}` : ''}`)}${t('watch', `⭐ Watchlist${list.watch.length ? ` · ${list.watch.length}` : ''}`)}</div>
+    </div>
+    <div class="stn-lists-b">${listHtml(listTab)}</div>`;
+}
+
+function wireLists(ctx: AppContext, root: HTMLElement): void {
+  const box = root.querySelector<HTMLElement>('#stn-lists');
+  if (!box) return;
+  box.querySelectorAll<HTMLElement>('[data-stn-ltab]').forEach((b) => b.addEventListener('click', () => {
+    listTab = b.dataset.stnLtab as ListTab;
+    box.innerHTML = listsBarHtml();
+    wireLists(ctx, root);
+  }));
+  box.querySelectorAll<HTMLDetailsElement>('[data-stn-grp]').forEach((d) =>
+    d.addEventListener('toggle', () => setGroupOpen(d.dataset.stnGrp!, d.open)));
+  box.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>
+    b.addEventListener('click', () => void loadSymbol(ctx, b.dataset.stnSym!, root)));
+}
+
 function listHtml(which: 'held' | 'watch' = 'held'): string {
   const row = (s: string, tag = ''): string =>
     `<button class="stn-li${s === sym ? ' on' : ''}" data-stn-sym="${esc(s)}"><b>${esc(s)}</b>${tag ? `<small>${tag}</small>` : ''}</button>`;
@@ -823,7 +849,7 @@ function fifoPreview(st: (typeof accounts)[number], shares: number, px: number):
 function bottomHtml(): string {
   const tab = (k: BottomTab, label: string): string => `<button class="${bottom === k ? 'on' : ''}" data-stn-bottom="${k}">${label}</button>`;
   return `<div class="stn-btabs seg">
-      ${tab('held', `💼 ${L('Held', 'Đang giữ')}${list.held.length ? ` · ${list.held.length}` : ''}`)}${tab('watch', `⭐ Watchlist${list.watch.length ? ` · ${list.watch.length}` : ''}`)}${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}
+${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}
     </div>
     <div class="stn-bbody" id="stn-bbody"></div>`;
 }
@@ -831,13 +857,6 @@ function bottomHtml(): string {
 async function paintBottom(ctx: AppContext, root: HTMLElement): Promise<void> {
   const body = root.querySelector<HTMLElement>('#stn-bbody');
   if (!body) return;
-  if (bottom === 'held' || bottom === 'watch') {
-    body.innerHTML = listHtml(bottom);
-    body.querySelectorAll<HTMLDetailsElement>('[data-stn-grp]').forEach((d) =>
-      d.addEventListener('toggle', () => setGroupOpen(d.dataset.stnGrp!, d.open)));
-    body.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>
-      b.addEventListener('click', () => void loadSymbol(ctx, b.dataset.stnSym!, root)));
-  }
   if (bottom === 'pos') body.innerHTML = positionsHtml();
   if (bottom === 'orders') {
     body.innerHTML = ordersHtml();
@@ -1078,11 +1097,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     (e.currentTarget as HTMLElement).classList.toggle('active', showEarnings);
     paintEarnings();
   });
-  root.querySelectorAll<HTMLDetailsElement>('[data-stn-grp]').forEach((d) =>
-    d.addEventListener('toggle', () => setGroupOpen(d.dataset.stnGrp!, d.open)));
-  root.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>
-    b.addEventListener('click', () => void loadSymbol(ctx, b.dataset.stnSym!, root)));
   wirePlan(ctx, root);
+  wireLists(ctx, root);
   wireBottomTabs(ctx, root);
   root.querySelectorAll<HTMLElement>('[data-stn-dock]').forEach((b) =>
     b.addEventListener('click', () => {
