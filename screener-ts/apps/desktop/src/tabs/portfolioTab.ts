@@ -1,3 +1,4 @@
+import { openStation } from './stationTab.js';
 import {
   createAccount,
   buy,
@@ -1381,6 +1382,7 @@ function draw(ctx: AppContext): void {
           <td class="row" style="gap:4px;flex-wrap:nowrap">
             <button class="action-btn action-btn--stop" data-stop="${pos.ticker}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v7m0 0 3-3M8 8 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="11" width="14" height="3" rx="1" fill="currentColor" opacity=".35"/></svg>${t('pf.btn.stop')}</button>
             <button class="action-btn action-btn--target" data-target="${pos.ticker}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r=".8" fill="currentColor"/></svg>${t('pf.btn.target')}</button>
+            <button class="action-btn action-btn--station" data-station="${pos.ticker}" title="${getLang() === 'vi' ? 'Trạm giao dịch' : 'Trade Station'}">⚡</button>
             <button class="action-btn action-btn--sell" data-sell="${pos.ticker}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M9 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('pf.btn.sell')}</button>
             <button class="action-btn action-btn--chart" data-open-chart="${pos.ticker}" data-chart-from="${st.lots.filter((l) => l.ticker === pos.ticker).map((l) => l.buyDate).sort()[0] ?? ''}" data-chart-shares="${pos.shares}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M1 14 5 9l3 3 3-4 4-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${t('pf.btn.chart')}</button></td></tr>`,
               )
@@ -1502,7 +1504,8 @@ function draw(ctx: AppContext): void {
         <div class="row" style="margin-top:8px">
           <button id="b-go" class="btn">Buy</button>
           <button id="s-go" class="btn-outline">Sell</button>
-          <button id="cash-go" class="btn-outline" title="${t('pf.cash.adjusttitle')}">${t('pf.cash.adjust')}</button></div>
+          <button id="cash-go" class="btn-outline" title="${t('pf.cash.adjusttitle')}">${t('pf.cash.adjust')}</button>
+          <button id="station-go" class="btn-outline" title="${getLang() === 'vi' ? 'Mua bán trên một màn hình: chart, mức giá, phiếu lệnh' : 'Buy and sell on one screen: chart, levels, ticket'}">⚡ ${getLang() === 'vi' ? 'Mở Trạm giao dịch' : 'Open Trade Station'}</button></div>
         <div id="b-gatehint" class="price-hint" style="margin-top:4px"></div>
         <div id="b-riskhint" class="price-hint" style="margin-top:4px"></div>
         <div id="b-planhint" class="price-hint" style="margin-top:4px;line-height:1.6"></div>
@@ -2032,6 +2035,10 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     );
 
     // sell from a position row (in-app form, not prompt)
+    root.querySelectorAll<HTMLElement>('[data-station]').forEach((b) =>
+      b.addEventListener('click', () => openStation(b.dataset.station!)));
+    root.querySelector('#station-go')?.addEventListener('click', () =>
+      openStation((($('#b-ticker') as HTMLInputElement | null)?.value ?? '').trim()));
     root.querySelectorAll<HTMLElement>('[data-sell]').forEach((b) =>
       b.addEventListener('click', async () => {
         const t = b.dataset.sell!;

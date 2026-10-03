@@ -23,6 +23,16 @@ import type { PlanSnapshot } from '../portfolio/planSnapshot.js';
  */
 export type CasePlan = Omit<PlanSnapshot, 'lotId'>;
 
+/** One execution of a station trade. `price` is in `currency`, as typed; `fee` in the account's. */
+export interface CaseFill {
+  date: string;
+  side: 'buy' | 'sell';
+  shares: number;
+  price: number;
+  currency: 'EUR' | 'USD';
+  fee?: number;
+}
+
 /** A dated catalyst / news note attached to a case study. */
 export interface Catalyst {
   date: string; // ISO YYYY-MM-DD
@@ -100,6 +110,16 @@ export interface CaseStudy {
    * planner could file one — so every reader has to treat it as optional.
    */
   plan?: CasePlan;
+  /**
+   * The account a study opened from the Trade Station follows, and the lots it bought there.
+   * A sale of any of those lots is written back into this study (see `stationCase.ts`), which
+   * is how a journal entry made at the buy closes itself when the position does. Absent on
+   * every study filed any other way.
+   */
+  accountId?: string;
+  lotIds?: string[];
+  /** Every buy and sell of the trade, oldest first, in each fill's own currency. */
+  fills?: CaseFill[];
   createdAt: string; // ISO date
   updatedAt: string; // ISO date
 }

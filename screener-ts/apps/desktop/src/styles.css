@@ -8620,3 +8620,173 @@ html.light .slm-link--primary { border-color: var(--accent-line); background: li
 .slm-prefs small { flex: 1 1 auto; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
 .slm-prefs .cl-lang { display: inline-flex; }
 @media (min-width: 901px) { #sl-menu { display: none; } }
+
+/* ══ Trạm giao dịch (Trade Station): an exchange's spot screen, in liquid glass ══
+   bar across the top · list + level ladder · chart · ticket · tabs. Buy is --up, sell is --down,
+   never the brand accent (a gain is green, see accent-is-brand). */
+.stn {
+  display: grid; gap: 12px; align-items: start;
+  grid-template-columns: 220px minmax(0, 1fr) 340px;
+  grid-template-areas: "bar bar bar" "side main ticket" "side bottom ticket";
+  grid-template-rows: auto auto 1fr;
+}
+#main .stn .card { padding: 12px; margin: 0; }
+.stn-bar { grid-area: bar; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.stn-side { grid-area: side; display: flex; flex-direction: column; gap: 12px; max-height: 640px; overflow: auto; }
+.stn-main { grid-area: main; min-width: 0; }
+.stn-ticket { grid-area: ticket; position: sticky; top: 72px; display: grid; gap: 10px; }
+.stn-bottom { grid-area: bottom; min-width: 0; }
+
+/* ticker bar */
+.stn-sym { display: flex; align-items: center; gap: 6px; }
+#main .stn-sym-in, .stn-sym-in {
+  width: 128px; height: 38px; font: 800 17px var(--font-mono); letter-spacing: .04em; text-transform: uppercase;
+}
+.stn-mini { height: 30px; padding: 0 10px; font-size: 12px; }
+.stn-px { display: flex; align-items: baseline; gap: 10px; }
+.stn-px b { font: 800 24px var(--font-num, var(--font-mono)); letter-spacing: -.01em; color: var(--text); }
+.stn-px span { font: 700 14px var(--font-mono); }
+.stn-up { color: var(--up); }
+.stn-down { color: var(--down); }
+.stn-stats { display: flex; flex-wrap: wrap; gap: 8px 22px; flex: 1 1 auto; }
+.stn-stat { display: grid; gap: 2px; }
+.stn-stat small { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.stn-stat b { font: 650 13px var(--font-mono); color: var(--text); display: inline-flex; align-items: center; gap: 8px; }
+.stn-range { position: relative; width: 64px; height: 4px; border-radius: 999px; background: linear-gradient(90deg, var(--down), var(--warn), var(--up)); opacity: .85; }
+.stn-range i { position: absolute; top: -3px; width: 2px; height: 10px; border-radius: 2px; background: var(--text); }
+.stn-grade { padding: 0 8px; border-radius: 999px; border: 1px solid var(--border); }
+.stn-grade-A { color: var(--up); border-color: color-mix(in srgb, var(--up) 45%, transparent); }
+.stn-grade-B { color: #5b8cff; border-color: rgba(91, 140, 255, .45); }
+.stn-grade-C { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.stn-grade-D { color: var(--down); border-color: color-mix(in srgb, var(--down) 45%, transparent); }
+.stn-delay { margin-left: auto; font-size: 11px; color: var(--faint); }
+
+/* list + ladder */
+.stn-lh { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); padding: 6px 4px 4px; }
+.stn-list { display: grid; gap: 1px; }
+.stn-li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 8px;
+  border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text); cursor: pointer; text-align: left;
+}
+.stn-li b { font: 700 12.5px var(--font-mono); }
+.stn-li small { font-size: 11px; color: var(--subtext); }
+.stn-li:hover { background: var(--cardhover); }
+.stn-li.on { background: var(--accent-wash); border-color: var(--accent-line); }
+.stn-li.on b { color: var(--accent); }
+.stn-ladder { border-top: 1px solid var(--border-soft); padding-top: 4px; display: grid; gap: 4px; }
+.stn-lv {
+  --lv: var(--subtext);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 8px;
+  padding: 6px 9px; border-radius: 9px; border-left: 3px solid var(--lv);
+  background: color-mix(in srgb, var(--lv) 8%, transparent);
+}
+.stn-lv span { font-size: 11.5px; color: var(--subtext); }
+.stn-lv b { grid-row: span 2; align-self: center; font: 700 13px var(--font-mono); color: var(--lv); }
+.stn-lv small { font: 11px var(--font-mono); color: var(--faint); }
+.stn-lv-tgt { --lv: var(--up); }
+.stn-lv-px { --lv: var(--text); background: var(--surface); }
+.stn-lv-ent { --lv: var(--accent); }
+.stn-lv-avg { --lv: #5b8cff; }
+.stn-lv-stp { --lv: var(--down); }
+
+/* chart + plan strip */
+.stn-chart { min-height: 300px; }
+.stn-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft); }
+.stn-chip { padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--subtext); background: var(--surface); border: 1px solid var(--border-soft); }
+.stn-chip b { color: var(--text); }
+.stn-strip .stn-mini { margin-left: auto; }
+
+/* ticket */
+.stn-tabs { display: grid; grid-template-columns: 1fr 1fr auto; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border-soft); }
+.stn-tabs button {
+  height: 36px; border: 0; border-radius: 9px; background: transparent; color: var(--subtext);
+  font: 700 14px var(--font-ui); cursor: pointer; padding: 0 12px;
+}
+.stn-tabs button small { font-size: 10px; opacity: .7; }
+.stn-tabs button[disabled] { cursor: not-allowed; opacity: .45; font-size: 12px; }
+.stn-tabs .stn-t-buy { color: #fff; background: var(--up); box-shadow: 0 6px 16px -8px var(--up); }
+.stn-tabs .stn-t-sell { color: #fff; background: var(--down); box-shadow: 0 6px 16px -8px var(--down); }
+.stn-f { display: grid; gap: 4px; font-size: 11.5px; color: var(--subtext); min-width: 0; }
+#main .stn-f .field, .stn-f .field { height: 36px; width: 100%; font: 600 13.5px var(--font-mono); }
+#main .stn-f textarea.field, .stn-f textarea.field { height: auto; min-height: 48px; font: 13px var(--font-ui); resize: vertical; padding-top: 8px; }
+.stn-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stn-acct-info { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: -4px; font-size: 12px; color: var(--subtext); }
+.stn-acct-info b { color: var(--text); font-family: var(--font-mono); }
+.stn-link { border: 0; background: none; padding: 0; color: var(--accent); font: 600 12px var(--font-ui); cursor: pointer; }
+.stn-slider { display: grid; gap: 6px; }
+.stn-slider input[type=range] { width: 100%; accent-color: var(--accent); }
+.stn-pcts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.stn-pcts button {
+  height: 26px; border-radius: 7px; border: 1px solid var(--border-soft); background: var(--surface);
+  color: var(--subtext); font: 600 11.5px var(--font-mono); cursor: pointer;
+}
+.stn-pcts button.on, .stn-pcts button:hover { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
+.stn-slider small { font-size: 11px; color: var(--faint); }
+.stn-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text); cursor: pointer; line-height: 1.4; }
+.stn-check input { margin-top: 2px; accent-color: var(--accent); }
+.stn-exit { display: grid; gap: 8px; padding: 10px; border-radius: 10px; border: 1px dashed var(--border); background: var(--surface); }
+.stn-sum { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-soft); }
+.stn-sum > div { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--subtext); }
+.stn-sum b { font-family: var(--font-mono); color: var(--text); }
+.stn-sum b.stn-down { color: var(--down); }
+.stn-fifo { display: grid; gap: 3px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-soft); font-size: 12px; color: var(--subtext); }
+.stn-fifo > div:not(.stn-lh) { display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-mono); }
+.stn-fifo-t { border-top: 1px solid var(--border-soft); padding-top: 4px; margin-top: 2px; }
+.stn-block, .stn-msg { padding: 8px 10px; border-radius: 9px; font-size: 12.5px; line-height: 1.5; }
+.stn-block { color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
+.stn-msg { color: var(--up); background: color-mix(in srgb, var(--up) 9%, transparent); border: 1px solid color-mix(in srgb, var(--up) 35%, transparent); }
+.stn-msg.err { color: var(--down); background: color-mix(in srgb, var(--down) 9%, transparent); border-color: color-mix(in srgb, var(--down) 35%, transparent); }
+.stn-go {
+  width: 100%; height: 46px; border: 0; border-radius: 12px; color: #fff; cursor: pointer;
+  font: 800 15px var(--font-ui); letter-spacing: .01em; transition: transform .12s ease, filter .15s ease, opacity .15s ease;
+}
+.stn-go-buy { background: linear-gradient(180deg, color-mix(in srgb, var(--up) 88%, #fff), var(--up)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 10px 24px -12px var(--up); }
+.stn-go-sell { background: linear-gradient(180deg, color-mix(in srgb, var(--down) 88%, #fff), var(--down)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 10px 24px -12px var(--down); }
+.stn-go:hover:not([disabled]) { filter: brightness(1.06); }
+.stn-go:active:not([disabled]) { transform: scale(.985); }
+.stn-go[disabled] { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+/* bottom tabs */
+.stn-btabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border-soft); margin-bottom: 10px; flex-wrap: wrap; }
+.stn-btabs button { height: 30px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--subtext); font: 650 12.5px var(--font-ui); cursor: pointer; }
+.stn-btabs button.on { color: var(--accent); background: var(--accent-wash); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.stn-tbl { display: grid; border: 1px solid var(--border-soft); border-radius: 10px; overflow: hidden; }
+.stn-tr {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 9px 12px; font: 12.5px var(--font-mono); color: var(--text);
+  border: 0; background: transparent; text-align: left; width: 100%;
+}
+.stn-tr + .stn-tr { border-top: 1px solid var(--border-soft); }
+.stn-grow { flex: 1 1 160px; min-width: 0; font-family: var(--font-ui); }
+.stn-case { cursor: pointer; }
+.stn-case:hover { background: var(--cardhover); }
+.stn-side-b, .stn-side-s { font-weight: 800; font-size: 11px; letter-spacing: .06em; }
+.stn-side-b { color: var(--up); }
+.stn-side-s { color: var(--down); }
+.stn-out { font-family: var(--font-ui); font-weight: 700; font-size: 11.5px; }
+.stn-out-win { color: var(--up); }
+.stn-out-loss { color: var(--down); }
+.stn-out-open { color: #5b8cff; }
+.stn-empty { padding: 14px; font-size: 12.5px; color: var(--faint); text-align: center; }
+#stn-plan-host:empty { display: none; }
+
+/* the phone dock: Buy / Sell always within reach, as on an exchange app */
+.stn-dock { display: none; }
+@media (max-width: 1200px) {
+  .stn { grid-template-columns: 190px minmax(0, 1fr) 310px; }
+}
+@media (max-width: 900px) {
+  .stn { grid-template-columns: minmax(0, 1fr); grid-template-areas: "bar" "main" "ticket" "side" "bottom"; grid-template-rows: none; }
+  .stn-ticket { position: static; }
+  .stn-side { max-height: none; }
+  .stn-delay { margin-left: 0; width: 100%; }
+  .stn-dock {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; position: sticky; bottom: 0; z-index: 30;
+    margin: 12px -4px 0; padding: 10px 4px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+  }
+  .stn-dock-b { height: 44px; border: 0; border-radius: 12px; color: #fff; font: 800 15px var(--font-ui); }
+  .stn-dock .stn-buy { background: var(--up); }
+  .stn-dock .stn-sell { background: var(--down); }
+}
+.sm-act--station span { margin-left: 4px; }

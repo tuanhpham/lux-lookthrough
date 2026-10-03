@@ -9,6 +9,12 @@ export interface Account {
   initialCapital: number;
   currency: string; // e.g. 'EUR'
   createdAt: string; // ISO date
+  /**
+   * The broker's flat fee per order, in the account's currency (Trade Republic 1, Scalable
+   * 0.99, Degiro 2, Equate Plus 0). Absent = 0. Only a DEFAULT: each fill stores the fee it
+   * actually paid (`BuyLot.fee` / `SellRecord.fee`), so changing this later restates nothing.
+   */
+  fee?: number;
 }
 
 /** A purchase. `remainingShares` shrinks as FIFO sells consume it. */
@@ -31,6 +37,10 @@ export interface BuyLot {
   target?: number;
   priceCurrency?: 'EUR' | 'USD'; // currency in which buyPrice was entered; defaults to USD
   fxRateAtBuy?: number;          // EURUSD rate at time of purchase (used for EUR account normalization)
+  /** Fee paid on this buy, in the account's currency. Leaves cash; absent = 0. */
+  fee?: number;
+  /** Reserved for short selling, which the app does not do yet. Absent = 'long'. */
+  side?: 'long' | 'short';
 }
 
 /** A realized (partial or full) sale matched against a single lot. */
@@ -61,6 +71,11 @@ export interface SellRecord {
    * must not own a list the app lets people add rows to.
    */
   exitReasonKey?: string;
+  /**
+   * Fee paid on the sale, in the account's currency. A sell matched against three lots is ONE
+   * order and pays one fee, so it sits on the first record of that sale only. Absent = 0.
+   */
+  fee?: number;
 }
 
 export type OrderType = 'BUY_STOP' | 'STOP_LOSS' | 'TAKE_PROFIT';

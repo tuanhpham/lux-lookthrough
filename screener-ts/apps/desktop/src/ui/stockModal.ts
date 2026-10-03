@@ -1,3 +1,4 @@
+import { openStation } from '../tabs/stationTab.js';
 import { cbIcon } from './commandBar.js';
 import {
   scanQm,
@@ -240,6 +241,7 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
 
     void wireWatchlistPicker(ctx, symbol);
     wirePlanButton(ctx, symbol, plannerWasOpen, asOf);
+    $('#sm-station')?.addEventListener('click', () => { closeModal(); openStation(symbol); });
 
     // Research prompts. Rendered async because two of its inputs (the next dated
     // catalyst, the market regime) live in caches that must be read, and neither is
@@ -384,6 +386,7 @@ function renderDetail(
       </div>
       <div class="row" style="margin-left:auto;gap:8px">
         <button id="sm-plan" class="btn-outline sm-act sm-act--plan" title="${t('wl.plan.here')}">${cbIcon('clipboard', 15)}<span>${t('wl.plan')}</span></button>
+        <button id="sm-station" class="btn-outline sm-act sm-act--station" title="${getLang() === 'vi' ? 'Mở Trạm giao dịch cho mã này' : 'Open the Trade Station on this symbol'}">⚡<span>${getLang() === 'vi' ? 'Trạm' : 'Station'}</span></button>
         <button id="wl-toggle" class="btn-outline sm-act sm-act--wl">☆ Watchlist</button>
       </div>
     </div>

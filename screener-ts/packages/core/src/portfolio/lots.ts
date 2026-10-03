@@ -21,6 +21,8 @@ export interface BuyInput {
   target?: number;
   priceCurrency?: 'EUR' | 'USD';
   fxRateAtBuy?: number;
+  /** Fee paid, in the account's currency. */
+  fee?: number;
 }
 
 /** Record a manual buy as a new lot. Mutates and returns the state. */
@@ -44,6 +46,7 @@ export function buy(state: AccountState, input: BuyInput, nextId: IdFactory): Bu
     priceCurrency: input.priceCurrency,
     fxRateAtBuy: input.fxRateAtBuy,
   };
+  if (input.fee) lot.fee = input.fee;
   state.lots.push(lot);
   return lot;
 }
@@ -53,6 +56,8 @@ export interface SellInput {
   sellDate: string;
   sellPrice: number;
   shares: number;
+  /** Fee for the whole order, in the account's currency — booked on the first record. */
+  fee?: number;
 }
 
 /**
@@ -100,6 +105,7 @@ export function sell(
       shares: take,
       realizedPnL: realized,
     };
+    if (input.fee && !records.length) rec.fee = input.fee;
     lot.remainingShares -= take;
     remaining -= take;
     state.sells.push(rec);

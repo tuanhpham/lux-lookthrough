@@ -9,7 +9,8 @@ import { renderWealth } from './tabs/wealthTab.js';
 import { migrateAccountsBlob, invalidateAccounts } from './portfolio/store.js';
 import { renderCalendar } from './tabs/calendarTab.js';
 import { renderBacktest } from './tabs/backtestTab.js';
-import { renderCaseStudies } from './tabs/caseStudiesTab.js';
+import { renderCaseStudies, openCaseStudy } from './tabs/caseStudiesTab.js';
+import { renderStation } from './tabs/stationTab.js';
 import { renderScanner } from './tabs/scannerTab.js';
 import { renderAbout } from './tabs/aboutTab.js';
 import { renderSettings } from './tabs/settingsTab.js';
@@ -54,7 +55,7 @@ onModalClose(() => {
   if (entered && currentTab === 'watchlist') renderTab('watchlist');
 });
 
-const TABS = ['picks', 'screener', 'watchlist', 'sectors', 'calendar', 'portfolio', 'wealth', 'backtest', 'casestudies', 'scanner', 'learn', 'about', 'settings'] as const;
+const TABS = ['picks', 'screener', 'station', 'watchlist', 'sectors', 'calendar', 'portfolio', 'wealth', 'backtest', 'casestudies', 'scanner', 'learn', 'about', 'settings'] as const;
 type Tab = (typeof TABS)[number];
 
 let entered = false;
@@ -110,6 +111,9 @@ function renderTab(tab: Tab): void {
       break;
     case 'casestudies':
       renderCaseStudies(ctx);
+      break;
+    case 'station':
+      void renderStation(ctx);
       break;
     case 'scanner':
       renderScanner(ctx);
@@ -732,6 +736,18 @@ window.addEventListener('hashchange', () => {
     return;
   }
   show(tab);
+});
+// The Trade Station is opened on a symbol from the stock page, the planner and position rows;
+// `openStation` has already stored the symbol, so this only has to show the page.
+window.addEventListener('app:open-station', () => {
+  enterApp();
+  show('station');
+});
+// A case study opened from somewhere else (the station's Case study tab).
+window.addEventListener('app:open-case', (e) => {
+  enterApp();
+  show('casestudies', false);
+  void openCaseStudy(ctx, (e as CustomEvent<string>).detail);
 });
 window.addEventListener('app:show-tab', (e) => {
   const tab = (e as CustomEvent<Tab>).detail;

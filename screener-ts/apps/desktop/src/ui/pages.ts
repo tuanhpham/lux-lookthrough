@@ -60,6 +60,11 @@ export const PAGES: readonly PageInfo[] = [
     words: 'scan vm nightly breakout may quet',
   },
   {
+    id: 'station', icon: '⚡', group: 'trade',
+    desc: { en: 'Buy and sell on one screen: chart, levels, ticket, case study', vi: 'Mua bán trên một màn hình: chart, mức giá, phiếu lệnh, case study' },
+    words: 'trade station buy sell order ticket tram giao dich mua ban lenh',
+  },
+  {
     id: 'watchlist', icon: '⭐', group: 'trade',
     desc: { en: 'Your watchlists, with live scores', vi: 'Các Watchlist, kèm điểm số trực tiếp' },
     words: 'watch list theo doi',

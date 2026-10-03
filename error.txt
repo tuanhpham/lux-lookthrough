@@ -6127,3 +6127,16 @@ CHAT-75 (2026-10-03) - Moi nut lam gi (bang 3 nhom); Nguoi dung & ma sync tren w
 - Kiem tra: tsc OK, vitest 442/442, anh headless toi/sang voi server gia.
 - Can lam: deploy web (Function thay doi). SCANNER_ADMIN da dat = Ad nen khong can secret moi. Khong dung VM.
 - Sau deploy: mo Cai dat > Nguoi dung & ma sync mot lan -> moi ma cu duoc bam ("Vua bam N ma cu").
+
+CHAT-76 (2026-10-03) - Tram giao dich (Trade Station): trang mua/ban kieu OKX, phi theo tai khoan, case study tu mo/dong
+- Yeu cau: trang mua/ban rieng full-width kieu trang spot OKX nhung kinh long lanh; du chuc nang: chon tai khoan, ban biet so co phieu toi da, them vao case study; de ngo sell short.
+- Quyet dinh cua user: phi theo tai khoan, chinh duoc (TR 1€, Scalable 0,99€, Degiro 2€, Equate Plus 0€); case study tao luc MUA - ghi lenh qua khu da mua+ban thi la case dong, con lai la case mo; ten "Tram giao dich"; giu form mua cu + them link "Mo Tram"; co trang rieng trong menu Giao dich.
+- Code:
+  - core: Account.fee, BuyLot.fee/side, SellRecord.fee (1 phi / lenh ban, nam o record dau); computeCash tru totalFees(); buy/sell nhan fee. tests/portfolio/fees.test.ts.
+  - writes.ts: record_buy/record_sell co fee, record_sell co exitReasonKey; WriteResult.sold [{lotId, shares}].
+  - CaseStudy: accountId, lotIds, fills (CaseFill). portfolio/stationCase.ts: caseForBuy, applySell (ban het -> dong, gia thoat = TB cac lenh ban, R theo stop da dinh), studyForLots. tests/stationCase.test.ts.
+  - tabs/stationTab.ts (#station, pages.ts nhom trade, nav.station): thanh gia; cot trai (dang giu + watchlist) + thang muc gia (target/gia/entry/gia von/stop); chart lon + dai plan; phieu lenh Mua/Ban/Short (tat): tai khoan (ban: hien so cp, tai khoan khong giu bi mo), gia, ngay, so luong + thanh truot 25/50/75/100%/Max, stop/target/setup, ly do ban, phi (sua phi tai khoan ✎), ghi chu, "Da ban roi" (ghi ca lenh ban -> case dong), "Mo case study"; xem truoc cac lo FIFO + lai/lo; tab duoi Vi the/Lich su khop/Case study/Trade plan (gan Trade Planner). Dien thoai: 1 cot + 2 nut Mua/Ban dinh day.
+  - Tu tai ty gia EURUSD=X neu may chua co (ensureEurUsd chi doc cache).
+  - Nut ⚡ Tram: trang co phieu, dong vi the Portfolio, form mua Portfolio. prompt.ts: muc Trade Station cho tro ly.
+- Kiem tra: tsc OK, vitest core 835 + desktop 446, vite build OK, anh headless toi/sang 1500 + 500, chay thu mua 24 -> ban 30 (FIFO lo cu) -> ban Max: phi dung, case chi nhan 24 cp cua lo minh roi dong.
+- Chi can deploy web thuong le.

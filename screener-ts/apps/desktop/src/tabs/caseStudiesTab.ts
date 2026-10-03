@@ -197,6 +197,12 @@ async function renderList(ctx: AppContext): Promise<void> {
  */
 let detailToken = 0;
 
+/** Open one study from outside this tab — the Trade Station's Case study list. */
+export async function openCaseStudy(ctx: AppContext, id: string): Promise<void> {
+  await loadPlaybookConfig(ctx).catch(() => null);
+  await openDetail(ctx, id);
+}
+
 async function openDetail(ctx: AppContext, id: string): Promise<void> {
   const root = $('#tab-casestudies')!;
   const vi = getLang() === 'vi';

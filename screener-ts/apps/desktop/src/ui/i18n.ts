@@ -133,6 +133,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'nav.about': { en: 'About', vi: 'Giới thiệu' },
   'nav.settings': { en: 'Settings & Guides', vi: 'Cài đặt & Hướng dẫn' },
   'nav.casestudies': { en: 'Case Studies', vi: 'Case Study' },
+  'nav.station': { en: 'Trade Station', vi: 'Trạm giao dịch' },
   'nav.calendar': { en: 'Calendar', vi: 'Lịch' },
   'nav.scanner': { en: 'Scanner', vi: 'Scanner' },
   'nav.more': { en: 'More', vi: 'Thêm' },

@@ -154,6 +154,8 @@ export type WritePlan =
       setupType?: string;
       rating?: Rating;
       note?: string;
+      /** Broker fee for this order, in the account currency. Absent = none. */
+      fee?: number;
       /** shares × stored price, in the account currency. Shown, never stored. */
       cost: number;
     }
@@ -165,6 +167,10 @@ export type WritePlan =
       price: PlannedPrice;
       date: string;
       note?: string;
+      /** Why it was sold, as an exit-reason key (see exitReasons.ts). */
+      exitReasonKey?: string;
+      /** Broker fee for this order, in the account currency. Absent = none. */
+      fee?: number;
       /** Open shares before the sale, so the card can say "of 15". */
       held: number;
       proceeds: number;
@@ -240,6 +246,8 @@ export interface WriteResult {
    * the same day at the same price are two legitimate lots.
    */
   lotId?: string;
+  /** The lots a `record_sell` took shares from and how many, FIFO order — how a sale finds its case study. */
+  sold?: { lotId: string; shares: number }[];
 }
 
 /**
@@ -305,6 +313,7 @@ export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<Writ
             // terms it was made in rather than only in account euros.
             priceCurrency: plan.price.currency,
             fxRateAtBuy: plan.price.fx ?? 1,
+            ...(plan.fee ? { fee: plan.fee } : {}),
           },
           uuid,
         );
@@ -321,6 +330,7 @@ export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<Writ
             sellDate: plan.date,
             sellPrice: plan.price.stored,
             shares: plan.shares,
+            ...(plan.fee ? { fee: plan.fee } : {}),
           },
           uuid,
         );
@@ -328,10 +338,11 @@ export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<Writ
           r.priceCurrency = plan.price.currency;
           r.fxRateAtSell = plan.price.fx ?? 1;
           if (plan.note) r.note = plan.note;
+          if (plan.exitReasonKey) r.exitReasonKey = plan.exitReasonKey;
         }
         seedPrice(st.account.id, plan.ticker, plan.price.stored);
         snapshotNow(st);
-        break;
+        return { sold: recs.map((r) => ({ lotId: r.lotId, shares: r.shares })) };
       }
       case 'set_stop': {
         const st = byId(list, plan.account.id);
@@ -435,12 +446,14 @@ export function describeWrite(plan: WritePlan): string {
         plan.date,
         plan.account.name,
         ...extras,
-      ].join(' · ');
+        plan.fee ? `fee ${money(plan.fee, plan.account.currency)}` : '',
+      ].filter(Boolean).join(' · ');
     }
     case 'record_sell': {
       const p = plan.price;
       const conv = p.stored !== p.given ? ` (${money(p.stored, plan.account.currency)})` : '';
-      return `SELL ${plan.shares} ${plan.ticker} @ ${money(p.given, p.currency)}${conv} · ${plan.date} · ${plan.account.name}`;
+      return `SELL ${plan.shares} ${plan.ticker} @ ${money(p.given, p.currency)}${conv} · ${plan.date} · ${plan.account.name}`
+        + (plan.fee ? ` · fee ${money(plan.fee, plan.account.currency)}` : '');
     }
     case 'set_stop':
       return `STOP ${plan.ticker} → ${money(plan.stop.stored, plan.account.currency)} · ${plan.lots} lot(s) · ${plan.account.name}`;
