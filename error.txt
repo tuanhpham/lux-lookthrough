@@ -6140,3 +6140,11 @@ CHAT-76 (2026-10-03) - Tram giao dich (Trade Station): trang mua/ban kieu OKX, p
   - Nut ⚡ Tram: trang co phieu, dong vi the Portfolio, form mua Portfolio. prompt.ts: muc Trade Station cho tro ly.
 - Kiem tra: tsc OK, vitest core 835 + desktop 446, vite build OK, anh headless toi/sang 1500 + 500, chay thu mua 24 -> ban 30 (FIFO lo cu) -> ban Max: phi dung, case chi nhan 24 cp cua lo minh roi dong.
 - Chi can deploy web thuong le.
+
+CHAT-77 (2026-10-03) - Tram giao dich dot 2: lenh cho, dat muc gia bang cach bam chart, phim B/S; sua lenh cho khac tien te
+- Phieu lenh co "Khop ngay | Lenh cho". Mua cho = buy stop (khop khi gia cao nhat cham gia kich hoat); Ban cho = cat lo (gia <=) hoac chot loi (gia >=), so luong <= so dang giu. Canh bao khi muc kich hoat se khop ngay o nen ke tiep. Tab duoi "Lenh cho · N" voi nut Huy (cancelOrder).
+- Thanh tren chart: "Dat muc gia tu chart: Gia/Kich hoat · Cat lo · Muc tieu" -> bam vao chart lay gia o vi tri do (CandleChart.priceAt). Esc huy. Phim B = Mua, S = Ban (khong khi dang go trong o nhap / co hop thoai).
+- Sua loi co san: nguong lenh cho nam trong khong gian gia goc (USD cho ma My) nhung lenh khop ghi thang gia USD vao tai khoan EUR. processOrders/runUpdate nhan toAccount(ticker, date, price); Danh muc > Cap nhat doi bang quoteToCcy. Lenh cho cua tro ly (place_order) truoc luu nguong bang tien tai khoan -> nay luu theo gia goc (quoteThreshold), dung nhu form lenh cho cua Danh muc.
+- Lenh cho khop tu dong cung tra phi cua tai khoan (core orders.ts). Test core fees.test.ts (4).
+- Kiem tra: tsc OK, vitest core 837 + desktop 446, vite build OK, anh headless dat lenh cat lo + tab Lenh cho, bam chart dat stop.
+- Sell short van de tat (user chua choi). Chi can deploy web thuong le.

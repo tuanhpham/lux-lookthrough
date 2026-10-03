@@ -70,6 +70,12 @@ export function processOrders(
   state: AccountState,
   barsByTicker: Map<string, Bar[]>,
   nextId: IdFactory,
+  /**
+   * A threshold → account money. Thresholds live in QUOTE space (they trigger against the raw
+   * bars: USD for a US ticker, whichever account), but the lot and the sale it creates must be in
+   * the account's currency. Identity when absent, which is right for same-currency accounts.
+   */
+  toAccount: (ticker: string, date: string, price: number) => number = (_t, _d, p) => p,
 ): FillEvent[] {
   const events: FillEvent[] = [];
 
@@ -89,7 +95,10 @@ export function processOrders(
 
       if (order.type === 'BUY_STOP') {
         if (bar.high >= order.threshold) {
-          const cost = order.threshold * order.shares;
+          // The account's flat broker fee is paid on an order that fills by itself too.
+          const fee = state.account.fee ?? 0;
+          const px = toAccount(order.ticker, date, order.threshold);
+          const cost = px * order.shares + fee;
           const cash = computeCash(state);
           if (cost > cash) {
             order.status = 'cancelled';
@@ -111,9 +120,10 @@ export function processOrders(
             {
               ticker: order.ticker,
               buyDate: date,
-              buyPrice: order.threshold,
+              buyPrice: px,
               shares: order.shares,
               reason: `BUY_STOP @ ${order.threshold}`,
+              ...(fee ? { fee } : {}),
             },
             nextId,
           );
@@ -133,11 +143,11 @@ export function processOrders(
         }
       } else if (order.type === 'STOP_LOSS') {
         if (bar.low <= order.threshold) {
-          fillExit(state, order, date, nextId, events);
+          fillExit(state, order, date, nextId, events, toAccount);
         }
       } else if (order.type === 'TAKE_PROFIT') {
         if (bar.high >= order.threshold) {
-          fillExit(state, order, date, nextId, events);
+          fillExit(state, order, date, nextId, events, toAccount);
         }
       }
     }
@@ -153,6 +163,7 @@ function fillExit(
   date: string,
   nextId: IdFactory,
   events: FillEvent[],
+  toAccount: (ticker: string, date: string, price: number) => number,
 ): void {
   // Cap at currently-held shares of the ticker.
   const held = state.lots
@@ -174,7 +185,8 @@ function fillExit(
     });
     return;
   }
-  sell(state, { ticker: order.ticker, sellDate: date, sellPrice: order.threshold, shares: qty }, nextId);
+  const fee = state.account.fee ?? 0;
+  sell(state, { ticker: order.ticker, sellDate: date, sellPrice: toAccount(order.ticker, date, order.threshold), shares: qty, ...(fee ? { fee } : {}) }, nextId);
   order.status = 'filled';
   order.filledDate = date;
   order.filledPrice = order.threshold;

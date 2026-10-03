@@ -111,6 +111,8 @@ export interface CandleChart {
    * jump around under the user mid-edit.
    */
   setOverlay(overlay: TradeOverlay | null): void;
+  /** The price under a y pixel of the candle pane, or null off the scale — for "click to set a level". */
+  priceAt(y: number): number | null;
   destroy(): void;
 }
 
@@ -213,6 +215,10 @@ export function drawCandles(
 
   return {
     chart,
+    priceAt(y) {
+      const p = candle.coordinateToPrice(y);
+      return typeof p === 'number' && Number.isFinite(p) ? p : null;
+    },
     setEarnings(marks) {
       // A report date can fall on a weekend/holiday, or on a day this range
       // doesn't contain. lightweight-charts drops markers whose time isn't in the

@@ -2830,7 +2830,11 @@ async function update(ctx: AppContext): Promise<void> {
   for (const sym of tickers) {
     barsByTicker.set(sym, (barCache[sym] ?? []).filter((b) => b.date > lastDate));
   }
-  const res = runUpdate(st, { barsByTicker, asOfDate: endDate }, uuid);
+  // Thresholds trigger in quote space (the raw bars); the lot a fill creates is in account money.
+  const res = runUpdate(st, {
+    barsByTicker, asOfDate: endDate,
+    toAccount: (sym, date, p) => p * quoteToCcy(sym, st.account.currency, date),
+  }, uuid);
 
   // Build dense daily equity snapshots
   const allBarsMap = new Map(Object.entries(barCache));

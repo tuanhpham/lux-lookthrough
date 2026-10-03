@@ -34,6 +34,7 @@ import {
   computePositionsValue,
   createAccount,
   createOrder,
+  quoteCurrencyOf,
   sell,
   setStop,
   type AccountState,
@@ -45,7 +46,7 @@ import type { AppContext } from '../context.js';
 import { accounts, addAccount, today, uuid, withAccounts } from './store.js';
 import { loadBook, saveBook } from '../wealth/store.js';
 import { accountPrices, seedPrice } from './prices.js';
-import { eurUsdForDate, hasEurUsd } from './fx.js';
+import { ccyFactor, eurUsdForDate, hasEurUsd } from './fx.js';
 
 export type Rating = 'A' | 'B' | 'C' | 'D';
 
@@ -370,7 +371,9 @@ export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<Writ
           {
             ticker: plan.ticker,
             type: plan.type,
-            threshold: plan.threshold.stored,
+            // QUOTE space, not account money: the engine triggers a threshold against the raw
+            // bars (see `processOrders`), the way the Portfolio tab's own order form stores it.
+            threshold: quoteThreshold(plan.ticker, plan.threshold, plan.date),
             shares: plan.shares,
             createdDate: plan.date,
           },
@@ -464,7 +467,7 @@ export function describeWrite(plan: WritePlan): string {
     case 'record_balance':
       return `BALANCE ${plan.wealthAccount.name} = ${money(plan.amount, plan.wealthAccount.currency)} ${plan.wealthAccount.currency} · ${plan.date}${plan.replaces ? ' (replaces that day)' : ''}`;
     case 'place_order':
-      return `ORDER ${plan.type} ${plan.shares} ${plan.ticker} @ ${money(plan.threshold.stored, plan.account.currency)} · ${plan.account.name}`;
+      return `ORDER ${plan.type} ${plan.shares} ${plan.ticker} @ ${money(quoteThreshold(plan.ticker, plan.threshold, plan.date), quoteCurrencyOf(plan.ticker) ?? 'USD')} · ${plan.account.name}`;
   }
 }
 
@@ -505,6 +508,12 @@ async function appendAudit(ctx: AppContext, plan: WritePlan): Promise<void> {
     // A full disk must not undo a trade that is already saved. The log is a
     // convenience; the portfolio is the record.
   }
+}
+
+/** A stated order price in the ticker's own quote currency — the space order thresholds live in. */
+export function quoteThreshold(ticker: string, p: PlannedPrice, date: string): number {
+  const q = quoteCurrencyOf(ticker) ?? 'USD';
+  return p.currency === q ? p.given : p.given * ccyFactor(p.currency, q, date);
 }
 
 /** Open shares of one ticker — what a sell is checked against before the card. */

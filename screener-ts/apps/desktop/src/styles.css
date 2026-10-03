@@ -8790,3 +8790,25 @@ html.light .slm-link--primary { border-color: var(--accent-line); background: li
   .stn-dock .stn-sell { background: var(--down); }
 }
 .sm-act--station span { margin-left: 4px; }
+
+/* ── Trạm giao dịch, phase 2: pending orders, levels from the chart, B/S keys ── */
+.stn-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border-radius: 10px; border: 1px solid var(--border-soft); }
+.stn-mode button { height: 28px; border: 0; border-radius: 8px; background: transparent; color: var(--subtext); font: 650 12px var(--font-ui); cursor: pointer; }
+.stn-mode button.on { color: var(--accent); background: var(--accent-wash); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.stn-note { font-size: 11.5px; line-height: 1.5; color: var(--subtext); padding: 8px 10px; border-radius: 9px; background: var(--surface); border: 1px dashed var(--border); }
+.stn-pickbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: var(--subtext); }
+.stn-pk {
+  --pk: var(--accent);
+  height: 26px; padding: 0 11px; border-radius: 999px; cursor: pointer; font: 650 12px var(--font-ui);
+  color: var(--pk); background: transparent; border: 1px solid color-mix(in srgb, var(--pk) 45%, transparent);
+}
+.stn-pk-stp { --pk: var(--down); }
+.stn-pk-tgt { --pk: var(--up); }
+.stn-pk.on { color: #fff; background: var(--pk); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pk) 25%, transparent); }
+.stn-keys { margin-left: auto; font-size: 11px; color: var(--faint); }
+.stn-keys kbd {
+  display: inline-block; min-width: 18px; padding: 0 5px; text-align: center; border-radius: 5px;
+  border: 1px solid var(--border); border-bottom-width: 2px; background: var(--surface); font: 600 10.5px var(--font-mono); color: var(--subtext);
+}
+.stn-chart.picking { cursor: crosshair; outline: 2px dashed var(--accent-line); outline-offset: 4px; border-radius: 10px; }
+@media (max-width: 900px) { .stn-keys { display: none; } }

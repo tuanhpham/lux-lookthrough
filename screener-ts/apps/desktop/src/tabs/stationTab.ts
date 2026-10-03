@@ -25,10 +25,11 @@ import { drawCandles, type CandleChart } from '../ui/charts.js';
 import { formDialog } from '../ui/forms.js';
 import { openStock } from '../ui/stockModal.js';
 import { accounts, ensureAccountsLoaded, today, withAccounts } from '../portfolio/store.js';
+import { cancelOrder } from '@screener/core';
 import { accountPrices } from '../portfolio/prices.js';
 import { applyEurUsdBars, ccyFactor, ensureEurUsd, hasEurUsd } from '../portfolio/fx.js';
 import {
-  applyWrite, heldShares, openLots, plannedPrice, type PlannedPrice, type Rating, type WritePlan,
+  applyWrite, heldShares, openLots, plannedPrice, quoteThreshold, type PlannedPrice, type Rating, type WritePlan,
 } from '../portfolio/writes.js';
 import { buildBuyPlan, ladderConfig, loadPlaybookConfig, type BuyPlan } from '../portfolio/playbook.js';
 import { loadPlan, type SymbolPlan } from '../portfolio/planStore.js';
@@ -51,7 +52,8 @@ function esc(s: string): string {
 
 type Ccy = 'EUR' | 'USD';
 type Side = 'buy' | 'sell';
-type BottomTab = 'pos' | 'hist' | 'cases' | 'plan';
+type BottomTab = 'pos' | 'orders' | 'hist' | 'cases' | 'plan';
+type Pick = 'price' | 'stop' | 'target';
 
 const SYM_KEY = 'station_sym';
 const SYM: Record<string, string> = { EUR: '€', USD: '$' };
@@ -67,6 +69,10 @@ const posNum = (s: string | undefined): number | null => {
 
 interface Ticket {
   side: Side;
+  /** Record a fill now, or leave a pending order for the engine to fill on a later bar. */
+  mode: 'fill' | 'order';
+  /** Sell side, pending: which exit order. */
+  orderType: 'STOP_LOSS' | 'TAKE_PROFIT';
   acctId: string;
   price: number | null;
   /** Whether the price is still the one this page put there — a date change may replace it. */
@@ -97,11 +103,15 @@ let chart: CandleChart | null = null;
 let msg: { err: boolean; text: string } | null = null;
 let busy = false;
 let loadToken = 0;
+/** The level the next click on the chart sets, or null when clicks only pan. */
+let pick: Pick | null = null;
+let liveCtx: AppContext | null = null;
+let liveRoot: HTMLElement | null = null;
 let list: { held: string[]; watch: { name: string; syms: string[] }[] } = { held: [], watch: [] };
 
 function freshTicket(acctId = ''): Ticket {
   return {
-    side: 'buy', acctId, price: null, priceAuto: true, ccy: 'USD', date: today(),
+    side: 'buy', mode: 'fill', orderType: 'STOP_LOSS', acctId, price: null, priceAuto: true, ccy: 'USD', date: today(),
     shares: null, stop: null, target: null, setup: '', fee: null, note: '', caseOn: true,
     closedOn: false, exitDate: today(), exitPrice: null, exitReason: '',
   };
@@ -163,6 +173,7 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   const keep = ticket;
   ticket = freshTicket(keep.acctId);
   ticket.side = keep.side;
+  ticket.mode = keep.mode;
   ticket.ccy = quoteCcy() ?? 'USD';
   msg = null;
   closeTradePlanner(root.querySelector<HTMLElement>('#stn-plan-host') ?? undefined);
@@ -252,6 +263,9 @@ export async function renderStation(ctx: AppContext): Promise<void> {
 }
 
 function paint(ctx: AppContext, root: HTMLElement): void {
+  liveCtx = ctx;
+  liveRoot = root;
+  bindKeys();
   const planOpen = !!root.querySelector('#stn-plan-host .tp-panel, #stn-plan-host > *');
   root.innerHTML = `
     ${pageHero({
@@ -267,7 +281,8 @@ function paint(ctx: AppContext, root: HTMLElement): void {
       ${tickerBarHtml()}
       <aside class="stn-side card">${listHtml()}${ladderHtml()}</aside>
       <section class="stn-main card">
-        <div class="stn-chart" id="stn-chart"></div>
+        ${pickBarHtml()}
+        <div class="stn-chart${pick ? ' picking' : ''}" id="stn-chart"></div>
         ${planStripHtml()}
       </section>
       <aside class="stn-ticket card" id="stn-ticket">${ticketHtml()}</aside>
@@ -360,6 +375,17 @@ function ladderHtml(): string {
     </div>`;
 }
 
+function pickBarHtml(): string {
+  const b = (k: Pick, label: string, cls: string): string =>
+    `<button class="stn-pk stn-pk-${cls}${pick === k ? ' on' : ''}" data-stn-pick="${k}">${label}</button>`;
+  return `<div class="stn-pickbar">
+      <span>${pick ? L('Click the chart to set it · Esc cancels', 'Bấm vào chart để đặt · Esc để huỷ') : L('Set a level from the chart:', 'Đặt mức giá từ chart:')}</span>
+      ${b('price', ticket.mode === 'order' ? L('Trigger', 'Kích hoạt') : L('Price', 'Giá'), 'ent')}
+      ${ticket.side === 'buy' ? b('stop', L('Stop', 'Cắt lỗ'), 'stp') + b('target', L('Target', 'Mục tiêu'), 'tgt') : ''}
+      <span class="stn-keys">${L('Keys', 'Phím')}: <kbd>B</kbd> ${L('buy', 'mua')} · <kbd>S</kbd> ${L('sell', 'bán')}</span>
+    </div>`;
+}
+
 function planStripHtml(): string {
   const g = effective();
   const setup = plan?.setup ? setupName(plan.setup as SetupKey, vi()) : L('no setup chosen', 'chưa chọn setup');
@@ -390,6 +416,7 @@ function acctOptions(): string {
 function ticketHtml(): string {
   const st = acct();
   const isBuy = ticket.side === 'buy';
+  const isOrder = ticket.mode === 'order';
   const qc = quoteCcy();
   const ac = acctCcy();
   const held = st ? heldShares(st, sym) : 0;
@@ -404,7 +431,7 @@ function ticketHtml(): string {
   const rr = riskPer !== null && ticket.target !== null && ticket.target > px ? (ticket.target - px) / riskPer : null;
   const basis = isBuy ? suggestion?.shares ?? 0 : held;
   const pctOf = basis > 0 ? Math.min(100, Math.round((shares / basis) * 100)) : 0;
-  const nowCash = isBuy ? cashNow - gross - fee : cashNow + gross - fee;
+  const nowCash = isOrder ? cashNow : isBuy ? cashNow - gross - fee : cashNow + gross - fee;
 
   const fifo = !isBuy && st ? fifoPreview(st, shares, px) : '';
   const field = (k: string, label: string, val: string, extra = ''): string =>
@@ -427,6 +454,15 @@ function ticketHtml(): string {
       <button class="${!isBuy ? 'on stn-t-sell' : ''}" data-stn-side="sell">${L('Sell', 'Bán')}</button>
       <button disabled title="${L('Coming later', 'Sắp có')}">Short <small>${L('soon', 'sắp có')}</small></button>
     </div>
+    <div class="stn-mode seg">
+      <button class="${!isOrder ? 'on' : ''}" data-stn-mode="fill">${L('Filled now', 'Khớp ngay')}</button>
+      <button class="${isOrder ? 'on' : ''}" data-stn-mode="order">${L('Pending order', 'Lệnh chờ')}</button>
+    </div>
+    ${isOrder ? `<div class="stn-note">${isBuy
+      ? L('A buy stop: it fills at the trigger on the first day the high reaches it — checked when Portfolio › Update runs. No case study opens by itself; open one here once it has filled.',
+        'Lệnh buy stop: khớp tại giá kích hoạt vào ngày đầu tiên giá cao nhất chạm tới — kiểm tra khi bấm Cập nhật ở Danh mục. Case study không tự mở; mở ở đây sau khi lệnh đã khớp.')
+      : L('Sold at the trigger the first day price reaches it — checked when Portfolio › Update runs.',
+        'Bán tại giá kích hoạt vào ngày đầu tiên giá chạm tới — kiểm tra khi bấm Cập nhật ở Danh mục.')}</div>` : ''}
     <label class="stn-f stn-acct"><span>${L('Account', 'Tài khoản')}</span>
       <select class="field" data-stn="acct"${noAcct ? ' disabled' : ''}>${acctOptions()}</select></label>
     <div class="stn-acct-info">
@@ -434,8 +470,13 @@ function ticketHtml(): string {
       <button class="stn-link" id="stn-fee-edit" title="${L('Fee per order for this account', 'Phí mỗi lệnh của tài khoản này')}">${L('Fee', 'Phí')} ${cash(st?.account.fee ?? 0, ac)} ✎</button>
     </div>
     <div class="stn-row2">
-      ${field('price', `${L('Price', 'Giá')} (${ticket.ccy})`, v(ticket.price))}
-      <label class="stn-f"><span>${L('Date', 'Ngày')}</span><input class="field" type="date" data-stn="date" value="${ticket.date}" max="${today()}"></label>
+      ${field('price', `${isOrder ? L('Trigger', 'Giá kích hoạt') : L('Price', 'Giá')} (${ticket.ccy})`, v(ticket.price))}
+      ${isOrder && !isBuy
+        ? `<label class="stn-f"><span>${L('Order', 'Loại lệnh')}</span><select class="field" data-stn="orderType">
+            <option value="STOP_LOSS"${ticket.orderType === 'STOP_LOSS' ? ' selected' : ''}>${L('Stop loss (price ≤)', 'Cắt lỗ (giá ≤)')}</option>
+            <option value="TAKE_PROFIT"${ticket.orderType === 'TAKE_PROFIT' ? ' selected' : ''}>${L('Take profit (price ≥)', 'Chốt lời (giá ≥)')}</option></select></label>`
+        : isOrder ? '<span></span>'
+        : `<label class="stn-f"><span>${L('Date', 'Ngày')}</span><input class="field" type="date" data-stn="date" value="${ticket.date}" max="${today()}"></label>`}
     </div>
     ${field('shares', `${L('Shares', 'Số lượng')}${!isBuy ? ` · max ${fmt(held, 0)}` : ''}`, ticket.shares === null ? '' : String(ticket.shares))}
     <div class="stn-slider">
@@ -449,11 +490,11 @@ function ticketHtml(): string {
       </div>
       <label class="stn-f"><span>Setup</span><select class="field" data-stn="setup">
         <option value="">—</option>${SETUP_KEYS.map((k) => `<option value="${k}"${k === ticket.setup ? ' selected' : ''}>${esc(setupName(k, vi()))}</option>`).join('')}
-      </select></label>` : `<label class="stn-f"><span>${L('Why', 'Lý do bán')}</span><select class="field" data-stn="reason">
+      </select></label>` : isOrder ? '' : `<label class="stn-f"><span>${L('Why', 'Lý do bán')}</span><select class="field" data-stn="reason">
         <option value="">—</option>${exitReasonOptgroupsHtml(ticket.exitReason, vi(), esc)}</select></label>`}
     ${field('fee', `${L('Fee', 'Phí')} (${ac})`, ticket.fee === null ? '' : String(ticket.fee), ` placeholder="${fmt(st?.account.fee ?? 0)}"`)}
     <label class="stn-f"><span>${L('Note', 'Ghi chú')}</span><textarea class="field" rows="2" data-stn="note" placeholder="${isBuy ? L('Why this trade, in one line', 'Vì sao vào lệnh này, một dòng') : L('What happened, in one line', 'Chuyện gì đã xảy ra, một dòng')}">${esc(ticket.note)}</textarea></label>
-    ${isBuy ? `<label class="stn-check"><input type="checkbox" data-stn="closedOn"${ticket.closedOn ? ' checked' : ''}> ${L('Already sold — book the exit too (closed case study)', 'Đã bán rồi — ghi luôn lệnh bán (case study đóng)')}</label>
+    ${isBuy && !isOrder ? `<label class="stn-check"><input type="checkbox" data-stn="closedOn"${ticket.closedOn ? ' checked' : ''}> ${L('Already sold — book the exit too (closed case study)', 'Đã bán rồi — ghi luôn lệnh bán (case study đóng)')}</label>
       ${ticket.closedOn ? `<div class="stn-exit">
         <div class="stn-row2">
           <label class="stn-f"><span>${L('Exit date', 'Ngày bán')}</span><input class="field" type="date" data-stn="exitDate" value="${ticket.exitDate}" max="${today()}" min="${ticket.date}"></label>
@@ -461,9 +502,9 @@ function ticketHtml(): string {
         </div>
         <label class="stn-f"><span>${L('Why', 'Lý do bán')}</span><select class="field" data-stn="reason"><option value="">—</option>${exitReasonOptgroupsHtml(ticket.exitReason, vi(), esc)}</select></label>
       </div>` : ''}` : ''}
-    <label class="stn-check"><input type="checkbox" data-stn="caseOn"${ticket.caseOn ? ' checked' : ''}> ${isBuy
+    ${isOrder ? '' : `<label class="stn-check"><input type="checkbox" data-stn="caseOn"${ticket.caseOn ? ' checked' : ''}> ${isBuy
       ? L('Open a case study for this trade', 'Mở case study cho lệnh này')
-      : L('Write this sale into its case study', 'Ghi lệnh bán vào case study của nó')}</label>
+      : L('Write this sale into its case study', 'Ghi lệnh bán vào case study của nó')}</label>`}
     <div class="stn-sum">
       <div><span>${isBuy ? L('Cost', 'Tổng tiền') : L('Proceeds', 'Tiền thu')}</span><b>${cash(gross, ac)}</b></div>
       ${fee ? `<div><span>${L('Fee', 'Phí')}</span><b>${cash(fee, ac)}</b></div>` : ''}
@@ -471,11 +512,13 @@ function ticketHtml(): string {
       ${isBuy && rr !== null ? `<div><span>R:R</span><b>${fmt(rr, 1)}R</b></div>` : ''}
       <div><span>${L('Cash after', 'Tiền mặt sau lệnh')}</span><b class="${nowCash < 0 ? 'stn-down' : ''}">${cash(nowCash, ac)}</b></div>
     </div>
-    ${fifo}
+    ${isOrder ? '' : fifo}
     ${block ? `<div class="stn-block">${block}</div>` : ''}
     ${msg ? `<div class="stn-msg${msg.err ? ' err' : ''}">${esc(msg.text)}</div>` : ''}
     <button class="stn-go ${isBuy ? 'stn-go-buy' : 'stn-go-sell'}" id="stn-go"${block || busy || !shares || !px ? ' disabled' : ''}>
-      ${busy ? '…' : `${isBuy ? L('Buy', 'Mua') : L('Sell', 'Bán')} ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`}
+      ${busy ? '…' : isOrder
+        ? `${L('Place', 'Đặt')} ${isBuy ? 'buy stop' : ticket.orderType === 'STOP_LOSS' ? L('stop loss', 'lệnh cắt lỗ') : L('take profit', 'lệnh chốt lời')} · ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`
+        : `${isBuy ? L('Buy', 'Mua') : L('Sell', 'Bán')} ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`}
     </button>`;
 }
 
@@ -503,7 +546,7 @@ function fifoPreview(st: (typeof accounts)[number], shares: number, px: number):
 function bottomHtml(): string {
   const tab = (k: BottomTab, label: string): string => `<button class="${bottom === k ? 'on' : ''}" data-stn-bottom="${k}">${label}</button>`;
   return `<div class="stn-btabs seg">
-      ${tab('pos', L('Positions', 'Vị thế'))}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}${tab('plan', L('Trade plan', 'Trade plan'))}
+      ${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}${tab('plan', L('Trade plan', 'Trade plan'))}
     </div>
     <div class="stn-bbody" id="stn-bbody"></div>
     <div id="stn-plan-host"${bottom === 'plan' ? '' : ' hidden'}></div>`;
@@ -522,6 +565,16 @@ async function paintBottom(ctx: AppContext, root: HTMLElement, planWasOpen: bool
   }
   closeTradePlanner(host);
   if (bottom === 'pos') body.innerHTML = positionsHtml();
+  if (bottom === 'orders') {
+    body.innerHTML = ordersHtml();
+    body.querySelectorAll<HTMLElement>('[data-stn-cancel]').forEach((b) => b.addEventListener('click', async () => {
+      const [aid, oid] = b.dataset.stnCancel!.split('|');
+      try {
+        await withAccounts(ctx, (all) => { const a = all.find((x) => x.account.id === aid); if (a) cancelOrder(a, oid!); });
+      } catch (e) { msg = { err: true, text: (e as Error).message }; }
+      paint(ctx, root);
+    }));
+  }
   if (bottom === 'hist') body.innerHTML = historyHtml();
   if (bottom === 'cases') {
     const idx = (await loadCaseIndex(ctx).catch(() => [])).filter((m) => m.symbol === sym);
@@ -539,6 +592,23 @@ async function paintBottom(ctx: AppContext, root: HTMLElement, planWasOpen: bool
 function outcomeWord(o: string): string {
   const w: Record<string, [string, string]> = { open: ['Open', 'Đang mở'], win: ['Win', 'Thắng'], loss: ['Loss', 'Thua'], scratch: ['Scratch', 'Hòa'] };
   return L(...(w[o] ?? [o, o]));
+}
+
+function pendingCount(): number {
+  return accounts.reduce((n, a) => n + (a.orders ?? []).filter((o) => o.ticker === sym && o.status === 'pending').length, 0);
+}
+
+function ordersHtml(): string {
+  const qs = SYM[quoteCcy() ?? 'USD'] ?? '';
+  const word = (t: string): string => ({
+    BUY_STOP: L('BUY STOP', 'MUA KHI ≥'), STOP_LOSS: L('STOP LOSS', 'CẮT LỖ ≤'), TAKE_PROFIT: L('TAKE PROFIT', 'CHỐT LỜI ≥'),
+  } as Record<string, string>)[t] ?? t;
+  const rows = accounts.flatMap((a) => (a.orders ?? []).filter((o) => o.ticker === sym && o.status === 'pending').map((o) =>
+    `<div class="stn-tr"><span>${esc(o.createdDate)}</span><span class="${o.type === 'BUY_STOP' ? 'stn-side-b' : 'stn-side-s'}">${word(o.type)}</span>
+      <span class="stn-grow">${esc(a.account.name)}</span><span>${fmt(o.shares, 0)} @ ${qs}${fmt(o.threshold)}</span>
+      <button class="btn-outline stn-mini" data-stn-cancel="${esc(a.account.id)}|${esc(o.id)}">${L('Cancel', 'Huỷ')}</button></div>`));
+  return rows.length ? `<div class="stn-tbl">${rows.join('')}</div>`
+    : `<div class="stn-empty">${L(`No pending orders for ${sym}.`, `Không có lệnh chờ nào cho ${sym}.`)}</div>`;
 }
 
 function positionsHtml(): string {
@@ -593,6 +663,58 @@ function drawChart(root: HTMLElement): void {
     entry: toQuote(ticket.price), stop: ticket.side === 'buy' ? toQuote(ticket.stop) : null,
     target: ticket.side === 'buy' ? toQuote(ticket.target) : null,
   }, { 5: false, 10: true, 21: true, 50: true, 150: false, 200: true }, { height: h });
+  const c = chart;
+  c.chart.subscribeClick((param) => {
+    if (!pick || !param.point || chart !== c || !liveCtx || !liveRoot) return;
+    const q = c.priceAt(param.point.y);
+    if (q === null || !(q > 0)) return;
+    const v = round(fromQuote(q));
+    if (pick === 'price') { ticket.price = v; ticket.priceAuto = false; if (ticket.side === 'buy' && ticket.mode === 'fill') suggest(); }
+    if (pick === 'stop') ticket.stop = v;
+    if (pick === 'target') ticket.target = v;
+    pick = null;
+    repaintPickBar(liveCtx, liveRoot);
+    repaintLive(liveCtx, liveRoot);
+  });
+}
+
+function repaintPickBar(ctx: AppContext, root: HTMLElement): void {
+  const bar = root.querySelector<HTMLElement>('.stn-pickbar');
+  if (bar) bar.outerHTML = pickBarHtml();
+  root.querySelector('#stn-chart')?.classList.toggle('picking', !!pick);
+  wirePickBar(ctx, root);
+}
+
+function wirePickBar(ctx: AppContext, root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('[data-stn-pick]').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.stnPick as Pick;
+    pick = pick === k ? null : k;
+    repaintPickBar(ctx, root);
+  }));
+}
+
+/** B and S switch the ticket, Esc stops a chart pick — only while this page is on screen. */
+let keysBound = false;
+function bindKeys(): void {
+  if (keysBound) return;
+  keysBound = true;
+  document.addEventListener('keydown', (e) => {
+    const page = document.querySelector('#tab-station');
+    if (!page || page.classList.contains('hidden') || !liveCtx || !liveRoot) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tgt = e.target as HTMLElement | null;
+    if (tgt && (tgt.closest('input, textarea, select, [contenteditable="true"]') || tgt.closest('.dialog-host, #modal:not(.hidden)'))) return;
+    if (document.querySelector('.dialog-host')) return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape' && pick) { pick = null; repaintPickBar(liveCtx, liveRoot); return; }
+    if (k !== 'b' && k !== 's') return;
+    e.preventDefault();
+    setSide(k === 'b' ? 'buy' : 'sell');
+    repaintLive(liveCtx, liveRoot);
+    repaintPickBar(liveCtx, liveRoot);
+    drawChart(liveRoot);
+    liveRoot.querySelector<HTMLInputElement>('[data-stn="shares"]')?.focus();
+  });
 }
 
 /** Repaint the ticket, the ladder and the chart lines — not the whole page — while typing. */
@@ -642,6 +764,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       root.querySelector('#stn-ticket')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
   wireTicket(ctx, root);
+  wirePickBar(ctx, root);
 }
 
 function wireBottomTabs(ctx: AppContext, root: HTMLElement): void {
@@ -666,6 +789,7 @@ function wireBottomTabs(ctx: AppContext, root: HTMLElement): void {
 function setSide(side: Side): void {
   if (ticket.side === side) return;
   ticket.side = side;
+  if (pick !== 'price') pick = null;
   ticket.shares = null;
   ticket.closedOn = false;
   pickAccount();
@@ -677,6 +801,13 @@ function wireTicket(ctx: AppContext, root: HTMLElement): void {
   if (!t) return;
   t.querySelectorAll<HTMLElement>('[data-stn-side]').forEach((b) =>
     b.addEventListener('click', () => { setSide(b.dataset.stnSide as Side); repaintLive(ctx, root); drawChart(root); }));
+  t.querySelectorAll<HTMLElement>('[data-stn-mode]').forEach((b) =>
+    b.addEventListener('click', () => {
+      ticket.mode = b.dataset.stnMode as 'fill' | 'order';
+      if (ticket.mode === 'order') { ticket.closedOn = false; ticket.date = today(); }
+      repaintLive(ctx, root);
+      repaintPickBar(ctx, root);
+    }));
   t.querySelectorAll<HTMLElement>('[data-stn-pct]').forEach((b) =>
     b.addEventListener('click', () => { setPct(Number(b.dataset.stnPct)); repaintLive(ctx, root); }));
   t.querySelector('#stn-fee-edit')?.addEventListener('click', () => void editFee(ctx, root));
@@ -688,7 +819,7 @@ function wireTicket(ctx: AppContext, root: HTMLElement): void {
     f.addEventListener(ev, () => {
       const val = (f as HTMLInputElement).type === 'checkbox' ? (f as HTMLInputElement).checked : f.value;
       onField(key, val);
-      const structural = ['acct', 'closedOn', 'caseOn', 'setup', 'date'].includes(key);
+      const structural = ['acct', 'closedOn', 'caseOn', 'setup', 'date', 'orderType'].includes(key);
       if (key === 'setup' || key === 'date') { if (ticket.side === 'buy') suggest(); }
       repaintLive(ctx, root, structural || key === 'note' ? undefined : key);
       if (key === 'note') {
@@ -731,6 +862,7 @@ function onField(key: string, val: string | boolean): void {
     case 'exitDate': ticket.exitDate = s || today(); break;
     case 'exitPrice': ticket.exitPrice = posNum(s); break;
     case 'reason': ticket.exitReason = s; break;
+    case 'orderType': ticket.orderType = s === 'TAKE_PROFIT' ? 'TAKE_PROFIT' : 'STOP_LOSS'; break;
   }
 }
 
@@ -800,7 +932,8 @@ async function submit(ctx: AppContext, root: HTMLElement): Promise<void> {
   if (!st || !shares || !ticket.price) return;
   msg = null;
   try {
-    if (ticket.side === 'buy') await submitBuy(ctx, st, shares);
+    if (ticket.mode === 'order') await submitOrder(ctx, st, shares);
+    else if (ticket.side === 'buy') await submitBuy(ctx, st, shares);
     else await submitSell(ctx, st, shares);
   } catch (e) {
     msg = { err: true, text: (e as Error).message };
@@ -893,6 +1026,38 @@ async function submitBuy(ctx: AppContext, st: (typeof accounts)[number], shares:
   const lp = last()?.close ?? null;
   if (lp !== null) ticket.price = round(fromQuote(lp));
   suggest();
+}
+
+async function submitOrder(ctx: AppContext, st: (typeof accounts)[number], shares: number): Promise<void> {
+  const isBuy = ticket.side === 'buy';
+  const type = isBuy ? 'BUY_STOP' as const : ticket.orderType;
+  const held = heldShares(st, sym);
+  if (!isBuy && shares > held) throw new Error(L(`Only ${held} held in this account.`, `Tài khoản này chỉ giữ ${held} cp.`));
+  const date = today();
+  const threshold = priced(ticket.price!, date);
+  if (!threshold) throw new Error(L('No EUR/USD rate yet — press Update in Portfolio.', 'Chưa có tỷ giá EUR/USD — bấm Cập nhật ở Danh mục.'));
+  const account = { id: st.account.id, name: st.account.name, currency: st.account.currency };
+  const q = quoteThreshold(sym, threshold, date);
+  const qs = SYM[quoteCcy() ?? 'USD'] ?? '';
+  const last0 = last()?.close ?? null;
+  // A buy stop below the price, or a stop loss above it, fills on the very next bar — almost
+  // always a typo for the other order type, so it is said before it is placed.
+  const warn = last0 === null ? '' : type === 'BUY_STOP' && q <= last0
+    ? L('The trigger is at or below the last price: it fills on the next bar.', 'Giá kích hoạt ≤ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.')
+    : type === 'STOP_LOSS' && q >= last0 ? L('The stop is at or above the last price: it fills on the next bar.', 'Mức cắt lỗ ≥ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.')
+      : type === 'TAKE_PROFIT' && q <= last0 ? L('The target is at or below the last price: it fills on the next bar.', 'Mức chốt lời ≤ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.') : '';
+  const rows: [string, string, string?][] = [
+    [L('Account', 'Tài khoản'), esc(account.name)],
+    [L('Order', 'Lệnh'), type.replace('_', ' ')],
+    [L('Shares', 'Số lượng'), `${fmt(shares, 0)} × ${esc(sym)}`],
+    [L('Trigger', 'Giá kích hoạt'), `${qs}${fmt(q)}`],
+    ...(warn ? [[L('Note', 'Lưu ý'), esc(warn), 'stn-down'] as [string, string, string]] : []),
+  ];
+  if (!(await confirm2(L('Place this order?', 'Đặt lệnh chờ này?'), rows, L('Place', 'Đặt lệnh'), !isBuy))) return;
+  busy = true;
+  await applyWrite(ctx, { kind: 'place_order', account, ticker: sym, type, threshold, shares, date });
+  msg = { err: false, text: L(`Order placed: ${type.replace('_', ' ')} ${shares} ${sym} @ ${qs}${fmt(q)}.`, `Đã đặt lệnh chờ: ${shares} ${sym} @ ${qs}${fmt(q)}.`) };
+  bottom = 'orders';
 }
 
 async function submitSell(ctx: AppContext, st: (typeof accounts)[number], shares: number): Promise<void> {
