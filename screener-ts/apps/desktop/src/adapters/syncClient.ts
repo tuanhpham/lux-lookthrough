@@ -246,3 +246,53 @@ export async function remotePull(since = 0): Promise<SyncEntry[]> {
   const body = (await res.json()) as { entries: SyncEntry[] };
   return body.entries ?? [];
 }
+
+// ── User management (admins only) ────────────────────────────────────────────
+
+/** One row of the admin list. There is no code in it: the server cannot read one back. */
+export interface SyncUser {
+  id: string;
+  name: string | null;
+  createdAt: string;
+  keys: number;
+  bytes: number;
+  lastWrite: number | null;
+  admin: boolean;
+  you: boolean;
+}
+
+/** Who this code is, and whether it may manage users. `admins` false = SCANNER_ADMIN unset. */
+export async function syncWhoami(): Promise<{ ok: boolean; id?: string; admin?: boolean; admins?: boolean; error?: string }> {
+  if (!isSyncEnabled()) return { ok: false, error: 'sync is off' };
+  try {
+    const res = await req(`${BASE}/whoami`, { headers: headers() });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true, ...((await res.json()) as { id?: string; admin?: boolean; admins?: boolean }) };
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message ?? e) };
+  }
+}
+
+/** The server's own words on a refusal ("already exists", "not an admin") beat a status code. */
+async function adminCall<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await req(`${BASE}/admin/${path}`, { ...init, headers: headers() });
+  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+  return body;
+}
+
+export const adminListUsers = (): Promise<{ users: SyncUser[]; hashedNow: number }> => adminCall('users');
+
+export const adminCreateUser = (id: string, name: string): Promise<{ id: string; name: string | null; code: string }> =>
+  adminCall('users', { method: 'POST', body: JSON.stringify({ id, name }) });
+
+/**
+ * A new code for `id`; the old one stops working at once. Rotating your OWN code
+ * would lock this device out on its next request, so the new code is stored here
+ * before returning — every other device needs it typed in.
+ */
+export async function adminRotateCode(id: string): Promise<{ id: string; code: string; self: boolean }> {
+  const r = await adminCall<{ id: string; code: string; self: boolean }>(`users/${encodeURIComponent(id)}/rotate`, { method: 'POST' });
+  if (r.self) setSyncCode(r.code);
+  return r;
+}

@@ -6113,3 +6113,17 @@ CHAT-74 (2026-10-02) - O nhap ro hon, thanh chinh do sang nen toi/sang, sua icon
   - tests/tone.test.ts (4 test).
 - Kiem tra: tsc OK, vitest 437/437, vite build OK, anh headless Watchlist (toi, toi +60, Tinh trang tai chinh +100), Cai dat toi +50 / sang -25.
 - Chi can deploy web thuong le.
+
+CHAT-75 (2026-10-03) - Moi nut lam gi (bang 3 nhom); Nguoi dung & ma sync tren web, ma luu dang bam
+- Yeu cau: (1) muc "Moi nut lam gi" cua Chay lenh tren VM ro rang, chuyen nghiep hon; (2) quan ly user tren web: xem danh sach, tao user, doi ma - nhung khong xem duoc ma/mat khau.
+- Code (1): settingsGuide.ts GuideStep.buttons/never + settingsTab.ts buttonsHtml: 3 nhom Chi xem / Lam mot viec / Khoi dong lai scanner, moi nut 1 dong (icon, tac dung, lenh that tren VM), o "Khong nut nao lam duoc". Commit 3ac0fd0f.
+- Code (2):
+  - functions/api/sync: users.code luu 'h:' + SHA-256. Ma cu luu dang chu thuong van dung duoc: lan dang nhap ke tiep (hoac khi admin mo danh sach) tu doi sang ban bam - KHONG can buoc chuyen du lieu.
+  - Route admin (chi id trong SCANNER_ADMIN): GET /api/sync/admin/users (khong co ma), POST /api/sync/admin/users {id,name} -> ma 20 ky tu hien MOT lan, POST /api/sync/admin/users/<id>/rotate -> ma moi, ma cu chet ngay. whoami tra them id/admin/admins.
+  - functions/api/scanner: tim user theo ban bam hoac ma cu.
+  - Cai dat & Huong dan > Du lieu > "Nguoi dung & ma sync" (usersPanel.ts): danh sach, Cap ma moi, Them nguoi dung, o hien ma mot lan. Doi ma cua chinh minh: may nay tu luu ma moi.
+  - Co chu dich KHONG co tren web: xoa user, cap quyen admin (van bang wrangler, lenh co trong muc do).
+  - tests/syncUsers.test.ts (5 test).
+- Kiem tra: tsc OK, vitest 442/442, anh headless toi/sang voi server gia.
+- Can lam: deploy web (Function thay doi). SCANNER_ADMIN da dat = Ad nen khong can secret moi. Khong dung VM.
+- Sau deploy: mo Cai dat > Nguoi dung & ma sync mot lan -> moi ma cu duoc bam ("Vua bam N ma cu").

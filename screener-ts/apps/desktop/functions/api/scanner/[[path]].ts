@@ -171,12 +171,19 @@ async function resolveRole(env: Env, request: Request): Promise<{ role: Role; us
 
   const code = request.headers.get('x-sync-code')?.trim();
   if (code) {
-    const row = await env.DB.prepare('SELECT id FROM users WHERE code = ?')
-      .bind(code)
+    // Hashed or still as typed: /api/sync rewrites the row on its next sign-in.
+    const row = await env.DB.prepare('SELECT id FROM users WHERE code IN (?, ?)')
+      .bind(await codeHash(code), code)
       .first<{ id: string }>();
     if (row) return { role: 'reader', userId: String(row.id) };
   }
   return null;
+}
+
+/** MIRROR of codeHash in functions/api/sync/[[path]].ts — users.code holds this, not the code. */
+async function codeHash(code: string): Promise<string> {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code)));
+  return 'h:' + Array.from(d, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** null = allowed, string = why not. */

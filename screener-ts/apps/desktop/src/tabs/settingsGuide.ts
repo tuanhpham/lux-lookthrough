@@ -110,6 +110,68 @@ export const SECTIONS: readonly GuideSection[] = [
     ],
   },
   {
+    id: 'users',
+    group: 'data',
+    icon: '👥',
+    title: { en: 'Users & sync codes', vi: 'Người dùng & mã sync' },
+    lead: {
+      en: 'A sync code is the password: whoever has it reads and writes that person’s data. Here an admin sees who has one, adds a person and replaces a code that leaked or was forgotten. No code is ever shown again after the moment it is made — the server stores a hash, not the code.',
+      vi: 'Mã sync chính là mật khẩu: ai có mã là đọc và ghi được dữ liệu của người đó. Ở đây admin xem ai đang có mã, thêm người mới và thay mã bị lộ hoặc bị quên. Không mã nào hiện lại sau lúc được tạo — server chỉ lưu bản băm, không lưu mã.',
+    },
+    steps: [
+      {
+        h: { en: 'Turn it on, once', vi: 'Bật một lần' },
+        p: [
+          {
+            en: 'The admins are the ids in the `SCANNER_ADMIN` secret — the same list that may send VM commands. Already set it for the VM? Then there is nothing to do here.',
+            vi: 'Admin là các id trong secret `SCANNER_ADMIN` — cũng là danh sách được gửi lệnh VM. Đã đặt cho VM rồi thì ở đây không cần làm gì thêm.',
+          },
+        ],
+        cmd: 'cd lux-lookthrough/screener-ts/apps/desktop\nnpx wrangler pages secret put SCANNER_ADMIN --project-name the-professional\nnpx wrangler pages deploy dist --project-name the-professional',
+        where: 'cf',
+      },
+      {
+        h: { en: 'Add a person', vi: 'Thêm một người' },
+        p: [
+          {
+            en: 'Type an id (letters, digits, `_` or `-`; it never changes) and a name. The server makes a 20-character code and shows it once: copy it and send it through a private channel. They type it into the ☁️ box on each of their devices.',
+            vi: 'Gõ id (chữ, số, `_` hoặc `-`; không đổi được về sau) và tên. Server sinh một mã 20 ký tự và hiện đúng một lần: copy rồi gửi qua kênh riêng tư. Người đó nhập mã vào ô ☁️ trên từng thiết bị của họ.',
+          },
+        ],
+        where: 'app',
+      },
+      {
+        h: { en: 'A code leaked or was forgotten', vi: 'Mã bị lộ hoặc bị quên' },
+        p: [
+          {
+            en: '<b>New code</b> on that row: the old code dies at once on every device, the data stays. Replacing your own code moves this device to the new one by itself; your other devices need it typed in.',
+            vi: '<b>Cấp mã mới</b> ở dòng đó: mã cũ ngừng hoạt động ngay trên mọi thiết bị, dữ liệu vẫn giữ nguyên. Đổi mã của chính bạn thì máy này tự chuyển sang mã mới; các máy khác của bạn phải nhập lại.',
+          },
+        ],
+        where: 'app',
+      },
+      {
+        h: { en: 'Still done with wrangler, on purpose', vi: 'Vẫn làm bằng wrangler, có chủ đích' },
+        p: [
+          {
+            en: 'Making someone an admin is the `SCANNER_ADMIN` secret above (ids separated by commas). Deleting a person erases their data for good, so it needs a Cloudflare login, not a sync code. Export their backup first.',
+            vi: 'Cấp quyền admin là secret `SCANNER_ADMIN` ở trên (các id cách nhau bằng dấu phẩy). Xoá một người là xoá vĩnh viễn dữ liệu của họ, nên cần đăng nhập Cloudflare chứ không phải mã sync. Xuất bản sao lưu của họ trước.',
+          },
+        ],
+        warn: {
+          en: 'The last line cannot be undone: the history and trash go too, so not even the restore page can bring the data back.',
+          vi: 'Dòng cuối không hoàn tác được: lịch sử và thùng rác cũng bị xoá, nên trang khôi phục cũng không lấy lại được.',
+        },
+        cmd: 'npx wrangler d1 execute screener-sync --remote --command "SELECT id, name, created_at FROM users"\nnpx wrangler d1 execute screener-sync --remote --command "DELETE FROM kv WHERE user_id=\'<USER_ID>\'; DELETE FROM kv_history WHERE user_id=\'<USER_ID>\'; DELETE FROM kv_trash WHERE user_id=\'<USER_ID>\'; DELETE FROM users WHERE id=\'<USER_ID>\'"',
+        where: 'cf',
+      },
+    ],
+    tip: {
+      en: 'Codes typed in by hand before this page existed keep working: each one is swapped for its hash the next time it signs in, or when an admin opens this list.',
+      vi: 'Các mã tạo bằng tay trước khi có trang này vẫn dùng được: mỗi mã được đổi sang bản băm ở lần đăng nhập kế tiếp, hoặc khi admin mở danh sách này.',
+    },
+  },
+  {
     id: 'look',
     group: 'data',
     icon: '🎨',

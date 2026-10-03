@@ -37,6 +37,7 @@ import { REGIME_DOC } from '../ui/playbookHelp.js';
 import { openPlaybookSettingsHere } from '../ui/playbookSettings.js';
 import { SECTIONS, GROUPS, WHERE, type GuideSection, type GuideStep } from './settingsGuide.js';
 import { vmPanel, wireVm } from './vmPanel.js';
+import { usersPanel, wireUsers } from './usersPanel.js';
 import { pageHero } from '../ui/pageHero.js';
 import { currentAlertsDigest, readAlertsSeen } from '../portfolio/alertsFeed.js';
 
@@ -134,10 +135,10 @@ function stepHtml(s: GuideStep, i: number): string {
 }
 
 /** The sections that carry a live control, not only words. Marked in the TOC. */
-const LIVE = new Set(['data', 'look', 'restore', 'playbook', 'scan-remote']);
+const LIVE = new Set(['data', 'users', 'look', 'restore', 'playbook', 'scan-remote']);
 
 function sectionHtml(s: GuideSection, i: number, active: string): string {
-  const panel = s.id === 'data' ? dataPanel() : s.id === 'look' ? lookPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : s.id === 'scan-remote' ? vmPanel() : '';
+  const panel = s.id === 'data' ? dataPanel() : s.id === 'look' ? lookPanel() : s.id === 'restore' ? restorePanel() : s.id === 'playbook' ? playbookPanel() : s.id === 'scan-remote' ? vmPanel() : s.id === 'users' ? usersPanel() : '';
   const prev = SECTIONS[i - 1];
   const next = SECTIONS[i + 1];
   const nav = (x: GuideSection | undefined, dir: 'prev' | 'next'): string => x
@@ -736,6 +737,7 @@ export function renderSettings(ctx: AppContext): void {
   void fillPlaybookPanel(root, ctx);
   wireLook(root);
   wireVm(root);
+  wireUsers(root);
 
   // Restore panel.
   root.querySelector('#st-preview')?.addEventListener('click', () => void preview(root));

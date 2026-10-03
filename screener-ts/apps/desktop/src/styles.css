@@ -8512,3 +8512,44 @@ html:not(.light) .chat-field { background: rgba(255, 255, 255, .075); border-col
 @media (max-width: 620px) {
   .st-bt-head span:last-child { margin-left: 0; width: 100%; }
 }
+
+/* ── Settings › Users & sync codes (admin). ── */
+.st-us-list { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); overflow: hidden; }
+.st-us-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; }
+.st-us-row + .st-us-row { border-top: 1px solid var(--border-soft); }
+.st-us-av {
+  width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px; color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent-line);
+}
+.st-us-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13.5px; color: var(--text); }
+.st-us-name code { font: 11.5px var(--font-mono); color: var(--subtext); user-select: all; }
+.st-us-tag { padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--border); color: var(--subtext); }
+.st-us-admin { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
+.st-us-you { color: var(--up); border-color: color-mix(in srgb, var(--up) 40%, transparent); }
+.st-us-meta { margin-top: 2px; font-size: 12px; color: var(--subtext); }
+.st-us-new {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-top: 12px; padding: 12px;
+  border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--surface);
+}
+.st-us-new-h { width: 100%; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--subtext); }
+.st-us-new label { display: grid; gap: 4px; flex: 1 1 160px; font-size: 12px; color: var(--subtext); }
+#main .st-us-new .field, .st-us-new .field { height: 34px; width: 100%; }
+.st-us-new small { width: 100%; font-size: 11.5px; color: var(--faint); }
+.st-us-reveal {
+  margin-top: 12px; padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 7%, var(--card));
+}
+.st-us-rv-h { font-size: 13.5px; color: var(--text); }
+.st-us-rv-h code { font: 11.5px var(--font-mono); color: var(--subtext); }
+.st-us-code { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0 4px; }
+#main .st-us-code code, .st-us-code code {
+  padding: 8px 14px; border-radius: 10px; font: 700 17px var(--font-mono); letter-spacing: .06em; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); user-select: all; overflow-wrap: anywhere;
+}
+#main .st-us-reveal p, .st-us-reveal p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--subtext); }
+#main .st-us-reveal .st-us-once, .st-us-reveal .st-us-once { color: var(--warn); }
+.st-us-reveal [data-us-done] { margin-top: 10px; }
+@media (max-width: 620px) {
+  .st-us-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .st-us-row > button { grid-column: 1 / -1; justify-self: start; }
+}

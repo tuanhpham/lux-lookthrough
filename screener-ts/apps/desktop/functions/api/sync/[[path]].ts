@@ -17,6 +17,14 @@
 //   POST   /api/sync/restore        → body { key, archivedAt } → promote a version back
 //   POST   /api/sync/restore-at     → body { at, keys?, dryRun? } → every key back to how it
 //                                     was at server time `at` (a preview when dryRun)
+//   GET    /api/sync/admin/users    → { users: [...], hashedNow }   (admins only, never a code)
+//   POST   /api/sync/admin/users    → body { id, name? } → { id, name, code }  new user
+//   POST   /api/sync/admin/users/<id>/rotate → { id, code, self }  new code, old one dead
+//
+// Codes are stored as `h:` + SHA-256, never as typed. A row still holding a typed
+// code is rewritten the first time it signs in (and by the admin list), so the
+// switch needs no migration step. A new code is shown ONCE, in the response that
+// made it; nothing can read it back afterwards — not the admin, not the database.
 //
 // `key` may contain ':' and '/', so we re-join the wildcard path segments after
 // the "kv" prefix and treat the remainder as the full key.
@@ -45,6 +53,8 @@ interface D1Database {
 
 interface Env {
   DB: D1Database;
+  /** Comma-separated `users.id` values who may manage users (and send VM commands). */
+  SCANNER_ADMIN?: string;
 }
 interface Ctx {
   request: Request;
@@ -84,13 +94,97 @@ function collapseVerdict(prev: string, next: string): string | null {
   return `this write discards ${dropped}% of the stored value (${prev.length} → ${next.length} bytes)`;
 }
 
+// ── Codes ────────────────────────────────────────────────────────────────────
+// MIRROR of codeHash in functions/api/scanner/[[path]].ts (Pages Functions here
+// import nothing). Unsalted on purpose: the hash IS the lookup key. Codes made
+// below carry ~99 random bits, so that is not the weak point.
+async function codeHash(code: string): Promise<string> {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code)));
+  return 'h:' + Array.from(d, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** No 0/o, 1/l/i: a code is read off one screen and typed into another. */
+const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+/** 20 characters in groups of five. Rejection sampling (b < 248 = 8 × 31) keeps it unbiased. */
+function newCode(): string {
+  const out: string[] = [];
+  while (out.length < 20) {
+    for (const b of crypto.getRandomValues(new Uint8Array(32))) {
+      if (b < 248 && out.length < 20) out.push(CODE_ALPHABET[b % 31]!);
+    }
+  }
+  return out.join('').replace(/(.{5})(?=.)/g, '$1-');
+}
+
+function isAdmin(env: Env, userId: string): boolean {
+  if (!env.SCANNER_ADMIN) return false;
+  return env.SCANNER_ADMIN.split(',').map((s) => s.trim()).filter(Boolean).includes(userId);
+}
+
+const USER_ID_RE = /^[A-Za-z0-9_-]{1,32}$/;
+
 async function resolveUser(env: Env, request: Request): Promise<{ id: string; name: string | null } | null> {
   const code = request.headers.get('x-sync-code')?.trim();
   if (!code) return null;
-  const row = await env.DB.prepare('SELECT id, name FROM users WHERE code = ?')
-    .bind(code)
-    .first<{ id: string; name: string | null }>();
-  return row ?? null;
+  const hashed = await codeHash(code);
+  const row = await env.DB.prepare('SELECT id, name, code FROM users WHERE code IN (?, ?)')
+    .bind(hashed, code)
+    .first<{ id: string; name: string | null; code: string }>();
+  if (!row) return null;
+  // Still stored as typed: replace it with the hash now that we have seen it work.
+  if (row.code !== hashed) await env.DB.prepare('UPDATE users SET code = ? WHERE id = ?').bind(hashed, row.id).run();
+  return { id: row.id, name: row.name };
+}
+
+/** /api/sync/admin/… — the caller is already a known user; this checks they are an admin. */
+async function adminRoute(env: Env, request: Request, user: { id: string }, segments: string[]): Promise<Response> {
+  if (!env.SCANNER_ADMIN) return json({ error: 'user management is off: SCANNER_ADMIN is not set' }, 403);
+  if (!isAdmin(env, user.id)) return json({ error: 'this sync code is not an admin' }, 403);
+  if (segments[1] !== 'users') return json({ error: 'not found' }, 404);
+  const target = segments[2];
+
+  if (!target && request.method === 'GET') {
+    // Any row a sign-in has not reached yet is hashed here, so the list is also the migration.
+    const plain = await env.DB.prepare("SELECT id, code FROM users WHERE code NOT LIKE 'h:%'").all<{ id: string; code: string }>();
+    const todo = plain.results ?? [];
+    if (todo.length) {
+      const ups = await Promise.all(
+        todo.map(async (r) => env.DB.prepare('UPDATE users SET code = ? WHERE id = ?').bind(await codeHash(r.code), r.id)),
+      );
+      await env.DB.batch(ups);
+    }
+    const rows = await env.DB.prepare(
+      `SELECT u.id, u.name, u.created_at AS createdAt, COUNT(k.key) AS keys,
+              COALESCE(SUM(LENGTH(k.value)), 0) AS bytes, MAX(k.updated_at) AS lastWrite
+         FROM users u LEFT JOIN kv k ON k.user_id = u.id
+        GROUP BY u.id ORDER BY u.created_at`,
+    ).all<{ id: string; name: string | null; createdAt: string; keys: number; bytes: number; lastWrite: number | null }>();
+    const users = (rows.results ?? []).map((r) => ({ ...r, admin: isAdmin(env, r.id), you: r.id === user.id }));
+    return json({ users, hashedNow: todo.length });
+  }
+
+  if (!target && request.method === 'POST') {
+    const body = (await request.json().catch(() => ({}))) as { id?: unknown; name?: unknown };
+    const id = String(body.id ?? '').trim();
+    const name = String(body.name ?? '').trim().slice(0, 60) || null;
+    if (!USER_ID_RE.test(id)) return json({ error: 'id: 1-32 letters, digits, _ or -' }, 400);
+    const taken = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(id).first();
+    if (taken) return json({ error: `user ${id} already exists` }, 409);
+    const code = newCode();
+    await env.DB.prepare('INSERT INTO users (id, code, name) VALUES (?, ?, ?)').bind(id, await codeHash(code), name).run();
+    return json({ id, name, code });
+  }
+
+  if (target && segments[3] === 'rotate' && request.method === 'POST') {
+    const found = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(target).first();
+    if (!found) return json({ error: `no user ${target}` }, 404);
+    const code = newCode();
+    await env.DB.prepare('UPDATE users SET code = ? WHERE id = ?').bind(await codeHash(code), target).run();
+    return json({ id: target, code, self: target === user.id });
+  }
+
+  return json({ error: 'not found' }, 404);
 }
 
 // CORS preflight.
@@ -110,8 +204,10 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
   try {
     // ── whoami ──────────────────────────────────────────────────────────────
     if (head === 'whoami') {
-      return json({ ok: true, name: user.name });
+      return json({ ok: true, name: user.name, id: user.id, admin: isAdmin(env, user.id), admins: !!env.SCANNER_ADMIN });
     }
+
+    if (head === 'admin') return await adminRoute(env, request, user, segments);
 
     // ── bulk pull (merge-on-startup) ──────────────────────────────────────────
     if (head === 'pull' && request.method === 'POST') {

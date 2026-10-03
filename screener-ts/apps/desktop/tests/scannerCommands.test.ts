@@ -12,7 +12,8 @@ function fakeDb(users: Record<string, string>) {
     bind: (...a: unknown[]) => stmt(sql, a),
     first: async () => {
       if (sql.includes('FROM users')) {
-        const id = users[String(args[0])];
+        // bound as (hash, code as typed): the fake stores codes as typed.
+        const id = args.map((a) => users[String(a)]).find(Boolean);
         return id ? { id } : null;
       }
       if (sql.includes('COUNT(*)')) return { n: kv.size, newest: null };
