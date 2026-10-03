@@ -36,7 +36,7 @@ export interface GuideStep {
 }
 
 export interface ButtonTier {
-  /** safe = only reads; work = does a job, scanner keeps running; stop = scanner is down ~30 s. */
+  /** The colour only: green, accent, amber. The VM legend reads them as safe / does a job / scanner down ~30 s. */
   tone: 'safe' | 'work' | 'stop';
   title: Bi;
   note: Bi;
@@ -756,15 +756,21 @@ export const SECTIONS: readonly GuideSection[] = [
     steps: [
       {
         h: { en: 'Open the editor', vi: 'Mở editor' },
+        p: [
+          {
+            en: 'The very first time it asks “Select an editor”: type `1` (nano, the easy one) and Enter. Opened something with `~` down the left edge? That is vim — see the keys in step 3. `select-editor` changes the choice later.',
+            vi: 'Lần đầu tiên nó hỏi “Select an editor”: gõ `1` (nano, loại dễ dùng) rồi Enter. Nếu mở ra màn hình có dấu `~` dọc mép trái thì đó là vim — xem phím ở bước 3. Muốn đổi lại về sau: `select-editor`.',
+          },
+        ],
         cmd: 'crontab -e',
         where: 'vm',
       },
       {
-        h: { en: 'The lines that should be there', vi: 'Các dòng cần có' },
+        h: { en: 'Put these lines in', vi: 'Đưa các dòng này vào' },
         p: [
           {
-            en: '`nightly.py` and `push.py --all` run Tuesday to Saturday (`2-6`): each morning works on the session that closed the day before, so Friday’s candle is processed on Saturday. With `1-5` it would wait for Monday. The live-session lines stay `1-5`.',
-            vi: '`nightly.py` và `push.py --all` chạy thứ Ba đến thứ Bảy (`2-6`): mỗi sáng xử lý phiên đã đóng hôm trước, nên nến thứ Sáu được xử lý sáng thứ Bảy. Để `1-5` thì nến thứ Sáu phải chờ tới thứ Hai. Các dòng của phiên live vẫn giữ `1-5`.',
+            en: 'Changing one or two numbers? Move with the arrow keys, delete, type — no need to paste. Replacing everything: in nano `Ctrl+K` cuts one line per press, so press it until the file is empty, then paste with a right-click (Windows Terminal, PuTTY) or `Ctrl+Shift+V`. Do not paste into the `$` prompt.',
+            vi: 'Chỉ đổi một vài con số? Di chuyển bằng phím mũi tên, xoá, gõ lại — không cần dán. Thay toàn bộ: trong nano `Ctrl+K` cắt một dòng mỗi lần bấm, bấm tới khi file trống, rồi dán bằng chuột phải (Windows Terminal, PuTTY) hoặc `Ctrl+Shift+V`. Đừng dán vào dấu nhắc `$`.',
           },
         ],
         warn: {
@@ -782,7 +788,94 @@ export const SECTIONS: readonly GuideSection[] = [
         where: 'crontab',
       },
       {
+        h: { en: 'Save and leave', vi: 'Lưu và thoát' },
+        p: [
+          {
+            en: 'Saved correctly, the prompt comes back with `crontab: installing new crontab`. Nothing else needs restarting — cron reads the new file by itself.',
+            vi: 'Lưu đúng thì dấu nhắc hiện lại kèm dòng `crontab: installing new crontab`. Không cần khởi động lại gì — cron tự đọc file mới.',
+          },
+        ],
+        buttons: [
+          {
+            tone: 'safe',
+            title: { en: 'nano', vi: 'nano' },
+            note: { en: 'Menu at the bottom, ^ = Ctrl', vi: 'Menu ở đáy màn hình, ^ = Ctrl' },
+            rows: [
+              { icon: '💾', name: { en: 'Save', vi: 'Lưu' }, does: { en: 'It asks for the file name — it is already filled in, just press Enter.', vi: 'Nó hỏi tên file — đã điền sẵn, chỉ cần Enter.' }, runs: 'Ctrl+O  →  Enter' },
+              { icon: '🚪', name: { en: 'Leave', vi: 'Thoát' }, does: { en: 'Unsaved changes? It asks: `Y` saves, `N` throws them away.', vi: 'Còn thay đổi chưa lưu? Nó hỏi: `Y` là lưu, `N` là bỏ.' }, runs: 'Ctrl+X' },
+              { icon: '✂', name: { en: 'Cut a line', vi: 'Cắt một dòng' }, does: { en: 'The line under the cursor; press again for the next one.', vi: 'Dòng đang đứng; bấm tiếp để cắt dòng sau.' }, runs: 'Ctrl+K' },
+            ],
+          },
+          {
+            tone: 'work',
+            title: { en: 'vim', vi: 'vim' },
+            note: { en: 'Only if it opened instead of nano', vi: 'Chỉ khi nó mở thay cho nano' },
+            rows: [
+              { icon: '✏', name: { en: 'Start typing', vi: 'Bắt đầu gõ' }, does: { en: 'vim ignores typing until you press `i`; `-- INSERT --` appears at the bottom.', vi: 'vim không nhận chữ cho tới khi bấm `i`; đáy màn hình hiện `-- INSERT --`.' }, runs: 'i' },
+              { icon: '💾', name: { en: 'Save and leave', vi: 'Lưu và thoát' }, does: { en: 'Esc first, then type `:wq` (it shows at the bottom) and Enter.', vi: 'Bấm Esc trước, rồi gõ `:wq` (hiện ở đáy màn hình) và Enter.' }, runs: 'Esc  →  :wq  →  Enter' },
+              { icon: '↩', name: { en: 'Leave, keep nothing', vi: 'Thoát, không lưu' }, does: { en: 'Made a mess? This leaves the old crontab untouched.', vi: 'Lỡ sửa hỏng? Lệnh này thoát và giữ nguyên crontab cũ.' }, runs: 'Esc  →  :q!  →  Enter' },
+            ],
+          },
+        ],
+        where: 'vm',
+      },
+      {
+        h: { en: 'What each line runs', vi: 'Mỗi dòng chạy cái gì' },
+        p: [
+          {
+            en: 'Five time fields, then the command: minute · hour · day · month · weekday (0 Sun … 6 Sat). `1-5` = Mon–Fri, `2-6` = Tue–Sat, `*` = every. `>> state/….log 2>&1` keeps the output and the errors in that log.',
+            vi: 'Năm ô thời gian rồi tới lệnh: phút · giờ · ngày · tháng · thứ (0 Chủ nhật … 6 thứ Bảy). `1-5` = thứ Hai–thứ Sáu, `2-6` = thứ Ba–thứ Bảy, `*` = mọi giá trị. `>> state/….log 2>&1` ghi kết quả và lỗi vào file log đó.',
+          },
+        ],
+        buttons: [
+          {
+            tone: 'work',
+            title: { en: 'Yesterday’s session', vi: 'Phiên hôm trước' },
+            note: { en: 'Tue–Sat, before the open', vi: 'Thứ Ba–thứ Bảy, trước giờ mở cửa' },
+            rows: [
+              {
+                icon: '🌙', name: { en: 'nightly.py · 08:00', vi: 'nightly.py · 08:00' },
+                does: {
+                  en: 'The swing chain on the session that closed yesterday: candles → baseline → regime → sectors → bases → BO/RV/LEAD setups → push to this site → Telegram summary. A failed stage still pushes and says which one.',
+                  vi: 'Chuỗi swing trên phiên đã đóng hôm qua: nến → baseline → regime → ngành → nền giá → setup BO/RV/LEAD → đẩy lên trang này → tóm tắt Telegram. Một bước lỗi thì vẫn đẩy và báo rõ bước nào.',
+                },
+                runs: '0 8 * * 2-6',
+              },
+              {
+                icon: '⬆', name: { en: 'push.py --all · 08:30', vi: 'push.py --all · 08:30' },
+                does: { en: 'Pushes the heavy snapshot again (candidates, rejects, regime, sectors) — the backup in case the nightly push hit a network error.', vi: 'Đẩy lại snapshot nặng (ứng viên, mã bị loại, regime, ngành) — lần dự phòng nếu lần đẩy của nightly gặp lỗi mạng.' },
+                runs: '30 8 * * 2-6',
+              },
+            ],
+          },
+          {
+            tone: 'safe',
+            title: { en: 'The live session', vi: 'Phiên live' },
+            note: { en: 'Mon–Fri, market days', vi: 'Thứ Hai–thứ Sáu, ngày sàn mở' },
+            rows: [
+              { icon: '🏷', name: { en: 'mark_etf.py · 09:00', vi: 'mark_etf.py · 09:00' }, does: { en: 'Marks ETFs and exchange test issues from Nasdaq Trader so the live scanner does not alert on them.', vi: 'Đánh dấu ETF và mã thử nghiệm của sàn từ Nasdaq Trader để scanner live không báo nhầm.' }, runs: '0 9 * * 1-5' },
+              { icon: '↻', name: { en: 'restart scanner · 09:05', vi: 'restart scanner · 09:05' }, does: { en: '`main.py` loads the baseline only at start, so it restarts after the morning jobs — otherwise it trades the session on yesterday’s numbers.', vi: '`main.py` chỉ nạp baseline lúc khởi động, nên phải khởi động lại sau các job buổi sáng — nếu không cả phiên dùng số của hôm qua.' }, runs: '5 9 * * 1-5' },
+              { icon: '💓', name: { en: 'push.py --status · every minute', vi: 'push.py --status · mỗi phút' }, does: { en: 'The light heartbeat (alive, scans, today’s alerts) that makes the Scanner page say Alive or Quiet. 04:00–20:59 only.', vi: 'Nhịp tim nhẹ (còn sống, số lượt quét, alert hôm nay) để trang Scanner hiện Đang chạy hay Im lặng. Chỉ 04:00–20:59.' }, runs: '* 4-20 * * 1-5' },
+            ],
+          },
+          {
+            tone: 'stop',
+            title: { en: 'Weekly', vi: 'Hằng tuần' },
+            note: { en: 'Saturday morning', vi: 'Sáng thứ Bảy' },
+            rows: [
+              { icon: '🧹', name: { en: 'prep.py · 06:30', vi: 'prep.py · 06:30' }, does: { en: 'Rebuilds the baseline for the whole universe (ADV20, ATR14, previous close, SEC CIK) and drops tickers that trade too thin.', vi: 'Dựng lại baseline cho toàn bộ danh sách mã (ADV20, ATR14, giá đóng cửa trước, CIK bên SEC) và loại các mã thanh khoản quá kém.' }, runs: '30 6 * * 6' },
+            ],
+          },
+        ],
+      },
+      {
         h: { en: 'Check what is installed and that it fires', vi: 'Kiểm tra lịch đã cài và có chạy đúng giờ không' },
+        p: [
+          {
+            en: '`crontab -l` must print the lines exactly as above, the `CRON_TZ` line included.',
+            vi: '`crontab -l` phải in ra đúng các dòng ở trên, kể cả dòng `CRON_TZ`.',
+          },
+        ],
         cmd: 'crontab -l\ngrep CRON /var/log/syslog | tail',
         where: 'vm',
       },
