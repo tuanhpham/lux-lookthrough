@@ -44,10 +44,10 @@ function esc(s: string): string {
 }
 
 const WORDS = {
-  ttl: { vi: '🏷 Lý do bán', en: '🏷 Exit reasons' },
+  ttl: { vi: 'Lý do bán', en: 'Exit reasons' },
   lead: {
-    vi: 'Các lý do dưới đây có sẵn trong app — xem được nhưng không sửa được, vì mỗi lý do là một key đã gắn vào các lệnh ghi trước đây; đổi tên là đổi luôn ý nghĩa của cả năm nhật ký. Lý do tự thêm nằm ở cuối và hiện ngay trong ô "Vì sao bán" của Trade Planner và phần Bán.',
-    en: 'The list below is what the app ships — readable, not editable, because each row is a key already stored on trades you filed earlier, and renaming one would rewrite what a year of records say happened. Your own rows are at the bottom and show up straight away in the exit-reason field of the Trade Planner and of Sell.',
+    vi: 'Lý do có sẵn không đổi tên được (lệnh cũ đã gắn với chúng), nhưng bỏ khỏi danh sách được — lệnh cũ vẫn giữ tên. Lý do bạn tự thêm sửa, xoá thoải mái.',
+    en: 'Shipped reasons cannot be renamed (old trades point at them), but they can be taken off the list — old trades keep the name. Your own reasons are yours to add and delete.',
   },
   builtin: { vi: 'Có sẵn', en: 'Shipped' },
   mine: { vi: 'Của tôi', en: 'Mine' },
@@ -77,22 +77,21 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
   let hidden = new Set(hiddenExitReasons());
 
   const host = document.createElement('div');
-  host.className = 'modal';
+  host.className = 'dialog-host';
   host.innerHTML = `
-    <div class="modal-backdrop"></div>
-    <div class="modal-panel" style="max-width:700px">
-      <div class="modal-head">
-        <div>${w('ttl')}</div>
-        <button class="xr-x" aria-label="Close">×</button>
-      </div>
-      <div class="modal-body" style="padding:16px;max-height:76vh;overflow:auto">
-        <p class="muted" style="font-size:12px;line-height:1.6;margin:0 0 14px">${w('lead')}</p>
+    <div class="dialog-backdrop"></div>
+    <div class="dialog xr-dialog" role="dialog" aria-modal="true">
+      <div class="dialog-head"><span class="dialog-ic">🏷</span><div>
+        <div class="dialog-title">${w('ttl')}</div>
+        <div class="dialog-sub">${w('lead')}</div>
+      </div></div>
+      <div class="dialog-body">
         <div class="xr-list" id="xr-list"></div>
-        <div id="xr-msg" class="muted" style="font-size:12px;min-height:18px;margin:10px 0"></div>
-        <div class="row" style="justify-content:flex-end;gap:8px">
-          <button id="xr-cancel" class="btn-outline">${w('cancel')}</button>
-          <button id="xr-save" class="btn">${w('save')}</button>
-        </div>
+        <div id="xr-msg" class="xr-msg"></div>
+      </div>
+      <div class="dialog-actions">
+        <button id="xr-cancel" class="ui-btn ghost">${w('cancel')}</button>
+        <button id="xr-save" class="ui-btn primary">${w('save')}</button>
       </div>
     </div>`;
   document.body.appendChild(host);
@@ -106,43 +105,36 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
     ).join('');
 
   const draw = (): void => {
-    // Drawn through `exitReasonsFrom` rather than from the two arrays by hand, so what the table
+    // Drawn through `exitReasonsFrom` rather than from the two arrays by hand, so what the list
     // shows is exactly what the dropdown will show — including a row dropped for a key collision.
     const all = exitReasonsFrom(mine);
     const sections = EXIT_GROUPS.map((g) => {
       const rows = all.filter((r) => r.group === g.key);
-      const cells = rows.map((r) => `
-        <tr>
-          <td style="padding:3px 6px${hidden.has(r.key) ? ';text-decoration:line-through;opacity:.5' : ''}">${esc(vi ? r.vi : r.en)}</td>
-          <td style="padding:3px 6px;text-align:right;white-space:nowrap">
-            ${r.builtin
-              ? hidden.has(r.key)
-                ? `<span class="badge" style="font-size:10px;color:var(--faint)">${w('hidden')}</span>
-                   <button type="button" class="btn-outline mini-btn" data-xr-show="${esc(r.key)}">↺ ${w('restore')}</button>`
-                : `<span class="badge" style="font-size:10px;background:color-mix(in srgb,var(--faint) 14%,transparent);color:var(--faint)">${w('builtin')}</span>
-                   <button type="button" class="btn-outline mini-btn" data-xr-hide="${esc(r.key)}" title="${w('hide')}">✕</button>`
-              : `<button type="button" class="btn-outline mini-btn" data-xr-del="${esc(r.key)}"
-                   title="${w('del')}">✕</button>`}
-          </td>
-        </tr>`).join('');
-      return `
-        <div class="section-title" style="margin-top:12px">${esc(vi ? g.vi : g.en)}</div>
-        ${rows.length
-          ? `<table style="border-collapse:collapse;width:100%;font-size:12.5px">${cells}</table>`
-          : `<p class="muted" style="font-size:11.5px;margin:0">${g.key === 'mine' ? w('empty') : '—'}</p>`}`;
+      if (!rows.length && g.key !== 'mine') return '';
+      const live = rows.filter((r) => !hidden.has(r.key)).length;
+      const cells = rows.map((r) => {
+        const off = hidden.has(r.key);
+        const tag = r.builtin
+          ? `<span class="ui-pill${off ? ' muted' : ''}">${off ? w('hidden') : w('builtin')}</span>`
+          : `<span class="ui-pill accent">${w('mine')}</span>`;
+        const act = r.builtin
+          ? off
+            ? `<button type="button" class="ui-btn sm ghost" data-xr-show="${esc(r.key)}">↺ ${w('restore')}</button>`
+            : `<button type="button" class="ui-icon-btn danger" data-xr-hide="${esc(r.key)}" title="${w('hide')}" aria-label="${w('hide')}">✕</button>`
+          : `<button type="button" class="ui-icon-btn danger" data-xr-del="${esc(r.key)}" title="${w('del')}" aria-label="${w('del')}">✕</button>`;
+        return `<div class="xr-row${off ? ' off' : ''}"><span class="xr-label">${esc(vi ? r.vi : r.en)}</span>${tag}${act}</div>`;
+      }).join('');
+      return `<section class="xr-group">
+          <div class="xr-gh"><span>${esc(vi ? g.vi : g.en)}</span><span class="xr-gc">${live}/${rows.length}</span></div>
+          ${rows.length ? `<div class="xr-rows">${cells}</div>` : `<div class="xr-empty">${w('empty')}</div>`}
+        </section>`;
     }).join('');
 
     list.innerHTML = `${sections}
-      <div class="row" style="gap:8px;margin-top:12px;align-items:flex-end;flex-wrap:wrap">
-        <label class="field-label" style="flex:1 1 240px;margin:0">
-          ${w('newLabel')}
-          <input class="field" id="xr-new" type="text" style="width:100%;padding:5px 7px;font-size:12px" />
-        </label>
-        <label class="field-label" style="margin:0">
-          ${w('group')}
-          <select class="field" id="xr-newgroup" style="padding:5px 7px;font-size:12px">${groupOpts('mine')}</select>
-        </label>
-        <button type="button" class="btn-outline" id="xr-add">${w('add')}</button>
+      <div class="xr-add">
+        <input class="field" id="xr-new" type="text" placeholder="${w('newLabel')}" aria-label="${w('newLabel')}" />
+        <select class="field" id="xr-newgroup" aria-label="${w('group')}">${groupOpts('mine')}</select>
+        <button type="button" class="ui-btn primary" id="xr-add">${w('add')}</button>
       </div>`;
 
     list.querySelectorAll<HTMLElement>('[data-xr-hide]').forEach((b) =>
@@ -155,7 +147,7 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
         draw();
       }),
     );
-    list.querySelector('#xr-add')!.addEventListener('click', () => {
+    const add = (): void => {
       const box = list.querySelector('#xr-new') as HTMLInputElement;
       const label = box.value.trim();
       if (!label) return;
@@ -173,15 +165,16 @@ export async function openExitReasonsDialog(ctx: AppContext): Promise<boolean> {
       mine = [...mine, { key: exitReasonKeyFor(label, exitReasonsFrom(mine).map((r) => r.key)), label, group }];
       draw();
       (list.querySelector('#xr-new') as HTMLInputElement | null)?.focus();
-    });
+    };
+    list.querySelector('#xr-add')!.addEventListener('click', add);
+    list.querySelector('#xr-new')!.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') add(); });
   };
 
   draw();
 
   return new Promise<boolean>((resolve) => {
     const close = (changed: boolean): void => { host.remove(); resolve(changed); };
-    host.querySelector('.modal-backdrop')!.addEventListener('click', () => close(false));
-    host.querySelector('.xr-x')!.addEventListener('click', () => close(false));
+    host.querySelector('.dialog-backdrop')!.addEventListener('click', () => close(false));
     host.querySelector('#xr-cancel')!.addEventListener('click', () => close(false));
     host.querySelector('#xr-save')!.addEventListener('click', () => {
       void saveCustomExitReasons(ctx, mine, [...hidden]).then(() => close(true), () => close(false));

@@ -9220,3 +9220,116 @@ html:not(.light) select option, html:not(.light) select optgroup { background-co
 html.light select option, html.light select optgroup { background-color: #ffffff; color: #1b1726; }
 select optgroup { font-weight: 700; }
 .stn-left > .stn-ticket, .stn-left > .stn-side { grid-area: auto; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   UI KIT (CHAT-86, 2026-10-03) — the one set of controls every screen uses from now on.
+   Rules: one button shape (pill), three weights (default / primary / ghost) and one
+   destructive tone; one icon button; one pill/tag; one dropdown look on every OS. New
+   markup uses these classes instead of inventing a local style. Documented in
+   design-system-prompt.md §"Component standards".
+   ══════════════════════════════════════════════════════════════════════════════ */
+#main .ui-btn, .ui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 16px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  font: 650 13px var(--font-ui); line-height: 1; letter-spacing: -.003em;
+  color: var(--text); background: var(--surface); border: 1px solid var(--border-soft);
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .12s ease, filter .15s ease;
+}
+#main .ui-btn:hover:not([disabled]), .ui-btn:hover:not([disabled]) { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
+#main .ui-btn:active:not([disabled]), .ui-btn:active:not([disabled]) { transform: translateY(1px); }
+#main .ui-btn[disabled], .ui-btn[disabled] { opacity: .45; cursor: not-allowed; }
+#main .ui-btn.sm, .ui-btn.sm { height: 30px; padding: 0 12px; font-size: 12px; }
+#main .ui-btn.primary, .ui-btn.primary {
+  color: var(--accent-ink, #fff); border-color: transparent;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 8px 20px -12px var(--accent);
+}
+#main .ui-btn.primary:hover:not([disabled]), .ui-btn.primary:hover:not([disabled]) {
+  color: var(--accent-ink, #fff); border-color: transparent; filter: brightness(1.07);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff), var(--accent));
+}
+#main .ui-btn.ghost, .ui-btn.ghost { background: transparent; }
+#main .ui-btn.danger, .ui-btn.danger { color: var(--down); border-color: color-mix(in srgb, var(--down) 40%, transparent); background: color-mix(in srgb, var(--down) 9%, transparent); }
+#main .ui-btn.danger:hover:not([disabled]), .ui-btn.danger:hover:not([disabled]) { color: #fff; border-color: var(--down); background: var(--down); }
+#main .ui-icon-btn, .ui-icon-btn {
+  width: 30px; height: 30px; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; flex: none;
+  font-size: 12px; line-height: 1; cursor: pointer; color: var(--subtext); background: var(--surface); border: 1px solid var(--border-soft);
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+#main .ui-icon-btn:hover, .ui-icon-btn:hover { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
+#main .ui-icon-btn.danger:hover, .ui-icon-btn.danger:hover { color: #fff; border-color: var(--down); background: var(--down); }
+.ui-pill {
+  --p: var(--faint);
+  display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; white-space: nowrap;
+  font: 700 11px var(--font-ui); color: var(--p); background: color-mix(in srgb, var(--p) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p) 32%, transparent);
+}
+.ui-pill.accent { --p: var(--accent); }
+.ui-pill.up { --p: var(--up); }
+.ui-pill.down { --p: var(--down); }
+.ui-pill.warn { --p: var(--warn); }
+.ui-pill.muted { opacity: .7; }
+
+/* One dropdown on every OS: the browser's own arrow and colours are replaced, so Windows and
+   macOS draw the same control, and every select (account, setup, grade, reason) matches. */
+:root { --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b4b3c8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+html.light { --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23776f61' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+html select.field, html #main select.field, html .dialog select.field {
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+  padding-right: 34px; border-radius: 10px;
+  font: 600 13px var(--font-ui); color: var(--text);
+  background-image: var(--chev); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 8px;
+}
+html select.field:not([multiple]), html #main select.field:not([multiple]) { min-height: 36px; }
+html #main .stn-f select.field, html #main .stn select.field { height: 38px; font: 600 13px var(--font-ui); }
+
+/* ══ Exit-reason dialog in the kit ══ */
+.dialog.xr-dialog { width: min(640px, 96vw); }
+.xr-list { display: grid; gap: 12px; }
+.xr-group { border: 1px solid var(--border-soft); border-radius: 14px; overflow: hidden; background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.xr-gh { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); background: var(--surface); }
+.xr-gc { font: 600 10.5px var(--font-mono); letter-spacing: 0; }
+.xr-rows { display: grid; }
+.xr-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 8px 7px 12px; }
+.xr-row + .xr-row { border-top: 1px solid var(--border-soft); }
+.xr-row.off .xr-label { text-decoration: line-through; opacity: .5; }
+.xr-label { font-size: 13px; color: var(--text); min-width: 0; }
+.xr-empty { padding: 10px 12px; font-size: 12px; color: var(--faint); }
+.xr-add { display: grid; grid-template-columns: minmax(0, 1fr) 170px auto; gap: 8px; align-items: center; padding: 12px; border-radius: 14px; border: 1px dashed var(--border); }
+#main .xr-add .field, .xr-add .field { height: 36px; width: 100%; margin: 0; }
+.xr-msg { min-height: 16px; font-size: 12px; color: var(--warn); margin-top: 6px; }
+@media (max-width: 560px) { .xr-add { grid-template-columns: 1fr; } }
+
+/* ══ Trạm giao dịch, CHAT-86: ladder over the ticket · strip, tabs, chart · plan ══ */
+.stn {
+  grid-template-columns: 340px minmax(0, 1fr) 400px;
+  grid-template-areas: "bar bar bar" "left center plan";
+  grid-template-rows: auto 1fr;
+}
+.stn-center { grid-area: center; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.stn-center > .stn-main, .stn-center > .stn-bottom { grid-area: auto; }
+.stn-center > .stn-strip2 { margin: 0; }
+.stn-left .stn-side-in .stn-ladder { padding-bottom: 0; border-bottom: 0; }
+@media (max-width: 1599px) and (min-width: 901px) {
+  .stn { grid-template-columns: 330px minmax(0, 1fr); grid-template-areas: "bar bar" "left center" "left plan"; grid-template-rows: auto auto 1fr; }
+}
+@media (max-width: 900px) {
+  .stn { grid-template-columns: minmax(0, 1fr); grid-template-areas: "bar" "center" "left" "plan"; grid-template-rows: none; }
+}
+/* the grade box (renamed: it used to share the ticker chip's class and its 999px radius) */
+.stn-gradebox { display: grid; gap: 8px; }
+.stn-gradebox .tp-crit-list { max-height: none; }
+/* the playbook's size in the strip; amber when the ticket says something else */
+.stn-k-pb { border-left: 3px solid var(--accent); }
+.stn-k-pb.off { border-left-color: var(--warn); }
+.stn-k-pb.off b { color: var(--warn); }
+/* Lists tab: each list a fold of symbol chips */
+.stn-list-tab { display: grid; gap: 8px; max-height: none; overflow: visible; }
+.stn-list-tab .stn-grp > summary { position: static; }
+.stn-list-tab .stn-grp-b { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 10px; }
+.stn-list-tab .stn-li { width: auto; gap: 8px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--surface); }
+.stn-list-tab .stn-li:hover { border-color: var(--accent-line); background: var(--accent-wash); }
+.stn-list-tab .stn-li.on { border-color: var(--accent); background: var(--accent-wash); }
+/* strip cells size to what they say and wrap to a second row, rather than cutting a number off */
+.stn-k { flex: 1 1 auto; }
+.stn-k b { overflow: visible; text-overflow: clip; }

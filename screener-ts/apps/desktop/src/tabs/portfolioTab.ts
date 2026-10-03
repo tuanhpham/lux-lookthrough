@@ -1438,9 +1438,9 @@ function draw(ctx: AppContext): void {
           <!-- Reset sits up here rather than beside Buy on purpose: it is about the FORM, and a
                button that empties everything is the last thing that should be a thumb's width
                from the one that places the trade. -->
-          <button id="b-reset" class="btn-outline mini-btn"
+          <button id="b-reset" class="btn-outline mini-btn ui-btn sm ghost"
             title="${t('pf.buy.resettitle')}">✕ ${t('pf.buy.reset')}</button>
-          <button id="b-playbook-cfg" class="btn-outline mini-btn"
+          <button id="b-playbook-cfg" class="btn-outline mini-btn ui-btn sm"
             title="${getLang() === 'vi'
               ? 'Chỉnh các số mặc định của Playbook: stop, target, size theo từng setup'
               : 'Change the playbook’s default numbers: stops, targets and size per setup'}"
@@ -1448,7 +1448,7 @@ function draw(ctx: AppContext): void {
           <!-- Beside the playbook rather than inside the Sell dialog: formDialog is a fixed list
                of fields with nowhere to put a button, and a settings corner is where a user looks
                for a list they can edit. The reasons themselves are picked in the Sell dialog. -->
-          <button id="b-exitreasons" class="btn-outline mini-btn"
+          <button id="b-exitreasons" class="btn-outline mini-btn ui-btn sm"
             title="${getLang() === 'vi'
               ? 'Quản lý danh sách lý do bán — lý do tự thêm sẽ hiện ở ô Vì sao bán và trong Trade Planner'
               : 'Manage the exit-reason list — add your own, and they show up when you sell and in the Trade Planner'}"

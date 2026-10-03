@@ -415,6 +415,41 @@ native option lists stay legible. Labels: `600 11px uppercase .06em --subtext`, 
 **Form panels**: a long filter form is one card with NUMBERED rows (`01 Strategy`, `02 Universe` …
 label = mono number + name, counter skips hidden rows) and an actions band at the bottom.
 
+## 6b. Component standards (the UI kit — use these, never a local one-off)
+
+Added 2026-10-03 after the Trade Station grew five button styles and three dropdown looks.
+Any NEW markup picks from this list; an old screen that is touched is moved onto it.
+
+- **Button** `.ui-btn` — ONE shape: a pill, `height 36px; padding 0 16px; radius 999px;
+  650 13px; 1px --border-soft; background --surface; color --text`. Hover = accent wash +
+  `--accent-line` border + accent text; active `translateY(1px)`; disabled opacity .45.
+  Sizes: default 36px, `.sm` 30px / 12px. Weights: default · `.primary` (accent gradient
+  `color-mix(accent 86%, #fff) → accent`, inset top highlight, accent glow, white text) ·
+  `.ghost` (transparent) · `.danger` (red text on red 9% wash; hover fills solid red, white
+  text). Never two primaries side by side. Destructive = `.danger`, never accent.
+- **Icon button** `.ui-icon-btn` — a 30px circle for ✕ / ↺ / ✎ beside a row; same surface
+  and border; `.danger` fills red on hover. Always with `aria-label`.
+- **Pill / tag** `.ui-pill` — `height 22px; padding 0 9px; radius 999px; 700 11px`, colour from
+  `--p` with 12% fill and 32% border. Tones: default (faint), `.accent`, `.up`, `.down`,
+  `.warn`, `.muted`. Status words (Shipped, Mine, Open, Win, Buy, Sell) are pills, not text.
+- **Dropdown** — every `select.field` is `appearance: none` with the app's own chevron
+  (`--chev`, a 12×8 SVG, colour per theme), `padding-right 34px; radius 10px; 600 13px
+  --font-ui; min-height 36px`, `--field-bg` / `--field-line`. The browser's arrow and font are
+  never shown, so Windows and macOS draw the same control. Option lists: dark list + light text
+  in dark mode, white list + dark text in light (set on `option, optgroup`).
+- **Number strip** — key figures of a form go in a strip of tiles ABOVE the thing they describe
+  (`small` 10px uppercase label + `b` 13.5px mono value), sized to content and wrapping, never
+  truncated. Green/red only for gain/loss; amber when a value disagrees with its rule.
+- **Table rows** — a grid per table (`display:grid` with fixed column tracks), a head row in
+  10px uppercase `--faint` on `--surface`, rows `padding 10px 14px` with hairline separators,
+  numbers right-aligned mono, actions right-aligned as `.ui-btn.sm`. ≤760px: two columns, head hidden.
+- **Dialog** — `.dialog-host > .dialog-backdrop + .dialog` with `.dialog-head` (icon tile +
+  title + sub), `.dialog-body`, `.dialog-actions` (ghost Cancel, primary Save). Grouped lists
+  inside a dialog are rounded sections with an uppercase head band and a count.
+- **Class names are namespaced per screen** (`stn-…`, `xr-…`) and never reused for a different
+  element: a container once inherited a chip's `border-radius: 999px` through a shared name
+  and was drawn as a giant ellipse.
+
 ## 7. Tables
 
 ```css

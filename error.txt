@@ -6220,3 +6220,11 @@ CHAT-85 (2026-10-03) - Tram: bo cuc moi (trai: phieu lenh + thang gia + danh sac
 - openStation(sym, date, accountId): nut Mo Tram o form Mua va dong vi the cua Danh muc chon san tai khoan dang mo.
 - Dropdown (option/optgroup) co nen + chu theo giao dien (toi: nen toi chu sang; sang: nen trang chu toi) -> het chu trang tren nen trang o "Ly do ban".
 - Kiem tra: tsc OK, vitest 452, vite build OK, anh headless 1920 toi / 1400 sang.
+
+CHAT-86 (2026-10-03) - Bo quy chuan giao dien (UI kit) + Tram sap xep lai + hop thoai Ly do ban moi
+- Hinh "om tron" sau bang diem: khung bang diem dung chung ten class stn-grade voi vien diem tren thanh gia (border-radius 999px) -> ve thanh elip 374x657. Doi ten thanh stn-gradebox.
+- Tram: trai = thang muc gia (tren) + phieu Mua/Ban; giua = dai so lieu, khoi tab (Danh sach · Vi the · Lenh cho · Lich su khop · Case study), roi chart; phai = Ke hoach. Tab "Danh sach" moi: Dang giu + tung watchlist, moi danh sach mot the gap/mo voi cac vien ma.
+- Bo khung co lenh trong Ke hoach (kho doc, khong doi theo so luong). Dai so lieu tren chart them "Co theo playbook" (day du -> % theo diem -> so cp; mau vang khi phieu lenh khac playbook) va "Muc rui ro" (% von · thi truong); cac o tu gian theo noi dung, khong cat chu.
+- UI kit trong styles.css (ghi o design-system-prompt.md §6b): .ui-btn (vien tron; .sm, .primary, .ghost, .danger), .ui-icon-btn (tron 30px), .ui-pill (tone accent/up/down/warn/muted); moi select.field: appearance none + mui ten rieng cua app (--chev theo giao dien), cung font/cao/bo goc -> Windows va Mac nhu nhau; option/optgroup co mau theo giao dien. Quy tac: dai so lieu dat tren thu no mo ta; bang = grid co dong tieu de; hop thoai = dialog-head/body/actions; ten class co tien to theo man hinh, khong dung lai cho phan tu khac.
+- Ap dung: nut Playbook/Ly do ban trong Tram, nut Ban/Huy duoi chart, 3 nut form Mua o Danh muc, hop thoai Ly do ban (viet lai: dialog chuan, moi nhom la mot khoi bo goc co dem so, moi dong co vien "Co san"/"Cua toi"/"Da bo" + nut ✕ tron hoac "↺ Khoi phuc", hang them ly do + Enter de them).
+- Kiem tra: tsc OK, vitest 452, vite build OK, anh headless Tram 1920, hop thoai Ly do ban toi/sang.

@@ -62,7 +62,7 @@ function esc(s: string): string {
 
 type Ccy = 'EUR' | 'USD';
 type Side = 'buy' | 'sell';
-type BottomTab = 'pos' | 'orders' | 'hist' | 'cases';
+type BottomTab = 'list' | 'pos' | 'orders' | 'hist' | 'cases';
 type Pick = 'price' | 'stop' | 'target';
 
 const SYM_KEY = 'station_sym';
@@ -124,7 +124,7 @@ let earnReports: EarningsReport[] = [];
 /** The ticket's currency picked by the user, kept across symbols. Null = follow the account. */
 let ccyChoice: Ccy | null = null;
 let ticket: Ticket = freshTicket();
-let bottom: BottomTab = 'pos';
+let bottom: BottomTab = 'list';
 let chart: CandleChart | null = null;
 let msg: { err: boolean; text: string } | null = null;
 /** The study the last "case study only" filed, so the message can open it. */
@@ -410,18 +410,20 @@ function paint(ctx: AppContext, root: HTMLElement): void {
     <div class="stn">
       ${tickerBarHtml()}
       <div class="stn-left">
+        <aside class="stn-side card"><div class="stn-side-in">${ladderHtml()}</div></aside>
         <aside class="stn-ticket card"><div class="stn-ticket-in" id="stn-ticket">${ticketHtml()}</div></aside>
-        <aside class="stn-side card"><div class="stn-side-in">${ladderHtml()}${listHtml()}</div></aside>
       </div>
+      <div class="stn-center">
+      <div class="stn-strip2" id="stn-strip">${stripHtml()}</div>
+      <section class="stn-bottom card">${bottomHtml()}</section>
       <section class="stn-main card">
-        <div class="stn-strip2" id="stn-strip">${stripHtml()}</div>
         ${pickBarHtml()}
         <div class="stn-emas">${EMA_CONFIG.map((e) => `<button class="range-btn${emaState[e.period] ? ' active' : ''}" data-stn-ema="${e.period}">EMA${e.period}</button>`).join('')}
           <button class="range-btn${showEarnings ? ' active' : ''}" data-stn-earn title="${L('Earnings report dates', 'Ngày công bố KQKD')}">⬤ E</button></div>
         <div class="stn-chart${pick ? ' picking' : ''}" id="stn-chart"></div>
       </section>
+      </div>
       <section class="stn-plan card" id="stn-plan">${planPanelHtml()}</section>
-      <section class="stn-bottom card">${bottomHtml()}</section>
     </div>
     <div class="stn-dock">
       <button class="stn-dock-b stn-buy" data-stn-dock="buy">${L('Buy', 'Mua')}</button>
@@ -509,7 +511,7 @@ function listHtml(): string {
     list.held.length ? grp('held', '💼', L('Held', 'Đang giữ'), list.held, heldTag) : '',
     ...list.watch.map((w) => grp(`wl:${w.name}`, '⭐', w.name, w.syms)),
   ].join('');
-  return `<div class="stn-list">${groups || `<div class="stn-empty">${L('No positions or watchlists yet — type a symbol above.', 'Chưa có vị thế hay watchlist — gõ mã ở ô phía trên.')}</div>`}</div>`;
+  return `<div class="stn-list stn-list-tab">${groups || `<div class="stn-empty">${L('No positions or watchlists yet — type a symbol above.', 'Chưa có vị thế hay watchlist — gõ mã ở ô phía trên.')}</div>`}</div>`;
 }
 
 /** The plan's levels against the price — the swing trader's order book. */
@@ -560,8 +562,8 @@ function planPanelHtml(): string {
       <div class="stn-ph-t"><b>📋 ${L('Trade plan', 'Kế hoạch giao dịch')}</b>
         <small>${L('scored live from the chart and the ticket', 'tự chấm theo chart và phiếu lệnh')}</small></div>
       <div class="stn-tools">
-        <button class="stn-tool" data-stn-playbook title="${L('The playbook: stops, targets and size per setup, the risk ladder, the grade lines', 'Playbook: stop, target và cỡ lệnh theo từng setup, thang rủi ro, ngưỡng điểm')}"><span>⚙</span>Playbook</button>
-        <button class="stn-tool" data-stn-reasons title="${L('The exit-reason list: add yours, remove the ones you never use', 'Danh sách lý do bán: thêm lý do của bạn, bỏ những lý do không dùng')}"><span>🏷</span>${L('Exit reasons', 'Lý do bán')}</button>
+        <button class="ui-btn sm" data-stn-playbook title="${L('The playbook: stops, targets and size per setup, the risk ladder, the grade lines', 'Playbook: stop, target và cỡ lệnh theo từng setup, thang rủi ro, ngưỡng điểm')}">⚙ Playbook</button>
+        <button class="ui-btn sm" data-stn-reasons title="${L('The exit-reason list: add yours, remove the ones you never use', 'Danh sách lý do bán: thêm lý do của bạn, bỏ những lý do không dùng')}">🏷 ${L('Exit reasons', 'Lý do bán')}</button>
       </div>
     </div>
     <div class="stn-row2">
@@ -587,7 +589,8 @@ function planPanelHtml(): string {
     </div>` : '';
   const asof = pastPlan ? `<div class="stn-asof">⏪ ${L(`Graded on the chart as it was after the close of ${ticket.date} — the market of that day. The account (cash, equity, open risk) is today's.`,
     `Chấm theo chart tính đến phiên ${ticket.date} — thị trường của ngày đó. Tài khoản (tiền mặt, vốn, rủi ro đang mở) là hiện tại.`)}</div>` : '';
-  return `${head}${asof}${eventsHtml()}<div class="stn-grade">${body}</div>${sizing}`;
+  void sizing; // the sizing now lives in the strip above the chart, where it follows the ticket
+  return `${head}${asof}${eventsHtml()}<div class="stn-gradebox">${body}</div>`;
 }
 
 /** The events saved on the plan, with the finder's button — the catalysts this trade is taken against. */
@@ -760,7 +763,22 @@ function stripHtml(): string {
     ${cell(L('Fee', 'Phí'), cash(fee, ac))}
     ${isBuy ? cell(L('Risk', 'Rủi ro'), risk === null ? '—' : `${cash(risk, ac)} · ${equity > 0 ? fmt((risk / equity) * 100) : '—'}%`, 'down') : cell(L('Realised', 'Lãi/lỗ thực hiện'), pnl === null ? '—' : `${pnl >= 0 ? '+' : ''}${cash(pnl, ac)}`, pnl !== null && pnl < 0 ? 'down' : 'up')}
     ${isBuy ? cell('R:R', rr === null ? '—' : `${fmt(rr, 1)}R`, rr !== null && rr >= 2 ? 'up' : '') : ''}
-    ${cell(L('Cash after', 'Tiền mặt sau'), cash(nowCash, ac), nowCash < 0 ? 'down' : '')}`;
+    ${cell(L('Cash after', 'Tiền mặt sau'), cash(nowCash, ac), nowCash < 0 ? 'down' : '')}
+    ${isBuy ? playbookCells() : ''}`;
+}
+
+/** What the playbook would buy, so a ticket that differs from it shows it does. */
+function playbookCells(): string {
+  const s = suggestion;
+  if (!s) return '';
+  const g = effective();
+  const pct = g ? ladderConfig().ratingPct[g] : 100;
+  const rg = s.regime?.regime ?? currentRegime()?.regime ?? null;
+  const mine = Math.round(ticket.shares ?? 0);
+  const off = mine > 0 && s.size.shares > 0 && mine !== s.size.shares;
+  return `<div class="stn-k stn-k-pb${off ? ' off' : ''}" title="${L('Full size, then the grade’s share of it', 'Cỡ đầy đủ, rồi phần theo điểm')}">
+      <small>${L('Playbook size', 'Cỡ theo playbook')}</small><b>${fmt(s.size.fullShares, 0)} → ${pct}% → ${fmt(s.size.shares, 0)} ${L('sh', 'cp')}</b></div>
+    <div class="stn-k"><small>${L('Risk budget', 'Mức rủi ro')}</small><b>${fmt(s.budget.pct)}% · ${esc(rg ?? '—')}</b></div>`;
 }
 
 /** The finder's note and events waiting for this buy: shown, editable, removable. */
@@ -803,7 +821,7 @@ function fifoPreview(st: (typeof accounts)[number], shares: number, px: number):
 function bottomHtml(): string {
   const tab = (k: BottomTab, label: string): string => `<button class="${bottom === k ? 'on' : ''}" data-stn-bottom="${k}">${label}</button>`;
   return `<div class="stn-btabs seg">
-      ${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}
+      ${tab('list', `${L('Lists', 'Danh sách')}${list.held.length + list.watch.length ? ` · ${list.held.length + list.watch.length}` : ''}`)}${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}
     </div>
     <div class="stn-bbody" id="stn-bbody"></div>`;
 }
@@ -811,6 +829,13 @@ function bottomHtml(): string {
 async function paintBottom(ctx: AppContext, root: HTMLElement): Promise<void> {
   const body = root.querySelector<HTMLElement>('#stn-bbody');
   if (!body) return;
+  if (bottom === 'list') {
+    body.innerHTML = listHtml();
+    body.querySelectorAll<HTMLDetailsElement>('[data-stn-grp]').forEach((d) =>
+      d.addEventListener('toggle', () => setGroupOpen(d.dataset.stnGrp!, d.open)));
+    body.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>
+      b.addEventListener('click', () => void loadSymbol(ctx, b.dataset.stnSym!, root)));
+  }
   if (bottom === 'pos') body.innerHTML = positionsHtml();
   if (bottom === 'orders') {
     body.innerHTML = ordersHtml();
@@ -860,7 +885,7 @@ function ordersHtml(): string {
       <span class="stn-c-a">${esc(a.account.name)}</span>
       <span class="stn-c-n">${fmt(o.shares, 0)}</span>
       <span class="stn-c-n"><b>${qs}${fmt(inTicket(o.threshold))}</b></span>
-      <span class="stn-c-x"><button class="stn-act ghost" data-stn-cancel="${esc(a.account.id)}|${esc(o.id)}">✕ ${L('Cancel', 'Huỷ')}</button></span>
+      <span class="stn-c-x"><button class="ui-btn sm ghost" data-stn-cancel="${esc(a.account.id)}|${esc(o.id)}">✕ ${L('Cancel', 'Huỷ')}</button></span>
     </div>`));
   return rows.length ? `<div class="stn-table">
       <div class="stn-row stn-row-o stn-row-h"><span>${L('Placed', 'Ngày đặt')}</span><span>${L('Order', 'Lệnh')}</span><span>${L('Account', 'Tài khoản')}</span><span class="stn-c-n">${L('Shares', 'Số lượng')}</span><span class="stn-c-n">${L('Trigger', 'Kích hoạt')}</span><span></span></div>
@@ -888,7 +913,7 @@ function positionsHtml(): string {
         <span class="stn-c-n">${now === null ? '—' : cash(now, ac)}</span>
         <span class="stn-c-n">${stop ? cash(stop, ac) : '<i class="stn-warn">—</i>'}</span>
         <span class="stn-c-n"><i class="stn-pnl ${up ? 'up' : 'down'}">${pnl === null ? '—' : `${up ? '+' : ''}${cash(pnl, ac)} · ${up ? '+' : ''}${fmt(pct, 1)}%`}</i></span>
-        <span class="stn-c-x"><button class="stn-act sell" data-stn-sellacct="${esc(a.account.id)}">${L('Sell', 'Bán')} →</button></span>
+        <span class="stn-c-x"><button class="ui-btn sm danger" data-stn-sellacct="${esc(a.account.id)}">${L('Sell', 'Bán')} →</button></span>
       </div>`;
   }).join('');
   return rows ? `<div class="stn-table">
