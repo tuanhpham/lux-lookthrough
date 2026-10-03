@@ -20,7 +20,7 @@
  * · Short selling is reserved (a disabled tab), not built.
  */
 import type { Bar, ConvictionRating, GradeResult, SetupKey } from '@screener/core';
-import { computeCash, computeEquity, gradeTrade, qmGradeEvidence, quoteCurrencyOf, scanQm, SETUP_KEYS } from '@screener/core';
+import { computeCash, computeEquity, quoteCurrencyOf, SETUP_KEYS } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { getLang } from '../ui/i18n.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from '../ui/charts.js';
@@ -34,12 +34,13 @@ import { applyEurUsdBars, ccyFactor, ensureEurUsd, eurUsdForDate, hasEurUsd } fr
 import {
   applyWrite, heldShares, openLots, plannedPrice, quoteThreshold, type PlannedPrice, type Rating, type WritePlan,
 } from '../portfolio/writes.js';
-import { buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan } from '../portfolio/playbook.js';
+import { currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan } from '../portfolio/playbook.js';
 import { loadPlan, savePlan, type SymbolPlan } from '../portfolio/planStore.js';
 import { gradePanelHtml } from '../portfolio/gradeView.js';
 import { brokerFees, brokerOf, feeOf, loadBrokerFees, saveBrokerFees, type BrokerFee } from '../portfolio/brokerFees.js';
 import { savePlanSnapshot } from '../portfolio/planSnapshot.js';
-import { candleDivisor, closeOnOrBefore, inCurrency } from '../portfolio/planExit.js';
+import { candleDivisor, closeOnOrBefore, inCurrency, planChartWindow } from '../portfolio/planExit.js';
+import { computePlan, isPast, periodFor } from '../portfolio/planEngine.js';
 import { exitReasonLabel, exitReasonOptgroupsHtml } from '../portfolio/exitReasons.js';
 import { setupName } from '../portfolio/planWords.js';
 import { loadCase, loadCaseIndex, saveCase, type CaseRating, type CaseStudy } from '../caseStudies/store.js';
@@ -111,8 +112,6 @@ let sym = '';
 let bars: Bar[] = [];
 let plan: SymbolPlan | null = null;
 let suggestion: BuyPlan | null = null;
-/** The bars scanned once per symbol — the measured half of the checklist. */
-let scan: ReturnType<typeof scanQm> | null = null;
 /** The checklist scored against the ticket as it stands. */
 let grade: GradeResult | null = null;
 let critOpen = true;
@@ -145,12 +144,16 @@ function freshTicket(acctId = ''): Ticket {
   };
 }
 
-/** Open the station on a symbol — from the stock page, a position row or the planner. */
-export function openStation(symbol: string): void {
+/** A trade date to open on, handed over by `openStation` and taken once by `renderStation`. */
+let pendingDate: string | null = null;
+
+/** Open the station on a symbol — from the stock page, a position row or a plan card — optionally on a date. */
+export function openStation(symbol: string, date?: string | null): void {
   const s = symbol.trim().toUpperCase();
   if (s) {
     try { localStorage.setItem(SYM_KEY, s); } catch { /* private mode */ }
   }
+  pendingDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
   window.dispatchEvent(new CustomEvent('app:open-station', { detail: s }));
 }
 
@@ -162,8 +165,12 @@ const quoteCcy = (): Ccy | null => {
 };
 const acct = () => accounts.find((a) => a.account.id === ticket.acctId) ?? null;
 const acctCcy = (): string => acct()?.account.currency ?? 'EUR';
-const last = (): Bar | null => view()[view().length - 1] ?? null;
-const prev = (): Bar | null => view()[view().length - 2] ?? null;
+const last = (): Bar | null => { const v = liveView(); return v[v.length - 1] ?? null; };
+const prev = (): Bar | null => { const v = liveView(); return v[v.length - 2] ?? null; };
+/** Whether the plan is being reconstructed on a past date. */
+let pastPlan = false;
+/** The history fetched for this symbol — widened when a far past date needs a full year before it. */
+let fetched: '1y' | '2y' | '5y' | 'max' = '2y';
 const fromQuote = (v: number, date = ticket.date): number => v * ccyFactor(quoteCcy() ?? 'USD', ticket.ccy, date);
 
 /**
@@ -175,9 +182,22 @@ let viewKey = '';
 let viewCache: Bar[] = [];
 function view(): Bar[] {
   const rate = candleDivisor(sym, ticket.ccy, eurUsdForDate(ticket.date)) ?? 0;
-  const key = `${sym}:${bars.length}:${bars[bars.length - 1]?.date ?? ''}:${ticket.ccy}:${rate.toFixed(5)}`;
-  if (key !== viewKey) { viewKey = key; viewCache = inCurrency(bars, rate); }
+  const past = isPast(bars, ticket.date);
+  const exit = ticket.side === 'buy' && ticket.closedOn ? ticket.exitDate : null;
+  const key = `${sym}:${bars.length}:${bars[bars.length - 1]?.date ?? ''}:${ticket.ccy}:${rate.toFixed(5)}:${past ? ticket.date : ''}:${exit ?? ''}`;
+  if (key !== viewKey) {
+    viewKey = key;
+    // A reconstructed trade is read on the 6 months around it (4 before, 2 after the date or
+    // the exit), the same window the planner and Case Studies use; a live one on the last year.
+    const frame = past || exit ? planChartWindow(bars, ticket.date, exit) : bars.slice(-260);
+    viewCache = inCurrency(frame, rate);
+  }
   return viewCache;
+}
+/** The last bar there is — the ticker bar's "now", whatever window the chart is showing. */
+function liveView(): Bar[] {
+  const rate = candleDivisor(sym, ticket.ccy, eurUsdForDate(today())) ?? 0;
+  return inCurrency(bars.slice(-260), rate);
 }
 /** The close of a date in the ticket's currency, at that date's rate. */
 function closeIn(date: string): number | null {
@@ -227,7 +247,6 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   bars = [];
   plan = null;
   suggestion = null;
-  scan = null;
   grade = null;
   const keep = ticket;
   ticket = freshTicket(keep.acctId);
@@ -239,14 +258,13 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   paint(ctx, root);
   if (!sym) return;
   const [res, p] = await Promise.all([
-    ctx.data.getOHLCV(sym, '1y', { fresh: true }).catch(() => null),
+    ctx.data.getOHLCV(sym, (fetched = '2y'), { fresh: true }).catch(() => null),
     loadPlan(ctx, sym).catch(() => null),
   ]);
   if (token !== loadToken) return;
   bars = res?.bars ?? [];
   plan = p;
   // `scanQm` needs enough history to measure a base; below that the trade stays ungraded.
-  scan = bars.length >= 60 ? scanQm(sym, bars) : null;
   ticket.setup = (p?.setup || '') as SetupKey | '';
   pickAccount();
   ticket.ccy = defaultCcy();
@@ -263,43 +281,44 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
 }
 
 /**
- * The plan for the ticket as it stands: levels, grade, size — the Buy form's two passes.
- *
- * Pass one finds the stop and target with no grade in the way; the checklist is then scored
- * against THOSE levels (its R:R and stop-width criteria describe this trade); pass two sizes
- * the position with the letter that came out. A value the user typed is never overwritten.
+ * The plan for the ticket as it stands — levels, grade, size — from the shared engine
+ * (`planEngine.ts`), so the station, the quick plan cards and every later reader agree.
+ * A stop or target the user typed is kept; shares are only filled when empty.
  */
 function suggest(): void {
   const st = acct() ?? accounts[0];
-  if (!st || !bars.length || !(ticket.price && ticket.price > 0)) { suggestion = null; regrade(); return; }
-  const common = {
-    state: st, prices: accountPrices(st.account.id), bars, symbol: sym,
-    entry: ticket.price, entryCurrency: ticket.ccy, setup: (ticket.setup || 'Breakout') as SetupKey,
-    date: ticket.date,
-  };
-  const lv = buildBuyPlan({ ...common, rating: null });
-  if (lv) {
-    if (ticket.stop === null) ticket.stop = lv.stop;
-    if (ticket.target === null) ticket.target = lv.target;
-  }
-  regrade();
-  suggestion = buildBuyPlan({ ...common, rating: effective() }) ?? lv;
+  if (!st || !bars.length || !(ticket.price && ticket.price > 0)) { suggestion = null; grade = null; pastPlan = false; return; }
+  const out = computePlan({
+    state: st, bars, symbol: sym, plan, price: ticket.price, ccy: ticket.ccy, date: ticket.date,
+    setup: ticket.setup, stop: ticket.stop, target: ticket.target,
+  });
+  ticket.stop = out.stop;
+  ticket.target = out.target;
+  grade = out.grade;
+  suggestion = out.sized;
+  pastPlan = out.past;
   if (suggestion && ticket.shares === null && ticket.side === 'buy') ticket.shares = suggestion.shares || null;
 }
 
-/** Score the checklist: measured criteria from the bars, manual ones from the saved plan. */
+/** Re-score after an answer or a sell-side change: the same engine, nothing else touched. */
 function regrade(): void {
-  if (!scan || !plan) { grade = null; return; }
-  const px = ticket.price ?? 0;
-  const rps = px > 0 && ticket.stop !== null && ticket.stop > 0 && ticket.stop < px ? px - ticket.stop : 0;
-  grade = gradeTrade(qmGradeEvidence(scan, {
-    setup: ticket.setup,
-    regime: currentRegime()?.regime ?? null,
-    // null, not 0, when there is nothing to divide: the grader reads a missing number as
-    // unmeasured and a zero as a failing measurement.
-    rMultiple: rps > 0 && ticket.target !== null && ticket.target > px ? (ticket.target - px) / rps : null,
-    stopPct: rps > 0 ? (rps / px) * 100 : null,
-  }), plan.answers);
+  suggest();
+}
+
+/** A date far enough back needs more history before it, or the scan reads a short year. */
+async function ensureHistory(ctx: AppContext, root: HTMLElement): Promise<void> {
+  const want = periodFor(ticket.date, today());
+  const order = ['1y', '2y', '5y', 'max'];
+  if (order.indexOf(want) <= order.indexOf(fetched)) return;
+  const mine = sym;
+  const res = await ctx.data.getOHLCV(sym, want).catch(() => null);
+  if (mine !== sym || !res?.bars.length) return;
+  fetched = want;
+  bars = res.bars;
+  viewKey = '';
+  if (ticket.priceAuto) ticket.price = closeIn(ticket.date) ?? ticket.price;
+  suggest();
+  paint(ctx, root);
 }
 
 function storePlan(ctx: AppContext): void {
@@ -360,6 +379,16 @@ export async function renderStation(ctx: AppContext): Promise<void> {
   want = want || list.held[0] || list.watch[0]?.syms[0] || 'NVDA';
   if (want !== sym || !bars.length) await loadSymbol(ctx, want, root);
   else { pickAccount(); paint(ctx, root); }
+  if (pendingDate) {
+    ticket.date = pendingDate;
+    pendingDate = null;
+    ticket.price = closeIn(ticket.date) ?? ticket.price;
+    ticket.priceAuto = true;
+    ticket.stop = null; ticket.target = null; ticket.shares = null;
+    suggest();
+    paint(ctx, root);
+    void ensureHistory(ctx, root);
+  }
 }
 
 function paint(ctx: AppContext, root: HTMLElement): void {
@@ -394,7 +423,7 @@ function tickerBarHtml(): string {
   const p = prev();
   const cs = SYM[ticket.ccy] ?? '';
   const chg = b && p && p.close > 0 ? ((b.close - p.close) / p.close) * 100 : null;
-  const vb = view();
+  const vb = liveView();
   const yr = vb.slice(-252);
   const hi = yr.length ? Math.max(...yr.map((x) => x.high)) : null;
   const lo = yr.length ? Math.min(...yr.map((x) => x.low)) : null;
@@ -520,7 +549,9 @@ function planPanelHtml(): string {
       <div><span>${L('Full size → grade', 'Cỡ đầy đủ → theo điểm')}</span><b>${fmt(s.size.fullShares, 0)} → ${pct}% → ${fmt(s.size.shares, 0)} ${L('sh', 'cp')}</b></div>
       ${s.budget.pct === 0 ? `<div class="stn-warnline">${L('The playbook says no new longs in this market.', 'Playbook: không mở lệnh mua mới trong thị trường này.')}</div>` : ''}
     </div>` : '';
-  return `${head}${eventsHtml()}<div class="stn-grade">${body}</div>${sizing}`;
+  const asof = pastPlan ? `<div class="stn-asof">⏪ ${L(`Graded on the chart as it was after the close of ${ticket.date} — the market of that day. The account (cash, equity, open risk) is today's.`,
+    `Chấm theo chart tính đến phiên ${ticket.date} — thị trường của ngày đó. Tài khoản (tiền mặt, vốn, rủi ro đang mở) là hiện tại.`)}</div>` : '';
+  return `${head}${asof}${eventsHtml()}<div class="stn-grade">${body}</div>${sizing}`;
 }
 
 /** The events saved on the plan, with the finder's button — the catalysts this trade is taken against. */
@@ -1056,6 +1087,7 @@ function wireTicket(ctx: AppContext, root: HTMLElement): void {
       onField(key, val);
       const structural = ['acct', 'closedOn', 'caseOn', 'date', 'orderType', 'exitDate'].includes(key);
       if (['price', 'stop', 'target', 'acct', 'date'].includes(key) && ticket.side === 'buy') suggest();
+      if (key === 'date' || key === 'exitDate' || key === 'closedOn') { drawChart(root); void ensureHistory(ctx, root); }
       repaintLive(ctx, root, structural || key === 'note' ? undefined : key);
       if (key === 'note') {
         const n = root.querySelector<HTMLTextAreaElement>('[data-stn="note"]');
@@ -1073,7 +1105,13 @@ function onField(key: string, val: string | boolean): void {
     case 'date': {
       ticket.date = s || today();
       // A backdated trade starts from that day's close, unless the user typed a price.
-      if (ticket.priceAuto) ticket.price = closeIn(ticket.date) ?? ticket.price;
+      // A new date is a new chart: the price, and with it the levels and the size, follow it —
+      // unless the user typed the price, in which case they are planning that number.
+      if (ticket.priceAuto) {
+        ticket.price = closeIn(ticket.date) ?? ticket.price;
+        ticket.stop = null; ticket.target = null;
+        if (ticket.side === 'buy') ticket.shares = null;
+      }
       if (ticket.exitDate < ticket.date) { ticket.exitDate = ticket.date; if (ticket.exitAuto) ticket.exitPrice = closeIn(ticket.exitDate); }
       break;
     }

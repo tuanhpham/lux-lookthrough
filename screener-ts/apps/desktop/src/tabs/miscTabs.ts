@@ -6,7 +6,7 @@ import type { AppContext } from '../context.js';
 import { $, el } from '../ui/dom.js';
 // The Trade Planner panel. It used to live in this file; it moved out so the stock modal can
 // mount it too — see the header of `tradePlanner.ts` for why the dependency runs that way.
-import { closeTradePlanner, openTradePlanner } from '../portfolio/tradePlanner.js';
+import { closePlanCards, openPlanCards } from '../portfolio/planCards.js';
 import { openStock } from '../ui/stockModal.js';
 import { qmTable, type QmSortKey } from '../ui/qmTable.js';
 import { sectionHead } from '../ui/sectionHead.js';
@@ -35,7 +35,7 @@ export function renderWatchlist(ctx: AppContext): void {
   const root = $('#tab-watchlist')!;
   // The line below drops every node in this tab, including the planner's host and the charts
   // inside it. Scoped to this root so a planner open in the stock modal is left alone.
-  closeTradePlanner(root);
+  closePlanCards(root);
   const vi = getLang() === 'vi';
   root.innerHTML = `
     ${pageHero({
@@ -96,7 +96,7 @@ async function planWholeList(ctx: AppContext): Promise<void> {
   if (!activeId) return;
   const id = activeId;
   const idx = await loadIndex(ctx);
-  await openTradePlanner(ctx, {
+  await openPlanCards(ctx, {
     host: $('#wl-plan-panel')!,
     // Read at plan time, not now: removing a symbol from a row while the panel is open must
     // not leave ↻ Plan re-planning it.
@@ -117,7 +117,7 @@ async function planWholeList(ctx: AppContext): Promise<void> {
  */
 async function planOneSymbol(ctx: AppContext, symbol: string): Promise<void> {
   const host = $('#wl-plan-panel')!;
-  await openTradePlanner(ctx, {
+  await openPlanCards(ctx, {
     host,
     symbols: () => [symbol],
     title: symbol,
@@ -225,7 +225,7 @@ async function refreshTabs(ctx: AppContext): Promise<void> {
       // The open panel is planning the list that was active when it opened. Leaving it there
       // under a different list's rows would be a screenful of cards labelled with the wrong
       // list name — and ↻ Plan would re-plan the old one.
-      closeTradePlanner($<HTMLElement>('#wl-plan-panel') ?? undefined);
+      closePlanCards($<HTMLElement>('#wl-plan-panel') ?? undefined);
       await refreshTabs(ctx);
       await refreshRows(ctx);
     });

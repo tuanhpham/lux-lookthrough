@@ -6193,3 +6193,12 @@ CHAT-82 (2026-10-03) - Su kien & catalyst: nhieu nguon tin, danh sach cuon duoc,
 - Cot trai: thang muc gia dinh (sticky) khi cuon trang, danh sach cuon ben trong.
 - Kiem tra: tsc OK, vitest desktop 452 + core 843, vite build OK, anh headless hop thoai man hinh thap + Tram co co su kien, chay thu "chi luu case study".
 - Can deploy web (co Function moi gnews).
+
+CHAT-83 (2026-10-03) - Gop Trade Planner vao Tram giao dich; the plan gon o trang co phieu va watchlist
+- Quyet dinh (user dong y): Tram la noi lap plan day du (cham diem, co lenh, chart, ngay qua khu, ban, case study, su kien, mua/ban); trang co phieu va watchlist chi con the xem nhanh + nut mo Tram; Case Study van la kho luu.
+- portfolio/planEngine.ts (moi): computePlan dung chung (2 luot: muc gia -> cham diem -> co lenh theo diem), barsAsOf/isPast (ngay qua khu: chi dung nen den ngay do + thi truong cua ngay do), periodFor (tai du lich su). Tram dung engine nay (bo ham cham diem rieng).
+- Tram co "du hanh thoi gian" cua Planner: chon ngay qua khu -> cham diem/muc gia/co lenh theo chart den ngay do, chart khung 6 thang quanh ngay (4 truoc, 2 sau ngay ban), tu tai them lich su (2y/5y/max), dong bao "Cham theo chart tinh den phien ..."; doi ngay -> gia, stop, muc tieu, so luong tinh lai (tru khi tu go gia). openStation(sym, date) mo Tram dung ngay.
+- portfolio/planCards.ts (moi): the plan gon (ma, setup, diem chu + so, Gia/Cat lo/Muc tieu/Co lenh, chart co muc gia + co su kien + E, su kien da luu, nut "Mo trong Tram giao dich" va "Tim su kien"). Thay Trade Planner o nut Trade Plan cua trang co phieu va ca hai cho cua watchlist (ca danh sach / tung ma); toi da 30 ma, 3 ma tai cung luc.
+- Xoa portfolio/tradePlanner.ts (2523 dong, khong con ai dung). Luu y: trang co phieu khong con tu doi sang che do "tinh den ngay" theo ngay cua planner — ngay qua khu lam trong Tram.
+- Kiem tra: tsc OK, vitest 452, vite build OK, anh headless the plan tren trang co phieu, Tram ngay 15/05 (cham D 19/100, stop/target moi).
+- Chi can deploy web.

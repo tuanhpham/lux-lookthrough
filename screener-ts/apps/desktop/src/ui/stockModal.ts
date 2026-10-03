@@ -26,7 +26,7 @@ import { sliceBars, fundamentalsAsOf, fetchPeriodForDate } from './asOf.js';
 import { listSnapshotDays, loadWindow } from '../tabs/catalystCache.js';
 import { fetchEarningsReports, type EarningsReport } from '../adapters/earningsDates.js';
 import { loadCalendarScan } from '../tabs/calendarScan.js';
-import { closeTradePlanner, openTradePlanner, tradePlannerIsIn } from '../portfolio/tradePlanner.js';
+import { closePlanCards, openPlanCards, planCardsIn } from '../portfolio/planCards.js';
 
 const RANGES: { label: string; period: Period }[] = [
   { label: '6M', period: '6mo' },
@@ -73,7 +73,7 @@ function closeModal(): void {
   $('#modal')!.classList.add('hidden');
   // A planner mounted in this modal goes with it: its cards carry live charts, and hiding the
   // modal would leave a ResizeObserver per card observing nodes nobody can see.
-  closeTradePlanner($<HTMLElement>('#modal-body') ?? undefined);
+  closePlanCards($<HTMLElement>('#modal-body') ?? undefined);
   if (chart) {
     chart.destroy();
     chart = null;
@@ -103,10 +103,10 @@ export async function openStock(ctx: AppContext, symbol: string, asOf: string | 
    * vanish has been punished for using the feature. So the answer is read before the teardown
    * and the panel is put back after the render.
    */
-  const plannerWasOpen = tradePlannerIsIn(body);
+  const plannerWasOpen = planCardsIn(body);
   // Navigating to another stock (or reopening this one) replaces the body wholesale, so a
   // planner mounted in it has to be torn down first rather than left pointing at dead nodes.
-  closeTradePlanner(body);
+  closePlanCards(body);
   body.innerHTML = `<div class="muted" style="text-align:center;padding:40px"><span class="spinner"></span> Loading ${symbol}…</div>`;
 
   // In as-of mode, fetch a longer window so EMA200 etc. have history before the
@@ -308,21 +308,19 @@ function wirePlanButton(
   if (!btn || !host) return;
   const open = (): void => {
     btn.classList.add('active');
-    void openTradePlanner(ctx, {
+    // The quick plan card; the full plan (grade, size, buy, case study) is the Trade Station.
+    void openPlanCards(ctx, {
       host,
       symbols: () => [symbol],
       title: symbol,
-      initialDate: asOf,
+      asOf,
       onClose: () => btn.classList.remove('active'),
-      // `openStock` tears the planner down and `reopen` brings it back — see the note above.
-      // Not guarded against re-entering: `openTradePlanner` never changes the date on a mount
-      // whose title it has seen before, and only a user gesture calls `setPlanDate`.
-      onDateChange: (date) => void openStock(ctx, symbol, date),
+      onStation: () => closeModal(),
     });
   };
   btn.addEventListener('click', () => {
-    if (tradePlannerIsIn(host)) {
-      closeTradePlanner(host);
+    if (planCardsIn(host)) {
+      closePlanCards(host);
       btn.classList.remove('active');
       return;
     }
