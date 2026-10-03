@@ -1,3 +1,4 @@
+import { loadBrokerFees } from './portfolio/brokerFees.js';
 import './styles.css';
 import { AppContext, loadConfig } from './context.js';
 import { $, $$ } from './ui/dom.js';
@@ -49,6 +50,7 @@ function showFatal(msg: string): void {
 const ctx = new AppContext(loadConfig());
 initTheme();
 initModal();
+void loadBrokerFees(ctx).catch(() => null);
 // When the stock modal closes, re-render the open tab so any watchlist change
 // made inside it (add/remove via the picker) shows immediately.
 onModalClose(() => {

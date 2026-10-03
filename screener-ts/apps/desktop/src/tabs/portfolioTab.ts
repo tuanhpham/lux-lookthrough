@@ -1948,7 +1948,9 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const rating = (isRating(shown) ? shown : undefined) as Rating | undefined;
       if (!t || shares <= 0 || price <= 0) return;
       const fxAtBuy = eurUsdForDate(date);
-      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note, setupType, rating }, uuid);
+      // The broker's fee (Trade Republic 1, …) from the account name — see brokerFees.ts.
+      const fee = feeOf(active().account);
+      const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note, setupType, rating, ...(fee ? { fee } : {}) }, uuid);
       lot.priceCurrency = priceCcy;
       lot.fxRateAtBuy = fxAtBuy;
       // If entered in EUR but account tracks in EUR-equivalent, normalize to EUR-denominated price
@@ -1983,7 +1985,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const fxAtSell = eurUsdForDate(date);
         const normSellPrice = (active().account.currency === 'EUR' && priceCcy === 'USD' && fxAtSell > 1)
           ? price / fxAtSell : price;
-        const recs = sell(active(), { ticker: t, sellDate: date, sellPrice: normSellPrice, shares }, uuid);
+        const fee = feeOf(active().account);
+        const recs = sell(active(), { ticker: t, sellDate: date, sellPrice: normSellPrice, shares, ...(fee ? { fee } : {}) }, uuid);
         for (const r of recs) { r.priceCurrency = priceCcy; r.fxRateAtSell = fxAtSell; }
         seedPrice(active().account.id, t, normSellPrice);
         snapshotNow(active());
@@ -2139,7 +2142,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           const normSellPrice = (active().account.currency === 'EUR' && res.ccy === 'USD' && fxAtSell > 1)
             ? priceEntered / fxAtSell : priceEntered;
           const sellNote = isNoteEmpty(sellNoteHtml) ? '' : sellNoteHtml;
-          const recs = sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: normSellPrice, shares }, uuid);
+          const fee = feeOf(active().account);
+          const recs = sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: normSellPrice, shares, ...(fee ? { fee } : {}) }, uuid);
           // One sell can close several lots, and they were all closed for the same reason — it is
           // a fact about the decision, not about the bookkeeping, so it goes on every record.
           for (const r of recs) {

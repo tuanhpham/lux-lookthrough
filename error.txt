@@ -6160,3 +6160,7 @@ CHAT-78 (2026-10-03) - Tram giao dich: phi tu nhan theo broker, trade plan cham 
   - Trang rong het man hinh (#main:has(#tab-station) bo max-width 1240px), bo page hero, ten trang nam trong thanh gia; chart cao 540 o man hinh rong.
 - Kiem tra: tsc OK, vitest desktop 449 + core 837, vite build OK, anh headless 1920 / 1400, hop thoai phi broker, tra loi tieu chi doi diem 67->70, mua -> lot fee 1 rating B, snapshot + case co diem.
 - Chi can deploy web thuong le.
+
+CHAT-79 (2026-10-03) - Phi broker o moi noi ghi lenh
+- Form mua + Sell nhanh + hop thoai Sell o Danh muc, nut Buy cua Trade Planner (hop xac nhan co dong Phi, tien mat sau lenh da tru phi), lenh mua/ban do tro ly AI de xuat (the duyet co dong "Phi broker") deu tru phi feeOf(tai khoan) theo bang phi broker. main.ts doc bang phi luc khoi dong.
+- Kiem tra: tsc OK, vitest desktop 449, vite build OK. Chi can deploy web.

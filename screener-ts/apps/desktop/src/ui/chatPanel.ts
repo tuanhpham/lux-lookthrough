@@ -532,6 +532,7 @@ function planRows(plan: WritePlan): Array<[string, string]> {
       add('chat.write.shares', `${plan.shares} ${esc(plan.ticker)}`);
       add('chat.write.price', priceCell(plan.price, ccy));
       add('chat.write.cost', esc(money(plan.cost, sym(ccy))));
+      add('chat.write.fee', plan.fee ? esc(money(plan.fee, sym(ccy))) : undefined);
       add('chat.write.date', esc(plan.date));
       add('chat.write.stop', plan.stop ? priceCell(plan.stop, ccy) : undefined);
       add('chat.write.target', plan.target ? priceCell(plan.target, ccy) : undefined);
@@ -543,6 +544,7 @@ function planRows(plan: WritePlan): Array<[string, string]> {
       add('chat.write.shares', `${plan.shares} ${esc(plan.ticker)} · ${t('chat.write.of')} ${plan.held}`);
       add('chat.write.price', priceCell(plan.price, ccy));
       add('chat.write.proceeds', esc(money(plan.proceeds, sym(ccy))));
+      add('chat.write.fee', plan.fee ? esc(money(plan.fee, sym(ccy))) : undefined);
       add('chat.write.date', esc(plan.date));
       add('chat.write.note', plan.note);
       break;

@@ -33,6 +33,7 @@
  * The plan type and the mutations live in `portfolio/writes.ts`; what lives here is
  * account resolution, the currency reading, and the sentences the model reads back.
  */
+import { feeOf } from '../portfolio/brokerFees.js';
 import {
   buildPositions,
   closedTradePnls,
@@ -919,6 +920,7 @@ export async function planWrite(
           ...(str(args, 'setupType') ? { setupType: str(args, 'setupType')! } : {}),
           ...(str(args, 'rating') ? { rating: str(args, 'rating') as Rating } : {}),
           ...(str(args, 'note') ? { note: str(args, 'note')! } : {}),
+          ...(feeOf(st.account) ? { fee: feeOf(st.account) } : {}),
           cost: shares * price.stored,
         },
       };
@@ -950,6 +952,7 @@ export async function planWrite(
           price,
           date,
           ...(str(args, 'note') ? { note: str(args, 'note')! } : {}),
+          ...(feeOf(st.account) ? { fee: feeOf(st.account) } : {}),
           held,
           proceeds: shares * price.stored,
         },

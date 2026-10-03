@@ -1184,6 +1184,7 @@ const STRINGS: Record<string, { en: string; vi: string }> = {
   'chat.write.ticker': { en: 'Symbol', vi: 'Mã' },
   'chat.write.price': { en: 'Price', vi: 'Giá' },
   'chat.write.cost': { en: 'Cost', vi: 'Tổng tiền' },
+  'chat.write.fee': { en: 'Broker fee', vi: 'Phí broker' },
   'chat.write.proceeds': { en: 'Proceeds', vi: 'Tiền thu về' },
   'chat.write.date': { en: 'Date', vi: 'Ngày' },
   'chat.write.stop': { en: 'Stop', vi: 'Stop' },

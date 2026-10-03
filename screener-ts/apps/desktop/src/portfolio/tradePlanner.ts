@@ -52,6 +52,7 @@
  * Getting any of this backwards is a silent error exactly the size of the EURUSD rate, which
  * is why the conversions live in three named functions and nowhere else.
  */
+import { feeOf, loadBrokerFees } from './brokerFees.js';
 import {
   scanQm, fetchMany, buildTradePlan, explainPlan, computeCash, computeEquity,
   isSetupKey, isRating, SETUP_KEYS, RATING_KEYS,
@@ -1408,6 +1409,7 @@ function confirmBuyDialog(plan: WritePlan & { kind: 'record_buy' }, cashAfter: n
     plan.stop ? confRow(t('wl.plan.stop'), conv(plan.stop), 'var(--danger)') : '',
     plan.target ? confRow(t('wl.plan.target'), conv(plan.target)) : '',
     confRow(t('wl.plan.buycost'), `${accSym}${num(plan.cost, 2)}`),
+    plan.fee ? confRow(getLang() === 'vi' ? 'Phí' : 'Fee', `${accSym}${num(plan.fee, 2)}`) : '',
     // Shown even when it goes negative — especially then. See `buyBlocker`.
     confRow(t('wl.plan.buycash'), `${accSym}${num(cashAfter, 2)}`, cashAfter < 0 ? 'var(--danger)' : undefined),
     plan.price.fx ? confRow(t('wl.plan.buyrate'), `1 € = ${num(plan.price.fx, 4)} $`) : '',
@@ -1464,6 +1466,7 @@ function buyHint(symbol: string, message: string, bad = true): void {
  * (see `reviewCurrent`), so a later change still expires it.
  */
 async function buyFromPlan(ctx: AppContext, symbol: string): Promise<void> {
+  await loadBrokerFees(ctx).catch(() => null);
   const e = planEdits.get(symbol);
   const chosen = planAccount();
   if (!e || !chosen || buyBlocker(symbol)) return;
@@ -1508,10 +1511,12 @@ async function buyFromPlan(ctx: AppContext, symbol: string): Promise<void> {
     ...(e.setup ? { setupType: e.setup } : {}),
     ...(effective ? { rating: effective as Rating } : {}),
     ...(note ? { note } : {}),
+    // The broker's fee, recognised from the account name (brokerFees.ts).
+    ...(feeOf(live.account) ? { fee: feeOf(live.account) } : {}),
     cost: shares * (price as PlannedPrice).stored,
   };
 
-  if (!(await confirmBuyDialog(write, computeCash(live) - write.cost))) return;
+  if (!(await confirmBuyDialog(write, computeCash(live) - write.cost - (write.fee ?? 0)))) return;
 
   let lotId = '';
   try {
