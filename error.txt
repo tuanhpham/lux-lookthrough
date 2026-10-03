@@ -6164,3 +6164,11 @@ CHAT-78 (2026-10-03) - Tram giao dich: phi tu nhan theo broker, trade plan cham 
 CHAT-79 (2026-10-03) - Phi broker o moi noi ghi lenh
 - Form mua + Sell nhanh + hop thoai Sell o Danh muc, nut Buy cua Trade Planner (hop xac nhan co dong Phi, tien mat sau lenh da tru phi), lenh mua/ban do tro ly AI de xuat (the duyet co dong "Phi broker") deu tru phi feeOf(tai khoan) theo bang phi broker. main.ts doc bang phi luc khoi dong.
 - Kiem tra: tsc OK, vitest desktop 449, vite build OK. Chi can deploy web.
+
+CHAT-80 (2026-10-03) - Tram giao dich: thanh gia moi, cot can deu, chart cua trang co phieu, gia ban goi y theo ngay, hien thi EUR
+- Thanh tren: 3 nhom (ten trang + o ma co co quoc gia + nut mo trang co phieu | gia lon + % thay doi dang vien | cac chi so co vach ngan: bien phien, 52 tuan, GTGD TB 20p, KQKD toi, dang giu, diem plan) + ben phai: chuyen tien te EUR/USD va dong "nen ngay, tre ~15 phut".
+- Cot trai (dang giu/watchlist + thang muc gia) va phieu lenh keo dai het chieu cao luoi -> 4 cot ket thuc ngang nhau; danh sach cuon ben trong, phieu lenh dinh (sticky) ben trong the. Man hinh >= 1600: cac tab duoi nam ngay duoi chart, cot plan chay het chieu cao.
+- Chart: ca nam, du nut EMA5/10/21/50/150/200 + E (ngay KQKD tu fetchEarningsReports) nhu trang co phieu; duong gia ban khi ghi lenh da ban.
+- Tien te: nut EUR/USD (mac dinh = tien cua tai khoan). Nen ve bang tien da chon theo ty gia ngay giao dich (inCurrency/candleDivisor), moi muc gia/thang gia/lenh cho hien bang tien do; doi tien te la doi luon cac o gia.
+- Goi y gia: gia mua theo ngay da chon (gia dong cua ngay do), gia ban theo ngay ban khi tick "Da ban roi"; neu khong co gia hom nay thi lay gia dong cua gan nhat.
+- Kiem tra: tsc OK, vitest 449, vite build OK, anh headless 1920/1400 toi/sang, ngay ban 01/07 -> goi y 177,79.

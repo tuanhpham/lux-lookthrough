@@ -23,12 +23,14 @@ import type { Bar, ConvictionRating, GradeResult, SetupKey } from '@screener/cor
 import { computeCash, computeEquity, gradeTrade, qmGradeEvidence, quoteCurrencyOf, scanQm, SETUP_KEYS } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { getLang } from '../ui/i18n.js';
-import { drawCandles, type CandleChart } from '../ui/charts.js';
+import { drawCandles, EMA_CONFIG, type CandleChart } from '../ui/charts.js';
+import { flagSvg, isEurSymbol, isVnSymbol } from '../ui/dom.js';
+import { fetchEarningsReports, type EarningsReport } from '../adapters/earningsDates.js';
 import { openStock } from '../ui/stockModal.js';
 import { accounts, ensureAccountsLoaded, today, withAccounts } from '../portfolio/store.js';
 import { cancelOrder } from '@screener/core';
 import { accountPrices } from '../portfolio/prices.js';
-import { applyEurUsdBars, ccyFactor, ensureEurUsd, hasEurUsd } from '../portfolio/fx.js';
+import { applyEurUsdBars, ccyFactor, ensureEurUsd, eurUsdForDate, hasEurUsd } from '../portfolio/fx.js';
 import {
   applyWrite, heldShares, openLots, plannedPrice, quoteThreshold, type PlannedPrice, type Rating, type WritePlan,
 } from '../portfolio/writes.js';
@@ -37,7 +39,7 @@ import { loadPlan, savePlan, type SymbolPlan } from '../portfolio/planStore.js';
 import { gradePanelHtml } from '../portfolio/gradeView.js';
 import { brokerFees, brokerOf, feeOf, loadBrokerFees, saveBrokerFees, type BrokerFee } from '../portfolio/brokerFees.js';
 import { savePlanSnapshot } from '../portfolio/planSnapshot.js';
-import { closeOnOrBefore } from '../portfolio/planExit.js';
+import { candleDivisor, closeOnOrBefore, inCurrency } from '../portfolio/planExit.js';
 import { exitReasonLabel, exitReasonOptgroupsHtml } from '../portfolio/exitReasons.js';
 import { setupName } from '../portfolio/planWords.js';
 import { loadCase, loadCaseIndex, saveCase, type CaseRating, type CaseStudy } from '../caseStudies/store.js';
@@ -92,6 +94,8 @@ interface Ticket {
   closedOn: boolean;
   exitDate: string;
   exitPrice: number | null;
+  /** Still the close of the exit date this page put there — moving the date replaces it. */
+  exitAuto: boolean;
   exitReason: string;
 }
 
@@ -104,6 +108,12 @@ let scan: ReturnType<typeof scanQm> | null = null;
 /** The checklist scored against the ticket as it stands. */
 let grade: GradeResult | null = null;
 let critOpen = true;
+/** The stock page's EMA set, on the same defaults; toggles last for the session. */
+const emaState: Record<number, boolean> = Object.fromEntries(EMA_CONFIG.map((e) => [e.period, e.on]));
+let showEarnings = true;
+let earnReports: EarningsReport[] = [];
+/** The ticket's currency picked by the user, kept across symbols. Null = follow the account. */
+let ccyChoice: Ccy | null = null;
 let ticket: Ticket = freshTicket();
 let bottom: BottomTab = 'pos';
 let chart: CandleChart | null = null;
@@ -120,7 +130,7 @@ function freshTicket(acctId = ''): Ticket {
   return {
     side: 'buy', mode: 'fill', orderType: 'STOP_LOSS', acctId, price: null, priceAuto: true, ccy: 'USD', date: today(),
     shares: null, stop: null, target: null, setup: '', fee: null, note: '', caseOn: true,
-    closedOn: false, exitDate: today(), exitPrice: null, exitReason: '',
+    closedOn: false, exitDate: today(), exitPrice: null, exitAuto: true, exitReason: '',
   };
 }
 
@@ -141,12 +151,39 @@ const quoteCcy = (): Ccy | null => {
 };
 const acct = () => accounts.find((a) => a.account.id === ticket.acctId) ?? null;
 const acctCcy = (): string => acct()?.account.currency ?? 'EUR';
-const last = (): Bar | null => bars[bars.length - 1] ?? null;
-const prev = (): Bar | null => bars[bars.length - 2] ?? null;
-/** A ticket value (in `ticket.ccy`) moved into the bars' currency, for the chart and ladder. */
-const toQuote = (v: number | null): number | null =>
-  v === null ? null : v * ccyFactor(ticket.ccy, quoteCcy() ?? 'USD', ticket.date);
-const fromQuote = (v: number): number => v * ccyFactor(quoteCcy() ?? 'USD', ticket.ccy, ticket.date);
+const last = (): Bar | null => view()[view().length - 1] ?? null;
+const prev = (): Bar | null => view()[view().length - 2] ?? null;
+const fromQuote = (v: number, date = ticket.date): number => v * ccyFactor(quoteCcy() ?? 'USD', ticket.ccy, date);
+
+/**
+ * The candles in the ticket's currency, every bar at ONE rate (the trade date's), so the chart is
+ * the dollar chart relabelled and the levels typed in euros sit where they belong — the planner's
+ * rule. Everything drawn on this page reads these; the raw bars only feed the scan and the sizer.
+ */
+let viewKey = '';
+let viewCache: Bar[] = [];
+function view(): Bar[] {
+  const rate = candleDivisor(sym, ticket.ccy, eurUsdForDate(ticket.date)) ?? 0;
+  const key = `${sym}:${bars.length}:${bars[bars.length - 1]?.date ?? ''}:${ticket.ccy}:${rate.toFixed(5)}`;
+  if (key !== viewKey) { viewKey = key; viewCache = inCurrency(bars, rate); }
+  return viewCache;
+}
+/** The close of a date in the ticket's currency, at that date's rate. */
+function closeIn(date: string): number | null {
+  const c = closeOnOrBefore(bars, date);
+  return c === null ? null : round(fromQuote(c, date));
+}
+/** Today's price on the ticket: today's close, else the last one there is (a long weekend). */
+function priceNow(): number | null {
+  const lastRaw = bars[bars.length - 1];
+  return closeIn(today()) ?? (lastRaw ? round(fromQuote(lastRaw.close)) : null);
+}
+/** The currency the ticket starts in: what the user picked, else the account's, else the quote's. */
+function defaultCcy(): Ccy {
+  if (ccyChoice) return ccyChoice;
+  const a = acct()?.account.currency;
+  return a === 'EUR' || a === 'USD' ? a : quoteCcy() ?? 'USD';
+}
 
 /** The letter in force: the user's override, else the score's. */
 function effective(): ConvictionRating | null {
@@ -185,7 +222,8 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   ticket = freshTicket(keep.acctId);
   ticket.side = keep.side;
   ticket.mode = keep.mode;
-  ticket.ccy = quoteCcy() ?? 'USD';
+  ticket.ccy = defaultCcy();
+  earnReports = [];
   msg = null;
   paint(ctx, root);
   if (!sym) return;
@@ -199,8 +237,15 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   // `scanQm` needs enough history to measure a base; below that the trade stays ungraded.
   scan = bars.length >= 60 ? scanQm(sym, bars) : null;
   ticket.setup = (p?.setup || '') as SetupKey | '';
-  const lp = last()?.close ?? null;
-  if (lp !== null) ticket.price = round(fromQuote(lp));
+  pickAccount();
+  ticket.ccy = defaultCcy();
+  ticket.price = priceNow() ?? ticket.price;
+  // Drawn after the candles, from the network, so the chart never waits on them.
+  void fetchEarningsReports(sym).then((rows) => {
+    if (token !== loadToken) return;
+    earnReports = rows;
+    paintEarnings();
+  }).catch(() => {});
   suggest();
   pickAccount();
   paint(ctx, root);
@@ -313,13 +358,15 @@ function paint(ctx: AppContext, root: HTMLElement): void {
   root.innerHTML = `
     <div class="stn">
       ${tickerBarHtml()}
-      <aside class="stn-side card">${listHtml()}${ladderHtml()}</aside>
+      <aside class="stn-side card"><div class="stn-side-in">${listHtml()}${ladderHtml()}</div></aside>
       <section class="stn-main card">
         ${pickBarHtml()}
+        <div class="stn-emas">${EMA_CONFIG.map((e) => `<button class="range-btn${emaState[e.period] ? ' active' : ''}" data-stn-ema="${e.period}">EMA${e.period}</button>`).join('')}
+          <button class="range-btn${showEarnings ? ' active' : ''}" data-stn-earn title="${L('Earnings report dates', 'Ngày công bố KQKD')}">⬤ E</button></div>
         <div class="stn-chart${pick ? ' picking' : ''}" id="stn-chart"></div>
       </section>
       <section class="stn-plan card" id="stn-plan">${planPanelHtml()}</section>
-      <aside class="stn-ticket card" id="stn-ticket">${ticketHtml()}</aside>
+      <aside class="stn-ticket card"><div class="stn-ticket-in" id="stn-ticket">${ticketHtml()}</div></aside>
       <section class="stn-bottom card">${bottomHtml()}</section>
     </div>
     <div class="stn-dock">
@@ -334,37 +381,48 @@ function paint(ctx: AppContext, root: HTMLElement): void {
 function tickerBarHtml(): string {
   const b = last();
   const p = prev();
-  const qc = quoteCcy();
+  const cs = SYM[ticket.ccy] ?? '';
   const chg = b && p && p.close > 0 ? ((b.close - p.close) / p.close) * 100 : null;
-  const yr = bars.slice(-252);
+  const vb = view();
+  const yr = vb.slice(-252);
   const hi = yr.length ? Math.max(...yr.map((x) => x.high)) : null;
   const lo = yr.length ? Math.min(...yr.map((x) => x.low)) : null;
   const pos = b && hi !== null && lo !== null && hi > lo ? ((b.close - lo) / (hi - lo)) * 100 : null;
-  const adv = bars.slice(-20);
-  const dollarVol = adv.length ? adv.reduce((s, x) => s + x.close * x.volume, 0) / adv.length : null;
+  const adv = vb.slice(-20);
+  const value = adv.length ? adv.reduce((t, x) => t + x.close * x.volume, 0) / adv.length : null;
   const big = (v: number | null): string => (v === null ? '—' : v >= 1e9 ? `${fmt(v / 1e9, 1)}B` : v >= 1e6 ? `${fmt(v / 1e6, 1)}M` : fmt(v, 0));
-  const held = accounts.reduce((s, a) => s + heldShares(a, sym), 0);
+  const held = accounts.reduce((t, a) => t + heldShares(a, sym), 0);
   const g = effective();
+  const flag = isVnSymbol(sym) ? flagSvg('vn') : isEurSymbol(sym) ? flagSvg('de') : flagSvg('us');
+  const nextE = earnReports.map((e) => e.date).filter((d) => d >= today()).sort()[0] ?? null;
   const stat = (k: string, v: string, cls = ''): string => `<div class="stn-stat"><small>${k}</small><b class="${cls}">${v}</b></div>`;
+  const seg = (c: Ccy): string => `<button class="${ticket.ccy === c ? 'on' : ''}" data-stn-ccy="${c}">${SYM[c]} ${c}</button>`;
   return `<header class="stn-bar card">
-      <div class="stn-title"><span aria-hidden="true">⚡</span>${L('Trade Station', 'Trạm giao dịch')}</div>
-      <div class="stn-sym">
-        <input class="field stn-sym-in" id="stn-sym" value="${esc(sym)}" spellcheck="false" autocomplete="off" aria-label="${L('Symbol', 'Mã')}">
-        <button class="btn-outline stn-mini" id="stn-open-stock" title="${L('Stock page', 'Trang cổ phiếu')}">↗</button>
+      <div class="stn-bar-l">
+        <div class="stn-title"><span aria-hidden="true">⚡</span>${L('Trade Station', 'Trạm giao dịch')}</div>
+        <label class="stn-sym">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="stn-sym" value="${esc(sym)}" spellcheck="false" autocomplete="off" aria-label="${L('Symbol', 'Mã')}">
+          <span class="stn-flag" aria-hidden="true">${flag}</span>
+        </label>
+        <button class="stn-icon" id="stn-open-stock" title="${L('Open the stock page', 'Mở trang cổ phiếu')}">↗</button>
       </div>
       <div class="stn-px">
-        <b>${b ? `${SYM[qc ?? 'USD'] ?? ''}${fmt(b.close)}` : '—'}</b>
-        <span class="${chg === null ? '' : chg >= 0 ? 'stn-up' : 'stn-down'}">${chg === null ? '' : `${chg >= 0 ? '+' : ''}${fmt(chg)}%`}</span>
+        <b>${b ? `${cs}${fmt(b.close)}` : '—'}</b>
+        ${chg === null ? '' : `<span class="stn-chg ${chg >= 0 ? 'up' : 'down'}">${chg >= 0 ? '▲' : '▼'} ${fmt(Math.abs(chg))}%</span>`}
       </div>
       <div class="stn-stats">
-        ${stat(L('Day high / low', 'Cao / thấp phiên'), b ? `${fmt(b.high)} / ${fmt(b.low)}` : '—')}
-        ${stat(L('52-week range', 'Biên 52 tuần'), pos === null ? '—' : `<span class="stn-range"><i style="left:${pos.toFixed(0)}%"></i></span>${fmt(pos, 0)}%`)}
-        ${stat(L('Avg $ volume 20d', 'GT giao dịch TB 20p'), big(dollarVol))}
-        ${stat(L('Last bar', 'Nến cuối'), b ? b.date : '—')}
+        ${stat(L('Day range', 'Biên phiên'), b ? `${fmt(b.low)} – ${fmt(b.high)}` : '—')}
+        ${stat(L('52 weeks', '52 tuần'), pos === null ? '—' : `<span class="stn-range"><i style="left:${pos.toFixed(0)}%"></i></span>${fmt(pos, 0)}%`)}
+        ${stat(L('Avg value 20d', 'GTGD TB 20p'), `${cs}${big(value)}`)}
+        ${stat(L('Next earnings', 'KQKD tới'), nextE ?? '—', nextE ? 'stn-earn' : '')}
         ${stat(L('Held', 'Đang giữ'), held ? `${fmt(held, 0)} ${L('sh', 'cp')}` : '—')}
-        ${stat(L('Plan grade', 'Điểm plan'), g ?? '—', g ? `stn-grade stn-grade-${g}` : '')}
+        ${stat(L('Plan', 'Plan'), g ?? '—', g ? `stn-grade stn-grade-${g}` : '')}
       </div>
-      <span class="stn-delay">${L('Daily bars · quotes ~15 min late', 'Nến ngày · giá trễ ~15 phút')}</span>
+      <div class="stn-bar-r">
+        <div class="stn-ccy seg" role="group" aria-label="${L('Currency', 'Tiền tệ')}">${seg('EUR')}${seg('USD')}</div>
+        <span class="stn-delay"><i></i>${b ? b.date : '—'} · ${L('daily bars, ~15 min late', 'nến ngày, trễ ~15 phút')}</span>
+      </div>
     </header>`;
 }
 
@@ -391,16 +449,16 @@ function ladderHtml(): string {
   const held = lots.reduce((s, l) => s + l.remainingShares, 0);
   // The account's average cost, back into the bars' currency so it sits on the same scale.
   const avgAcct = held ? lots.reduce((s, l) => s + l.buyPrice * l.remainingShares, 0) / held : null;
-  const avgQ = avgAcct === null ? null : avgAcct * ccyFactor(acctCcy(), quoteCcy() ?? 'USD', today());
+  const avgQ = avgAcct === null ? null : avgAcct * ccyFactor(acctCcy(), ticket.ccy, today());
   const rows: { k: string; v: number | null; cls: string }[] = [
-    { k: L('Target', 'Mục tiêu'), v: toQuote(ticket.target), cls: 'tgt' },
+    { k: L('Target', 'Mục tiêu'), v: ticket.target, cls: 'tgt' },
     { k: L('Last', 'Giá'), v: lp, cls: 'px' },
-    { k: L('Entry', 'Vào lệnh'), v: toQuote(ticket.price), cls: 'ent' },
+    { k: L('Entry', 'Vào lệnh'), v: ticket.price, cls: 'ent' },
     { k: L('Your avg cost', 'Giá vốn TB'), v: avgQ, cls: 'avg' },
-    { k: L('Stop', 'Cắt lỗ'), v: toQuote(ticket.stop), cls: 'stp' },
+    { k: L('Stop', 'Cắt lỗ'), v: ticket.stop, cls: 'stp' },
   ];
   const shown = rows.filter((r) => r.v !== null && r.v > 0).sort((a, z) => z.v! - a.v!);
-  const qs = SYM[quoteCcy() ?? 'USD'] ?? '';
+  const qs = SYM[ticket.ccy] ?? '';
   return `<div class="stn-ladder">
       <div class="stn-lh">🎯 ${L('Level ladder', 'Thang mức giá')}</div>
       ${shown.map((r) => {
@@ -638,13 +696,14 @@ function pendingCount(): number {
 }
 
 function ordersHtml(): string {
-  const qs = SYM[quoteCcy() ?? 'USD'] ?? '';
+  const qs = SYM[ticket.ccy] ?? '';
+  const inTicket = (v: number): number => v * ccyFactor(quoteCcy() ?? 'USD', ticket.ccy, today());
   const word = (t: string): string => ({
     BUY_STOP: L('BUY STOP', 'MUA KHI ≥'), STOP_LOSS: L('STOP LOSS', 'CẮT LỖ ≤'), TAKE_PROFIT: L('TAKE PROFIT', 'CHỐT LỜI ≥'),
   } as Record<string, string>)[t] ?? t;
   const rows = accounts.flatMap((a) => (a.orders ?? []).filter((o) => o.ticker === sym && o.status === 'pending').map((o) =>
     `<div class="stn-tr"><span>${esc(o.createdDate)}</span><span class="${o.type === 'BUY_STOP' ? 'stn-side-b' : 'stn-side-s'}">${word(o.type)}</span>
-      <span class="stn-grow">${esc(a.account.name)}</span><span>${fmt(o.shares, 0)} @ ${qs}${fmt(o.threshold)}</span>
+      <span class="stn-grow">${esc(a.account.name)}</span><span>${fmt(o.shares, 0)} @ ${qs}${fmt(inTicket(o.threshold))}</span>
       <button class="btn-outline stn-mini" data-stn-cancel="${esc(a.account.id)}|${esc(o.id)}">${L('Cancel', 'Huỷ')}</button></div>`));
   return rows.length ? `<div class="stn-tbl">${rows.join('')}</div>`
     : `<div class="stn-empty">${L(`No pending orders for ${sym}.`, `Không có lệnh chờ nào cho ${sym}.`)}</div>`;
@@ -658,7 +717,7 @@ function positionsHtml(): string {
     if (!n) return '';
     const ac = a.account.currency;
     const avg = lots.reduce((s, l) => s + l.buyPrice * l.remainingShares, 0) / n;
-    const now = lp === null ? null : lp * ccyFactor(quoteCcy() ?? 'USD', ac, today());
+    const now = lp === null ? null : lp * ccyFactor(ticket.ccy, ac, today());
     const pnl = now === null ? null : (now - avg) * n;
     const pct = now === null ? null : ((now - avg) / avg) * 100;
     return `<div class="stn-tr">
@@ -698,16 +757,18 @@ function drawChart(root: HTMLElement): void {
     return;
   }
   const h = window.innerWidth < 900 ? 300 : window.innerWidth >= 1600 ? 540 : 440;
-  chart = drawCandles(box, bars.slice(-190), {
-    entry: toQuote(ticket.price), stop: ticket.side === 'buy' ? toQuote(ticket.stop) : null,
-    target: ticket.side === 'buy' ? toQuote(ticket.target) : null,
-  }, { 5: false, 10: true, 21: true, 50: true, 150: false, 200: true }, { height: h });
+  chart = drawCandles(box, view(), {
+    entry: ticket.price, stop: ticket.side === 'buy' ? ticket.stop : null,
+    target: ticket.side === 'buy' ? ticket.target : null,
+    exit: ticket.side === 'buy' && ticket.closedOn ? ticket.exitPrice : null,
+  }, emaState, { height: h });
+  paintEarnings();
   const c = chart;
   c.chart.subscribeClick((param) => {
     if (!pick || !param.point || chart !== c || !liveCtx || !liveRoot) return;
     const q = c.priceAt(param.point.y);
     if (q === null || !(q > 0)) return;
-    const v = round(fromQuote(q));
+    const v = round(q);
     if (pick === 'price') { ticket.price = v; ticket.priceAuto = false; if (ticket.side === 'buy' && ticket.mode === 'fill') suggest(); }
     if (pick === 'stop') ticket.stop = v;
     if (pick === 'target') ticket.target = v;
@@ -715,6 +776,10 @@ function drawChart(root: HTMLElement): void {
     repaintPickBar(liveCtx, liveRoot);
     repaintLive(liveCtx, liveRoot);
   });
+}
+
+function paintEarnings(): void {
+  chart?.setEarnings(showEarnings ? earnReports.map((r) => ({ date: r.date })) : []);
 }
 
 function repaintPickBar(ctx: AppContext, root: HTMLElement): void {
@@ -773,8 +838,9 @@ function repaintLive(ctx: AppContext, root: HTMLElement, focusKey?: string): voi
   const pp = root.querySelector<HTMLElement>('#stn-plan');
   if (pp) pp.innerHTML = planPanelHtml();
   chart?.setOverlay({
-    entry: toQuote(ticket.price), stop: ticket.side === 'buy' ? toQuote(ticket.stop) : null,
-    target: ticket.side === 'buy' ? toQuote(ticket.target) : null,
+    entry: ticket.price, stop: ticket.side === 'buy' ? ticket.stop : null,
+    target: ticket.side === 'buy' ? ticket.target : null,
+    exit: ticket.side === 'buy' && ticket.closedOn ? ticket.exitPrice : null,
   });
 }
 
@@ -787,6 +853,30 @@ function wire(ctx: AppContext, root: HTMLElement): void {
   });
   symIn?.addEventListener('focus', () => symIn.select());
   root.querySelector('#stn-open-stock')?.addEventListener('click', () => { if (sym) void openStock(ctx, sym); });
+  root.querySelectorAll<HTMLElement>('[data-stn-ccy]').forEach((b) => b.addEventListener('click', () => {
+    const next = b.dataset.stnCcy as Ccy;
+    if (next === ticket.ccy) return;
+    // Every price on the ticket moves into the new currency at its own date's rate.
+    const f = ccyFactor(ticket.ccy, next, ticket.date);
+    const fx = ccyFactor(ticket.ccy, next, ticket.exitDate);
+    for (const k of ['price', 'stop', 'target'] as const) if (ticket[k] !== null) ticket[k] = round(ticket[k]! * f);
+    if (ticket.exitPrice !== null) ticket.exitPrice = round(ticket.exitPrice * fx);
+    ticket.ccy = next;
+    ccyChoice = next;
+    suggest();
+    paint(ctx, root);
+  }));
+  root.querySelectorAll<HTMLElement>('[data-stn-ema]').forEach((b) => b.addEventListener('click', () => {
+    const per = Number(b.dataset.stnEma);
+    emaState[per] = !emaState[per];
+    b.classList.toggle('active', emaState[per]);
+    chart?.setEma(per, emaState[per]!);
+  }));
+  root.querySelector<HTMLElement>('[data-stn-earn]')?.addEventListener('click', (e) => {
+    showEarnings = !showEarnings;
+    (e.currentTarget as HTMLElement).classList.toggle('active', showEarnings);
+    paintEarnings();
+  });
   root.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>
     b.addEventListener('click', () => void loadSymbol(ctx, b.dataset.stnSym!, root)));
   wirePlan(ctx, root);
@@ -892,7 +982,7 @@ function wireTicket(ctx: AppContext, root: HTMLElement): void {
     f.addEventListener(ev, () => {
       const val = (f as HTMLInputElement).type === 'checkbox' ? (f as HTMLInputElement).checked : f.value;
       onField(key, val);
-      const structural = ['acct', 'closedOn', 'caseOn', 'date', 'orderType'].includes(key);
+      const structural = ['acct', 'closedOn', 'caseOn', 'date', 'orderType', 'exitDate'].includes(key);
       if (['price', 'stop', 'target', 'acct', 'date'].includes(key) && ticket.side === 'buy') suggest();
       repaintLive(ctx, root, structural || key === 'note' ? undefined : key);
       if (key === 'note') {
@@ -911,11 +1001,8 @@ function onField(key: string, val: string | boolean): void {
     case 'date': {
       ticket.date = s || today();
       // A backdated trade starts from that day's close, unless the user typed a price.
-      if (ticket.priceAuto) {
-        const c = closeOnOrBefore(bars, ticket.date);
-        if (c !== null) ticket.price = round(fromQuote(c));
-      }
-      if (ticket.exitDate < ticket.date) ticket.exitDate = ticket.date;
+      if (ticket.priceAuto) ticket.price = closeIn(ticket.date) ?? ticket.price;
+      if (ticket.exitDate < ticket.date) { ticket.exitDate = ticket.date; if (ticket.exitAuto) ticket.exitPrice = closeIn(ticket.exitDate); }
       break;
     }
     case 'shares': {
@@ -931,9 +1018,16 @@ function onField(key: string, val: string | boolean): void {
     case 'fee': { const v = Number(s.replace(',', '.')); ticket.fee = s.trim() === '' || !Number.isFinite(v) || v < 0 ? null : v; break; }
     case 'note': ticket.note = s; break;
     case 'caseOn': ticket.caseOn = !!val; break;
-    case 'closedOn': ticket.closedOn = !!val; break;
-    case 'exitDate': ticket.exitDate = s || today(); break;
-    case 'exitPrice': ticket.exitPrice = posNum(s); break;
+    case 'closedOn':
+      ticket.closedOn = !!val;
+      // The close of the exit day, the way the Buy form and the planner seed it.
+      if (ticket.closedOn && (ticket.exitAuto || ticket.exitPrice === null)) { ticket.exitPrice = closeIn(ticket.exitDate); ticket.exitAuto = true; }
+      break;
+    case 'exitDate':
+      ticket.exitDate = s || today();
+      if (ticket.exitAuto) ticket.exitPrice = closeIn(ticket.exitDate);
+      break;
+    case 'exitPrice': ticket.exitPrice = posNum(s); ticket.exitAuto = false; break;
     case 'reason': ticket.exitReason = s; break;
     case 'orderType': ticket.orderType = s === 'TAKE_PROFIT' ? 'TAKE_PROFIT' : 'STOP_LOSS'; break;
   }
@@ -1156,9 +1250,8 @@ async function submitBuy(ctx: AppContext, st: (typeof accounts)[number], shares:
     ? L(`Recorded: bought and sold ${shares} ${sym}.`, `Đã ghi: mua và bán ${shares} ${sym}.`)
     : L(`Recorded: bought ${shares} ${sym} in ${account.name}.`, `Đã ghi: mua ${shares} ${sym} vào ${account.name}.`) };
   ticket = freshTicket(ticket.acctId);
-  ticket.ccy = quoteCcy() ?? 'USD';
-  const lp = last()?.close ?? null;
-  if (lp !== null) ticket.price = round(fromQuote(lp));
+  ticket.ccy = defaultCcy();
+  ticket.price = priceNow();
   suggest();
 }
 
@@ -1176,10 +1269,11 @@ async function submitOrder(ctx: AppContext, st: (typeof accounts)[number], share
   const last0 = last()?.close ?? null;
   // A buy stop below the price, or a stop loss above it, fills on the very next bar — almost
   // always a typo for the other order type, so it is said before it is placed.
-  const warn = last0 === null ? '' : type === 'BUY_STOP' && q <= last0
+  const tp = ticket.price!;
+  const warn = last0 === null ? '' : type === 'BUY_STOP' && tp <= last0
     ? L('The trigger is at or below the last price: it fills on the next bar.', 'Giá kích hoạt ≤ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.')
-    : type === 'STOP_LOSS' && q >= last0 ? L('The stop is at or above the last price: it fills on the next bar.', 'Mức cắt lỗ ≥ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.')
-      : type === 'TAKE_PROFIT' && q <= last0 ? L('The target is at or below the last price: it fills on the next bar.', 'Mức chốt lời ≤ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.') : '';
+    : type === 'STOP_LOSS' && tp >= last0 ? L('The stop is at or above the last price: it fills on the next bar.', 'Mức cắt lỗ ≥ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.')
+      : type === 'TAKE_PROFIT' && tp <= last0 ? L('The target is at or below the last price: it fills on the next bar.', 'Mức chốt lời ≤ giá hiện tại: lệnh sẽ khớp ngay ở nến kế tiếp.') : '';
   const rows: [string, string, string?][] = [
     [L('Account', 'Tài khoản'), esc(account.name)],
     [L('Order', 'Lệnh'), type.replace('_', ' ')],

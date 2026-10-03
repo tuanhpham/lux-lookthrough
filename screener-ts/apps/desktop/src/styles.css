@@ -8859,3 +8859,76 @@ html.light .slm-link--primary { border-color: var(--accent-line); background: li
 #main .stn-brow .field, .stn-brow .field { height: 34px; width: 100%; }
 .stn-own { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-soft); display: grid; gap: 6px; }
 #main .stn-own .field, .stn-own .field { height: 34px; width: 100%; }
+
+/* ── Trạm giao dịch: the top bar in three groups, columns that end level, the stock page's chart head ── */
+#main .stn .stn-bar {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 14px 26px;
+  padding: 10px 14px; border-radius: 18px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, var(--accent) 8%), var(--card));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 18px 40px -28px rgba(0, 0, 0, .7);
+}
+html.light #main .stn .stn-bar { box-shadow: inset 0 1px 0 #fff, 0 18px 40px -30px rgba(60, 45, 25, .35); }
+.stn-bar-l { display: flex; align-items: center; gap: 8px; }
+.stn-bar-l .stn-title { height: 40px; }
+.stn-sym {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px 0 12px; border-radius: 12px; cursor: text;
+  border: 1px solid var(--field-line, var(--border)); background: var(--field-bg, var(--surface)); color: var(--faint);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.stn-sym:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 4px var(--accent-wash); }
+#main .stn-sym input, .stn-sym input {
+  width: 108px; border: 0; outline: 0; background: transparent; padding: 0; height: auto; box-shadow: none;
+  font: 800 17px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--text);
+}
+.stn-flag { display: inline-flex; width: 20px; height: 14px; border-radius: 3px; overflow: hidden; opacity: .9; }
+.stn-flag svg { width: 100%; height: 100%; }
+.stn-icon {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; cursor: pointer; font-size: 15px;
+  color: var(--subtext); background: var(--surface); border: 1px solid var(--border-soft);
+}
+.stn-icon:hover { color: var(--accent); border-color: var(--accent-line); }
+.stn-px { display: grid; gap: 2px; padding-left: 4px; }
+.stn-px b { font-size: 26px; line-height: 1.05; }
+.stn-chg { justify-self: start; padding: 2px 8px; border-radius: 999px; font: 700 12px var(--font-mono); }
+.stn-chg.up { color: var(--up); background: color-mix(in srgb, var(--up) 13%, transparent); }
+.stn-chg.down { color: var(--down); background: color-mix(in srgb, var(--down) 13%, transparent); }
+#main .stn-bar .stn-stats { display: flex; flex-wrap: wrap; gap: 0; }
+.stn-bar .stn-stat { padding: 2px 18px; border-left: 1px solid var(--border-soft); }
+.stn-bar .stn-stat:first-child { border-left: 0; padding-left: 0; }
+.stn-earn { color: #a855f7 !important; }
+.stn-bar-r { display: grid; justify-items: end; gap: 6px; }
+.stn-ccy { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-soft); }
+.stn-ccy button { height: 26px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--subtext); font: 700 11.5px var(--font-mono); cursor: pointer; }
+.stn-ccy button.on { color: var(--accent); background: var(--accent-wash); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.stn-bar .stn-delay { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 11px; color: var(--faint); white-space: nowrap; }
+.stn-delay i { width: 7px; height: 7px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 3px color-mix(in srgb, var(--up) 22%, transparent); }
+
+/* side and ticket end where the page ends: both stretch over every row they span */
+.stn-side { align-self: stretch; max-height: none; overflow: visible; position: relative; min-height: 360px; }
+.stn-side-in { position: absolute; inset: 12px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.stn-side-in .stn-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; }
+.stn-side-in .stn-ladder { flex: none; }
+.stn-ticket { align-self: stretch; position: static; display: block; }
+.stn-ticket-in { position: sticky; top: 72px; display: grid; gap: 10px; }
+.stn-emas { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.stn-emas .range-btn { height: 24px; padding: 0 9px; font-size: 11px; }
+@media (min-width: 1600px) { .stn-plan { max-height: none; overflow: visible; } }
+@media (max-width: 1200px) {
+  #main .stn .stn-bar { grid-template-columns: auto minmax(0, 1fr) auto; }
+  #main .stn-bar .stn-stats { grid-column: 1 / -1; order: 5; }
+}
+@media (max-width: 900px) {
+  #main .stn .stn-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .stn-bar-l .stn-title { display: none; }
+  .stn-bar-r { grid-column: 1 / -1; justify-items: start; grid-auto-flow: column; align-items: center; }
+  .stn-bar .stn-stat { padding: 4px 12px; }
+  .stn-side { min-height: 0; }
+  .stn-side-in { position: static; inset: auto; overflow: visible; }
+  .stn-ticket-in { position: static; }
+}
+
+/* wide screens: the tabs sit right under the chart, the plan column runs the full height */
+@media (min-width: 1600px) {
+  .stn { grid-template-areas: "bar bar bar bar" "side main plan ticket" "side bottom plan ticket"; grid-template-rows: auto auto 1fr; }
+  .stn-bottom { align-self: start; }
+}
