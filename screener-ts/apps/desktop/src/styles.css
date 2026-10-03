@@ -9804,3 +9804,22 @@ html.light .action-btn:not(:hover) { box-shadow: var(--glass-drop); }
 .stn-row2 > .stn-f, .stn-row2 > label { min-width: 0; }
 .stn-acct-info { flex-wrap: wrap; row-gap: 4px; margin-top: 0; }
 .stn-acct-info .stn-acct-name { flex: 1 0 100%; text-align: left; padding: 0; }
+
+/* ══ CHAT-92 — Trạm on a phone ══
+   1. The tab bar above the chart (Held … Case studies) wrapped to two lines and its capsule
+      ran out of the card: one row now, swiped sideways, like the watchlist bar under it.
+   2. The dock no longer leaves a gap on the right for the assistant — lopsided whenever the
+      button is not there. It spans the card evenly, and the assistant button rises above it
+      while the station is on screen. */
+@media (max-width: 900px) {
+  html .stn-btabs, html #main .stn-btabs {
+    display: flex; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; box-sizing: border-box;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
+  }
+  html .stn-btabs::-webkit-scrollbar { display: none; }
+  html .stn-btabs > button { flex: none; white-space: nowrap; scroll-snap-align: start; }
+  html .stn-btabs > .stn-btabs-sep { flex: none; }
+
+  html .stn-dock, html #main .stn-dock { margin: 14px 0 0; padding: 6px; }
+  html:has(#main .stn-dock) #chat-fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
