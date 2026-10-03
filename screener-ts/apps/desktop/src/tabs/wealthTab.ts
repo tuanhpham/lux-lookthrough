@@ -618,7 +618,7 @@ function accountsTable(now: WealthSeries['points'][number] | null, side: Portfol
       <td>${t('wealth.kind.portfolio')}</td><td>${ccyChip(shown)}</td>
       <td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? eur(now.portfolio) : '—'}</td><td>${now ? share(now.portfolio) : '—'}</td>
       <td>${side.asOf ?? '—'}</td><td class="muted">${t('wealth.pf.auto')}</td>
-      <td><button class="pf-icon-btn${pfOpen ? ' active' : ''}" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}">${pfOpen ? '▴' : '▾'}</button></td>
+      <td><div class="row-acts"><button class="pf-icon-btn w-hist-btn${pfOpen ? ' active' : ''}" data-w-hist="${PF_ROW}" title="${t('wealth.act.chart')}">${cbIcon('chart', 14)} ${pfOpen ? '▴' : '▾'}</button></div></td>
     </tr>${pfOpen ? `<tr class="w-hist" data-w-row="${PF_ROW}"><td colspan="9"><div class="w-acct-chart" data-w-chart="${PF_ROW}"></div></td></tr>` : ''}`;
   const rows = sortedAccounts(now)
     .map((a) => accountRow(a, now))
@@ -689,12 +689,12 @@ function accountRow(a: WealthAccount, now: WealthSeries['points'][number] | null
       <td>${st.latest && total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '—'}</td>
       <td${stale ? ' style="color:var(--warn)"' : ''}>${age}</td>
       <td>${st.change == null ? '—' : `<span style="color:${tone(st.change)}">${st.change >= 0 ? '+' : ''}${fmt(st.change, a.currency)}</span>`}</td>
-      <td style="white-space:nowrap">
-        <button class="pf-icon-btn" data-w-bal="${a.id}" title="${t('wealth.act.balance')}">${cbIcon('plus', 14)}</button>
+      <td><div class="row-acts">
+        <button class="pf-icon-btn pf-icon-add" data-w-bal="${a.id}" title="${t('wealth.act.balance')}">${cbIcon('plus', 14)}</button>
         <button class="pf-icon-btn w-hist-btn${open ? ' active' : ''}" data-w-hist="${a.id}" title="${t('wealth.act.history')}">${count} ${open ? '▴' : '▾'}</button>
         <button class="pf-icon-btn" data-w-edit="${a.id}" title="${t('wealth.act.edit')}">${cbIcon('edit', 14)}</button>
         <button class="pf-icon-btn pf-icon-danger" data-w-del="${a.id}" title="${t('wealth.act.delete')}">${cbIcon('trash', 14)}</button>
-      </td>
+      </div></td>
     </tr>`;
   if (!open) return row;
   const mode = chartMode.get(a.id) ?? 'native';
@@ -735,10 +735,10 @@ function readingsHtml(a: WealthAccount): string {
           <td class="w-delta">${d == null ? '<span class="muted">—</span>' : `<span style="color:${tone(d)}">${d >= 0 ? '+' : ''}${fmt(d, a.currency)}</span>`}</td>
           <td class="muted w-delta">${then == null ? '—' : eur(then)}</td>
           <td><input class="field w-in w-in-note" data-f="note" value="${esc(b.note ?? '')}" placeholder="${t('wealth.col.note')}"></td>
-          <td style="white-space:nowrap">
-            <button class="pf-icon-btn w-save" data-w-balsave="${b.id}" title="${t('wealth.act.save')}" disabled>✓</button>
+          <td><div class="row-acts">
+            <button class="pf-icon-btn w-save" data-w-balsave="${b.id}" title="${t('wealth.act.save')}" disabled>${cbIcon('check', 14)}</button>
             <button class="pf-icon-btn pf-icon-danger" data-w-baldel="${b.id}" title="${t('wealth.act.delreading')}">${cbIcon('trash', 14)}</button>
-          </td>
+          </div></td>
         </tr>`;
     })
     .join('');
@@ -747,7 +747,7 @@ function readingsHtml(a: WealthAccount): string {
       <td><input class="field w-in w-in-amt" data-f="amount" inputmode="decimal" placeholder="${latest ? grouped(latest.amount) : '0'}"></td>
       <td colspan="2" class="muted" style="font-size:11px">${t('wealth.readings.new')}</td>
       <td><input class="field w-in w-in-note" data-f="note" placeholder="${t('wealth.col.note')}"></td>
-      <td><button class="btn w-add-btn" data-w-baladd="${a.id}" title="${t('wealth.act.balance')}">＋</button></td>
+      <td><div class="row-acts"><button class="pf-icon-btn pf-icon-add w-add-btn" data-w-baladd="${a.id}" title="${t('wealth.act.balance')}">${cbIcon('plus', 14)}</button></div></td>
     </tr>`;
   return `<div class="w-readings" style="--c:${colorOf(a.id)}">
       <div class="w-readings-h"><strong>${t('wealth.readings')}</strong> ${ccyChip(a.currency)} <span class="muted">${asc.length} · ${t('wealth.readings.hint')}</span></div>

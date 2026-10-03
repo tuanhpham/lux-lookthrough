@@ -6247,3 +6247,10 @@ CHAT-89 (2026-10-03) Tram: tat ca tab tren chart, thanh chuyen watchlist ngang, 
 - Cot: grid-template-areas "bar bar bar" "plan center left" (380/1fr/320, 1200-1599: 340/1fr/300); 901-1199: "center left" "plan left"; mobile: bar, center, left, plan.
 - Icon khac nhau Windows/Mac: emoji ve bang font he thong (Segoe UI Emoji vs Apple Color Emoji). Them Noto Color Emoji (Google Fonts) va --font-emoji o cuoi --font-ui / --font-mono -> cung mot bo emoji moi OS. Mui ten va dau x khong phai emoji nen van theo font chu.
 - .seg mat padding duoi: `#main .toolbar { padding-bottom:0; margin-bottom:24px }` (1,1,0) de len `.seg { padding:3px }` o moi cho dung class "toolbar seg"/"row seg" (17 cho: Tinh trang tai chinh Tong/Phan bo + khoang thoi gian, cac chart Danh muc, stock modal, screener). Sua: `html #main .toolbar.seg, html #main .row.seg ... { padding:3px }` + margin-bottom 0 (cac cho dung da co margin inline).
+
+CHAT-90 (2026-10-03) Vien duoi .seg bi mat; mot kieu nut cuoi hang cho moi bang
+- `#main .toolbar { border-bottom: none }` cung xoa vien duoi cua moi "toolbar seg" -> capsule ho o duoi. Khai bao lai vien day du cho .seg/.cb-seg (ca trong #main va modal).
+- Nut cuoi hang: 4 class cu (pf-icon-btn, del-btn, note-btn, action-btn) 24-28px, icon --faint, vien mo. Gio tat ca la nut kinh 30px, nhom trong <div class="row-acts"> (flex, gap 6px) thay cho `td style="display:flex"` (lam vo o bang).
+  Mau theo y nghia: them = accent (hover CTA), xoa = do ngay ca khi khong hover, chart = xanh, plan/target/Tram = accent, stop = vang, ban = do. action-btn dung --ab voi fallback (khai bao --ab trong rule goc `html #main .action-btn` se de len modifier).
+- Plan trong Lich su giao dich: bo ky tu ⎙, dung icon file (cbIcon). Xoa giao dich: icon thung rac thay dau x 10px. Financial Status: + doc so du / luu = icon check / nut Danh muc = icon chart.
+- commandBar cbIcon them 'check' va 'chart'.

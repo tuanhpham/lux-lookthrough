@@ -2554,7 +2554,7 @@ function transactionHistoryHtml(st: AccountState): string {
 
   rows.sort((a, b) => (a.sortDate < b.sortDate ? 1 : a.sortDate > b.sortDate ? -1 : 0));
   const delBtn = (kind: string, id: string): string =>
-    `<button class="del-btn" title="Delete this transaction" data-del-${kind}="${id}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>`;
+    `<button class="del-btn" title="Delete this transaction" data-del-${kind}="${id}">${cbIcon('trash', 13)}</button>`;
   const signed = (v: number, dateForFx: string): string =>
     `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--danger)'}">${v >= 0 ? '+' : ''}${money(toDisplay(v, dateForFx), dispSymbol())}</span>`;
   const vi = getLang() === 'vi';
@@ -2608,7 +2608,7 @@ function transactionHistoryHtml(st: AccountState): string {
           <td>—</td>
           <td>—</td>
           <td>—</td>
-          <td style="display:flex;gap:4px;align-items:center">${delBtn('cash', r.delId)}</td>
+          <td><div class="row-acts">${delBtn('cash', r.delId)}</div></td>
         </tr>`;
       }
 
@@ -2633,7 +2633,7 @@ function transactionHistoryHtml(st: AccountState): string {
       // empty dialog on every trade made before this feature existed teaches the user to
       // stop pressing it. Both CLOSED and OPEN rows carry a `lotId`, so both can offer it.
       const planBtn = r.lotId
-        ? `<button class="action-btn" data-plan-lot="${r.lotId}" hidden title="${t('pf.tx.plantitle')}">⎙ ${t('pf.tx.plan')}</button>`
+        ? `<button class="action-btn action-btn--plan" data-plan-lot="${r.lotId}" hidden title="${t('pf.tx.plantitle')}">${cbIcon('file', 13)}${t('pf.tx.plan')}</button>`
         : '';
       return `<tr>
         <td><span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${r.status}</span></td>
@@ -2650,7 +2650,7 @@ function transactionHistoryHtml(st: AccountState): string {
         <td>${pnlPctCap}</td>
         ${setupCell(r)}
         ${noteCell(r.noteKind!, r.noteId!, r.note)}
-        <td style="display:flex;gap:4px;align-items:center">${chartBtn}${planBtn}${delBtn(r.delKind, r.delId)}</td>
+        <td><div class="row-acts">${chartBtn}${planBtn}${delBtn(r.delKind, r.delId)}</div></td>
       </tr>`;
     })
     .join('');
