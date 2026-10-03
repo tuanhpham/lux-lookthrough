@@ -8812,3 +8812,50 @@ html.light .slm-link--primary { border-color: var(--accent-line); background: li
 }
 .stn-chart.picking { cursor: crosshair; outline: 2px dashed var(--accent-line); outline-offset: 4px; border-radius: 10px; }
 @media (max-width: 900px) { .stn-keys { display: none; } }
+
+/* ── Trạm giao dịch, edge to edge: the page drops #main's 1240px column, as an exchange does,
+   and the trade plan gets its own column beside the chart on a wide screen. ── */
+#main:has(> #tab-station:not(.hidden)), #main:has(#tab-station:not(.hidden)) { max-width: none; padding-left: 18px; padding-right: 18px; }
+.stn {
+  grid-template-columns: 230px minmax(0, 1fr) 340px;
+  grid-template-areas: "bar bar bar" "side main ticket" "side plan ticket" "side bottom ticket";
+  grid-template-rows: auto auto auto 1fr;
+}
+.stn-plan { grid-area: plan; min-width: 0; display: grid; gap: 10px; align-content: start; }
+@media (min-width: 1600px) {
+  .stn {
+    grid-template-columns: 240px minmax(0, 1fr) 380px 360px;
+    grid-template-areas: "bar bar bar bar" "side main plan ticket" "side bottom bottom ticket";
+    grid-template-rows: auto auto 1fr;
+  }
+  .stn-plan { max-height: 640px; overflow: auto; }
+}
+@media (max-width: 1200px) and (min-width: 901px) {
+  .stn { grid-template-columns: 190px minmax(0, 1fr) 310px; }
+}
+@media (max-width: 900px) {
+  .stn { grid-template-areas: "bar" "main" "plan" "ticket" "side" "bottom"; grid-template-rows: none; grid-template-columns: minmax(0, 1fr); }
+  #main:has(#tab-station:not(.hidden)) { padding-left: 10px; padding-right: 10px; }
+}
+.stn-title {
+  display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 10px; height: 38px; border-radius: 12px;
+  font: 750 14px var(--font-ui); letter-spacing: -.005em; color: var(--text);
+  background: var(--accent-wash); border: 1px solid var(--accent-line);
+}
+.stn-title span { color: var(--accent); }
+.stn-ph { display: grid; gap: 2px; }
+.stn-ph b { font-size: 14px; color: var(--text); }
+.stn-ph small { font-size: 11.5px; color: var(--faint); }
+.stn-grade { display: grid; gap: 8px; }
+.stn-grade .tp-crit-list { max-height: none; }
+.stn-size { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-soft); }
+.stn-size > div { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--subtext); }
+.stn-size b { font-family: var(--font-mono); color: var(--text); text-align: right; }
+.stn-warnline { color: var(--warn) !important; font-size: 12px; }
+/* the broker fee table */
+.stn-brows { display: grid; gap: 6px; margin-bottom: 10px; }
+.stn-bhead, .stn-brow { display: grid; grid-template-columns: minmax(0, 1fr) 96px 34px; gap: 6px; align-items: center; }
+.stn-bhead span { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+#main .stn-brow .field, .stn-brow .field { height: 34px; width: 100%; }
+.stn-own { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-soft); display: grid; gap: 6px; }
+#main .stn-own .field, .stn-own .field { height: 34px; width: 100%; }

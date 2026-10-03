@@ -11,6 +11,8 @@ export interface UpdateInput {
   asOfDate: string;
   /** Quote-space fill price → account money; see `processOrders`. Identity when absent. */
   toAccount?: (ticker: string, date: string, price: number) => number;
+  /** Fee per order for fills, overriding `account.fee` (the app's broker table). */
+  fee?: number;
 }
 
 export interface UpdateResult {
@@ -33,7 +35,7 @@ export function runUpdate(
   input: UpdateInput,
   nextId: IdFactory,
 ): UpdateResult {
-  const fills = processOrders(state, input.barsByTicker, nextId, input.toAccount);
+  const fills = processOrders(state, input.barsByTicker, nextId, input.toAccount, input.fee);
 
   const prices: PriceMap = {};
   for (const [ticker, bars] of input.barsByTicker.entries()) {

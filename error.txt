@@ -6148,3 +6148,15 @@ CHAT-77 (2026-10-03) - Tram giao dich dot 2: lenh cho, dat muc gia bang cach bam
 - Lenh cho khop tu dong cung tra phi cua tai khoan (core orders.ts). Test core fees.test.ts (4).
 - Kiem tra: tsc OK, vitest core 837 + desktop 446, vite build OK, anh headless dat lenh cat lo + tab Lenh cho, bam chart dat stop.
 - Sell short van de tat (user chua choi). Chi can deploy web thuong le.
+
+CHAT-78 (2026-10-03) - Tram giao dich: phi tu nhan theo broker, trade plan cham diem ngay trong Tram, trang rong het man hinh
+- Yeu cau: phi tu nhan theo ten tai khoan (Trade Republic 1, ...) va bang phi sua duoc khi broker doi gia; tab Trade plan cu khong co tac dung -> plan phai la mot phan cua lenh mua (tieu chi, diem, xep hang) va duoc tao ngay; trang rong het chieu ngang nhu OKX.
+- Code:
+  - portfolio/brokerFees.ts: bang {name, fee} mac dinh TR 1 / Scalable 0,99 / Degiro 2 / Equate Plus 0, luu khoa dong bo `broker_fees`; brokerOf(ten) (khong phan biet hoa thuong, dau cach, gach); feeOf(account) = phi rieng cua tai khoan neu co, khong thi theo broker, khong thi 0. tests/brokerFees.test.ts (3).
+  - Tram: dong "Phi €1,00 · Trade Republic ✎" -> hop thoai sua bang phi broker (them/xoa/sua) + phi rieng cho tai khoan (de trong = theo bang).
+  - core processOrders/runUpdate nhan fee (feeOverride); Danh muc > Cap nhat truyen feeOf -> lenh cho tu khop cung tra phi theo broker.
+  - Ke hoach giao dich trong Tram (cot rieng canh chart khi man hinh >= 1600px, duoi chart khi hep hon): setup, "Diem cua ban" (tu dong / A-D), bang diem gradePanelHtml dung chung voi Planner + form mua (tieu chi tu dong tu chart, cau hoi tay Co/Khong luu vao plan:<SYM>), phan co lenh (thi truong, muc rui ro, do rong stop + R, co day du -> % theo diem -> so cp). Hai luot nhu form mua: tim stop/target -> cham diem -> tinh co lenh theo diem; doi gia/stop/target/tai khoan la cham lai.
+  - Mua: ghi reviewedAt/levels/reviewedGrade vao plan, snapshot co GradeResult, case study mang plan da cham. Bo tab Trade plan cu va dai plan duoi chart.
+  - Trang rong het man hinh (#main:has(#tab-station) bo max-width 1240px), bo page hero, ten trang nam trong thanh gia; chart cao 540 o man hinh rong.
+- Kiem tra: tsc OK, vitest desktop 449 + core 837, vite build OK, anh headless 1920 / 1400, hop thoai phi broker, tra loi tieu chi doi diem 67->70, mua -> lot fee 1 rating B, snapshot + case co diem.
+- Chi can deploy web thuong le.

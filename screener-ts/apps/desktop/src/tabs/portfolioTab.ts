@@ -1,4 +1,5 @@
 import { openStation } from './stationTab.js';
+import { feeOf, loadBrokerFees } from '../portfolio/brokerFees.js';
 import {
   createAccount,
   buy,
@@ -2698,6 +2699,7 @@ function renderOrders(ctx: AppContext): void {
 }
 
 async function update(ctx: AppContext): Promise<void> {
+  await loadBrokerFees(ctx).catch(() => null);
   const st = active();
   // #update-status only exists in the individual account view. When update() is
   // called from the Overview "Update All" loop the element is absent — use a
@@ -2834,6 +2836,8 @@ async function update(ctx: AppContext): Promise<void> {
   const res = runUpdate(st, {
     barsByTicker, asOfDate: endDate,
     toAccount: (sym, date, p) => p * quoteToCcy(sym, st.account.currency, date),
+    // The broker table's fee (Trade Republic 1, …), so an order that fills by itself pays it too.
+    fee: feeOf(st.account),
   }, uuid);
 
   // Build dense daily equity snapshots

@@ -10,19 +10,20 @@
  * thing a swing trader actually reads instead: the plan's levels, stacked against the price.
  *
  * ── THE USER'S RULES (2026-10-03) ───────────────────────────────────────────
- * · Fees are per account and configurable (Trade Republic €1, Scalable €0.99, Degiro €2…).
+ * · Fees come from the account's broker, recognised by name, in an editable table
+ *   (Trade Republic €1, Scalable €0.99, Degiro €2, Equate Plus 0) — see `brokerFees.ts`.
+ * · The trade plan is part of the buy, not a separate screen: the checklist, the grade and the
+ *   size are worked out the moment a symbol is opened and follow every change on the ticket.
  * · A case study is created AT THE BUY. A trade booked entirely in the past (bought and sold
  *   in one go) is filed closed; otherwise it is open and the sells close it.
  * · A sell knows how many shares the chosen account holds and cannot exceed it.
  * · Short selling is reserved (a disabled tab), not built.
  */
-import type { Bar, ConvictionRating, SetupKey } from '@screener/core';
-import { computeCash, computeEquity, quoteCurrencyOf, SETUP_KEYS } from '@screener/core';
+import type { Bar, ConvictionRating, GradeResult, SetupKey } from '@screener/core';
+import { computeCash, computeEquity, gradeTrade, qmGradeEvidence, quoteCurrencyOf, scanQm, SETUP_KEYS } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { getLang } from '../ui/i18n.js';
-import { pageHero } from '../ui/pageHero.js';
 import { drawCandles, type CandleChart } from '../ui/charts.js';
-import { formDialog } from '../ui/forms.js';
 import { openStock } from '../ui/stockModal.js';
 import { accounts, ensureAccountsLoaded, today, withAccounts } from '../portfolio/store.js';
 import { cancelOrder } from '@screener/core';
@@ -31,13 +32,14 @@ import { applyEurUsdBars, ccyFactor, ensureEurUsd, hasEurUsd } from '../portfoli
 import {
   applyWrite, heldShares, openLots, plannedPrice, quoteThreshold, type PlannedPrice, type Rating, type WritePlan,
 } from '../portfolio/writes.js';
-import { buildBuyPlan, ladderConfig, loadPlaybookConfig, type BuyPlan } from '../portfolio/playbook.js';
-import { loadPlan, type SymbolPlan } from '../portfolio/planStore.js';
+import { buildBuyPlan, currentRegime, ensureRegime, ladderConfig, loadPlaybookConfig, type BuyPlan } from '../portfolio/playbook.js';
+import { loadPlan, savePlan, type SymbolPlan } from '../portfolio/planStore.js';
+import { gradePanelHtml } from '../portfolio/gradeView.js';
+import { brokerFees, brokerOf, feeOf, loadBrokerFees, saveBrokerFees, type BrokerFee } from '../portfolio/brokerFees.js';
 import { savePlanSnapshot } from '../portfolio/planSnapshot.js';
 import { closeOnOrBefore } from '../portfolio/planExit.js';
 import { exitReasonLabel, exitReasonOptgroupsHtml } from '../portfolio/exitReasons.js';
 import { setupName } from '../portfolio/planWords.js';
-import { closeTradePlanner, openTradePlanner } from '../portfolio/tradePlanner.js';
 import { loadCase, loadCaseIndex, saveCase, type CaseRating, type CaseStudy } from '../caseStudies/store.js';
 import { applySell, caseForBuy, studyForLots } from '../portfolio/stationCase.js';
 import { loadIndex as loadWatchlists, loadItems as loadWatchItems } from '../ui/watchlists.js';
@@ -52,7 +54,7 @@ function esc(s: string): string {
 
 type Ccy = 'EUR' | 'USD';
 type Side = 'buy' | 'sell';
-type BottomTab = 'pos' | 'orders' | 'hist' | 'cases' | 'plan';
+type BottomTab = 'pos' | 'orders' | 'hist' | 'cases';
 type Pick = 'price' | 'stop' | 'target';
 
 const SYM_KEY = 'station_sym';
@@ -97,6 +99,11 @@ let sym = '';
 let bars: Bar[] = [];
 let plan: SymbolPlan | null = null;
 let suggestion: BuyPlan | null = null;
+/** The bars scanned once per symbol — the measured half of the checklist. */
+let scan: ReturnType<typeof scanQm> | null = null;
+/** The checklist scored against the ticket as it stands. */
+let grade: GradeResult | null = null;
+let critOpen = true;
 let ticket: Ticket = freshTicket();
 let bottom: BottomTab = 'pos';
 let chart: CandleChart | null = null;
@@ -141,14 +148,16 @@ const toQuote = (v: number | null): number | null =>
   v === null ? null : v * ccyFactor(ticket.ccy, quoteCcy() ?? 'USD', ticket.date);
 const fromQuote = (v: number): number => v * ccyFactor(quoteCcy() ?? 'USD', ticket.ccy, ticket.date);
 
+/** The letter in force: the user's override, else the score's. */
 function effective(): ConvictionRating | null {
-  return (plan?.gradeOverride ?? plan?.reviewedGrade ?? null) as ConvictionRating | null;
+  return (plan?.gradeOverride ?? grade?.grade ?? null) as ConvictionRating | null;
 }
 
 /** The account's fee as the ticket's default. A value typed on the ticket wins. */
 function feeNow(): number {
   if (ticket.fee !== null) return ticket.fee;
-  return acct()?.account.fee ?? 0;
+  const a = acct();
+  return a ? feeOf(a.account) : 0;
 }
 
 /** shares × price in the account's currency. */
@@ -170,13 +179,14 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   bars = [];
   plan = null;
   suggestion = null;
+  scan = null;
+  grade = null;
   const keep = ticket;
   ticket = freshTicket(keep.acctId);
   ticket.side = keep.side;
   ticket.mode = keep.mode;
   ticket.ccy = quoteCcy() ?? 'USD';
   msg = null;
-  closeTradePlanner(root.querySelector<HTMLElement>('#stn-plan-host') ?? undefined);
   paint(ctx, root);
   if (!sym) return;
   const [res, p] = await Promise.all([
@@ -186,6 +196,8 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   if (token !== loadToken) return;
   bars = res?.bars ?? [];
   plan = p;
+  // `scanQm` needs enough history to measure a base; below that the trade stays ungraded.
+  scan = bars.length >= 60 ? scanQm(sym, bars) : null;
   ticket.setup = (p?.setup || '') as SetupKey | '';
   const lp = last()?.close ?? null;
   if (lp !== null) ticket.price = round(fromQuote(lp));
@@ -194,20 +206,50 @@ async function loadSymbol(ctx: AppContext, s: string, root: HTMLElement): Promis
   paint(ctx, root);
 }
 
-/** Stop, target and size from the playbook, for the price on the ticket. */
+/**
+ * The plan for the ticket as it stands: levels, grade, size — the Buy form's two passes.
+ *
+ * Pass one finds the stop and target with no grade in the way; the checklist is then scored
+ * against THOSE levels (its R:R and stop-width criteria describe this trade); pass two sizes
+ * the position with the letter that came out. A value the user typed is never overwritten.
+ */
 function suggest(): void {
   const st = acct() ?? accounts[0];
-  if (!st || !bars.length || !(ticket.price && ticket.price > 0)) { suggestion = null; return; }
-  suggestion = buildBuyPlan({
+  if (!st || !bars.length || !(ticket.price && ticket.price > 0)) { suggestion = null; regrade(); return; }
+  const common = {
     state: st, prices: accountPrices(st.account.id), bars, symbol: sym,
     entry: ticket.price, entryCurrency: ticket.ccy, setup: (ticket.setup || 'Breakout') as SetupKey,
-    date: ticket.date, rating: effective(),
-  });
-  if (suggestion) {
-    if (ticket.stop === null) ticket.stop = suggestion.stop;
-    if (ticket.target === null) ticket.target = suggestion.target;
-    if (ticket.shares === null && ticket.side === 'buy') ticket.shares = suggestion.shares || null;
+    date: ticket.date,
+  };
+  const lv = buildBuyPlan({ ...common, rating: null });
+  if (lv) {
+    if (ticket.stop === null) ticket.stop = lv.stop;
+    if (ticket.target === null) ticket.target = lv.target;
   }
+  regrade();
+  suggestion = buildBuyPlan({ ...common, rating: effective() }) ?? lv;
+  if (suggestion && ticket.shares === null && ticket.side === 'buy') ticket.shares = suggestion.shares || null;
+}
+
+/** Score the checklist: measured criteria from the bars, manual ones from the saved plan. */
+function regrade(): void {
+  if (!scan || !plan) { grade = null; return; }
+  const px = ticket.price ?? 0;
+  const rps = px > 0 && ticket.stop !== null && ticket.stop > 0 && ticket.stop < px ? px - ticket.stop : 0;
+  grade = gradeTrade(qmGradeEvidence(scan, {
+    setup: ticket.setup,
+    regime: currentRegime()?.regime ?? null,
+    // null, not 0, when there is nothing to divide: the grader reads a missing number as
+    // unmeasured and a zero as a failing measurement.
+    rMultiple: rps > 0 && ticket.target !== null && ticket.target > px ? (ticket.target - px) / rps : null,
+    stopPct: rps > 0 ? (rps / px) * 100 : null,
+  }), plan.answers);
+}
+
+function storePlan(ctx: AppContext): void {
+  if (!plan) return;
+  const mine = plan.symbol;
+  void savePlan(ctx, plan).then((saved) => { if (plan && plan.symbol === mine) plan = saved; }).catch(() => {});
 }
 
 /** Buy: keep the chosen account. Sell: the first account that actually holds the symbol. */
@@ -247,6 +289,8 @@ export async function renderStation(ctx: AppContext): Promise<void> {
     ensureAccountsLoaded(ctx).catch(() => {}),
     ensureEurUsd(ctx).catch(() => {}),
     loadPlaybookConfig(ctx).catch(() => null),
+    loadBrokerFees(ctx).catch(() => null),
+    currentRegime() ? Promise.resolve(null) : ensureRegime(ctx).catch(() => null),
   ]);
   // The device cache is all `ensureEurUsd` reads. A station opened before Portfolio ever ran
   // would then refuse every EUR-account trade of a dollar stock, so fetch the rate once here.
@@ -266,25 +310,15 @@ function paint(ctx: AppContext, root: HTMLElement): void {
   liveCtx = ctx;
   liveRoot = root;
   bindKeys();
-  const planOpen = !!root.querySelector('#stn-plan-host .tp-panel, #stn-plan-host > *');
   root.innerHTML = `
-    ${pageHero({
-      icon: '⚡', tone: 'var(--accent)',
-      kicker: L('Trading · Station', 'Giao dịch · Trạm'),
-      title: L('Trade Station', 'Trạm giao dịch'),
-      sub: L(
-        'Buy and sell from one screen: the chart, the plan’s levels and the ticket side by side. Every trade is recorded into a paper account and its case study.',
-        'Mua và bán trên một màn hình: chart, các mức giá của plan và phiếu lệnh nằm cạnh nhau. Mỗi lệnh được ghi vào tài khoản paper và case study của nó.',
-      ),
-    })}
     <div class="stn">
       ${tickerBarHtml()}
       <aside class="stn-side card">${listHtml()}${ladderHtml()}</aside>
       <section class="stn-main card">
         ${pickBarHtml()}
         <div class="stn-chart${pick ? ' picking' : ''}" id="stn-chart"></div>
-        ${planStripHtml()}
       </section>
+      <section class="stn-plan card" id="stn-plan">${planPanelHtml()}</section>
       <aside class="stn-ticket card" id="stn-ticket">${ticketHtml()}</aside>
       <section class="stn-bottom card">${bottomHtml()}</section>
     </div>
@@ -294,7 +328,7 @@ function paint(ctx: AppContext, root: HTMLElement): void {
     </div>`;
   wire(ctx, root);
   drawChart(root);
-  void paintBottom(ctx, root, planOpen);
+  void paintBottom(ctx, root);
 }
 
 function tickerBarHtml(): string {
@@ -313,6 +347,7 @@ function tickerBarHtml(): string {
   const g = effective();
   const stat = (k: string, v: string, cls = ''): string => `<div class="stn-stat"><small>${k}</small><b class="${cls}">${v}</b></div>`;
   return `<header class="stn-bar card">
+      <div class="stn-title"><span aria-hidden="true">⚡</span>${L('Trade Station', 'Trạm giao dịch')}</div>
       <div class="stn-sym">
         <input class="field stn-sym-in" id="stn-sym" value="${esc(sym)}" spellcheck="false" autocomplete="off" aria-label="${L('Symbol', 'Mã')}">
         <button class="btn-outline stn-mini" id="stn-open-stock" title="${L('Stock page', 'Trang cổ phiếu')}">↗</button>
@@ -386,20 +421,37 @@ function pickBarHtml(): string {
     </div>`;
 }
 
-function planStripHtml(): string {
+/** The trade plan, generated for the ticket: setup, grade with its criteria, and the sizing. */
+function planPanelHtml(): string {
   const g = effective();
-  const setup = plan?.setup ? setupName(plan.setup as SetupKey, vi()) : L('no setup chosen', 'chưa chọn setup');
+  const pct = g ? ladderConfig().ratingPct[g] : 100;
   const s = suggestion;
-  const bits = [
-    `<span class="stn-chip">${L('Setup', 'Setup')}: <b>${esc(setup)}</b></span>`,
-    `<span class="stn-chip">${L('Grade', 'Điểm')}: <b>${g ?? '—'}</b></span>`,
-    s ? `<span class="stn-chip">${L('Stop', 'Stop')} −${fmt(s.stopPct, 1)}%</span>` : '',
-    s?.rMultiple ? `<span class="stn-chip">${fmt(s.rMultiple, 1)}R</span>` : '',
-    s ? `<span class="stn-chip">${L('Playbook size', 'Cỡ theo playbook')}: <b>${fmt(s.shares, 0)}</b></span>` : '',
-  ].filter(Boolean).join('');
-  return `<div class="stn-strip">${bits}
-      <button class="btn-outline stn-mini" data-stn-bottom="plan">📋 ${L('Grade / edit the plan', 'Chấm điểm / sửa plan')}</button>
+  const head = `<div class="stn-ph">
+      <b>📋 ${L('Trade plan', 'Kế hoạch giao dịch')}</b>
+      <small>${L('scored live from the chart and the ticket', 'tự chấm theo chart và phiếu lệnh')}</small>
+    </div>
+    <div class="stn-row2">
+      <label class="stn-f"><span>Setup</span><select class="field" data-stnp="setup">
+        <option value="">${L('— choose —', '— chọn —')}</option>${SETUP_KEYS.map((k) => `<option value="${k}"${k === ticket.setup ? ' selected' : ''}>${esc(setupName(k, vi()))}</option>`).join('')}
+      </select></label>
+      <label class="stn-f"><span>${L('Your grade', 'Điểm của bạn')}</span><select class="field" data-stnp="override">
+        <option value="">${L('Automatic', 'Tự động')}${grade?.grade ? ` (${grade.grade})` : ''}</option>
+        ${(['A', 'B', 'C', 'D'] as const).map((k) => `<option value="${k}"${plan?.gradeOverride === k ? ' selected' : ''}>${k}</option>`).join('')}
+      </select></label>
     </div>`;
+  const body = grade
+    ? gradePanelHtml(grade, { ns: 'stn', id: sym, vi: vi(), open: critOpen, override: plan?.gradeOverride ?? null, effective: g, pctOfFull: pct })
+    : `<div class="stn-empty">${!bars.length ? L('Loading…', 'Đang tải…')
+      : L('Not enough history to score this setup (needs ~60 sessions).', 'Chưa đủ dữ liệu để chấm setup này (cần khoảng 60 phiên).')}</div>`;
+  const rg = s?.regime?.regime ?? currentRegime()?.regime ?? null;
+  const sizing = s ? `<div class="stn-size">
+      <div><span>${L('Market', 'Thị trường')}</span><b>${esc(rg ?? '—')}</b></div>
+      <div><span>${L('Risk budget', 'Mức rủi ro')}</span><b>${fmt(s.budget.pct)}% ${L('of equity', 'vốn')}</b></div>
+      <div><span>${L('Stop width', 'Độ rộng stop')}</span><b>${fmt(s.stopPct, 1)}%${s.rMultiple ? ` · ${fmt(s.rMultiple, 1)}R` : ''}</b></div>
+      <div><span>${L('Full size → grade', 'Cỡ đầy đủ → theo điểm')}</span><b>${fmt(s.size.fullShares, 0)} → ${pct}% → ${fmt(s.size.shares, 0)} ${L('sh', 'cp')}</b></div>
+      ${s.budget.pct === 0 ? `<div class="stn-warnline">${L('The playbook says no new longs in this market.', 'Playbook: không mở lệnh mua mới trong thị trường này.')}</div>` : ''}
+    </div>` : '';
+  return `${head}<div class="stn-grade">${body}</div>${sizing}`;
 }
 
 function acctOptions(): string {
@@ -467,7 +519,7 @@ function ticketHtml(): string {
       <select class="field" data-stn="acct"${noAcct ? ' disabled' : ''}>${acctOptions()}</select></label>
     <div class="stn-acct-info">
       <span>${L('Cash', 'Tiền mặt')} <b>${cash(cashNow, ac)}</b></span>
-      <button class="stn-link" id="stn-fee-edit" title="${L('Fee per order for this account', 'Phí mỗi lệnh của tài khoản này')}">${L('Fee', 'Phí')} ${cash(st?.account.fee ?? 0, ac)} ✎</button>
+      <button class="stn-link" id="stn-fee-edit" title="${L('Broker fees — edit the table', 'Phí broker — sửa bảng phí')}">${L('Fee', 'Phí')} ${cash(st ? feeOf(st.account) : 0, ac)} · ${esc(feeSource(st))} ✎</button>
     </div>
     <div class="stn-row2">
       ${field('price', `${isOrder ? L('Trigger', 'Giá kích hoạt') : L('Price', 'Giá')} (${ticket.ccy})`, v(ticket.price))}
@@ -487,12 +539,9 @@ function ticketHtml(): string {
     ${isBuy ? `<div class="stn-row2">
         ${field('stop', L('Stop', 'Cắt lỗ'), v(ticket.stop))}
         ${field('target', L('Target', 'Mục tiêu'), v(ticket.target))}
-      </div>
-      <label class="stn-f"><span>Setup</span><select class="field" data-stn="setup">
-        <option value="">—</option>${SETUP_KEYS.map((k) => `<option value="${k}"${k === ticket.setup ? ' selected' : ''}>${esc(setupName(k, vi()))}</option>`).join('')}
-      </select></label>` : isOrder ? '' : `<label class="stn-f"><span>${L('Why', 'Lý do bán')}</span><select class="field" data-stn="reason">
+      </div>` : isOrder ? '' : `<label class="stn-f"><span>${L('Why', 'Lý do bán')}</span><select class="field" data-stn="reason">
         <option value="">—</option>${exitReasonOptgroupsHtml(ticket.exitReason, vi(), esc)}</select></label>`}
-    ${field('fee', `${L('Fee', 'Phí')} (${ac})`, ticket.fee === null ? '' : String(ticket.fee), ` placeholder="${fmt(st?.account.fee ?? 0)}"`)}
+    ${field('fee', `${L('Fee this order', 'Phí lệnh này')} (${ac})`, ticket.fee === null ? '' : String(ticket.fee), ` placeholder="${fmt(st ? feeOf(st.account) : 0)}"`)}
     <label class="stn-f"><span>${L('Note', 'Ghi chú')}</span><textarea class="field" rows="2" data-stn="note" placeholder="${isBuy ? L('Why this trade, in one line', 'Vì sao vào lệnh này, một dòng') : L('What happened, in one line', 'Chuyện gì đã xảy ra, một dòng')}">${esc(ticket.note)}</textarea></label>
     ${isBuy && !isOrder ? `<label class="stn-check"><input type="checkbox" data-stn="closedOn"${ticket.closedOn ? ' checked' : ''}> ${L('Already sold — book the exit too (closed case study)', 'Đã bán rồi — ghi luôn lệnh bán (case study đóng)')}</label>
       ${ticket.closedOn ? `<div class="stn-exit">
@@ -546,24 +595,14 @@ function fifoPreview(st: (typeof accounts)[number], shares: number, px: number):
 function bottomHtml(): string {
   const tab = (k: BottomTab, label: string): string => `<button class="${bottom === k ? 'on' : ''}" data-stn-bottom="${k}">${label}</button>`;
   return `<div class="stn-btabs seg">
-      ${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}${tab('plan', L('Trade plan', 'Trade plan'))}
+      ${tab('pos', L('Positions', 'Vị thế'))}${tab('orders', `${L('Pending', 'Lệnh chờ')}${pendingCount() ? ` · ${pendingCount()}` : ''}`)}${tab('hist', L('Fills', 'Lịch sử khớp'))}${tab('cases', L('Case studies', 'Case study'))}
     </div>
-    <div class="stn-bbody" id="stn-bbody"></div>
-    <div id="stn-plan-host"${bottom === 'plan' ? '' : ' hidden'}></div>`;
+    <div class="stn-bbody" id="stn-bbody"></div>`;
 }
 
-async function paintBottom(ctx: AppContext, root: HTMLElement, planWasOpen: boolean): Promise<void> {
+async function paintBottom(ctx: AppContext, root: HTMLElement): Promise<void> {
   const body = root.querySelector<HTMLElement>('#stn-bbody');
-  const host = root.querySelector<HTMLElement>('#stn-plan-host');
-  if (!body || !host) return;
-  if (bottom === 'plan') {
-    body.innerHTML = '';
-    if (!sym) return;
-    void openTradePlanner(ctx, { host, symbols: () => [sym], title: sym, onClose: () => { bottom = 'pos'; paint(ctx, root); } });
-    void planWasOpen;
-    return;
-  }
-  closeTradePlanner(host);
+  if (!body) return;
   if (bottom === 'pos') body.innerHTML = positionsHtml();
   if (bottom === 'orders') {
     body.innerHTML = ordersHtml();
@@ -658,7 +697,7 @@ function drawChart(root: HTMLElement): void {
     box.innerHTML = `<div class="stn-empty">${sym ? L('Loading the chart…', 'Đang tải chart…') : ''}</div>`;
     return;
   }
-  const h = window.innerWidth < 900 ? 300 : 420;
+  const h = window.innerWidth < 900 ? 300 : window.innerWidth >= 1600 ? 540 : 440;
   chart = drawCandles(box, bars.slice(-190), {
     entry: toQuote(ticket.price), stop: ticket.side === 'buy' ? toQuote(ticket.stop) : null,
     target: ticket.side === 'buy' ? toQuote(ticket.target) : null,
@@ -731,6 +770,8 @@ function repaintLive(ctx: AppContext, root: HTMLElement, focusKey?: string): voi
   }
   const lad = root.querySelector<HTMLElement>('.stn-ladder');
   if (lad) lad.outerHTML = ladderHtml();
+  const pp = root.querySelector<HTMLElement>('#stn-plan');
+  if (pp) pp.innerHTML = planPanelHtml();
   chart?.setOverlay({
     entry: toQuote(ticket.price), stop: ticket.side === 'buy' ? toQuote(ticket.stop) : null,
     target: ticket.side === 'buy' ? toQuote(ticket.target) : null,
@@ -748,14 +789,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
   root.querySelector('#stn-open-stock')?.addEventListener('click', () => { if (sym) void openStock(ctx, sym); });
   root.querySelectorAll<HTMLElement>('[data-stn-sym]').forEach((b) =>
     b.addEventListener('click', () => void loadSymbol(ctx, b.dataset.stnSym!, root)));
-  root.querySelectorAll<HTMLElement>('.stn-strip [data-stn-bottom]').forEach((b) =>
-    b.addEventListener('click', () => {
-      bottom = b.dataset.stnBottom as BottomTab;
-      root.querySelector('.stn-bottom')!.innerHTML = bottomHtml();
-      wireBottomTabs(ctx, root);
-      void paintBottom(ctx, root, false);
-      if (bottom === 'plan') root.querySelector('.stn-bottom')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }));
+  wirePlan(ctx, root);
   wireBottomTabs(ctx, root);
   root.querySelectorAll<HTMLElement>('[data-stn-dock]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -767,13 +801,52 @@ function wire(ctx: AppContext, root: HTMLElement): void {
   wirePickBar(ctx, root);
 }
 
+/**
+ * The plan panel is redrawn on every keystroke in the ticket, so its controls are handled by
+ * delegation from the section, which stays put.
+ */
+function wirePlan(ctx: AppContext, root: HTMLElement): void {
+  const box = root.querySelector<HTMLElement>('#stn-plan');
+  if (!box) return;
+  box.addEventListener('click', (ev) => {
+    const hit = ev.target as HTMLElement;
+    if (hit.closest('[data-stn-crit]')) { critOpen = !critOpen; repaintLive(ctx, root); return; }
+    const btn = hit.closest<HTMLElement>('[data-stn-ans]');
+    if (!btn || !plan) return;
+    const key = btn.dataset.key!;
+    const want = btn.dataset.val === 'yes';
+    // The answer already chosen clears back to "not asked", which a checkbox cannot say.
+    if (plan.answers[key] === want) delete plan.answers[key];
+    else plan.answers[key] = want;
+    storePlan(ctx);
+    if (ticket.side === 'buy') { ticket.shares = null; suggest(); } else regrade();
+    repaintLive(ctx, root);
+  });
+  box.addEventListener('change', (ev) => {
+    const f = (ev.target as HTMLElement).closest<HTMLSelectElement>('[data-stnp]');
+    if (!f || !plan) return;
+    if (f.dataset.stnp === 'setup') {
+      ticket.setup = (f.value || '') as SetupKey | '';
+      plan.setup = ticket.setup;
+      ticket.stop = null; ticket.target = null; ticket.shares = null;
+    } else {
+      plan.gradeOverride = (['A', 'B', 'C', 'D'].includes(f.value) ? f.value : null) as ConvictionRating | null;
+      ticket.shares = null;
+    }
+    storePlan(ctx);
+    suggest();
+    repaintLive(ctx, root);
+    drawChart(root);
+  });
+}
+
 function wireBottomTabs(ctx: AppContext, root: HTMLElement): void {
   root.querySelectorAll<HTMLElement>('.stn-btabs [data-stn-bottom]').forEach((b) =>
     b.addEventListener('click', () => {
       bottom = b.dataset.stnBottom as BottomTab;
       root.querySelector('.stn-bottom')!.innerHTML = bottomHtml();
       wireBottomTabs(ctx, root);
-      void paintBottom(ctx, root, false);
+      void paintBottom(ctx, root);
     }));
   root.querySelector('#stn-bbody')?.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-stn-sellacct]');
@@ -819,8 +892,8 @@ function wireTicket(ctx: AppContext, root: HTMLElement): void {
     f.addEventListener(ev, () => {
       const val = (f as HTMLInputElement).type === 'checkbox' ? (f as HTMLInputElement).checked : f.value;
       onField(key, val);
-      const structural = ['acct', 'closedOn', 'caseOn', 'setup', 'date', 'orderType'].includes(key);
-      if (key === 'setup' || key === 'date') { if (ticket.side === 'buy') suggest(); }
+      const structural = ['acct', 'closedOn', 'caseOn', 'date', 'orderType'].includes(key);
+      if (['price', 'stop', 'target', 'acct', 'date'].includes(key) && ticket.side === 'buy') suggest();
       repaintLive(ctx, root, structural || key === 'note' ? undefined : key);
       if (key === 'note') {
         const n = root.querySelector<HTMLTextAreaElement>('[data-stn="note"]');
@@ -871,29 +944,80 @@ function setPct(p: number): void {
   if (basis > 0) ticket.shares = Math.max(0, Math.round((basis * p) / 100)) || null;
 }
 
+/** Where the account's fee comes from, in a few words. */
+function feeSource(st: (typeof accounts)[number] | null): string {
+  if (!st) return '';
+  if (typeof st.account.fee === 'number') return L('own fee', 'phí riêng');
+  return brokerOf(st.account.name)?.name ?? L('no broker recognised', 'chưa nhận ra broker');
+}
+
 async function editFee(ctx: AppContext, root: HTMLElement): Promise<void> {
   const st = acct();
-  if (!st) return;
-  const got = await formDialog(L(`Fee per order — ${st.account.name}`, `Phí mỗi lệnh — ${st.account.name}`), [
-    { key: 'fee', label: `${L('Fee', 'Phí')} (${st.account.currency})`, type: 'number', value: String(st.account.fee ?? 0) },
-  ], {
-    icon: '🏦',
-    sub: L('e.g. Trade Republic 1 · Scalable 0.99 · Degiro 2 · Equate Plus 0. Charged on every buy and every sell.',
-      'vd. Trade Republic 1 · Scalable 0,99 · Degiro 2 · Equate Plus 0. Tính cho mỗi lệnh mua và mỗi lệnh bán.'),
+  const rows: BrokerFee[] = brokerFees();
+  const host = document.createElement('div');
+  host.className = 'dialog-host';
+  const rowHtml = (r: BrokerFee, i: number): string => `<div class="stn-brow" data-i="${i}">
+      <input class="field" data-k="name" value="${esc(r.name)}" placeholder="${L('Broker name', 'Tên broker')}">
+      <input class="field" data-k="fee" inputmode="decimal" value="${r.fee}">
+      <button class="btn-outline stn-mini" data-del="${i}" title="${L('Remove', 'Xoá')}">✕</button></div>`;
+  const own = st && typeof st.account.fee === 'number' ? String(st.account.fee) : '';
+  host.innerHTML = `<div class="dialog-backdrop"></div>
+    <div class="dialog stn-confirm" style="width:min(520px,94vw)">
+      <div class="dialog-head"><span class="dialog-ic">🏦</span><div>
+        <div class="dialog-title">${L('Broker fees', 'Phí broker')}</div>
+        <div class="dialog-sub">${L('An account whose name contains the broker pays its fee on every buy and every sell. Change a price here when your broker does.',
+          'Tài khoản có tên chứa tên broker sẽ trả phí đó cho mỗi lệnh mua và mỗi lệnh bán. Broker đổi giá thì sửa ở đây.')}</div></div></div>
+      <div class="dialog-body">
+        <div class="stn-brows"><div class="stn-bhead"><span>${L('Name contains', 'Tên chứa')}</span><span>${L('Fee / order', 'Phí / lệnh')}</span><span></span></div>${rows.map(rowHtml).join('')}</div>
+        <button class="btn-outline stn-mini" data-add>+ ${L('Add a broker', 'Thêm broker')}</button>
+        ${st ? `<div class="stn-own">
+          <div class="stn-lh">${esc(st.account.name)}</div>
+          <label class="stn-f"><span>${L('Own fee for this account (blank = from the table above)', 'Phí riêng cho tài khoản này (để trống = theo bảng trên)')}</span>
+            <input class="field" data-own inputmode="decimal" value="${esc(own)}" placeholder="${fmt(feeOf({ name: st.account.name }))}"></label>
+        </div>` : ''}
+      </div>
+      <div class="dialog-actions">
+        <button class="btn-outline" data-act="no">${L('Cancel', 'Huỷ')}</button>
+        <button class="btn" data-act="yes">${L('Save', 'Lưu')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  const list = host.querySelector<HTMLElement>('.stn-brows')!;
+  const read = (): BrokerFee[] => [...list.querySelectorAll<HTMLElement>('.stn-brow')].map((row) => ({
+    name: row.querySelector<HTMLInputElement>('[data-k="name"]')!.value.trim(),
+    fee: Number(row.querySelector<HTMLInputElement>('[data-k="fee"]')!.value.replace(',', '.')),
+  }));
+  list.addEventListener('click', (e) => {
+    const d = (e.target as HTMLElement).closest<HTMLElement>('[data-del]');
+    if (d) d.closest('.stn-brow')?.remove();
   });
-  if (!got) return;
-  const v = Number(String(got.fee ?? '').replace(',', '.'));
-  if (!Number.isFinite(v) || v < 0) return;
-  try {
-    await withAccounts(ctx, (all) => {
-      const a = all.find((x) => x.account.id === st.account.id);
-      if (a) { if (v > 0) a.account.fee = v; else delete a.account.fee; }
-    });
-    ticket.fee = null;
-  } catch (e) {
-    msg = { err: true, text: (e as Error).message };
-  }
-  repaintLive(ctx, root);
+  host.querySelector('[data-add]')!.addEventListener('click', () => {
+    list.insertAdjacentHTML('beforeend', rowHtml({ name: '', fee: 0 }, list.children.length));
+    list.querySelector<HTMLInputElement>('.stn-brow:last-child [data-k="name"]')?.focus();
+  });
+  const done = (): void => host.remove();
+  host.querySelector('.dialog-backdrop')!.addEventListener('click', done);
+  host.querySelector('[data-act="no"]')!.addEventListener('click', done);
+  host.querySelector('[data-act="yes"]')!.addEventListener('click', async () => {
+    const ownRaw = host.querySelector<HTMLInputElement>('[data-own]')?.value.trim() ?? '';
+    const ownV = Number(ownRaw.replace(',', '.'));
+    done();
+    try {
+      await saveBrokerFees(ctx, read());
+      if (st) {
+        await withAccounts(ctx, (all) => {
+          const a = all.find((x) => x.account.id === st.account.id);
+          if (!a) return;
+          if (ownRaw !== '' && Number.isFinite(ownV) && ownV >= 0) a.account.fee = ownV;
+          else delete a.account.fee;
+        });
+      }
+      ticket.fee = null;
+    } catch (e) {
+      msg = { err: true, text: (e as Error).message };
+    }
+    repaintLive(ctx, root);
+  });
 }
 
 // ── recording ─────────────────────────────────────────────────────────────────
@@ -979,6 +1103,7 @@ async function submitBuy(ctx: AppContext, st: (typeof accounts)[number], shares:
     [L('Cost', 'Tổng tiền'), cash(write.cost, ac)],
     ...(fee ? [[L('Fee', 'Phí'), cash(fee, ac)] as [string, string]] : []),
     ...(exit ? [[L('Sold', 'Đã bán'), `${exit.date} @ ${cash(exit.price.given, exit.price.currency)}`] as [string, string]] : []),
+    [L('Plan grade', 'Điểm plan'), g ? `${g}${grade ? ` · ${fmt(grade.score, 0)}/100` : ''}` : L('ungraded', 'chưa chấm')],
     [L('Case study', 'Case study'), ticket.caseOn ? (exit ? L('filed closed', 'lưu dạng đã đóng') : L('opened', 'mở mới')) : L('no', 'không')],
   ];
   if (!(await confirm2(L('Record this buy?', 'Ghi lệnh mua này?'), rows, L('Buy', 'Mua'), false))) return;
@@ -995,9 +1120,18 @@ async function submitBuy(ctx: AppContext, st: (typeof accounts)[number], shares:
     soldShares = shares;
   }
 
+  // Confirming a dialog that listed every number IS having read the plan: record it, against
+  // the levels and the letter as they stand, the way the planner's Buy does.
+  if (plan) {
+    plan.setup = ticket.setup;
+    plan.reviewedAt = new Date().toISOString();
+    plan.levels = { entry: ticket.price, stop: ticket.stop, target: ticket.target };
+    plan.reviewedGrade = g;
+    storePlan(ctx);
+  }
   // The plan as it stood, frozen against the lot — the same snapshot the planner's Buy cuts.
-  const snap = plan && plan.setup ? {
-    symbol: sym, savedAt: new Date().toISOString(), date: ticket.date, plan, grade: null, effective: g,
+  const snap = plan ? {
+    symbol: sym, savedAt: new Date().toISOString(), date: ticket.date, plan: { ...plan, answers: { ...plan.answers } }, grade, effective: g,
     levels: { entry: ticket.price, stop: ticket.stop, target: ticket.target }, shares, currency: ticket.ccy,
     pctOfFull: g ? ladderConfig().ratingPct[g] : 100,
   } : null;

@@ -76,6 +76,8 @@ export function processOrders(
    * the account's currency. Identity when absent, which is right for same-currency accounts.
    */
   toAccount: (ticker: string, date: string, price: number) => number = (_t, _d, p) => p,
+  /** The fee per order when the app knows better than `account.fee` (its broker table). */
+  feeOverride?: number,
 ): FillEvent[] {
   const events: FillEvent[] = [];
 
@@ -96,7 +98,7 @@ export function processOrders(
       if (order.type === 'BUY_STOP') {
         if (bar.high >= order.threshold) {
           // The account's flat broker fee is paid on an order that fills by itself too.
-          const fee = state.account.fee ?? 0;
+          const fee = feeOverride ?? state.account.fee ?? 0;
           const px = toAccount(order.ticker, date, order.threshold);
           const cost = px * order.shares + fee;
           const cash = computeCash(state);
@@ -143,11 +145,11 @@ export function processOrders(
         }
       } else if (order.type === 'STOP_LOSS') {
         if (bar.low <= order.threshold) {
-          fillExit(state, order, date, nextId, events, toAccount);
+          fillExit(state, order, date, nextId, events, toAccount, feeOverride);
         }
       } else if (order.type === 'TAKE_PROFIT') {
         if (bar.high >= order.threshold) {
-          fillExit(state, order, date, nextId, events, toAccount);
+          fillExit(state, order, date, nextId, events, toAccount, feeOverride);
         }
       }
     }
@@ -164,6 +166,7 @@ function fillExit(
   nextId: IdFactory,
   events: FillEvent[],
   toAccount: (ticker: string, date: string, price: number) => number,
+  feeOverride?: number,
 ): void {
   // Cap at currently-held shares of the ticker.
   const held = state.lots
@@ -185,7 +188,7 @@ function fillExit(
     });
     return;
   }
-  const fee = state.account.fee ?? 0;
+  const fee = feeOverride ?? state.account.fee ?? 0;
   sell(state, { ticker: order.ticker, sellDate: date, sellPrice: toAccount(order.ticker, date, order.threshold), shares: qty, ...(fee ? { fee } : {}) }, nextId);
   order.status = 'filled';
   order.filledDate = date;
