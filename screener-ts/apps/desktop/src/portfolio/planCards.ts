@@ -168,8 +168,9 @@ function drawCardChart(m: CardMount, el: HTMLElement, sym: string, bars: readonl
   if (!box || !bars.length) return;
   const rate = candleDivisor(sym, ccy, eurUsdForDate(date)) ?? 0;
   const frame = isPast(bars, date) ? planChartWindow(bars, date, null) : bars.slice(-130);
+  // A lone card (the stock page plans one symbol) spans the row, so it gets the taller chart.
   const chart = drawCandles(box, inCurrency(frame, rate), { stop: out?.stop ?? null, target: out?.target ?? null },
-    { 5: false, 10: true, 21: true, 50: true, 150: false, 200: true }, { height: 210, noVolume: false });
+    { 5: false, 10: true, 21: true, 50: true, 150: false, 200: true }, { height: el.parentElement?.childElementCount === 1 ? 320 : 210, noVolume: false });
   mounted.get(m.host)?.charts.push(chart);
   chart.setEvents(eventMarksOf(plan?.events, vi()));
   void fetchEarningsReports(sym).then((rows) => {

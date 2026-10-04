@@ -9823,3 +9823,9 @@ html.light .action-btn:not(:hover) { box-shadow: var(--glass-drop); }
   html .stn-dock, html #main .stn-dock { margin: 14px 0 0; padding: 6px; }
   html:has(#main .stn-dock) #chat-fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
+
+/* ══ CHAT-93 — the quick plan card filled half the stock page ══
+   `auto-fill` keeps the empty tracks, so ONE card (the stock page always plans one symbol) sat
+   in the left half with nothing beside it. `auto-fit` collapses them: one card spans the row,
+   several still wrap at 380px. A lone card also gets a taller chart (planCards), since it has the width. */
+.pc-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
