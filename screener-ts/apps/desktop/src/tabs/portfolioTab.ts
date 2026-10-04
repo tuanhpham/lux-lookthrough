@@ -3415,9 +3415,6 @@ function buildOverviewHtml(): string {
         .join('')}</tbody></table>
     </div>
 
-    ${overviewPositionsHtml()}
-    ${overviewHistoryHtml()}
-
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
         <span class="section-title" style="margin:0">${t('pf.overview.combined')}</span>
@@ -3446,7 +3443,10 @@ function buildOverviewHtml(): string {
         </div>
       </div>
       <div id="portfolio-chart" style="height:260px"></div>
-    </div>`;
+    </div>
+
+    ${overviewPositionsHtml()}
+    ${overviewHistoryHtml()}`;
 }
 
 /** How many rows the overview's history shows before pointing at the account for the rest. */
