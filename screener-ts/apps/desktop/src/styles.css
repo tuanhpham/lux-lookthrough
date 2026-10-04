@@ -9842,3 +9842,28 @@ html.light .action-btn:not(:hover) { box-shadow: var(--glass-drop); }
   .stn-table > .stn-row-f { min-width: 750px; }
   .stn-table > .stn-row-c { min-width: 520px; }
 }
+
+/* ══ CHAT-96 — the event finder's list vanished on a phone ══
+   Two faults, both only on a small screen:
+   1. The list was a scroller inside a scrolling grid body. A grid item that scrolls has an
+      automatic minimum height of 0, so when the dialog was shorter than its content the list
+      row was the one squeezed — down to nothing on a phone. The body is a column of
+      non-shrinking blocks now, and below 700px there is ONE scroller (the body), which is
+      also what a thumb expects.
+   2. Below 620px the row had three columns for five cells, so the title auto-placed into the
+      24px link column. Every cell now has its place: tick | date + kind + title | link. */
+.dialog.evf { max-height: 92vh; max-height: 92dvh; }
+.dialog.evf .evf-body { display: flex; flex-direction: column; gap: 10px; }
+.dialog.evf .evf-body > * { flex-shrink: 0; }
+@media (max-width: 700px) {
+  .dialog.evf .evf-list { max-height: none; overflow: visible; }
+  .dialog.evf .evf-body { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+}
+@media (max-width: 620px) {
+  .evf-row { grid-template-columns: 22px minmax(0, 1fr) 24px; column-gap: 8px; row-gap: 3px; padding: 10px 12px; }
+  .evf-row > input { grid-column: 1; grid-row: 1 / span 3; align-self: start; width: 18px; height: 18px; margin-top: 2px; }
+  .evf-row > .evf-date { grid-column: 2; grid-row: 1; }
+  .evf-row > .evf-kind { grid-column: 2; grid-row: 2; justify-self: start; }
+  .evf-row > .evf-txt { grid-column: 2; grid-row: 3; }
+  .evf-row > :last-child:not(.evf-txt) { grid-column: 3; grid-row: 1; }
+}
