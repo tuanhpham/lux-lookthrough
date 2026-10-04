@@ -3415,6 +3415,9 @@ function buildOverviewHtml(): string {
         .join('')}</tbody></table>
     </div>
 
+    ${overviewPositionsHtml()}
+    ${overviewHistoryHtml()}
+
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
         <span class="section-title" style="margin:0">${t('pf.overview.combined')}</span>
@@ -3446,7 +3449,122 @@ function buildOverviewHtml(): string {
     </div>`;
 }
 
+/** How many rows the overview's history shows before pointing at the account for the rest. */
+const OVERVIEW_TX_ROWS = 60;
+
+/**
+ * Every account's open positions in one table — the overview's "what am I holding, where".
+ *
+ * The user's "Open Positions hay transaction cua tat ca cac tai khoan cung nen co o do moi dung"
+ * (CHAT-94): the overview summed the accounts and listed none of what they hold, so a question
+ * as plain as "where is my NVDA" meant opening each account in turn. Read-only on purpose:
+ * stop, target and sell edit one account's lots, so those stay on the account page — a row
+ * links there, and to the Trade Station with its account already chosen.
+ */
+function overviewPositionsHtml(): string {
+  const vi = getLang() === 'vi';
+  const rows = accounts
+    .flatMap((a) => buildPositions(a, prices(a.account.id), today()).map((pos) => ({ a, pos })))
+    .sort((x, y) => y.pos.marketValue - x.pos.marketValue);
+  const noStop = rows.filter((r) => r.pos.stop == null).length;
+  const body = rows.length
+    ? rows.map(({ a, pos }) => `<tr>
+        <td><a href="#" class="link-ticker" data-acct-open="${a.account.id}">${escapeHtml(a.account.name)}</a></td>
+        <td><a href="#" class="link-ticker" data-open="${pos.ticker}"><strong>${pos.ticker}</strong></a></td>
+        <td>${pos.shares}</td>
+        <td>${dispSymbol()}${num(toDisplay(pos.avgCost))}</td>
+        <td>${dispSymbol()}${num(toDisplay(pos.lastPrice))}</td>
+        <td>${money(toDisplay(pos.marketValue), dispSymbol())}</td>
+        <td style="color:${pos.unrealizedPnL >= 0 ? 'var(--up)' : 'var(--danger)'}">${money(toDisplay(pos.unrealizedPnL), dispSymbol())} (${pct(pos.unrealizedPnLPct)})</td>
+        <td>${pos.riskFree ? `<span class="risk-free">🔒 ${t('pf.riskfree')}</span>` : pos.riskEur != null ? money(toDisplay(pos.riskEur), dispSymbol()) : '<span class="warn">—</span>'}</td>
+        <td>${pos.stop != null ? dispSymbol() + num(toDisplay(pos.stop)) : `<span class="warn">${vi ? 'chưa có' : 'none'}</span>`}</td>
+        <td>${pos.daysHeld}</td>
+        <td><div class="row-acts">
+          <button class="action-btn action-btn--station" data-station="${pos.ticker}" data-station-acct="${a.account.id}" title="${vi ? 'Mở trong Trạm giao dịch với tài khoản này' : 'Open in the Trade Station with this account'}">⚡ ${vi ? 'Trạm' : 'Station'}</button>
+          <button class="action-btn" data-acct-open="${a.account.id}" title="${vi ? 'Mở tài khoản để đặt stop, target hoặc bán' : 'Open the account to set the stop, the target or sell'}">${vi ? 'Mở tài khoản' : 'Open account'} →</button>
+        </div></td>
+      </tr>`).join('')
+    : `<tr><td colspan="11" class="muted" style="text-align:center;padding:20px">${t('pf.nopos')}</td></tr>`;
+  return `${sectionHead(t('pf.sec.openpos'), [
+      countChip(rows.length, undefined, t('pf.unit.positions')),
+      noStop ? { n: noStop, text: t('pf.unit.nostop'), kind: 'warn' as const } : null,
+    ], { sub: vi ? 'Mọi tài khoản. Đặt stop, target hoặc bán ở trang của tài khoản đó.' : 'Every account. Set the stop, the target or sell on that account’s page.' })}
+    <div class="card" style="overflow-x:auto;margin-bottom:14px">
+      <table style="white-space:nowrap"><thead><tr>
+        <th>${t('pf.col.account')}</th><th>${t('pf.col.ticker')}</th><th>${t('pf.col.shares')}</th><th>${t('pf.col.avgcost')}</th>
+        <th>${t('pf.col.last')}</th><th>${t('pf.col.value')}</th><th>${t('pf.col.unrealpnl')}</th><th>${t('pf.col.risk')}</th>
+        <th>${t('pf.col.stop')}</th><th>${t('pf.col.days')}</th><th>${t('pf.col.actions')}</th>
+      </tr></thead><tbody>${body}</tbody></table>
+    </div>`;
+}
+
+/**
+ * Every account's trades in one list, newest first: the buys still open and the sells.
+ *
+ * Read-only for the same reason as the positions above — deleting, editing a note or a setup
+ * belong to one account's ledger. Capped at `OVERVIEW_TX_ROWS`, because an overview that grows
+ * with every trade ever made stops being an overview; the account page keeps the whole list.
+ */
+function overviewHistoryHtml(): string {
+  const vi = getLang() === 'vi';
+  type Tx = { a: AccountState; status: 'OPEN' | 'CLOSED'; ticker: string; shares: number; buy: number; buyDate: string; sell: number | null; sellDate: string | null; pnl: number | null; cost: number; date: string };
+  const all: Tx[] = [];
+  for (const a of accounts) {
+    const lotById = new Map(a.lots.map((l) => [l.id, l]));
+    for (const sl of a.sells) {
+      const l = lotById.get(sl.lotId);
+      if (!l) continue;
+      all.push({ a, status: 'CLOSED', ticker: l.ticker, shares: sl.shares, buy: l.buyPrice, buyDate: l.buyDate, sell: sl.sellPrice, sellDate: sl.sellDate, pnl: sl.realizedPnL, cost: l.buyPrice * sl.shares, date: sl.sellDate });
+    }
+    for (const l of a.lots) {
+      if (l.remainingShares <= 0) continue;
+      all.push({ a, status: 'OPEN', ticker: l.ticker, shares: l.remainingShares, buy: l.buyPrice, buyDate: l.buyDate, sell: null, sellDate: null, pnl: null, cost: l.buyPrice * l.remainingShares, date: l.buyDate });
+    }
+  }
+  all.sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0));
+  const shown = all.slice(0, OVERVIEW_TX_ROWS);
+  const nOpen = all.filter((x) => x.status === 'OPEN').length;
+  const tone = (v: number): string => (v >= 0 ? 'var(--up)' : 'var(--danger)');
+  const body = shown.length
+    ? shown.map((x) => {
+      const c = x.status === 'CLOSED' ? 'var(--warn)' : 'var(--accent2)';
+      return `<tr>
+        <td><a href="#" class="link-ticker" data-acct-open="${x.a.account.id}">${escapeHtml(x.a.account.name)}</a></td>
+        <td><span class="badge" style="background:color-mix(in srgb,${c} 16%,transparent);color:${c}">${x.status}</span></td>
+        <td><a href="#" class="link-ticker" data-open="${x.ticker}"><strong>${x.ticker}</strong></a></td>
+        <td>${x.shares}</td>
+        <td>${x.buyDate}</td>
+        <td>${dispSymbol()}${num(toDisplay(x.buy, x.buyDate))}</td>
+        <td>${x.sellDate ?? '—'}</td>
+        <td>${x.sell == null ? '—' : dispSymbol() + num(toDisplay(x.sell, x.sellDate ?? undefined))}</td>
+        <td>${daysBetween(x.buyDate, x.sellDate ?? today())}d</td>
+        <td>${x.pnl == null ? '—' : `<span style="color:${tone(x.pnl)}">${money(toDisplay(x.pnl, x.sellDate ?? undefined), dispSymbol())}</span>`}</td>
+        <td>${x.pnl == null || !(x.cost > 0) ? '—' : `<span style="color:${tone(x.pnl)}">${pct((x.pnl / x.cost) * 100)}</span>`}</td>
+      </tr>`;
+    }).join('')
+    : `<tr><td colspan="11" class="muted" style="text-align:center;padding:20px">${vi ? 'Chưa có giao dịch nào.' : 'No transactions yet.'}</td></tr>`;
+  const more = all.length > shown.length
+    ? `<p class="muted" style="font-size:11.5px;margin:-6px 0 14px">${vi ? `Đang hiện ${shown.length} / ${all.length} giao dịch gần nhất — mở từng tài khoản để xem đủ, sửa ghi chú hoặc xoá.` : `Showing the latest ${shown.length} of ${all.length} — open an account for the full list, its notes and deletes.`}</p>`
+    : '';
+  return `${sectionHead(t('pf.sec.txhistory'), [
+      countChip(nOpen, undefined, t('pf.col.open')),
+      countChip(all.length - nOpen, undefined, t('pf.col.closed')),
+    ], { sub: vi ? 'Mọi tài khoản, mới nhất trước.' : 'Every account, newest first.' })}
+    <div class="card" style="overflow-x:auto;margin-bottom:14px">
+      <table style="white-space:nowrap"><thead><tr>
+        <th>${t('pf.col.account')}</th><th>${t('pf.col.status')}</th><th>${t('pf.col.ticker')}</th><th>${t('pf.col.shares')}</th>
+        <th>${t('pf.col.buydate')}</th><th>${t('pf.col.buyprice')}</th><th>${t('pf.col.selldate')}</th><th>${t('pf.col.sellprice')}</th>
+        <th>${t('pf.col.held')}</th><th>${t('pf.col.realizedpnl')}</th><th>${t('pf.col.pnlpct')}</th>
+      </tr></thead><tbody>${body}</tbody></table>
+    </div>${more}`;
+}
+
 function wireOverview(ctx: AppContext, root: HTMLElement): void {
+  // The cross-account tables: a ticker opens its stock page, ⚡ the station on that account.
+  root.querySelectorAll<HTMLElement>('[data-open]').forEach((a) =>
+    a.addEventListener('click', (e) => { e.preventDefault(); void openStock(ctx, a.dataset.open!); }));
+  root.querySelectorAll<HTMLElement>('[data-station]').forEach((b) =>
+    b.addEventListener('click', () => openStation(b.dataset.station!, null, b.dataset.stationAcct ?? null)));
   // EUR/USD display toggle
   const ccyBtn = root.querySelector<HTMLElement>('#pf-ccy-toggle');
   if (ccyBtn) {

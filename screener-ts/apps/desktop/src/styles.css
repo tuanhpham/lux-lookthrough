@@ -9829,3 +9829,16 @@ html.light .action-btn:not(:hover) { box-shadow: var(--glass-drop); }
    in the left half with nothing beside it. `auto-fit` collapses them: one card spans the row,
    several still wrap at 380px. A lone card also gets a taller chart (planCards), since it has the width. */
 .pc-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+
+/* ══ CHAT-94 — the station's tables could not be scrolled to their Sell button ══
+   `.stn-table { overflow: hidden }` clipped the rows, and the card-style rows only start below
+   760px of WINDOW — the centre column is ~700px on a 1440 screen, so the last columns (the
+   Sell button) were cut off with no way to reach them. The table scrolls sideways now, each
+   row keeps the width its columns need, and the rounded frame still clips the corners. */
+.stn-table { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+@media (min-width: 761px) {
+  .stn-table > .stn-row-p { min-width: 840px; }
+  .stn-table > .stn-row-o { min-width: 700px; }
+  .stn-table > .stn-row-f { min-width: 750px; }
+  .stn-table > .stn-row-c { min-width: 520px; }
+}
