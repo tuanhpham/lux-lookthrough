@@ -9928,3 +9928,38 @@ th.th-auto[data-adir="desc"]::after, .stn-row-h > .th-auto[data-adir="desc"]::af
 th.th-auto.sorted, .stn-row-h > .th-auto.sorted { color: var(--accent); }
 th.th-auto:focus-visible, .stn-row-h > .th-auto:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
 .stn-row-h > .stn-c-n.th-auto { text-align: right; }
+
+/* ══ CHAT-99 — a proper sort icon ══
+   The text glyphs (↕ ▲ ▼) came from the text font: different weights, sitting off the
+   baseline, and "ugly". One drawn icon instead: two small chevrons stacked in an 8×12 box,
+   painted with the head's own colour through a mask. Unsorted = both at 35%; the sorted
+   direction lights its chevron in the accent and dims the other. */
+:root {
+  --sort-both: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.2 4.6 4 1.8l2.8 2.8M1.2 7.4 4 10.2l2.8-2.8' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --sort-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.2 4.6 4 1.8l2.8 2.8' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1.2 7.4 4 10.2l2.8-2.8' fill='none' stroke='%23000' stroke-opacity='.25' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --sort-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.2 4.6 4 1.8l2.8 2.8' fill='none' stroke='%23000' stroke-opacity='.25' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1.2 7.4 4 10.2l2.8-2.8' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+th.th-auto::after, .stn-row-h > .th-auto::after {
+  content: ''; display: inline-block; width: 8px; height: 12px; margin-left: 6px; vertical-align: -1px;
+  font-size: 0; transform: none; opacity: .35; background-color: currentColor;
+  -webkit-mask: var(--sort-both) center / contain no-repeat; mask: var(--sort-both) center / contain no-repeat;
+  transition: opacity .12s ease;
+}
+th.th-auto:hover::after, .stn-row-h > .th-auto:hover::after { opacity: .75; }
+th.th-auto[data-adir="asc"]::after, .stn-row-h > .th-auto[data-adir="asc"]::after {
+  content: ''; font-size: 0; opacity: 1; background-color: var(--accent);
+  -webkit-mask-image: var(--sort-up); mask-image: var(--sort-up);
+}
+th.th-auto[data-adir="desc"]::after, .stn-row-h > .th-auto[data-adir="desc"]::after {
+  content: ''; font-size: 0; opacity: 1; background-color: var(--accent);
+  -webkit-mask-image: var(--sort-down); mask-image: var(--sort-down);
+}
+
+/* Financial Status: deposits / withdrawals in the account history */
+.w-readings-h { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.w-readings-h .w-flow-add { margin-left: auto; }
+.w-flow-btn .cb-ic, .w-flow-add .cb-ic { display: block; }
+tr.w-flow-row td { vertical-align: middle; }
+tr.w-flow-row td:nth-child(2) .ui-pill { margin-right: 6px; }
+tr.w-flow-row td:nth-child(2) small { font-size: 11px; }
+tr.w-flow-row { background: color-mix(in srgb, var(--accent) 3%, transparent); }

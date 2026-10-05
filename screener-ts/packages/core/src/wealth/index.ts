@@ -23,6 +23,15 @@
  * ~30,000, and 1 USD = 1 EUR by a few percent nobody would notice — both are worse than a
  * total that says an account is missing. `wealthSeries` reports which ones it left out.
  *
+ * ── TRANSACTIONS RIDE ON THE LAST READING ───────────────────────────────────
+ * A deposit or a withdrawal (CHAT-99: "add cac transaction … deposit, withdrawal … hien tai chi
+ * co the update account balance") is stored as a FLOW, not as a reading. The value on a date is
+ * the last reading on or before it PLUS every flow after that reading up to the date. A reading
+ * is a statement, and a statement already contains whatever moved before it, so a newer reading
+ * supersedes the flows it covers instead of being added to them: entering last month's deposit
+ * after this month's statement counts it once, not twice. A reading and a flow on the same day:
+ * the reading is the end-of-day statement, so it already includes that day's flow.
+ *
  * Pure: no clock (today is passed in), no fetch, no storage.
  */
 
@@ -69,13 +78,24 @@ export interface WealthBalance {
   note?: string;
 }
 
+/** Money moved in (+) or out (−) of an account on a date, in the account's own currency. */
+export interface WealthFlow {
+  id: string;
+  accountId: string;
+  date: string;
+  /** Signed: + deposit, − withdrawal. Never 0. */
+  amount: number;
+  note?: string;
+}
+
 export interface WealthBook {
   accounts: WealthAccount[];
   balances: WealthBalance[];
+  flows: WealthFlow[];
 }
 
 export function emptyBook(): WealthBook {
-  return { accounts: [], balances: [] };
+  return { accounts: [], balances: [], flows: [] };
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -123,7 +143,21 @@ export function normalizeBook(raw: unknown): WealthBook {
       ...(typeof r.note === 'string' && r.note ? { note: r.note } : {}),
     });
   }
-  return { accounts, balances };
+  const flows: WealthFlow[] = [];
+  for (const f of Array.isArray(src.flows) ? src.flows : []) {
+    const r = f as Record<string, unknown>;
+    if (typeof r.id !== 'string' || typeof r.accountId !== 'string' || !known.has(r.accountId)) continue;
+    if (typeof r.date !== 'string' || !ISO.test(r.date)) continue;
+    if (typeof r.amount !== 'number' || !Number.isFinite(r.amount) || r.amount === 0) continue;
+    flows.push({
+      id: r.id,
+      accountId: r.accountId,
+      date: r.date,
+      amount: r.amount,
+      ...(typeof r.note === 'string' && r.note ? { note: r.note } : {}),
+    });
+  }
+  return { accounts, balances, flows };
 }
 
 /**
@@ -148,7 +182,7 @@ export function setBalance(
     ...(input.note ? { note: input.note } : {}),
   };
   return {
-    accounts: book.accounts,
+    ...book,
     balances: [...book.balances.filter((b) => b !== prior), row],
   };
 }
@@ -178,7 +212,7 @@ export function editBalance(
     ...(patch.note ? { note: patch.note } : {}),
   };
   return {
-    accounts: book.accounts,
+    ...book,
     balances: book.balances
       .filter((b) => b.id === row.id || b.accountId !== row.accountId || b.date !== patch.date)
       .map((b) => (b.id === row.id ? edited : b)),
@@ -186,15 +220,71 @@ export function editBalance(
 }
 
 export function removeBalance(book: WealthBook, balanceId: string): WealthBook {
-  return { accounts: book.accounts, balances: book.balances.filter((b) => b.id !== balanceId) };
+  return { ...book, balances: book.balances.filter((b) => b.id !== balanceId) };
 }
 
-/** Drop an account AND its readings — an orphaned reading would still be summed by nobody. */
+/** Drop an account AND its readings and flows — an orphan would still be summed by nobody. */
 export function removeWealthAccount(book: WealthBook, accountId: string): WealthBook {
   return {
     accounts: book.accounts.filter((a) => a.id !== accountId),
     balances: book.balances.filter((b) => b.accountId !== accountId),
+    flows: (book.flows ?? []).filter((f) => f.accountId !== accountId),
   };
+}
+
+/** Record a deposit (amount > 0) or a withdrawal (amount < 0). Several on one day are fine. */
+export function addFlow(
+  book: WealthBook,
+  input: { accountId: string; date: string; amount: number; note?: string },
+  newId: () => string,
+): WealthBook {
+  if (!book.accounts.some((a) => a.id === input.accountId)) throw new Error('unknown account');
+  if (!ISO.test(input.date)) throw new Error('date must be YYYY-MM-DD');
+  if (!Number.isFinite(input.amount) || input.amount === 0) throw new Error('amount must be a non-zero number');
+  const row: WealthFlow = {
+    id: newId(),
+    accountId: input.accountId,
+    date: input.date,
+    amount: input.amount,
+    ...(input.note ? { note: input.note } : {}),
+  };
+  return { ...book, flows: [...(book.flows ?? []), row] };
+}
+
+export function removeFlow(book: WealthBook, flowId: string): WealthBook {
+  return { ...book, flows: (book.flows ?? []).filter((f) => f.id !== flowId) };
+}
+
+/** One account's flows, oldest first (same-day ones in the order they were entered). */
+export function flowsOf(book: WealthBook, accountId: string): WealthFlow[] {
+  // `?? []`: a book built by an older caller (or a test) may not carry the list at all.
+  return (book.flows ?? [])
+    .map((f, i) => ({ f, i }))
+    .filter(({ f }) => f.accountId === accountId)
+    .sort((a, b) => (a.f.date < b.f.date ? -1 : a.f.date > b.f.date ? 1 : a.i - b.i))
+    .map(({ f }) => f);
+}
+
+/**
+ * What the account holds at the end of `date`: the reading in force plus the flows after it.
+ * Null when nothing at all is known by then (no reading, no flow) — before the account existed
+ * in the tracker, which `wealthSeries` counts as nothing.
+ */
+export function valueOn(
+  sortedReadings: readonly WealthBalance[],
+  sortedFlows: readonly WealthFlow[],
+  date: string,
+): number | null {
+  const r = balanceOn(sortedReadings, date);
+  let v = r ? r.amount : 0;
+  let any = !!r;
+  for (const f of sortedFlows) {
+    if (f.date > date) break;
+    if (r && f.date <= r.date) continue;
+    v += f.amount;
+    any = true;
+  }
+  return any ? v : null;
 }
 
 /** One account's readings, oldest first. */
@@ -374,7 +464,7 @@ export function wealthSeries(input: {
 }): WealthSeries {
   const { book, portfolio, fx, today } = input;
   const pfDates = portfolio.flatMap((l) => l.points.map((p) => p.date)).filter((d) => ISO.test(d));
-  const balDates = book.balances.map((b) => b.date);
+  const balDates = [...book.balances.map((b) => b.date), ...(book.flows ?? []).map((f) => f.date)];
   const firstOf = (ds: string[]): string | null => (ds.length ? ds.reduce((a, b) => (b < a ? b : a)) : null);
   const start = firstOf(pfDates) ?? firstOf(balDates);
   if (!start) return { start: null, points: [], missingFx: [] };
@@ -385,7 +475,7 @@ export function wealthSeries(input: {
     for (const p of l.points) if (Number.isFinite(p.equity)) m.set(p.date, p.equity);
     return { currency: l.currency, byDate: m, carried: 0 };
   });
-  const accounts = book.accounts.map((a) => ({ acct: a, sorted: balancesOf(book, a.id) }));
+  const accounts = book.accounts.map((a) => ({ acct: a, sorted: balancesOf(book, a.id), flows: flowsOf(book, a.id) }));
   const missing = new Set<WealthCurrency>();
 
   const points = dates.map((date): WealthPoint => {
@@ -400,13 +490,13 @@ export function wealthSeries(input: {
     }
     const byAccount: Record<string, number> = {};
     let others = 0;
-    for (const { acct, sorted } of accounts) {
-      const b = balanceOn(sorted, date);
-      if (!b) {
+    for (const { acct, sorted, flows } of accounts) {
+      const v = valueOn(sorted, flows, date);
+      if (v === null) {
         byAccount[acct.id] = 0;
         continue;
       }
-      const eur = toEur(b.amount, acct.currency, date, fx);
+      const eur = toEur(v, acct.currency, date, fx);
       if (eur == null) {
         missing.add(acct.currency);
         byAccount[acct.id] = 0;
@@ -430,24 +520,45 @@ export function pointOn(points: readonly WealthPoint[], date: string): WealthPoi
   return hit;
 }
 
-/** One account's latest reading and the change against the reading before it. */
+/** A value the account held, as of the event (a reading or a flow) that set it. */
+export interface AccountValue {
+  date: string;
+  amount: number;
+}
+
+/**
+ * One account now and one step back.
+ *
+ * `latest` is the value after the most recent EVENT up to today — a reading or a flow — and
+ * `previous` the value after the event before it, so "change" is what the last statement or the
+ * last deposit moved. `ageDays` is counted from the last READING: a deposit says money moved,
+ * not that someone checked the balance, so it must not hide a statement that is months old.
+ */
 export interface AccountStatus {
-  latest: WealthBalance | null;
-  previous: WealthBalance | null;
-  /** latest − previous, in the account currency; null with fewer than two readings. */
+  latest: AccountValue | null;
+  previous: AccountValue | null;
+  /** latest − previous, in the account currency; null with fewer than two events. */
   change: number | null;
-  /** Whole days from the latest reading to `today`; null with no reading. */
+  /** Whole days from the latest READING to `today`; null with no reading. */
   ageDays: number | null;
 }
 
 export function accountStatus(book: WealthBook, accountId: string, today: string): AccountStatus {
-  const sorted = balancesOf(book, accountId).filter((b) => b.date <= today);
-  const latest = sorted[sorted.length - 1] ?? null;
-  const previous = sorted[sorted.length - 2] ?? null;
+  const readings = balancesOf(book, accountId).filter((b) => b.date <= today);
+  const flows = flowsOf(book, accountId).filter((f) => f.date <= today);
+  const days = [...new Set([...readings.map((b) => b.date), ...flows.map((f) => f.date)])].sort();
+  const at = (d: string | undefined): AccountValue | null => {
+    if (!d) return null;
+    const v = valueOn(readings, flows, d);
+    return v === null ? null : { date: d, amount: v };
+  };
+  const latest = at(days[days.length - 1]);
+  const previous = at(days[days.length - 2]);
+  const lastReading = readings[readings.length - 1];
   return {
     latest,
     previous,
     change: latest && previous ? latest.amount - previous.amount : null,
-    ageDays: latest ? Math.round((Date.parse(today) - Date.parse(latest.date)) / 86_400_000) : null,
+    ageDays: lastReading ? Math.round((Date.parse(today) - Date.parse(lastReading.date)) / 86_400_000) : null,
   };
 }

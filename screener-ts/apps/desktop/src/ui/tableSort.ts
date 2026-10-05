@@ -103,13 +103,18 @@ function sortTable(table: HTMLTableElement, col: number, dir: Dir): void {
     if (lone && groups.length) groups[groups.length - 1]!.push(r);
     else groups.push([r]);
   }
-  // An "add a row" line or a totals line stays at the bottom, in its own order.
+  // An "add a row" line or a totals line is not sorted with the data.
   const pinned = (r: HTMLTableRowElement): boolean => /(^|[-_\s])(add|new|total|sum|foot)/i.test(r.className);
   const keyed = groups.filter((g) => !pinned(g[0]!)).map((g, i) => ({ g, i, v: valueOf(cellAt(g[0]!, col)) }));
   keyed.sort((a, b) => compare(a.v, b.v, dir) || a.i - b.i);
   const frag = document.createDocumentFragment();
+  // A pinned row keeps its end: one that opened the table (an inline "new" row) stays on top.
+  const firstFree = groups.findIndex((g) => !pinned(g[0]!));
+  const head = groups.filter((g, i) => pinned(g[0]!) && (firstFree < 0 || i < firstFree));
+  const tail = groups.filter((g, i) => pinned(g[0]!) && firstFree >= 0 && i > firstFree);
+  for (const g of head) for (const r of g) frag.appendChild(r);
   for (const k of keyed) for (const r of k.g) frag.appendChild(r);
-  for (const g of groups) if (pinned(g[0]!)) for (const r of g) frag.appendChild(r);
+  for (const g of tail) for (const r of g) frag.appendChild(r);
   body.appendChild(frag);
 }
 

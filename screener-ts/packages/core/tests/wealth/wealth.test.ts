@@ -28,6 +28,7 @@ function book(): WealthBook {
       { id: 'cash', name: 'Dollars at home', kind: 'cash', currency: 'USD', createdAt: '2026-01-01' },
     ],
     balances: [],
+    flows: [],
   };
   return b;
 }

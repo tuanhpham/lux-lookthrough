@@ -597,8 +597,10 @@ column tracks, plus a head row (10px uppercase `--faint` on `--surface`).
 **Every table sorts and can go full screen, with no per-table wiring.** One script watches the
 page (a MutationObserver plus a rAF debounce) and upgrades every table it finds:
 - **Sorting:**
-  - Every head with text becomes clickable and focusable (Enter/Space), shows a faint `↕`, and
-    turns accent with `▲`/`▼` plus the `.sorted` underline when active.
+  - Every head with text becomes clickable and focusable (Enter/Space), shows a drawn sort icon (two
+    stacked 8×12 chevrons painted through a CSS mask in the head's colour, at 35%), and when
+    active turns accent, lights the chevron of the sort direction and dims the other, plus the
+    `.sorted` underline. Never text glyphs (↕ ▲ ▼); they sit off the baseline in every font.
   - The first click sorts numbers biggest-first and text A→Z; the second flips.
   - **How a cell is read:** `data-sort-value` wins. Otherwise an ISO date sorts as a date, and a
     leading number is parsed after any currency sign or ±, in both 1,234.5 and 1.234,5 notation,
