@@ -37,6 +37,7 @@ import { jumpToLearn } from './ui/stickyToc.js';
 import { initTableFullscreen } from './ui/tableFullscreen.js';
 import { initTableSort } from './ui/tableSort.js';
 import { firstAllowedPage, pageAllowed, paintViewerBar } from './ui/viewer.js';
+import { initLookDefault } from './ui/lookDefault.js';
 
 // Surface a FATAL init failure visibly (a blank screen hides the cause). This is
 // only used for the synchronous init below — we deliberately do NOT trap every
@@ -56,6 +57,7 @@ initModal();
 initTableFullscreen();
 initTableSort();
 paintViewerBar();
+initLookDefault(ctx);
 // Becoming a viewer, stopping, or a change in what is shared: the menus, the palette and every
 // page were drawn for the old view. A reload is the one redraw that cannot miss a corner.
 window.addEventListener('app:share-changed', () => location.reload());

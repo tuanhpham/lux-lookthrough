@@ -9998,3 +9998,9 @@ tr.w-flow-row { background: color-mix(in srgb, var(--accent) 3%, transparent); }
 @media (max-width: 700px) { .st-sh { margin-left: 0; } .st-sh-cols { grid-template-columns: 1fr; } }
 .st-us-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .st-us-acts .btn-outline { white-space: nowrap; }
+
+/* CHAT-103 — "Your default look" in Appearance */
+.st-def-box .st-def-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.st-def-sum > span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 650;
+  border: 1px solid var(--glass-line); background: var(--glass-bg); box-shadow: var(--glass-hi); }
+.st-def-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }

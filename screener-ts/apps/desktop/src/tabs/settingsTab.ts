@@ -38,6 +38,7 @@ import { openPlaybookSettingsHere } from '../ui/playbookSettings.js';
 import { SECTIONS, GROUPS, WHERE, type GuideSection, type GuideStep } from './settingsGuide.js';
 import { vmPanel, wireVm } from './vmPanel.js';
 import { usersPanel, wireUsers } from './usersPanel.js';
+import { applyLook, clearLookDefault, defaultAccent, defaultBackdrop, defaultTone, lookDefault, saveLookDefault } from '../ui/lookDefault.js';
 import { pageHero } from '../ui/pageHero.js';
 import { currentAlertsDigest, readAlertsSeen } from '../portfolio/alertsFeed.js';
 
@@ -252,10 +253,43 @@ function lookPanel(): string {
           : ''}</div>
       <div class="st-actions">
         <button class="btn" data-look-save${pick === saved ? ' disabled' : ''}>💾 ${L('Save colour', 'Lưu màu')}</button>
-        <button class="btn-outline" data-look-reset${saved === DEFAULT_ACCENT && pick === DEFAULT_ACCENT ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
+        <button class="btn-outline" data-look-reset${saved === defaultAccent() && pick === defaultAccent() ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
       </div>
       ${backdropRows()}
       ${toneRows()}
+      ${defaultRows()}
+    </div>`;
+}
+
+/**
+ * "Set as default": the whole look on screen becomes the user's own default — synced, applied
+ * once on their other devices, and what every "back to default" button returns to.
+ */
+function defaultRows(): string {
+  const d = lookDefault();
+  const name = (id: string, list: readonly { id: string; name: { en: string; vi: string } }[]): string =>
+    id.startsWith('#') ? id.toUpperCase() : say(list.find((x) => x.id === id)?.name ?? { en: id, vi: id });
+  const tone = (v: number): string => (v > 0 ? `+${v}` : String(v));
+  const summary = d
+    ? `<div class="st-def-sum">
+        <span>${d.theme === 'light' ? '☀️' : '🌙'} ${d.theme === 'light' ? L('Light', 'Nền sáng') : L('Dark', 'Nền tối')}</span>
+        <span><i class="st-def-dot" style="background:${accentPair(d.accent, d.theme)[0]}"></i>${esc(name(d.accent, ACCENTS))}</span>
+        <span>🖼 ${esc(name(d.backdrop, BACKDROPS))}</span>
+        <span>🔆 ${tone(d.toneDark)} / ${tone(d.toneLight)}</span>
+        <small class="muted">${L('set', 'đặt lúc')} ${new Date(d.at).toLocaleString(getLang() === 'vi' ? 'vi-VN' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' })}</small>
+      </div>`
+    : `<div class="muted" style="font-size:12px">${L('Not set — the buttons above go back to the app’s own look.', 'Chưa đặt — các nút "về mặc định" ở trên quay về giao diện gốc của app.')}</div>`;
+  return `<div class="st-tone-box st-def-box">
+      <div class="st-look-cap">⭐ ${L('Your default look', 'Mặc định của bạn')}</div>
+      ${summary}
+      <div class="muted" style="font-size:11.5px;margin-top:6px">${L(
+        'Saves light/dark, the colour, the background and both brightness levels as YOUR default. It syncs to every device on your sync code and is applied there once; the "back to default" buttons return to it.',
+        'Lưu sáng/tối, màu chủ đạo, màu nền và hai mức độ sáng làm mặc định CỦA BẠN. Được đồng bộ sang mọi máy dùng cùng mã sync và tự áp dụng một lần trên đó; các nút "về mặc định" sẽ quay về đây.')}</div>
+      <div class="st-actions">
+        <button class="btn" data-def-save>⭐ ${L('Set this look as default', 'Đặt giao diện này làm mặc định')}</button>
+        ${d ? `<button class="btn-outline" data-def-apply>↺ ${L('Use my default', 'Dùng lại mặc định của tôi')}</button>
+        <button class="btn-outline" data-def-clear>${L('Remove default', 'Xoá mặc định')}</button>` : ''}
+      </div>
     </div>`;
 }
 
@@ -281,7 +315,7 @@ function backdropRows(): string {
         </label>
       </div>
       <div class="muted" style="font-size:11.5px;margin-top:6px">${L('Applies to both themes; the brightness sliders below still work on top of it.', 'Áp dụng cho cả nền tối và sáng; thanh độ sáng bên dưới vẫn chỉnh được trên màu này.')}</div>
-      ${saved !== DEFAULT_BACKDROP ? `<div class="st-actions"><button class="btn-outline" data-backdrop="${DEFAULT_BACKDROP}">↺ ${L('Default background', 'Nền mặc định')}</button></div>` : ''}
+      ${saved !== defaultBackdrop() ? `<div class="st-actions"><button class="btn-outline" data-backdrop="${defaultBackdrop()}">↺ ${L('Default background', 'Nền mặc định')}</button></div>` : ''}
     </div>`;
 }
 
@@ -309,7 +343,7 @@ function toneRows(): string {
   return `<div class="st-tone-box">
       <div class="st-look-cap">${L('Background brightness', 'Độ sáng nền')}</div>
       ${row('dark')}${row('light')}
-      <div class="st-actions"><button class="btn-outline" data-tone-reset${savedTone('dark') === 0 && savedTone('light') === 0 ? ' disabled' : ''}>↺ ${L('Default brightness', 'Độ sáng mặc định')}</button></div>
+      <div class="st-actions"><button class="btn-outline" data-tone-reset${savedTone('dark') === defaultTone('dark') && savedTone('light') === defaultTone('light') ? ' disabled' : ''}>↺ ${L('Default brightness', 'Độ sáng mặc định')}</button></div>
     </div>`;
 }
 
@@ -367,17 +401,31 @@ function wireLook(root: HTMLElement): void {
     inp.addEventListener('change', () => {
       applyTone(t, Number(inp.value));
       const reset = host.querySelector<HTMLButtonElement>('[data-tone-reset]');
-      if (reset) reset.disabled = savedTone('dark') === 0 && savedTone('light') === 0;
+      if (reset) reset.disabled = savedTone('dark') === defaultTone('dark') && savedTone('light') === defaultTone('light');
     });
   });
   host.querySelector('[data-tone-reset]')?.addEventListener('click', () => {
-    applyTone('dark', 0);
-    applyTone('light', 0);
+    applyTone('dark', defaultTone('dark'));
+    applyTone('light', defaultTone('light'));
     repaintLook(root);
   });
   host.querySelector('[data-look-reset]')?.addEventListener('click', () => {
     lookPick = null;
-    applyAccent(DEFAULT_ACCENT);
+    applyAccent(defaultAccent());
+  });
+  host.querySelector('[data-def-save]')?.addEventListener('click', () => {
+    if (!ctxRef) return;
+    void saveLookDefault(ctxRef).then(() => repaintLook(root));
+  });
+  host.querySelector('[data-def-apply]')?.addEventListener('click', () => {
+    const d = lookDefault();
+    if (!d) return;
+    lookPick = null;
+    applyLook(d); // the accent step re-renders this page
+  });
+  host.querySelector('[data-def-clear]')?.addEventListener('click', () => {
+    if (!ctxRef || !confirm(L('Remove your default look? What is on screen stays as it is.', 'Xoá giao diện mặc định của bạn? Giao diện đang dùng vẫn giữ nguyên.'))) return;
+    void clearLookDefault(ctxRef).then(() => repaintLook(root));
   });
 }
 
