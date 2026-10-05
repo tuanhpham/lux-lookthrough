@@ -24,7 +24,7 @@
 import type { AppContext } from '../context.js';
 import { $ } from '../ui/dom.js';
 import { getLang, setLang } from '../ui/i18n.js';
-import { ACCENTS, DEFAULT_ACCENT, TONE_RANGE, accentPair, applyAccent, applyTheme, applyTone, clashesWithPnl, previewTone, savedAccent, savedTone, type ToneTheme } from '../ui/theme.js';
+import { ACCENTS, BACKDROPS, DEFAULT_ACCENT, DEFAULT_BACKDROP, TONE_RANGE, accentPair, applyAccent, applyBackdrop, applyTheme, applyTone, backdropOf, clashesWithPnl, previewBackdrop, previewTone, savedAccent, savedBackdrop, savedTone, type ToneTheme } from '../ui/theme.js';
 import { openSyncSettings, exportAllData } from '../ui/syncSettings.js';
 import { openLlmSettings } from '../ui/llmSettings.js';
 import { copyToClipboard } from '../ui/askChatGpt.js';
@@ -254,7 +254,34 @@ function lookPanel(): string {
         <button class="btn" data-look-save${pick === saved ? ' disabled' : ''}>💾 ${L('Save colour', 'Lưu màu')}</button>
         <button class="btn-outline" data-look-reset${saved === DEFAULT_ACCENT && pick === DEFAULT_ACCENT ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
       </div>
+      ${backdropRows()}
       ${toneRows()}
+    </div>`;
+}
+
+/**
+ * The background's colour: six rooms and "your own". A tap applies and saves at once — unlike
+ * the accent there is nothing to compare against first, the whole page IS the preview.
+ */
+function backdropRows(): string {
+  const saved = savedBackdrop();
+  const dark = !lightNow();
+  const dot = (id: string): string => {
+    const p = backdropOf(id)[dark ? 'dark' : 'light'];
+    const c = (g: string): string => `rgba(${g.split(',').slice(0, 3).join(',')},1)`;
+    return `<span class="st-sw-dot" style="background:radial-gradient(circle at 25% 25%, ${c(p.glows[0]!)}, transparent 60%), radial-gradient(circle at 80% 30%, ${c(p.glows[1]!)}, transparent 60%), radial-gradient(circle at 60% 85%, ${c(p.glows[3]!)}, transparent 60%), ${p.base[0]}"></span>`;
+  };
+  const custom = saved.startsWith('#') ? saved : '#3a7bd5';
+  return `<div class="st-tone-box st-bg-box">
+      <div class="st-look-cap">${L('Background colour', 'Màu nền')}</div>
+      <div class="st-sw-grid">
+        ${BACKDROPS.map((b) => `<button type="button" class="st-sw${saved === b.id ? ' on' : ''}" data-backdrop="${b.id}" aria-pressed="${saved === b.id}">${dot(b.id)}${say(b.name)}</button>`).join('')}
+        <label class="st-sw st-sw-custom${saved.startsWith('#') ? ' on' : ''}" title="${L('Any colour: the room is built from it', 'Màu bất kỳ: nền được dựng từ màu này')}">
+          <input type="color" id="st-bg-custom" value="${custom}" />${L('Your own', 'Màu riêng')}
+        </label>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">${L('Applies to both themes; the brightness sliders below still work on top of it.', 'Áp dụng cho cả nền tối và sáng; thanh độ sáng bên dưới vẫn chỉnh được trên màu này.')}</div>
+      ${saved !== DEFAULT_BACKDROP ? `<div class="st-actions"><button class="btn-outline" data-backdrop="${DEFAULT_BACKDROP}">↺ ${L('Default background', 'Nền mặc định')}</button></div>` : ''}
     </div>`;
 }
 
@@ -318,6 +345,11 @@ function wireLook(root: HTMLElement): void {
     lookPick = null;
     applyAccent(choice); // re-renders the open page, this one included
   });
+  host.querySelectorAll<HTMLElement>('[data-backdrop]').forEach((b) =>
+    b.addEventListener('click', () => { applyBackdrop(b.dataset.backdrop!); repaintLook(root); }));
+  const bg = host.querySelector<HTMLInputElement>('#st-bg-custom');
+  bg?.addEventListener('input', () => previewBackdrop(bg.value.toLowerCase()));
+  bg?.addEventListener('change', () => { applyBackdrop(bg.value.toLowerCase()); repaintLook(root); });
   host.querySelectorAll<HTMLInputElement>('input[data-tone]').forEach((inp) => {
     const t = inp.dataset.tone as ToneTheme;
     const out = host.querySelector<HTMLElement>(`[data-tone-v="${t}"]`);

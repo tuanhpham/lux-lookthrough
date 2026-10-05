@@ -9963,3 +9963,9 @@ tr.w-flow-row td { vertical-align: middle; }
 tr.w-flow-row td:nth-child(2) .ui-pill { margin-right: 6px; }
 tr.w-flow-row td:nth-child(2) small { font-size: 11px; }
 tr.w-flow-row { background: color-mix(in srgb, var(--accent) 3%, transparent); }
+
+/* CHAT-101 — the cash cap's note under the ticket */
+.stn-cashnote { padding: 9px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.stn-cashnote b { font-family: var(--font-mono); color: var(--warn); }
+.stn-cashnote.zero { border-color: color-mix(in srgb, var(--down) 50%, transparent); background: color-mix(in srgb, var(--down) 10%, transparent); }

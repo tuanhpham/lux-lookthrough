@@ -92,6 +92,8 @@ interface Ticket {
   ccy: Ccy;
   date: string;
   shares: number | null;
+  /** The user typed the share count (or picked a %): a new price must not replace it. */
+  sharesTyped: boolean;
   stop: number | null;
   target: number | null;
   setup: SetupKey | '';
@@ -143,7 +145,7 @@ let list: { held: string[]; watch: { name: string; syms: string[] }[] } = { held
 
 function freshTicket(acctId = ''): Ticket {
   return {
-    side: 'buy', mode: 'fill', orderType: 'STOP_LOSS', acctId, price: null, priceAuto: true, ccy: 'USD', date: today(),
+    side: 'buy', mode: 'fill', orderType: 'STOP_LOSS', acctId, price: null, priceAuto: true, sharesTyped: false, ccy: 'USD', date: today(),
     shares: null, stop: null, target: null, setup: '', fee: null, note: '', caseOn: true,
     closedOn: false, exitDate: today(), exitPrice: null, exitAuto: true, exitReason: '',
     events: [], caseNote: '', orderNote: '',
@@ -401,6 +403,7 @@ export async function renderStation(ctx: AppContext): Promise<void> {
 }
 
 function paint(ctx: AppContext, root: HTMLElement): void {
+  enforceCash(); // before the steps bar and the strip, which are drawn ahead of the ticket
   liveCtx = ctx;
   liveRoot = root;
   bindKeys();
@@ -761,6 +764,7 @@ function acctOptions(): string {
 }
 
 function ticketHtml(): string {
+  enforceCash();
   const st = acct();
   const isBuy = ticket.side === 'buy';
   const isOrder = ticket.mode === 'order';
@@ -849,9 +853,10 @@ function ticketHtml(): string {
       : L('Write this sale into its case study', 'Ghi lệnh bán vào case study của nó')}</label>`}
     ${isOrder ? '' : fifo}
     ${block ? `<div class="stn-block">${block}</div>` : ''}
+    ${cashNoteHtml()}
     ${msg ? `<div class="stn-msg${msg.err ? ' err' : ''}">${esc(msg.text)}${!msg.err && lastCaseId ? ` <button class="stn-link" data-stn-opencase="${esc(lastCaseId)}">${L('Open it', 'Mở case study')} →</button>` : ''}</div>` : ''}
     ${isBuy && !isOrder ? `<button class="stn-case-only" id="stn-case-only"${!sym || !px || busy ? ' disabled' : ''} title="${L('No trade, no account: file the setup as a case study — reverse-engineering a past chart, or a trade you passed on.', 'Không giao dịch, không cần tài khoản: lưu setup thành case study — dựng lại một chart cũ, hoặc một lệnh bạn đã bỏ qua.')}">🗂 ${L('Save as a case study only — no buy', 'Chỉ lưu case study — không mua')}</button>` : ''}
-    <button class="stn-go ${isBuy ? 'stn-go-buy' : 'stn-go-sell'}" id="stn-go"${block || busy || !shares || !px ? ' disabled' : ''}>
+    <button class="stn-go ${isBuy ? 'stn-go-buy' : 'stn-go-sell'}" id="stn-go"${block || busy || !(ticket.shares ?? 0) || !px ? ' disabled' : ''}>
       ${busy ? '…' : isOrder
         ? `${L('Place', 'Đặt')} ${isBuy ? 'buy stop' : ticket.orderType === 'STOP_LOSS' ? L('stop loss', 'lệnh cắt lỗ') : L('take profit', 'lệnh chốt lời')} · ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`
         : `${isBuy ? L('Buy', 'Mua') : L('Sell', 'Bán')} ${shares ? fmt(shares, 0) : ''} ${esc(sym)}`}
@@ -1153,6 +1158,7 @@ function bindKeys(): void {
 
 /** Repaint the ticket, the ladder and the chart lines — not the whole page — while typing. */
 function repaintLive(ctx: AppContext, root: HTMLElement, focusKey?: string): void {
+  enforceCash();
   const t = root.querySelector<HTMLElement>('#stn-ticket');
   if (t) {
     const was = focusKey ? root.querySelector<HTMLInputElement>(`[data-stn="${focusKey}"]`) : null;
@@ -1166,7 +1172,13 @@ function repaintLive(ctx: AppContext, root: HTMLElement, focusKey?: string): voi
     if (focusKey) {
       const f = root.querySelector<HTMLInputElement>(`[data-stn="${focusKey}"]`);
       if (f) {
-        if (typed !== null && f.type !== 'range') f.value = typed;
+        // …unless the page changed that value meanwhile (the cash cap cut the shares): then the
+        // new number is the truth and the typed text must not paint over it.
+        const held = (ticket as unknown as Record<string, unknown>)[focusKey];
+        const same = typeof held === 'number' || held === null
+          ? (focusKey === 'shares' ? (posNum(typed ?? '') === null ? null : Math.round(posNum(typed ?? '')!)) : posNum(typed ?? '')) === held
+          : true;
+        if (typed !== null && f.type !== 'range' && same) f.value = typed;
         f.focus();
         if (caret !== null && 'setSelectionRange' in f && f.type !== 'range') { try { f.setSelectionRange(caret, caret); } catch { /* date inputs */ } }
       }
@@ -1396,7 +1408,11 @@ function fieldChanged(ctx: AppContext, root: HTMLElement, f: HTMLInputElement | 
   const val = (f as HTMLInputElement).type === 'checkbox' ? (f as HTMLInputElement).checked : f.value;
   onField(key, val);
   const structural = ['acct', 'closedOn', 'caseOn', 'date', 'orderType', 'exitDate'].includes(key);
-  if (['price', 'stop', 'target', 'acct', 'date'].includes(key) && ticket.side === 'buy') suggest();
+  if (['price', 'stop', 'target', 'acct', 'date'].includes(key) && ticket.side === 'buy') {
+    // A count the page suggested follows the new price / stop; one the user typed stays.
+    if (!ticket.sharesTyped) ticket.shares = null;
+    suggest();
+  }
   if (key === 'date' || key === 'exitDate' || key === 'closedOn') { drawChart(root); void ensureHistory(ctx, root); }
   repaintLive(ctx, root, structural || key === 'note' ? undefined : key);
   if (key === 'note') {
@@ -1426,6 +1442,7 @@ function onField(key: string, val: string | boolean): void {
     case 'shares': {
       const n = posNum(s);
       ticket.shares = n === null ? null : Math.round(n);
+      ticket.sharesTyped = n !== null;
       if (ticket.side === 'sell' && ticket.shares !== null) ticket.shares = Math.min(ticket.shares, heldIn(ticket.acctId));
       break;
     }
@@ -1453,7 +1470,59 @@ function onField(key: string, val: string | boolean): void {
 
 function setPct(p: number): void {
   const basis = ticket.side === 'buy' ? suggestion?.shares ?? 0 : heldIn(ticket.acctId);
-  if (basis > 0) ticket.shares = Math.max(0, Math.round((basis * p) / 100)) || null;
+  if (basis > 0) { ticket.shares = Math.max(0, Math.round((basis * p) / 100)) || null; ticket.sharesTyped = true; }
+}
+
+/**
+ * What the cash cap did to the last share count, for the line under the ticket.
+ *
+ * The user's rule (CHAT-101): a buy is limited by the cash in the account, and the page says so
+ * — "not enough cash for 1,174 shares: 1,174 → 75", or "not enough to buy one share". Kept with
+ * the count it produced, so the note stays while that count is on the ticket and goes the
+ * moment the user changes it.
+ */
+let cashNote: { from: number; to: number; need: number; have: number } | null = null;
+
+/** The most shares the account's cash buys at the ticket price, after the fee. */
+function maxByCash(): number | null {
+  const st = acct();
+  const px = ticket.price;
+  if (!st || !px || px <= 0) return null;
+  const one = costInAcct(1, px, ticket.date);
+  if (!(one > 0)) return null;
+  const room = computeCash(st) - feeNow();
+  return Math.max(0, Math.floor(room / one + 1e-9));
+}
+
+/**
+ * Cap a buy's share count at what the cash pays for. Runs before every draw of the ticket, so a
+ * count from any source — the playbook's size, a typed number, the % buttons, a new price under
+ * an old count — is held to it. Sales and case-only filings are not purchases and are not capped.
+ */
+function enforceCash(): void {
+  if (ticket.side !== 'buy') { cashNote = null; return; }
+  const max = maxByCash();
+  const n = ticket.shares ?? 0;
+  if (max === null || n <= max) {
+    if (cashNote && cashNote.to !== n) cashNote = null;
+    return;
+  }
+  const st = acct()!;
+  cashNote = { from: n, to: max, need: costInAcct(n, ticket.price!, ticket.date) + feeNow(), have: computeCash(st) };
+  ticket.shares = max > 0 ? max : null;
+}
+
+/** The line that explains the cap, or the block when not one share is affordable. */
+function cashNoteHtml(): string {
+  if (!cashNote || ticket.side !== 'buy') return '';
+  const ac = acctCcy();
+  const one = ticket.price ? costInAcct(1, ticket.price, ticket.date) + feeNow() : 0;
+  if (cashNote.to === 0) {
+    return `<div class="stn-cashnote zero">⛔ ${L(`Not enough cash to buy one share: 1 share costs ${cash(one, ac)} with the fee, the account has ${cash(cashNote.have, ac)}.`,
+      `Không đủ tiền mặt để mua 1 cổ phiếu: 1 cp tốn ${cash(one, ac)} (kể cả phí), tài khoản còn ${cash(cashNote.have, ac)}.`)}</div>`;
+  }
+  return `<div class="stn-cashnote">💶 ${L(`Not enough cash for ${fmt(cashNote.from, 0)} shares (needs ${cash(cashNote.need, ac)}, the account has ${cash(cashNote.have, ac)}): shares cut from <b>${fmt(cashNote.from, 0)}</b> to <b>${fmt(cashNote.to, 0)}</b>.`,
+    `Không đủ tiền mặt cho ${fmt(cashNote.from, 0)} cp (cần ${cash(cashNote.need, ac)}, tài khoản còn ${cash(cashNote.have, ac)}): số lượng giảm từ <b>${fmt(cashNote.from, 0)}</b> xuống <b>${fmt(cashNote.to, 0)}</b> cp.`)}</div>`;
 }
 
 /** Where the account's fee comes from, in a few words. */

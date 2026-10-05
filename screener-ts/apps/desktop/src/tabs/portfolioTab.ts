@@ -1579,14 +1579,27 @@ function wire(ctx: AppContext, root: HTMLElement): void {
     // Edit the active account — rename and/or change its initial capital.
     $('#acct-edit')!.addEventListener('click', async () => {
       const a = active().account;
-      const res = await formDialog('Edit account', [
-        { key: 'name', label: 'Account name', value: a.name },
-        { key: 'cap', label: 'Initial capital (EUR)', type: 'number', value: String(a.initialCapital) },
+      const vi = getLang() === 'vi';
+      const res = await formDialog(vi ? 'Sửa tài khoản' : 'Edit account', [
+        { key: 'name', label: vi ? 'Tên tài khoản' : 'Account name', value: a.name },
+        { key: 'cap', label: `${vi ? 'Vốn ban đầu' : 'Initial capital'} (${a.currency})`, type: 'number', value: String(a.initialCapital) },
+        { key: '__rp', label: '', type: 'info', value: `<b>${vi ? 'Hồ sơ rủi ro của tài khoản' : 'This account’s risk profile'}</b><br><span class="muted">${vi
+          ? 'Mỗi tài khoản có thể giao dịch với mức rủi ro riêng, rồi so sánh ở Tổng quan › So sánh tài khoản xem mức nào hiệu quả hơn. Để trống = theo Playbook.'
+          : 'Each account can trade its own risk level; compare them in Overview › Account comparison. Blank = the playbook’s.'}</span>` },
+        { key: 'risk', label: vi ? 'Rủi ro mỗi lệnh (% vốn)' : 'Risk per trade (% of equity)', raw: true, value: a.riskPct ? String(a.riskPct) : '', placeholder: vi ? 'theo Playbook' : 'playbook' },
+        { key: 'maxpos', label: vi ? 'Tỷ trọng tối đa 1 mã (% vốn)' : 'Max one position (% of equity)', raw: true, value: a.maxPositionPct ? String(a.maxPositionPct) : '', placeholder: vi ? 'theo Playbook' : 'playbook' },
       ]);
       if (!res) return;
       if (res.name) a.name = res.name;
       const cap = Number(res.cap);
       if (cap > 0) a.initialCapital = cap; // cash & PnL recompute from this
+      const pctOf = (raw: string | undefined, hi: number): number | undefined => {
+        const v = parseAmount((raw ?? '').replace('%', '').trim());
+        return v !== null && v > 0 && v <= hi ? v : undefined;
+      };
+      const rp = pctOf(res.risk, 20), mp = pctOf(res.maxpos, 100);
+      if (rp === undefined) delete a.riskPct; else a.riskPct = rp;
+      if (mp === undefined) delete a.maxPositionPct; else a.maxPositionPct = mp;
       await save(ctx);
       draw(ctx);
     });
@@ -3411,6 +3424,15 @@ function kpiDonut(opts: {
     </div>`;
 }
 
+/** The account's own risk profile, or "playbook" — shown beside the results it produced. */
+function riskProfileCell(accountId: string): string {
+  const a = accounts.find((x) => x.account.id === accountId)?.account;
+  const vi = getLang() === 'vi';
+  if (!a || (!a.riskPct && !a.maxPositionPct)) return `<span class="muted">${vi ? 'theo Playbook' : 'playbook'}</span>`;
+  const bits = [a.riskPct ? `${num(a.riskPct, 2)}%/${vi ? 'lệnh' : 'trade'}` : '', a.maxPositionPct ? `≤${num(a.maxPositionPct, 0)}%/${vi ? 'mã' : 'name'}` : ''].filter(Boolean);
+  return `<span class="ui-pill accent" data-sort-value="${a.riskPct ?? 0}">${bits.join(' · ')}</span>`;
+}
+
 function buildOverviewHtml(): string {
   const pricesByAccount = new Map(accounts.map((a) => [a.account.id, prices(a.account.id)]));
   const compareRows = compareAccounts(accounts, pricesByAccount);
@@ -3508,11 +3530,11 @@ function buildOverviewHtml(): string {
           : `<span class="hint-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2l3.5 11 1.8-4.4L12.7 7 3 2z" fill="currentColor"/></svg>${t('pf.clickacct')}</span>`,
       })}
     <div class="card" style="overflow-x:auto;margin-bottom:14px">
-      <table><thead><tr><th>${t('pf.col.account')}</th><th>${t('pf.col.return')}</th><th>${t('pf.col.twr')}</th><th>${t('pf.col.equity2')}</th><th>${t('pf.col.winrate')}</th><th>${t('pf.stat.expectancy')}</th><th>${t('pf.col.avgr')}</th><th>${t('pf.col.maxdd')}</th><th>${t('pf.col.openrisk')}</th><th>${t('pf.col.open')}</th><th>${t('pf.col.closed')}</th></tr></thead>
+      <table><thead><tr><th>${t('pf.col.account')}</th><th>${t('pf.col.return')}</th><th>${t('pf.col.twr')}</th><th>${t('pf.col.equity2')}</th><th>${t('pf.col.winrate')}</th><th>${t('pf.stat.expectancy')}</th><th>${t('pf.col.avgr')}</th><th>${t('pf.col.maxdd')}</th><th>${t('pf.col.openrisk')}</th><th>${t('pf.col.open')}</th><th>${t('pf.col.closed')}</th><th>${getLang() === 'vi' ? 'Hồ sơ rủi ro' : 'Risk profile'}</th></tr></thead>
       <tbody>${compareRows
         .map(
           (r) =>
-            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td style="color:${r.twrPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(r.twrPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td></tr>`,
+            `<tr><td><a href="#" class="link-ticker" data-acct-open="${r.accountId}"><strong>${r.name}</strong></a></td><td style="color:${r.totalReturnPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(r.totalReturnPct)}</td><td style="color:${r.twrPct >= 0 ? 'var(--up)' : 'var(--danger)'}">${pct(r.twrPct)}</td><td>${money(toDisplay(r.equity), dispSymbol())}</td><td>${num(r.winRate * 100, 0)}%</td><td>${money(toDisplay(r.expectancy), dispSymbol())}</td><td>${num(r.avgRMultiple, 2)}R</td><td>${num(r.maxDrawdownPct, 1)}%</td><td>${num(r.totalOpenRiskPct, 1)}%</td><td>${r.openTradeCount}</td><td>${r.closedTradeCount}</td><td>${riskProfileCell(r.accountId)}</td></tr>`,
         )
         .join('')}</tbody></table>
     </div>

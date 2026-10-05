@@ -420,7 +420,10 @@ export interface BuyPlan {
 export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
   const { state, prices, bars, entry, entryCurrency, setup, date } = input;
   const rating = input.rating ?? null;
-  const ladder = ladderConfig();
+  // The account's risk profile, where it has one, over the playbook's numbers.
+  const own = state.account.maxPositionPct;
+  const ladder = own && own > 0 ? { ...ladderConfig(), maxPositionPct: own } : ladderConfig();
+  const pinned = state.account.riskPct && state.account.riskPct > 0 ? state.account.riskPct : cfg.pinnedRiskPct;
 
   // Bars are in the ticker's quote currency (USD, or EUR for ALV.DE); the form may be in
   // either. Work in the quote currency, report in the form's.
@@ -440,12 +443,12 @@ export function buildBuyPlan(input: BuyPlanInput): BuyPlan | null {
   // The market this plan is placed into. Today's, unless the caller is replaying a past date —
   // see `asOfRegime`. Everything else on this line is account state, which has no past.
   const rg = input.asOfRegime ? regimeAsOf(date) : regime;
-  const budget = cfg.pinnedRiskPct === null
+  const budget = pinned === null
     ? riskBudget(stage, { regime: rg?.regime ?? null, atrRatio: rg?.atrRatio ?? null }, ladder)
     // A pinned percent still respects "no new longs in a downtrend": that rule is
     // about whether to trade at all, not about how big, so pinning a size must not
     // quietly switch it off.
-    : pinnedBudget(cfg.pinnedRiskPct, stage, ladder, rg);
+    : pinnedBudget(pinned, stage, ladder, rg);
 
   const size = suggestSize({
     equity,

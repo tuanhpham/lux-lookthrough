@@ -15,6 +15,15 @@ export interface Account {
    * actually paid (`BuyLot.fee` / `SellRecord.fee`), so changing this later restates nothing.
    */
   fee?: number;
+  /**
+   * This account's own risk per trade, in % of its equity — a RISK PROFILE (CHAT-101: "moi tai
+   * khoan … se co nhung muc risk khac nhau de cuoi cung so sanh xem muc nao hoat dong hieu qua
+   * hon"). Absent = the playbook's (its ladder, or its pinned percent). Like a pinned percent it
+   * does not overrule "no new longs in a downtrend", and the grade still scales the result.
+   */
+  riskPct?: number;
+  /** This account's cap on one position, in % of equity. Absent = the playbook's. */
+  maxPositionPct?: number;
 }
 
 /** A purchase. `remainingShares` shrinks as FIFO sells consume it. */

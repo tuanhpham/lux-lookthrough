@@ -235,8 +235,130 @@ export function applyTone(theme: ToneTheme, v: number): void {
   paintTone();
 }
 
+// ── Background colour (CHAT-101: "Background color hien khong change duoc") ───────
+//
+// The brightness sliders above lift or dim the room; this changes its COLOUR — the six glows of
+// the liquid canvas (`body::before`) and its base. A preset is a pair: glows for the dark room
+// and for the light one, so one choice reads right in both themes. "Your own" builds both from
+// one colour (the glows in that hue, a neighbour hue for depth). Panels are glass over the room,
+// so they pick the tint up without being touched.
+
+export interface BackdropPreset {
+  id: string;
+  name: { en: string; vi: string };
+  /** Six glow colours as "r,g,b,alpha", in the canvas's fixed glow order, then the base pair. */
+  dark: { glows: readonly string[]; base: readonly [string, string] };
+  light: { glows: readonly string[]; base: readonly [string, string] };
+}
+
+export const BACKDROPS: readonly BackdropPreset[] = [
+  { id: 'aurora', name: { en: 'Aurora (default)', vi: 'Cực quang (mặc định)' },
+    dark: { glows: ['132,96,255,.46', '52,128,255,.34', '110,70,230,.16', '20,200,176,.26', '226,70,168,.24', '255,150,80,.12'], base: ['#0e0c1a', '#07070c'] },
+    light: { glows: ['255,196,150,.92', '176,226,196,.88', '216,204,255,.55', '180,206,252,.92', '250,190,214,.78', '255,255,255,.6'], base: ['#f3e9de', '#e6ddd2'] } },
+  { id: 'ocean', name: { en: 'Ocean', vi: 'Đại dương' },
+    dark: { glows: ['40,120,255,.44', '20,190,230,.32', '60,90,230,.18', '20,180,170,.26', '90,80,240,.2', '80,170,255,.12'], base: ['#0a1020', '#05070d'] },
+    light: { glows: ['180,210,255,.92', '186,236,240,.88', '210,220,255,.6', '170,214,246,.92', '200,206,255,.75', '255,255,255,.6'], base: ['#e8eef6', '#dbe4ee'] } },
+  { id: 'forest', name: { en: 'Jade forest', vi: 'Rừng ngọc' },
+    dark: { glows: ['30,190,120,.4', '20,160,170,.3', '60,140,90,.16', '120,200,80,.22', '20,120,140,.22', '200,190,80,.1'], base: ['#08140f', '#050a08'] },
+    light: { glows: ['190,234,200,.92', '186,226,222,.86', '214,236,200,.6', '206,236,184,.9', '180,220,214,.78', '255,255,255,.6'], base: ['#ecf2e8', '#dfe8dc'] } },
+  { id: 'sunset', name: { en: 'Sunset', vi: 'Hoàng hôn' },
+    dark: { glows: ['255,120,60,.36', '230,70,120,.3', '180,60,120,.16', '255,170,60,.22', '150,60,200,.24', '255,200,120,.12'], base: ['#160c0c', '#0a0607'] },
+    light: { glows: ['255,200,160,.94', '255,184,196,.86', '255,214,190,.6', '255,220,170,.92', '236,196,236,.76', '255,255,255,.6'], base: ['#f6ebe2', '#ecdfd4'] } },
+  { id: 'rose', name: { en: 'Rose', vi: 'Hồng' },
+    dark: { glows: ['236,72,153,.38', '168,85,247,.3', '200,60,120,.16', '244,114,182,.22', '120,70,230,.22', '255,160,180,.12'], base: ['#150a12', '#09060a'] },
+    light: { glows: ['252,196,222,.92', '226,200,250,.86', '250,210,226,.6', '250,206,230,.9', '214,204,252,.76', '255,255,255,.6'], base: ['#f6eaef', '#ecdfe6'] } },
+  { id: 'graphite', name: { en: 'Graphite', vi: 'Than chì' },
+    dark: { glows: ['150,150,170,.18', '120,130,150,.14', '100,100,120,.08', '130,140,150,.12', '140,130,150,.1', '170,170,180,.06'], base: ['#0f0f12', '#08080a'] },
+    light: { glows: ['226,224,220,.9', '218,220,222,.85', '230,228,232,.5', '214,218,222,.88', '226,222,226,.7', '255,255,255,.6'], base: ['#efedea', '#e4e2de'] } },
+];
+export const DEFAULT_BACKDROP = 'aurora';
+const BACKDROP_KEY = 'ui_backdrop';
+
+/** The canvas's fixed glow geometry, the same six spots as the shipped room. */
+const GLOW_AT: Record<'dark' | 'light', readonly string[]> = {
+  dark: ['42% 38% at 12% 8%', '36% 34% at 88% 12%', '30% 30% at 56% 40%', '44% 40% at 82% 92%', '38% 36% at 8% 88%', '26% 24% at 40% 96%'],
+  light: ['44% 40% at 10% 6%', '40% 38% at 90% 10%', '34% 32% at 58% 42%', '46% 42% at 78% 94%', '40% 40% at 6% 92%', '28% 26% at 36% 70%'],
+};
+
+function hueShift(hex: string, deg: number): string {
+  const [r, g, b] = rgb(hex).map((v) => v / 255) as [number, number, number];
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  let h = 0;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + deg + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const [r1, g1, b1] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return toHex([Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255)]);
+}
+
+/** A whole preset from one colour: glows in its hue and a neighbour's, bases tinted by it. */
+export function backdropFromColour(hex: string): BackdropPreset {
+  const a = rgb(hex).join(','), b = rgb(hueShift(hex, 40)).join(','), c = rgb(hueShift(hex, -35)).join(',');
+  const pale = (h: string, k: number): string => rgb(toHex(rgb(h).map((v) => Math.round(v + (255 - v) * k)) as [number, number, number])).join(',');
+  return {
+    id: hex, name: { en: 'Your own', vi: 'Màu riêng' },
+    dark: { glows: [`${a},.42`, `${b},.3`, `${a},.15`, `${c},.24`, `${b},.2`, `${c},.1`],
+      base: [toHex(rgb(hex).map((v) => Math.round(v * 0.1 + 8)) as [number, number, number]), '#07070c'] },
+    light: { glows: [`${pale(hex, 0.62)},.92`, `${pale(hueShift(hex, 40), 0.66)},.86`, `${pale(hex, 0.75)},.55`, `${pale(hueShift(hex, -35), 0.64)},.9`, `${pale(hueShift(hex, 40), 0.72)},.75`, '255,255,255,.6'],
+      base: [toHex(rgb(hex).map((v) => Math.round(242 + (v - 242) * 0.06)) as [number, number, number]), toHex(rgb(hex).map((v) => Math.round(228 + (v - 228) * 0.08)) as [number, number, number])] },
+  };
+}
+
+export function savedBackdrop(): string {
+  try {
+    const v = localStorage.getItem(BACKDROP_KEY) ?? '';
+    return BACKDROPS.some((b) => b.id === v) || /^#[0-9a-f]{6}$/i.test(v) ? v : DEFAULT_BACKDROP;
+  } catch {
+    return DEFAULT_BACKDROP;
+  }
+}
+
+export function backdropOf(choice: string): BackdropPreset {
+  return BACKDROPS.find((b) => b.id === choice) ?? (/^#[0-9a-f]{6}$/i.test(choice) ? backdropFromColour(choice) : BACKDROPS[0]!);
+}
+
+/** The CSS for a choice; empty for the shipped room. */
+export function backdropCss(choice: string): string {
+  if (choice === DEFAULT_BACKDROP) return '';
+  const p = backdropOf(choice);
+  const layer = (t: 'dark' | 'light'): string =>
+    [...p[t].glows.map((g, i) => `radial-gradient(${GLOW_AT[t][i]}, rgba(${g}), transparent 70%)`), `linear-gradient(160deg, ${p[t].base[0]}, ${p[t].base[1]})`].join(',');
+  // `:root` doubled the way the accent block does, so this outranks the stylesheet's own room
+  // whichever order the two land in <head>.
+  return `html:root:not(.light) body::before{background:${layer('dark')}}html:root.light body::before{background:${layer('light')}}`;
+}
+
+function paintBackdrop(choice = savedBackdrop()): void {
+  document.getElementById('backdrop-css')?.remove();
+  const css = backdropCss(choice);
+  if (!css) return;
+  const el = document.createElement('style');
+  el.id = 'backdrop-css';
+  el.textContent = css;
+  // Before the tone veil, so the brightness sliders still lay over whichever colour is chosen.
+  const tone = document.getElementById('tone-css');
+  if (tone) document.head.insertBefore(el, tone); else document.head.appendChild(el);
+}
+
+/** Paint without saving (a swatch hovered / a colour being dragged). */
+export function previewBackdrop(choice: string): void {
+  paintBackdrop(choice);
+}
+
+export function applyBackdrop(choice: string): void {
+  try {
+    if (choice === DEFAULT_BACKDROP) localStorage.removeItem(BACKDROP_KEY);
+    else localStorage.setItem(BACKDROP_KEY, choice);
+  } catch {
+    /* ignore */
+  }
+  paintBackdrop(choice);
+}
+
 export function initTheme(): void {
   paintAccent(savedAccent());
+  paintBackdrop();
   paintTone();
   let saved: Theme = 'dark';
   try {
