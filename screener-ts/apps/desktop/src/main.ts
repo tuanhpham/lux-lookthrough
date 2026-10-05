@@ -36,6 +36,7 @@ import { NAV as PLAYBOOK_NAV } from './tabs/swingPlaybook.js';
 import { jumpToLearn } from './ui/stickyToc.js';
 import { initTableFullscreen } from './ui/tableFullscreen.js';
 import { initTableSort } from './ui/tableSort.js';
+import { firstAllowedPage, pageAllowed, paintViewerBar } from './ui/viewer.js';
 
 // Surface a FATAL init failure visibly (a blank screen hides the cause). This is
 // only used for the synchronous init below — we deliberately do NOT trap every
@@ -54,6 +55,10 @@ initTheme();
 initModal();
 initTableFullscreen();
 initTableSort();
+paintViewerBar();
+// Becoming a viewer, stopping, or a change in what is shared: the menus, the palette and every
+// page were drawn for the old view. A reload is the one redraw that cannot miss a corner.
+window.addEventListener('app:share-changed', () => location.reload());
 void loadBrokerFees(ctx).catch(() => null);
 // When the stock modal closes, re-render the open tab so any watchlist change
 // made inside it (add/remove via the picker) shows immediately.
@@ -188,6 +193,9 @@ function syncHash(tab: Tab): void {
 }
 
 function show(tab: Tab, render = true): void {
+  // A viewer's link to a page that was not shared (a bookmark, a button on another page) lands
+  // on the first page that was. The server holds back its data anyway; this keeps the screen honest.
+  if (!pageAllowed(tab)) tab = firstAllowedPage(TABS) as Tab;
   currentTab = tab;
   $$('[data-tab]').forEach((b) =>
     b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab),
@@ -226,10 +234,11 @@ function paintCrumb(): void {
   $('#nav-theme')?.setAttribute('aria-label', lang === 'vi' ? 'Đổi giao diện sáng / tối' : 'Toggle light / dark');
   const nav = $('#nav-groups');
   if (nav) nav.innerHTML = PAGE_GROUPS.map((g) => {
-    const items = PAGES.filter((p) => p.group === g.id).map((p) =>
+    const items = PAGES.filter((p) => p.group === g.id && pageAllowed(p.id)).map((p) =>
       `<button type="button" role="menuitem" class="ng-item${p.id === currentTab ? ' on' : ''}" data-ngtab="${p.id}">`
       + `<span class="ng-ic">${p.icon}</span><span class="ng-txt"><span class="ng-name">${t(`nav.${p.id}`)}</span>`
       + `<span class="ng-desc">${p.desc[lang]}</span></span></button>`).join('');
+    if (!items) return ''; // a viewer's group with nothing shared in it
     return `<div class="ng${info?.group === g.id ? ' active' : ''}" data-ng="${g.id}">`
       + `<button type="button" class="ng-btn" aria-haspopup="true" aria-expanded="false">${g.title[lang]}`
       + `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>`
@@ -296,7 +305,7 @@ const LEARN_PARTS: [string, string, { en: string; vi: string }][] = [
 function paletteItems(): { pages: PaletteItem[]; actions: PaletteItem[]; deep: PaletteItem[] } {
   const lang = getLang();
   const vi = lang === 'vi';
-  const pages: PaletteItem[] = PAGES.map((p) => ({
+  const pages: PaletteItem[] = PAGES.filter((p) => pageAllowed(p.id)).map((p) => ({
     id: `p:${p.id}`,
     icon: p.icon,
     title: t(`nav.${p.id}`),
@@ -549,7 +558,8 @@ function buildAppMenu(): HTMLElement {
           <kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
         <div class="app-menu-grid">${PAGE_GROUPS.map((g, gi) => {
-          const pages = PAGES.filter((p) => p.group === g.id);
+          const pages = PAGES.filter((p) => p.group === g.id && pageAllowed(p.id));
+          if (!pages.length) return '';
           return `<section class="app-menu-group">
             <header class="app-menu-gh">
               <span class="amg-ic">${amIcon(GROUP_ICON[g.id], 17)}</span>

@@ -5,6 +5,10 @@ import {
   remoteDelete,
   remotePull,
   remotePut,
+  setViewerMode,
+  sharedPull,
+  syncWhoami,
+  type ShareInfo,
   type SyncEntry,
 } from './syncClient.js';
 
@@ -435,6 +439,15 @@ export class SyncedStorage implements Storage {
     return this.local.get<T>(key);
   }
 
+  /** Remove keys from THIS device only — no delete is sent, nothing lands in the server trash. */
+  async dropLocal(keys: readonly string[]): Promise<void> {
+    if (!keys.length) return;
+    for (const k of keys) await this.local.delete(k);
+    const map = await this.timestamps();
+    for (const k of keys) delete map[k];
+    await this.local.set(TS_KEY, map);
+  }
+
   async set<T>(key: string, value: T): Promise<void> {
     await this.local.set(key, value);
     if (!syncable(key)) return;
@@ -787,10 +800,76 @@ export function pullAndMerge(storage: SyncedStorage, opts: PullOpts = {}): Promi
   return next;
 }
 
+// ── Viewer mode: a read-only copy of what the admin shared (CHAT-102) ───────────
+const SHARE_LS = 'sync:share';
+
+/** The share this device last saw, or null. Raw localStorage: read before anything renders. */
+export function cachedShare(): ShareInfo | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(SHARE_LS) ?? 'null') as ShareInfo | null;
+    return v && Array.isArray(v.pages) ? v : null;
+  } catch {
+    return null;
+  }
+}
+function rememberShare(s: ShareInfo | null): void {
+  const before = JSON.stringify(cachedShare());
+  try {
+    if (s) localStorage.setItem(SHARE_LS, JSON.stringify(s));
+    else localStorage.removeItem(SHARE_LS);
+  } catch { /* private mode */ }
+  setViewerMode(!!s);
+  // Entering, leaving or changing what is shared redraws the menus and the banner.
+  if (before !== JSON.stringify(s)) window.dispatchEvent(new CustomEvent('app:share-changed', { detail: s }));
+}
+// A device that was viewing stays read-only from the very first request of this session.
+setViewerMode(!!cachedShare());
+
+/**
+ * Load the owner's shared data in place of this user's own. Every synced key that was not
+ * shared is dropped from THIS device (the user's own copy is untouched on the server: nothing
+ * is pushed while viewing), so a page shows the owner's data or none — never a mix.
+ */
+async function mergeShared(storage: SyncedStorage, opts: PullOpts): Promise<number> {
+  let got: Awaited<ReturnType<typeof sharedPull>>;
+  try {
+    got = await sharedPull();
+  } catch (e) {
+    throw stall(e, storage, opts);
+  }
+  if (pullError !== null) { pullError = null; emitActivity(); }
+  cancelPullRetry();
+  rememberShare(got.share);
+  const keep = new Set(got.entries.map((e) => e.key));
+  const stale = (await storage.list()).filter((k) => syncable(k) && !expendable(k) && !keep.has(k));
+  await storage.dropLocal(stale);
+  await storage.applyRemote(got.entries.map((e) => ({ key: e.key, value: e.value, ts: e.updatedAt })));
+  pendingPushes.clear();
+  openSyncGate();
+  return got.entries.length + stale.length;
+}
+
 async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number> {
   if (!isSyncEnabled()) {
+    if (cachedShare()) rememberShare(null);
     openSyncGate(); // sync off → nothing to wait for
     return 0;
+  }
+  // Viewer or owner? Asked on every pull, so a grant or its removal reaches the device the
+  // next time it pulls (boot, return to the tab, the pill's retry), not only at sign-in. Asked
+  // ALONGSIDE the pull, not before it: an owner's merge must not wait one more round trip
+  // (or one more timeout, on a dead network) for a question whose answer is almost always no.
+  const pulling = remotePull(0).then((v) => ({ ok: true as const, v }), (e: unknown) => ({ ok: false as const, e }));
+  const who = await syncWhoami().catch(() => ({ ok: false as const }));
+  if (who.ok && 'share' in who && who.share) { void pulling; return mergeShared(storage, opts); }
+  if (!who.ok && cachedShare()) return mergeShared(storage, opts);
+  if (who.ok && cachedShare()) {
+    // The share was withdrawn: forget the owner's copy and take this user's own back,
+    // letting the server win every key as on a fresh sign-in.
+    const synced = (await storage.list()).filter((k) => syncable(k) && !expendable(k));
+    await storage.dropLocal(synced);
+    rememberShare(null);
+    opts = { ...opts, freshCode: true };
   }
   // A code entered mid-session is the highest-risk moment: the app has been
   // running code-free, so every tab already seeded and stamped its defaults with
@@ -804,7 +883,9 @@ async function mergeOnce(storage: SyncedStorage, opts: PullOpts): Promise<number
   if (opts.freshCode && !opts.retry) shutSyncGate();
   let entries: SyncEntry[];
   try {
-    entries = await remotePull(0);
+    const got = await pulling;
+    if (!got.ok) throw got.e;
+    entries = got.v;
   } catch (e) {
     // Offline / unreachable / a code the server no longer accepts → keep local as
     // is. Deliberately do NOT hydrate: pushing local defaults up on a flaky first

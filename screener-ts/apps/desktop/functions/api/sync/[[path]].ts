@@ -20,6 +20,21 @@
 //   GET    /api/sync/admin/users    → { users: [...], hashedNow }   (admins only, never a code)
 //   POST   /api/sync/admin/users    → body { id, name? } → { id, name, code }  new user
 //   POST   /api/sync/admin/users/<id>/rotate → { id, code, self }  new code, old one dead
+//   PUT    /api/sync/admin/users/<id>/share  → body { pages, accounts } → let <id> VIEW your data
+//   DELETE /api/sync/admin/users/<id>/share  → stop sharing
+//   POST   /api/sync/shared/pull     → { owner, ownerName, pages, accounts, entries } (viewers only)
+//
+// ── SHARING: A READ-ONLY VIEW OF THE ADMIN'S DATA (CHAT-102) ──────────────────
+// The user's "khi tao user moi … phan quyen … xem duoc certain pages … nhung accounts ho khong
+// duoc xem". Every user owns separate kv rows, so a permission means something only with a
+// shared view: the admin grants a user a VIEW of the admin's own data, limited to chosen pages
+// and chosen portfolio accounts. The grant is a kv row of the VIEWER, key `__share` — no schema
+// change — which only the admin routes write: keys starting `__` are refused on PUT/DELETE and
+// left out of the viewer's own pull and list. Everything is enforced HERE, not in the app: the
+// shared pull sends only the keys the granted pages read, `accounts` filtered to the granted
+// account ids, and case studies / frozen plans that belong to other accounts are dropped. A
+// viewer's own writes are refused (403), so a viewing device can never push the admin's data
+// into the viewer's rows or alter anything.
 //
 // Codes are stored as `h:` + SHA-256, never as typed. A row still holding a typed
 // code is rewritten the first time it signs in (and by the admin list), so the
@@ -117,6 +132,72 @@ function newCode(): string {
   return out.join('').replace(/(.{5})(?=.)/g, '$1-');
 }
 
+// ── Sharing rules ──────────────────────────────────────────────────────────────
+// MIRROR of `SHARE_KEYS` in src/adapters/viewer.ts (the app uses it to know what to expect).
+const SHARE_KEY = '__share';
+interface Share { owner: string; pages: string[]; accounts: string[]; at: number }
+
+/** Which of the owner's keys each page reads. Anything not listed is never sent. */
+const PAGE_KEYS: Record<string, readonly (string | RegExp)[]> = {
+  portfolio: ['accounts', 'pf_playbook_cfg', 'broker_fees', 'plan_symbols', /^plan:/, /^plansnap:/],
+  station: ['accounts', 'pf_playbook_cfg', 'broker_fees', 'plan_symbols', /^plan:/, /^plansnap:/, 'casestudies:index', /^casestudy:/, 'watchlists:index', /^watchlists:items:/],
+  casestudies: ['casestudies:index', /^casestudy:/, /^plansnap:/, 'pf_playbook_cfg', 'accounts'],
+  wealth: ['wealth', 'wealth_sort', 'wealth_ccy', 'accounts'],
+  watchlist: ['watchlists:index', /^watchlists:items:/, 'alerts:config'],
+  calendar: ['calendar:custom', 'watchlists:index', /^watchlists:items:/, 'accounts'],
+  learn: ['playbook:prompts', 'playbook:routine', 'pf_playbook_cfg'],
+  picks: [/^scan:/], screener: [/^scan:/], sectors: [/^scan:/],
+};
+const SHARE_PAGES = ['calendar', 'picks', 'screener', 'sectors', 'scanner', 'watchlist', 'station', 'portfolio', 'casestudies', 'wealth', 'backtest', 'learn', 'about'];
+
+function keyAllowed(key: string, pages: readonly string[]): boolean {
+  if (key.startsWith('__') || key.startsWith('sync:')) return false;
+  return pages.some((p) => (PAGE_KEYS[p] ?? []).some((m) => (typeof m === 'string' ? m === key : m.test(key))));
+}
+
+async function shareOf(env: Env, userId: string): Promise<Share | null> {
+  const row = await env.DB.prepare('SELECT value FROM kv WHERE user_id = ? AND key = ?').bind(userId, SHARE_KEY).first<{ value: string }>();
+  if (!row) return null;
+  try {
+    const v = JSON.parse(row.value) as Share;
+    return v && typeof v.owner === 'string' && Array.isArray(v.pages) && Array.isArray(v.accounts) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The owner's rows a viewer may see, already filtered. */
+async function sharedEntries(env: Env, share: Share): Promise<{ key: string; value: unknown; updatedAt: number }[]> {
+  const rows = await env.DB.prepare('SELECT key, value, updated_at AS updatedAt FROM kv WHERE user_id = ? ORDER BY key')
+    .bind(share.owner)
+    .all<{ key: string; value: string; updatedAt: number }>();
+  const accts = new Set(share.accounts);
+  const all = (rows.results ?? []).filter((r) => keyAllowed(r.key, share.pages));
+  const parsed = all.map((r) => ({ key: r.key, value: JSON.parse(r.value) as unknown, updatedAt: r.updatedAt }));
+  // The granted accounts, and the lots they hold: what frozen plans and studies may belong to.
+  const acctRow = parsed.find((e) => e.key === 'accounts');
+  const lots = new Set<string>();
+  if (acctRow && Array.isArray(acctRow.value)) {
+    acctRow.value = (acctRow.value as { account?: { id?: string }; lots?: { id?: string }[] }[])
+      .filter((a) => a?.account?.id && accts.has(a.account.id));
+    for (const a of acctRow.value as { lots?: { id?: string }[] }[]) for (const l of a.lots ?? []) if (l.id) lots.add(l.id);
+  }
+  const hiddenStudies = new Set<string>();
+  const out = parsed.filter((e) => {
+    if (e.key.startsWith('plansnap:')) return lots.has(e.key.slice('plansnap:'.length));
+    if (e.key.startsWith('casestudy:')) {
+      const st = e.value as { accountId?: string; lotIds?: string[] } | null;
+      const ok = !st?.accountId || accts.has(st.accountId);
+      if (!ok) hiddenStudies.add(e.key.slice('casestudy:'.length));
+      return ok;
+    }
+    return true;
+  });
+  const idx = out.find((e) => e.key === 'casestudies:index');
+  if (idx && Array.isArray(idx.value)) idx.value = (idx.value as { id?: string }[]).filter((m) => !m?.id || !hiddenStudies.has(m.id));
+  return out;
+}
+
 function isAdmin(env: Env, userId: string): boolean {
   if (!env.SCANNER_ADMIN) return false;
   return env.SCANNER_ADMIN.split(',').map((s) => s.trim()).filter(Boolean).includes(userId);
@@ -160,8 +241,17 @@ async function adminRoute(env: Env, request: Request, user: { id: string }, segm
          FROM users u LEFT JOIN kv k ON k.user_id = u.id
         GROUP BY u.id ORDER BY u.created_at`,
     ).all<{ id: string; name: string | null; createdAt: string; keys: number; bytes: number; lastWrite: number | null }>();
-    const users = (rows.results ?? []).map((r) => ({ ...r, admin: isAdmin(env, r.id), you: r.id === user.id }));
-    return json({ users, hashedNow: todo.length });
+    const shares = await env.DB.prepare('SELECT user_id AS id, value FROM kv WHERE key = ?').bind(SHARE_KEY).all<{ id: string; value: string }>();
+    const shareBy = new Map((shares.results ?? []).map((r) => {
+      try { return [r.id, JSON.parse(r.value) as Share] as const; } catch { return [r.id, null] as const; }
+    }));
+    const users = (rows.results ?? []).map((r) => ({
+      ...r,
+      // The grant's own row is not "their data": keep it out of the counts.
+      ...(shareBy.has(r.id) ? { keys: Math.max(0, r.keys - 1) } : {}),
+      admin: isAdmin(env, r.id), you: r.id === user.id, share: shareBy.get(r.id) ?? null,
+    }));
+    return json({ users, hashedNow: todo.length, pages: SHARE_PAGES });
   }
 
   if (!target && request.method === 'POST') {
@@ -184,6 +274,27 @@ async function adminRoute(env: Env, request: Request, user: { id: string }, segm
     return json({ id: target, code, self: target === user.id });
   }
 
+  if (target && segments[3] === 'share' && (request.method === 'PUT' || request.method === 'DELETE')) {
+    if (target === user.id) return json({ error: 'you cannot share with yourself' }, 400);
+    if (isAdmin(env, target)) return json({ error: 'an admin sees their own data; sharing is for other users' }, 400);
+    const found = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(target).first();
+    if (!found) return json({ error: `no user ${target}` }, 404);
+    if (request.method === 'DELETE') {
+      await env.DB.prepare('DELETE FROM kv WHERE user_id = ? AND key = ?').bind(target, SHARE_KEY).run();
+      return json({ ok: true, share: null });
+    }
+    const body = (await request.json().catch(() => ({}))) as { pages?: unknown; accounts?: unknown };
+    const pages = (Array.isArray(body.pages) ? body.pages : []).map(String).filter((p) => SHARE_PAGES.includes(p));
+    const accounts = (Array.isArray(body.accounts) ? body.accounts : []).map(String).filter((a) => /^[\w:.-]{1,80}$/.test(a)).slice(0, 100);
+    if (!pages.length) return json({ error: 'pick at least one page' }, 400);
+    const share: Share = { owner: user.id, pages, accounts, at: Date.now() };
+    await env.DB.prepare(
+      `INSERT INTO kv (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    ).bind(target, SHARE_KEY, JSON.stringify(share), share.at).run();
+    return json({ ok: true, share });
+  }
+
   return json({ error: 'not found' }, 404);
 }
 
@@ -203,17 +314,34 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
 
   try {
     // ── whoami ──────────────────────────────────────────────────────────────
+    const share = await shareOf(env, user.id);
     if (head === 'whoami') {
-      return json({ ok: true, name: user.name, id: user.id, admin: isAdmin(env, user.id), admins: !!env.SCANNER_ADMIN });
+      const ownerName = share
+        ? (await env.DB.prepare('SELECT name FROM users WHERE id = ?').bind(share.owner).first<{ name: string | null }>())?.name ?? null
+        : null;
+      return json({
+        ok: true, name: user.name, id: user.id, admin: isAdmin(env, user.id), admins: !!env.SCANNER_ADMIN,
+        share: share ? { owner: share.owner, ownerName, pages: share.pages, accounts: share.accounts } : null,
+      });
     }
 
     if (head === 'admin') return await adminRoute(env, request, user, segments);
+
+    // ── a viewer: the owner's data, filtered; nothing of their own is written ──
+    if (head === 'shared' && segments[1] === 'pull' && request.method === 'POST') {
+      if (!share) return json({ error: 'nothing is shared with this sync code' }, 403);
+      const ownerName = (await env.DB.prepare('SELECT name FROM users WHERE id = ?').bind(share.owner).first<{ name: string | null }>())?.name ?? null;
+      return json({ owner: share.owner, ownerName, pages: share.pages, accounts: share.accounts, entries: await sharedEntries(env, share) });
+    }
+    if (share && (request.method === 'PUT' || request.method === 'DELETE' || head === 'restore' || head === 'restore-at')) {
+      return json({ error: 'read-only: this sync code views shared data' }, 403);
+    }
 
     // ── bulk pull (merge-on-startup) ──────────────────────────────────────────
     if (head === 'pull' && request.method === 'POST') {
       const { since = 0 } = (await request.json().catch(() => ({}))) as { since?: number };
       const rows = await env.DB.prepare(
-        'SELECT key, value, updated_at AS updatedAt FROM kv WHERE user_id = ? AND updated_at > ? ORDER BY key',
+        "SELECT key, value, updated_at AS updatedAt FROM kv WHERE user_id = ? AND updated_at > ? AND key NOT LIKE '\\_\\_%' ESCAPE '\\' ORDER BY key",
       )
         .bind(user.id, since)
         .all<{ key: string; value: string; updatedAt: number }>();
@@ -369,6 +497,9 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
     // ── key/value ─────────────────────────────────────────────────────────────
     if (head === 'kv') {
       const key = segments.slice(1).join('/'); // re-join: keys contain ':' and '/'
+      // `__…` keys are the server's own (the share grant): nobody writes them through kv.
+      if (key.startsWith('__') && request.method !== 'GET') return json({ error: 'reserved key' }, 403);
+      if (key.startsWith('__') && request.method === 'GET') return json({ error: 'not found' }, 404);
 
       // List keys (optionally by prefix) when no specific key is given.
       if (!key) {
@@ -376,7 +507,7 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
         const url = new URL(request.url);
         const prefix = url.searchParams.get('prefix') ?? '';
         const rows = await env.DB.prepare(
-          'SELECT key FROM kv WHERE user_id = ? AND key LIKE ? ORDER BY key',
+          "SELECT key FROM kv WHERE user_id = ? AND key LIKE ? AND key NOT LIKE '\\_\\_%' ESCAPE '\\' ORDER BY key",
         )
           .bind(user.id, prefix + '%')
           .all<{ key: string }>();

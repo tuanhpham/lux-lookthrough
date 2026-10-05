@@ -8,11 +8,16 @@
  * panel cannot do on purpose: delete a user or make someone an admin. Both stay
  * behind wrangler, outside the reach of a leaked sync code.
  */
-import { getLang } from '../ui/i18n.js';
+import { getLang, t } from '../ui/i18n.js';
+import { PAGES, PAGE_GROUPS } from '../ui/pages.js';
+import type { AppContext } from '../context.js';
+import { accounts, ensureAccountsLoaded } from '../portfolio/store.js';
 import {
+  adminClearShare,
   adminCreateUser,
   adminListUsers,
   adminRotateCode,
+  adminSetShare,
   isSyncEnabled,
   syncWhoami,
   type SyncUser,
@@ -32,6 +37,11 @@ let hashedNow = 0;
 let reveal: { id: string; name: string | null; code: string; kind: 'new' | 'rotate'; self: boolean } | null = null;
 let msg: { err: boolean; text: string } | null = null;
 let busy = false;
+/** The pages the server lets a user be given (its list wins; this is the fallback). */
+let sharePages: string[] = ['calendar', 'picks', 'screener', 'sectors', 'scanner', 'watchlist', 'station', 'portfolio', 'casestudies', 'wealth', 'backtest', 'learn', 'about'];
+/** The user whose view is being edited, and the ticks so far. */
+let editing: { id: string; pages: Set<string>; accounts: Set<string> } | null = null;
+let ctxRef: AppContext | null = null;
 
 function stateHtml(): string {
   if (!isSyncEnabled()) {
@@ -92,10 +102,55 @@ function rowHtml(u: SyncUser): string {
   return `<div class="st-us-row">
       <span class="st-us-av" aria-hidden="true">${esc(label.slice(0, 1).toUpperCase())}</span>
       <div class="st-us-main">
-        <div class="st-us-name"><b>${esc(label)}</b><code>${esc(u.id)}</code>${badges}</div>
+        <div class="st-us-name"><b>${esc(label)}</b><code>${esc(u.id)}</code>${badges}${shareChip(u)}</div>
         <div class="st-us-meta">${meta}</div>
       </div>
-      <button class="btn-outline" data-us-rotate="${esc(u.id)}"${busy ? ' disabled' : ''}>🔑 ${L('New code', 'Cấp mã mới')}</button>
+      <div class="st-us-acts">
+        ${!u.you && !u.admin ? `<button class="btn-outline${editing?.id === u.id ? ' active' : ''}" data-us-share="${esc(u.id)}"${busy ? ' disabled' : ''}>👁 ${L('What they see', 'Quyền xem')}</button>` : ''}
+        <button class="btn-outline" data-us-rotate="${esc(u.id)}"${busy ? ' disabled' : ''}>🔑 ${L('New code', 'Cấp mã mới')}</button>
+      </div>
+    </div>${editing?.id === u.id ? shareEditorHtml(u) : ''}`;
+}
+
+/** "👁 4 pages · 1 account" under a name, or nothing when nothing is shared. */
+function shareChip(u: SyncUser): string {
+  if (!u.share) return '';
+  const n = u.share.accounts.length;
+  return `<span class="st-us-tag st-us-share" title="${esc(u.share.pages.map((p) => t(`nav.${p}`)).join(', '))}">👁 ${L(
+    `views ${u.share.pages.length} page${u.share.pages.length === 1 ? '' : 's'}${n ? ` · ${n} account${n === 1 ? '' : 's'}` : ''}`,
+    `xem ${u.share.pages.length} trang${n ? ` · ${n} tài khoản` : ''}`)}</span>`;
+}
+
+/**
+ * The view editor: tick the pages and the portfolio accounts this user may see of YOUR data.
+ * Saving sends the ticks to the server, which is what enforces them; nothing is decided here.
+ */
+function shareEditorHtml(u: SyncUser): string {
+  if (!editing) return '';
+  const lang = vi() ? 'vi' : 'en';
+  const groups = PAGE_GROUPS.map((g) => {
+    const pages = PAGES.filter((p) => p.group === g.id && sharePages.includes(p.id));
+    if (!pages.length) return '';
+    return `<div class="st-sh-group"><div class="st-sh-gh">${esc(g.title[lang])}</div>${pages.map((p) =>
+      `<label class="st-sh-opt"><input type="checkbox" data-sh-page="${p.id}"${editing!.pages.has(p.id) ? ' checked' : ''}> <span>${p.icon} ${esc(t(`nav.${p.id}`))}</span></label>`).join('')}</div>`;
+  }).join('');
+  const accts = accounts.length
+    ? accounts.map((a) => `<label class="st-sh-opt"><input type="checkbox" data-sh-acct="${esc(a.account.id)}"${editing!.accounts.has(a.account.id) ? ' checked' : ''}> <span>💼 ${esc(a.account.name)} <small>${esc(a.account.currency)}</small></span></label>`).join('')
+    : `<div class="muted">${L('No portfolio accounts on this device yet.', 'Máy này chưa có tài khoản Danh mục nào.')}</div>`;
+  return `<div class="st-sh" data-sh-for="${esc(u.id)}">
+      <div class="st-sh-h">👁 ${L(`What ${esc(u.name || u.id)} can see of your data`, `${esc(u.name || u.id)} được xem gì trong dữ liệu của bạn`)}</div>
+      <p class="muted">${L(
+        'Read-only. They see these pages with YOUR data, and in Portfolio, the Trade Station, Case Studies and Financial Status only the accounts ticked below. The server enforces it; their own data stays untouched and comes back when you stop sharing.',
+        'Chỉ đọc. Họ xem các trang này với dữ liệu CỦA BẠN; ở Danh mục, Trạm, Case Study và Tình trạng tài chính chỉ thấy các tài khoản được tick bên dưới. Server kiểm soát quyền này; dữ liệu riêng của họ vẫn nguyên và quay lại khi bạn thôi chia sẻ.')}</p>
+      <div class="st-sh-cols">
+        <div><div class="st-sh-cap">${L('Pages', 'Trang')} <button type="button" class="stn-link" data-sh-all="1">${L('all', 'chọn hết')}</button> · <button type="button" class="stn-link" data-sh-all="0">${L('none', 'bỏ hết')}</button></div>${groups}</div>
+        <div><div class="st-sh-cap">${L('Portfolio accounts', 'Tài khoản Danh mục')}</div>${accts}</div>
+      </div>
+      <div class="st-actions">
+        <button class="btn" data-sh-save${busy ? ' disabled' : ''}>💾 ${L('Save what they see', 'Lưu quyền xem')}</button>
+        ${u.share ? `<button class="btn-outline ui-btn danger" data-sh-stop${busy ? ' disabled' : ''}>${L('Stop sharing', 'Thôi chia sẻ')}</button>` : ''}
+        <button class="btn-outline" data-sh-cancel>${L('Cancel', 'Huỷ')}</button>
+      </div>
     </div>`;
 }
 
@@ -153,6 +208,7 @@ async function load(root: HTMLElement): Promise<void> {
       const r = await adminListUsers();
       users = r.users;
       hashedNow = r.hashedNow;
+      if (r.pages?.length) sharePages = r.pages;
     } catch (e) {
       msg = { err: true, text: String((e as Error)?.message ?? e) };
     }
@@ -176,9 +232,54 @@ async function act(root: HTMLElement, run: () => Promise<void>): Promise<void> {
 }
 
 /** `first`: also ask the server who we are and fetch the list. */
-export function wireUsers(root: HTMLElement, first = true): void {
+export function wireUsers(root: HTMLElement, first = true, ctx?: AppContext): void {
   const host = root.querySelector<HTMLElement>('.st-users');
   if (!host) return;
+  if (ctx) ctxRef = ctx;
+
+  host.querySelectorAll<HTMLButtonElement>('[data-us-share]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const id = b.dataset.usShare!;
+      if (editing?.id === id) { editing = null; repaint(root); return; }
+      if (ctxRef) await ensureAccountsLoaded(ctxRef).catch(() => {});
+      const u = users?.find((x) => x.id === id);
+      editing = { id, pages: new Set(u?.share?.pages ?? ['portfolio']), accounts: new Set(u?.share?.accounts ?? []) };
+      repaint(root);
+    }),
+  );
+  const ed = host.querySelector<HTMLElement>('.st-sh');
+  ed?.querySelectorAll<HTMLInputElement>('[data-sh-page]').forEach((c) =>
+    c.addEventListener('change', () => { if (c.checked) editing?.pages.add(c.dataset.shPage!); else editing?.pages.delete(c.dataset.shPage!); }));
+  ed?.querySelectorAll<HTMLInputElement>('[data-sh-acct]').forEach((c) =>
+    c.addEventListener('change', () => { if (c.checked) editing?.accounts.add(c.dataset.shAcct!); else editing?.accounts.delete(c.dataset.shAcct!); }));
+  ed?.querySelectorAll<HTMLElement>('[data-sh-all]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (!editing) return;
+      editing.pages = b.dataset.shAll === '1' ? new Set(sharePages) : new Set();
+      repaint(root);
+    }));
+  ed?.querySelector('[data-sh-cancel]')?.addEventListener('click', () => { editing = null; repaint(root); });
+  ed?.querySelector('[data-sh-save]')?.addEventListener('click', () => {
+    if (!editing) return;
+    if (!editing.pages.size) { msg = { err: true, text: L('Tick at least one page.', 'Tick ít nhất một trang.') }; repaint(root); return; }
+    const { id, pages, accounts: acc } = editing;
+    void act(root, async () => {
+      await adminSetShare(id, [...pages], [...acc]);
+      editing = null;
+      msg = { err: false, text: L('Saved. They see it the next time their app syncs (opening it, or coming back to it).', 'Đã lưu. Họ sẽ thấy ở lần app của họ đồng bộ tới (khi mở app hoặc quay lại app).') };
+    });
+  });
+  ed?.querySelector('[data-sh-stop]')?.addEventListener('click', () => {
+    if (!editing) return;
+    const { id } = editing;
+    const u = users?.find((x) => x.id === id);
+    if (!confirm(L(`Stop sharing your data with ${u?.name || id}? Their own data comes back on their next sync.`, `Thôi chia sẻ dữ liệu với ${u?.name || id}? Dữ liệu riêng của họ sẽ quay lại ở lần đồng bộ sau.`))) return;
+    void act(root, async () => {
+      await adminClearShare(id);
+      editing = null;
+      msg = { err: false, text: L('Sharing stopped.', 'Đã thôi chia sẻ.') };
+    });
+  });
 
   host.querySelectorAll<HTMLButtonElement>('[data-us-rotate]').forEach((b) =>
     b.addEventListener('click', () => {

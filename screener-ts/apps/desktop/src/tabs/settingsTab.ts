@@ -769,7 +769,7 @@ export function renderSettings(ctx: AppContext): void {
   void fillPlaybookPanel(root, ctx);
   wireLook(root);
   wireVm(root);
-  wireUsers(root);
+  wireUsers(root, true, ctx);
 
   // Restore panel.
   root.querySelector('#st-preview')?.addEventListener('click', () => void preview(root));

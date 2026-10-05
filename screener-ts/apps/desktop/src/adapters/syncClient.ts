@@ -125,13 +125,32 @@ export async function remoteGet<T>(key: string): Promise<{ value: T; updatedAt: 
  * are exactly the writes the guard exists to stop, and a 409 there is the correct
  * outcome (the server keeps its value, and the next pull brings it down).
  */
+// ── Viewer mode (CHAT-102) ────────────────────────────────────────────────────
+// A sync code the admin shared their data with VIEWS that data and writes nothing: every
+// upload and delete stops here, the one place they all pass. The server refuses them too;
+// this keeps a viewing device from even trying (and from showing push errors for it).
+let viewer = false;
+export function setViewerMode(on: boolean): void { viewer = on; }
+export function isViewerMode(): boolean { return viewer; }
+
+/** What the admin shared: whose data, which pages, which portfolio accounts. */
+export interface ShareInfo { owner: string; ownerName: string | null; pages: string[]; accounts: string[] }
+
+/** The owner's data, already filtered by the server to what was shared. */
+export async function sharedPull(): Promise<{ share: ShareInfo; entries: SyncEntry[] }> {
+  const res = await req(`${BASE}/shared/pull`, { method: 'POST', headers: headers(), body: '{}' });
+  if (!res.ok) throw new Error(`shared pull: HTTP ${res.status}`);
+  const b = (await res.json()) as ShareInfo & { entries: SyncEntry[] };
+  return { share: { owner: b.owner, ownerName: b.ownerName, pages: b.pages, accounts: b.accounts }, entries: b.entries ?? [] };
+}
+
 export async function remotePut<T>(
   key: string,
   value: T,
   updatedAt: number,
   opts: { deliberate?: boolean } = {},
 ): Promise<void> {
-  if (!isSyncEnabled()) return;
+  if (!isSyncEnabled() || viewer) return;
   const body = JSON.stringify({ value, updatedAt });
   const put = (qs = '') =>
     req(`${BASE}/kv/${encodeURI(key)}${qs}`, { method: 'PUT', headers: headers(), body });
@@ -146,7 +165,7 @@ export async function remotePut<T>(
 }
 
 export async function remoteDelete(key: string): Promise<void> {
-  if (!isSyncEnabled()) return;
+  if (!isSyncEnabled() || viewer) return;
   const res = await req(`${BASE}/kv/${encodeURI(key)}`, { method: 'DELETE', headers: headers() });
   if (!res.ok && res.status !== 404) throw new Error(`sync delete ${key}: HTTP ${res.status}`);
 }
@@ -259,15 +278,17 @@ export interface SyncUser {
   lastWrite: number | null;
   admin: boolean;
   you: boolean;
+  /** What this user may view of the admin's data, or null when nothing is shared. */
+  share?: { owner: string; pages: string[]; accounts: string[]; at: number } | null;
 }
 
 /** Who this code is, and whether it may manage users. `admins` false = SCANNER_ADMIN unset. */
-export async function syncWhoami(): Promise<{ ok: boolean; id?: string; admin?: boolean; admins?: boolean; error?: string }> {
+export async function syncWhoami(): Promise<{ ok: boolean; id?: string; admin?: boolean; admins?: boolean; share?: ShareInfo | null; error?: string }> {
   if (!isSyncEnabled()) return { ok: false, error: 'sync is off' };
   try {
     const res = await req(`${BASE}/whoami`, { headers: headers() });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-    return { ok: true, ...((await res.json()) as { id?: string; admin?: boolean; admins?: boolean }) };
+    return { ok: true, ...((await res.json()) as { id?: string; admin?: boolean; admins?: boolean; share?: ShareInfo | null }) };
   } catch (e) {
     return { ok: false, error: String((e as Error)?.message ?? e) };
   }
@@ -281,7 +302,14 @@ async function adminCall<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body;
 }
 
-export const adminListUsers = (): Promise<{ users: SyncUser[]; hashedNow: number }> => adminCall('users');
+export const adminListUsers = (): Promise<{ users: SyncUser[]; hashedNow: number; pages?: string[] }> => adminCall('users');
+
+/** Let `id` view your data: these pages, these portfolio accounts. */
+export const adminSetShare = (id: string, pages: string[], accounts: string[]): Promise<{ ok: boolean }> =>
+  adminCall(`users/${encodeURIComponent(id)}/share`, { method: 'PUT', body: JSON.stringify({ pages, accounts }) });
+
+export const adminClearShare = (id: string): Promise<{ ok: boolean }> =>
+  adminCall(`users/${encodeURIComponent(id)}/share`, { method: 'DELETE' });
 
 export const adminCreateUser = (id: string, name: string): Promise<{ id: string; name: string | null; code: string }> =>
   adminCall('users', { method: 'POST', body: JSON.stringify({ id, name }) });
