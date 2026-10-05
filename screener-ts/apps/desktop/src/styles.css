@@ -10004,3 +10004,8 @@ tr.w-flow-row { background: color-mix(in srgb, var(--accent) 3%, transparent); }
 .st-def-sum > span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 650;
   border: 1px solid var(--glass-line); background: var(--glass-bg); box-shadow: var(--glass-hi); }
 .st-def-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
+
+/* CHAT-104 — Appearance: choose for both themes, or for dark / light alone */
+.st-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border-soft); }
+.st-scope .st-look-cap { margin: 0; }
+.st-scope-note { font-size: 11.5px; }

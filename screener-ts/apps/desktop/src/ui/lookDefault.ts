@@ -20,6 +20,9 @@ export interface LookDefault {
   theme: 'dark' | 'light';
   accent: string;
   backdrop: string;
+  /** The light theme's own colour / background, when it differs (CHAT-104). */
+  accentLight?: string;
+  backdropLight?: string;
   toneDark: number;
   toneLight: number;
   /** When it was set (ms) — what tells a device it has a newer default to apply. */
@@ -57,23 +60,32 @@ export function lookDefault(): LookDefault | null {
 export function currentLook(): LookDefault {
   return {
     theme: document.documentElement.classList.contains('light') ? 'light' : 'dark',
-    accent: savedAccent(), backdrop: savedBackdrop(),
+    accent: savedAccent('dark'), backdrop: savedBackdrop('dark'),
+    accentLight: savedAccent('light'), backdropLight: savedBackdrop('light'),
     toneDark: savedTone('dark'), toneLight: savedTone('light'), at: Date.now(),
   };
 }
 
 /** What each "back to default" button goes back to. */
-export const defaultAccent = (): string => lookDefault()?.accent ?? DEFAULT_ACCENT;
-export const defaultBackdrop = (): string => lookDefault()?.backdrop ?? DEFAULT_BACKDROP;
+export const defaultAccent = (t: 'dark' | 'light' = 'dark'): string => {
+  const d = lookDefault();
+  return (t === 'light' ? d?.accentLight ?? d?.accent : d?.accent) ?? DEFAULT_ACCENT;
+};
+export const defaultBackdrop = (t: 'dark' | 'light' = 'dark'): string => {
+  const d = lookDefault();
+  return (t === 'light' ? d?.backdropLight ?? d?.backdrop : d?.backdrop) ?? DEFAULT_BACKDROP;
+};
 export const defaultTone = (t: 'dark' | 'light'): number => (t === 'dark' ? lookDefault()?.toneDark : lookDefault()?.toneLight) ?? 0;
 
 /** Paint a whole look. The accent last: it re-renders the open page, which then reads the rest. */
 export function applyLook(v: LookDefault): void {
   applyTheme(v.theme);
-  applyBackdrop(v.backdrop);
+  applyBackdrop(v.backdrop, 'both');
+  if (v.backdropLight && v.backdropLight !== v.backdrop) applyBackdrop(v.backdropLight, 'light');
   applyTone('dark', v.toneDark);
   applyTone('light', v.toneLight);
-  applyAccent(v.accent);
+  applyAccent(v.accent, 'both');
+  if (v.accentLight && v.accentLight !== v.accent) applyAccent(v.accentLight, 'light');
 }
 
 export async function saveLookDefault(ctx: AppContext): Promise<LookDefault> {

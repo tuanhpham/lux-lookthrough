@@ -24,6 +24,7 @@
 import type { AppContext } from '../context.js';
 import { $ } from '../ui/dom.js';
 import { getLang, setLang } from '../ui/i18n.js';
+import { accentSplit, backdropSplit, type LookScope } from '../ui/theme.js';
 import { ACCENTS, BACKDROPS, DEFAULT_ACCENT, DEFAULT_BACKDROP, TONE_RANGE, accentPair, applyAccent, applyBackdrop, applyTheme, applyTone, backdropOf, clashesWithPnl, previewBackdrop, previewTone, savedAccent, savedBackdrop, savedTone, type ToneTheme } from '../ui/theme.js';
 import { openSyncSettings, exportAllData } from '../ui/syncSettings.js';
 import { openLlmSettings } from '../ui/llmSettings.js';
@@ -213,6 +214,27 @@ function dataPanel(): string {
 
 /** The colour being looked at, saved or not. Survives a re-render of the page. */
 let lookPick: string | null = null;
+/**
+ * Which theme the Appearance choices are being made for (CHAT-104: "light mode co the chon
+ * rieng, dark mode co the chon rieng"). Picking one switches the screen to that theme, so what
+ * is chosen is what is seen; "both" is the old behaviour.
+ */
+let lookScope: LookScope = 'both';
+/** The theme a choice is read for: the scope, or the theme on screen for "both". */
+const scopeTheme = (): 'dark' | 'light' => (lookScope === 'both' ? (lightNow() ? 'light' : 'dark') : lookScope);
+
+function scopeBar(): string {
+  const split = accentSplit() || backdropSplit();
+  const b = (id: LookScope, label: string): string =>
+    `<button type="button" class="range-btn${lookScope === id ? ' active' : ''}" data-look-scope="${id}">${label}</button>`;
+  return `<div class="st-scope">
+      <span class="st-look-cap">${L('Apply to', 'Áp dụng cho')}</span>
+      <div class="seg">${b('both', L('Both themes', 'Cả hai'))}${b('dark', `🌙 ${L('Dark', 'Nền tối')}`)}${b('light', `☀️ ${L('Light', 'Nền sáng')}`)}</div>
+      <span class="muted st-scope-note">${lookScope === 'both'
+        ? split ? L('Dark and light differ now — picking here sets both to the same.', 'Hiện nền tối và sáng đang khác nhau — chọn ở đây sẽ đặt cả hai giống nhau.') : L('One colour and background for both themes.', 'Một màu và một nền cho cả hai giao diện.')
+        : lookScope === 'dark' ? L('Only the dark theme changes; light keeps its own.', 'Chỉ đổi nền tối; nền sáng giữ lựa chọn riêng.') : L('Only the light theme changes; dark keeps its own.', 'Chỉ đổi nền sáng; nền tối giữ lựa chọn riêng.')}</span>
+    </div>`;
+}
 
 const lightNow = (): boolean => document.documentElement.classList.contains('light');
 
@@ -223,7 +245,7 @@ function lookVars(choice: string): string {
 }
 
 function lookPanel(): string {
-  const saved = savedAccent();
+  const saved = savedAccent(scopeTheme());
   const pick = lookPick ?? saved;
   const custom = pick.startsWith('#') ? pick : saved.startsWith('#') ? saved : '#ff8a3d';
   const sw = ACCENTS.map((a) => {
@@ -232,6 +254,7 @@ function lookPanel(): string {
         <span class="st-sw-dot" style="background:linear-gradient(135deg, ${c1}, ${c2})"></span>${say(a.name)}${saved === a.id ? `<em>${L('saved', 'đang dùng')}</em>` : ''}</button>`;
   }).join('');
   return `<div class="st-panel st-look">
+      ${scopeBar()}
       <div class="st-sw-grid">
         ${sw}
         <label class="st-sw st-sw-custom${pick.startsWith('#') ? ' on' : ''}" title="${L('Any colour you like', 'Màu bất kỳ bạn thích')}">
@@ -253,7 +276,7 @@ function lookPanel(): string {
           : ''}</div>
       <div class="st-actions">
         <button class="btn" data-look-save${pick === saved ? ' disabled' : ''}>💾 ${L('Save colour', 'Lưu màu')}</button>
-        <button class="btn-outline" data-look-reset${saved === defaultAccent() && pick === defaultAccent() ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
+        <button class="btn-outline" data-look-reset${saved === defaultAccent(scopeTheme()) && pick === defaultAccent(scopeTheme()) ? ' disabled' : ''}>↺ ${L('Back to default', 'Về màu mặc định')}</button>
       </div>
       ${backdropRows()}
       ${toneRows()}
@@ -275,6 +298,8 @@ function defaultRows(): string {
         <span>${d.theme === 'light' ? '☀️' : '🌙'} ${d.theme === 'light' ? L('Light', 'Nền sáng') : L('Dark', 'Nền tối')}</span>
         <span><i class="st-def-dot" style="background:${accentPair(d.accent, d.theme)[0]}"></i>${esc(name(d.accent, ACCENTS))}</span>
         <span>🖼 ${esc(name(d.backdrop, BACKDROPS))}</span>
+        ${(d.accentLight && d.accentLight !== d.accent) || (d.backdropLight && d.backdropLight !== d.backdrop)
+          ? `<span>☀️ ${esc(name(d.accentLight ?? d.accent, ACCENTS))} · ${esc(name(d.backdropLight ?? d.backdrop, BACKDROPS))}</span>` : ''}
         <span>🔆 ${tone(d.toneDark)} / ${tone(d.toneLight)}</span>
         <small class="muted">${L('set', 'đặt lúc')} ${new Date(d.at).toLocaleString(getLang() === 'vi' ? 'vi-VN' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' })}</small>
       </div>`
@@ -298,7 +323,7 @@ function defaultRows(): string {
  * the accent there is nothing to compare against first, the whole page IS the preview.
  */
 function backdropRows(): string {
-  const saved = savedBackdrop();
+  const saved = savedBackdrop(scopeTheme());
   const dark = !lightNow();
   const dot = (id: string): string => {
     const p = backdropOf(id)[dark ? 'dark' : 'light'];
@@ -315,7 +340,7 @@ function backdropRows(): string {
         </label>
       </div>
       <div class="muted" style="font-size:11.5px;margin-top:6px">${L('Applies to both themes; the brightness sliders below still work on top of it.', 'Áp dụng cho cả nền tối và sáng; thanh độ sáng bên dưới vẫn chỉnh được trên màu này.')}</div>
-      ${saved !== defaultBackdrop() ? `<div class="st-actions"><button class="btn-outline" data-backdrop="${defaultBackdrop()}">↺ ${L('Default background', 'Nền mặc định')}</button></div>` : ''}
+      ${saved !== defaultBackdrop(scopeTheme()) ? `<div class="st-actions"><button class="btn-outline" data-backdrop="${defaultBackdrop(scopeTheme())}">↺ ${L('Default background', 'Nền mặc định')}</button></div>` : ''}
     </div>`;
 }
 
@@ -342,7 +367,7 @@ function toneRows(): string {
   };
   return `<div class="st-tone-box">
       <div class="st-look-cap">${L('Background brightness', 'Độ sáng nền')}</div>
-      ${row('dark')}${row('light')}
+      ${lookScope === 'light' ? '' : row('dark')}${lookScope === 'dark' ? '' : row('light')}
       <div class="st-actions"><button class="btn-outline" data-tone-reset${savedTone('dark') === defaultTone('dark') && savedTone('light') === defaultTone('light') ? ' disabled' : ''}>↺ ${L('Default brightness', 'Độ sáng mặc định')}</button></div>
     </div>`;
 }
@@ -375,15 +400,23 @@ function wireLook(root: HTMLElement): void {
     repaintLook(root);
   });
   host.querySelector('[data-look-save]')?.addEventListener('click', () => {
-    const choice = lookPick ?? savedAccent();
+    const choice = lookPick ?? savedAccent(scopeTheme());
     lookPick = null;
-    applyAccent(choice); // re-renders the open page, this one included
+    applyAccent(choice, lookScope); // re-renders the open page, this one included
   });
   host.querySelectorAll<HTMLElement>('[data-backdrop]').forEach((b) =>
-    b.addEventListener('click', () => { applyBackdrop(b.dataset.backdrop!); repaintLook(root); }));
+    b.addEventListener('click', () => { applyBackdrop(b.dataset.backdrop!, lookScope); repaintLook(root); }));
   const bg = host.querySelector<HTMLInputElement>('#st-bg-custom');
-  bg?.addEventListener('input', () => previewBackdrop(bg.value.toLowerCase()));
-  bg?.addEventListener('change', () => { applyBackdrop(bg.value.toLowerCase()); repaintLook(root); });
+  bg?.addEventListener('input', () => previewBackdrop(bg.value.toLowerCase(), lookScope));
+  bg?.addEventListener('change', () => { applyBackdrop(bg.value.toLowerCase(), lookScope); repaintLook(root); });
+  host.querySelectorAll<HTMLElement>('[data-look-scope]').forEach((b) =>
+    b.addEventListener('click', () => {
+      lookScope = b.dataset.lookScope as LookScope;
+      lookPick = null;
+      // Edit the theme you can see: picking "light" puts the screen in light.
+      if (lookScope !== 'both' && lookScope !== (lightNow() ? 'light' : 'dark')) applyTheme(lookScope);
+      repaintLook(root);
+    }));
   host.querySelectorAll<HTMLInputElement>('input[data-tone]').forEach((inp) => {
     const t = inp.dataset.tone as ToneTheme;
     const out = host.querySelector<HTMLElement>(`[data-tone-v="${t}"]`);
@@ -405,13 +438,13 @@ function wireLook(root: HTMLElement): void {
     });
   });
   host.querySelector('[data-tone-reset]')?.addEventListener('click', () => {
-    applyTone('dark', defaultTone('dark'));
-    applyTone('light', defaultTone('light'));
+    if (lookScope !== 'light') applyTone('dark', defaultTone('dark'));
+    if (lookScope !== 'dark') applyTone('light', defaultTone('light'));
     repaintLook(root);
   });
   host.querySelector('[data-look-reset]')?.addEventListener('click', () => {
     lookPick = null;
-    applyAccent(defaultAccent());
+    applyAccent(defaultAccent(scopeTheme()), lookScope);
   });
   host.querySelector('[data-def-save]')?.addEventListener('click', () => {
     if (!ctxRef) return;
@@ -852,7 +885,7 @@ interface OvTile {
 function overviewHtml(): string {
   const sync = isSyncEnabled();
   const light = document.documentElement.classList.contains('light');
-  const ac = savedAccent();
+  const ac = savedAccent(lightNow() ? 'light' : 'dark');
   const preset = ACCENTS.find((a) => a.id === ac);
   const tiles: OvTile[] = [
     {

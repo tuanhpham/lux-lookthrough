@@ -55,16 +55,44 @@ export const ACCENTS: readonly AccentPreset[] = [
 
 export const DEFAULT_ACCENT = 'violet';
 const ACCENT_KEY = 'accent';
+/**
+ * Light and dark can each have their own colour and background (CHAT-104). The original keys
+ * (`accent`, `ui_backdrop`) stay what they always were — the choice, used by both themes — and
+ * the light theme reads its own key first when one exists. A device that never chose separately
+ * is unchanged.
+ */
+const ACCENT_LIGHT_KEY = 'accent_light';
 
-/** A preset id or a `#rrggbb` the user picked; anything else reads as the default. */
-export function savedAccent(): string {
+/** Which theme(s) a choice is saved for. */
+export type LookScope = 'both' | Theme;
+
+function readChoice(key: string, ok: (v: string) => boolean): string | null {
   try {
-    const v = localStorage.getItem(ACCENT_KEY) ?? '';
-    if (/^#[0-9a-f]{6}$/i.test(v) || ACCENTS.some((a) => a.id === v)) return v;
+    const v = localStorage.getItem(key) ?? '';
+    return ok(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+function writeChoice(key: string, v: string | null): void {
+  try {
+    if (v === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, v);
   } catch {
     /* ignore */
   }
-  return DEFAULT_ACCENT;
+}
+const isAccent = (v: string): boolean => /^#[0-9a-f]{6}$/i.test(v) || ACCENTS.some((a) => a.id === v);
+
+/** A preset id or a `#rrggbb` the user picked; anything else reads as the default. */
+export function savedAccent(theme: Theme = 'dark'): string {
+  const both = readChoice(ACCENT_KEY, isAccent) ?? DEFAULT_ACCENT;
+  return theme === 'light' ? readChoice(ACCENT_LIGHT_KEY, isAccent) ?? both : both;
+}
+
+/** Whether the light theme has a colour of its own. */
+export function accentSplit(): boolean {
+  return readChoice(ACCENT_LIGHT_KEY, isAccent) !== null;
 }
 
 function rgb(hex: string): [number, number, number] {
@@ -124,29 +152,40 @@ export function accentPair(choice: string, theme: Theme): [string, string] {
   return [base, toHex(mixed)];
 }
 
-/** Paint a choice: one <style> that outranks both theme blocks (`:root:root` beats `html.light`). */
-function paintAccent(choice: string): void {
+/** Paint the choices: one <style> that outranks both theme blocks (`:root:root` beats `html.light`). */
+function paintAccent(dark = savedAccent('dark'), light = savedAccent('light')): void {
   document.getElementById('accent-css')?.remove();
-  if (choice === DEFAULT_ACCENT) return;
-  const [d1, d2] = accentPair(choice, 'dark');
-  const [l1, l2] = accentPair(choice, 'light');
+  if (dark === DEFAULT_ACCENT && light === DEFAULT_ACCENT) return;
+  const [d1, d2] = accentPair(dark, 'dark');
+  const [l1, l2] = accentPair(light, 'light');
   const el = document.createElement('style');
   el.id = 'accent-css';
   el.textContent =
-    `:root:root{--accent:${d1};--accent2:${d2};--accent-ink:${inkFor(d1)}}` +
-    `:root:root.light{--accent:${l1};--accent2:${l2};--accent-ink:${inkFor(l1)}}`;
+    (dark !== DEFAULT_ACCENT ? `:root:root{--accent:${d1};--accent2:${d2};--accent-ink:${inkFor(d1)}}` : '') +
+    (light !== DEFAULT_ACCENT ? `:root:root.light{--accent:${l1};--accent2:${l2};--accent-ink:${inkFor(l1)}}` : '');
   document.head.appendChild(el);
 }
 
-/** Save and apply a choice everywhere. Theme subscribers re-run so open charts repaint in it. */
-export function applyAccent(choice: string): void {
-  try {
-    if (choice === DEFAULT_ACCENT) localStorage.removeItem(ACCENT_KEY);
-    else localStorage.setItem(ACCENT_KEY, choice);
-  } catch {
-    /* ignore */
+/**
+ * Save `choice` for one theme or both. Choosing for dark alone first freezes light on what it
+ * shows now, so changing one theme never drags the other along.
+ */
+function saveSplit(keyBoth: string, keyLight: string, choice: string, isDefault: boolean, scope: LookScope, lightNow: string): void {
+  if (scope === 'both') {
+    writeChoice(keyBoth, isDefault ? null : choice);
+    writeChoice(keyLight, null);
+  } else if (scope === 'dark') {
+    writeChoice(keyLight, lightNow);
+    writeChoice(keyBoth, isDefault ? null : choice);
+  } else {
+    writeChoice(keyLight, choice);
   }
-  paintAccent(choice);
+}
+
+/** Save and apply a choice. Theme subscribers re-run so open charts repaint in it. */
+export function applyAccent(choice: string, scope: LookScope = 'both'): void {
+  saveSplit(ACCENT_KEY, ACCENT_LIGHT_KEY, choice, choice === DEFAULT_ACCENT, scope, savedAccent('light'));
+  paintAccent();
   const theme = current();
   subscribers.forEach((fn) => fn(theme));
 }
@@ -273,6 +312,7 @@ export const BACKDROPS: readonly BackdropPreset[] = [
 ];
 export const DEFAULT_BACKDROP = 'aurora';
 const BACKDROP_KEY = 'ui_backdrop';
+const BACKDROP_LIGHT_KEY = 'ui_backdrop_light';
 
 /** The canvas's fixed glow geometry, the same six spots as the shipped room. */
 const GLOW_AT: Record<'dark' | 'light', readonly string[]> = {
@@ -305,33 +345,36 @@ export function backdropFromColour(hex: string): BackdropPreset {
   };
 }
 
-export function savedBackdrop(): string {
-  try {
-    const v = localStorage.getItem(BACKDROP_KEY) ?? '';
-    return BACKDROPS.some((b) => b.id === v) || /^#[0-9a-f]{6}$/i.test(v) ? v : DEFAULT_BACKDROP;
-  } catch {
-    return DEFAULT_BACKDROP;
-  }
+const isBackdrop = (v: string): boolean => BACKDROPS.some((b) => b.id === v) || /^#[0-9a-f]{6}$/i.test(v);
+
+export function savedBackdrop(theme: Theme = 'dark'): string {
+  const both = readChoice(BACKDROP_KEY, isBackdrop) ?? DEFAULT_BACKDROP;
+  return theme === 'light' ? readChoice(BACKDROP_LIGHT_KEY, isBackdrop) ?? both : both;
+}
+
+export function backdropSplit(): boolean {
+  return readChoice(BACKDROP_LIGHT_KEY, isBackdrop) !== null;
 }
 
 export function backdropOf(choice: string): BackdropPreset {
   return BACKDROPS.find((b) => b.id === choice) ?? (/^#[0-9a-f]{6}$/i.test(choice) ? backdropFromColour(choice) : BACKDROPS[0]!);
 }
 
-/** The CSS for a choice; empty for the shipped room. */
-export function backdropCss(choice: string): string {
-  if (choice === DEFAULT_BACKDROP) return '';
-  const p = backdropOf(choice);
-  const layer = (t: 'dark' | 'light'): string =>
-    [...p[t].glows.map((g, i) => `radial-gradient(${GLOW_AT[t][i]}, rgba(${g}), transparent 70%)`), `linear-gradient(160deg, ${p[t].base[0]}, ${p[t].base[1]})`].join(',');
+/** The CSS for a choice per theme; empty for the shipped room. */
+export function backdropCss(dark: string, light: string = dark): string {
+  const layer = (choice: string, t: 'dark' | 'light'): string => {
+    const p = backdropOf(choice);
+    return [...p[t].glows.map((g, i) => `radial-gradient(${GLOW_AT[t][i]}, rgba(${g}), transparent 70%)`), `linear-gradient(160deg, ${p[t].base[0]}, ${p[t].base[1]})`].join(',');
+  };
   // `:root` doubled the way the accent block does, so this outranks the stylesheet's own room
   // whichever order the two land in <head>.
-  return `html:root:not(.light) body::before{background:${layer('dark')}}html:root.light body::before{background:${layer('light')}}`;
+  return (dark !== DEFAULT_BACKDROP ? `html:root:not(.light) body::before{background:${layer(dark, 'dark')}}` : '')
+    + (light !== DEFAULT_BACKDROP ? `html:root.light body::before{background:${layer(light, 'light')}}` : '');
 }
 
-function paintBackdrop(choice = savedBackdrop()): void {
+function paintBackdrop(dark = savedBackdrop('dark'), light = savedBackdrop('light')): void {
   document.getElementById('backdrop-css')?.remove();
-  const css = backdropCss(choice);
+  const css = backdropCss(dark, light);
   if (!css) return;
   const el = document.createElement('style');
   el.id = 'backdrop-css';
@@ -341,23 +384,18 @@ function paintBackdrop(choice = savedBackdrop()): void {
   if (tone) document.head.insertBefore(el, tone); else document.head.appendChild(el);
 }
 
-/** Paint without saving (a swatch hovered / a colour being dragged). */
-export function previewBackdrop(choice: string): void {
-  paintBackdrop(choice);
+/** Paint without saving (a colour being dragged), for the scope being edited. */
+export function previewBackdrop(choice: string, scope: LookScope = 'both'): void {
+  paintBackdrop(scope === 'light' ? savedBackdrop('dark') : choice, scope === 'dark' ? savedBackdrop('light') : choice);
 }
 
-export function applyBackdrop(choice: string): void {
-  try {
-    if (choice === DEFAULT_BACKDROP) localStorage.removeItem(BACKDROP_KEY);
-    else localStorage.setItem(BACKDROP_KEY, choice);
-  } catch {
-    /* ignore */
-  }
-  paintBackdrop(choice);
+export function applyBackdrop(choice: string, scope: LookScope = 'both'): void {
+  saveSplit(BACKDROP_KEY, BACKDROP_LIGHT_KEY, choice, choice === DEFAULT_BACKDROP, scope, savedBackdrop('light'));
+  paintBackdrop();
 }
 
 export function initTheme(): void {
-  paintAccent(savedAccent());
+  paintAccent();
   paintBackdrop();
   paintTone();
   let saved: Theme = 'dark';
