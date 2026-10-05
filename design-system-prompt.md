@@ -594,6 +594,31 @@ column tracks, plus a head row (10px uppercase `--faint` on `--surface`).
 - Rows: `padding 10px 14px`, hairline separators.
 - Numbers right-aligned in mono; actions right-aligned.
 
+**Every table sorts and can go full screen, with no per-table wiring.** One script watches the
+page (a MutationObserver plus a rAF debounce) and upgrades every table it finds:
+- **Sorting:**
+  - Every head with text becomes clickable and focusable (Enter/Space), shows a faint `↕`, and
+    turns accent with `▲`/`▼` plus the `.sorted` underline when active.
+  - The first click sorts numbers biggest-first and text A→Z; the second flips.
+  - **How a cell is read:** `data-sort-value` wins. Otherwise an ISO date sorts as a date, and a
+    leading number is parsed after any currency sign or ±, in both 1,234.5 and 1.234,5 notation,
+    with K/M/B suffixes. A dash or an empty cell is ALWAYS last. Words use `localeCompare` in the
+    page's language.
+  - **Rows that stay put:** a full-width detail row travels with the row above it, and an
+    add/total row stays at the bottom.
+  - **The order survives a re-render:** it is keyed by page + table + head texts and re-applied
+    to the new tbody.
+  - Tables that already sort their data (before paging) are left alone, but use the same head
+    style.
+- **Full screen:** each big table (≥6 columns or ≥12 rows) gets a 28px ⛶ glass button on its
+  card's top edge. The card is wrapped once so the button does not scroll with the columns.
+  - **Open:** the card becomes `position: fixed; inset: 14px` (0 on phones) over a blurred
+    backdrop, with the section title on top. Esc, the button or the backdrop close it; the page
+    does not scroll underneath.
+  - **Trap:** the page-entrance animation leaves an identity transform on ancestors, which makes
+    a fixed child a box inside its section. Neutralise transform, filter and contain on every
+    ancestor while the table is open.
+
 **Rules for both kinds:**
 - **Overflow:** a table lives in a card with `overflow-x: auto`, never `overflow: hidden`. Each
   row type keeps a `min-width` equal to the sum of its columns, so the last column (the action)

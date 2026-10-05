@@ -35,6 +35,7 @@ import { openSettingsAt } from './tabs/settingsTab.js';
 import { NAV as PLAYBOOK_NAV } from './tabs/swingPlaybook.js';
 import { jumpToLearn } from './ui/stickyToc.js';
 import { initTableFullscreen } from './ui/tableFullscreen.js';
+import { initTableSort } from './ui/tableSort.js';
 
 // Surface a FATAL init failure visibly (a blank screen hides the cause). This is
 // only used for the synchronous init below — we deliberately do NOT trap every
@@ -52,6 +53,7 @@ const ctx = new AppContext(loadConfig());
 initTheme();
 initModal();
 initTableFullscreen();
+initTableSort();
 void loadBrokerFees(ctx).catch(() => null);
 // When the stock modal closes, re-render the open tab so any watchlist change
 // made inside it (add/remove via the picker) shows immediately.
