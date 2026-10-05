@@ -9867,3 +9867,47 @@ html.light .action-btn:not(:hover) { box-shadow: var(--glass-drop); }
   .evf-row > .evf-txt { grid-column: 2; grid-row: 3; }
   .evf-row > :last-child:not(.evf-txt) { grid-column: 3; grid-row: 1; }
 }
+
+/* ══ CHAT-97 — ⛶ full screen for the big tables (ui/tableFullscreen.ts) ══
+   The wrapper carries the button so it does not scroll away with the columns; it has no box of
+   its own. Full screen pins the card to the viewport over a blurred backdrop, and #main is lifted
+   over the top bar meanwhile (its children cannot out-stack it otherwise). */
+.tbl-fs { position: relative; }
+.tbl-fs-btn {
+  position: absolute; z-index: 3; top: -13px; right: 14px; width: 28px; height: 28px; padding: 0; cursor: pointer;
+  display: grid; place-items: center; border-radius: 50%; color: var(--subtext);
+  border: 1px solid var(--glass-line); background: var(--card); box-shadow: var(--glass-hi), var(--glass-drop);
+  opacity: .75; transition: opacity .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+}
+html:not(.light) .tbl-fs-btn { background: linear-gradient(180deg, rgba(40,38,58,.98), rgba(26,24,38,.98)); }
+.tbl-fs:hover > .tbl-fs-btn, .tbl-fs-btn:focus-visible { opacity: 1; }
+.tbl-fs-btn:hover { color: var(--accent); border-color: var(--accent-line); transform: scale(1.06); }
+@media (hover: none) { .tbl-fs-btn { opacity: 1; } }
+
+html.tbl-fs-on, html.tbl-fs-on body { overflow: hidden; }
+html.tbl-fs-on #main { position: relative; z-index: 200; }
+.tbl-fs-backdrop {
+  position: fixed; inset: 0; z-index: 900; animation: cp-in .14s ease-out;
+  background: rgba(3, 5, 9, .55); -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
+}
+html.light .tbl-fs-backdrop { background: rgba(240, 236, 228, .55); }
+html #main .tbl-full, html .tbl-full {
+  position: fixed; z-index: 901; inset: 14px; margin: 0 !important; max-width: none; max-height: none;
+  overflow: auto; overscroll-behavior: contain; animation: dialogIn .26s cubic-bezier(.22, 1, .36, 1);
+  padding: 18px 20px; border-radius: 18px;
+}
+html:not(.light) .tbl-full, html:not(.light) #main .card.tbl-full { background: linear-gradient(180deg, rgba(30, 28, 44, .98), rgba(18, 17, 28, .98)); border-color: rgba(255, 255, 255, .14); box-shadow: 0 40px 100px -30px rgba(0, 0, 0, .9); }
+html.light .tbl-full, html.light #main .card.tbl-full { background: #fffdf9; box-shadow: 0 40px 90px -30px rgba(60, 45, 25, .45); }
+.tbl-fs.on > .tbl-fs-btn { position: fixed; z-index: 902; top: 24px; right: 28px; width: 34px; height: 34px; opacity: 1; color: var(--text); }
+/* inside, the table may use all the room: no inner height caps, the head stays on top */
+.tbl-full .stn-bbody, .tbl-full .evf-list { max-height: none; }
+.tbl-full table { font-size: 13.5px; }
+.tbl-full th { top: -18px; }
+@media (max-width: 700px) {
+  html #main .tbl-full, html .tbl-full { inset: 0; border-radius: 0; padding: 14px 12px calc(14px + env(safe-area-inset-bottom)); }
+  .tbl-fs.on > .tbl-fs-btn { top: calc(10px + env(safe-area-inset-top)); right: 12px; }
+}
+.tbl-full.tbl-full-quiet { animation: none; }
+/* ancestors of the full-screen card: nothing may become its containing block (tableFullscreen.ts) */
+.tbl-fs-anc { transform: none !important; animation: none !important; filter: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; contain: none !important; will-change: auto !important; }
+.tbl-full[data-fs-title]:not([data-fs-title=""])::before { content: attr(data-fs-title); display: block; position: sticky; left: 0; margin: 0 48px 12px 2px; font: 650 16px var(--font-ui); letter-spacing: -.01em; color: var(--text); }
