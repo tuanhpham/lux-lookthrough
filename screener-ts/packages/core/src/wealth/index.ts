@@ -251,6 +251,23 @@ export function addFlow(
   return { ...book, flows: [...(book.flows ?? []), row] };
 }
 
+/** Correct a flow in place (same id): its date, signed amount or note. */
+export function editFlow(
+  book: WealthBook,
+  flowId: string,
+  patch: { date: string; amount: number; note?: string },
+): WealthBook {
+  if (!(book.flows ?? []).some((f) => f.id === flowId)) throw new Error('unknown flow');
+  if (!ISO.test(patch.date)) throw new Error('date must be YYYY-MM-DD');
+  if (!Number.isFinite(patch.amount) || patch.amount === 0) throw new Error('amount must be a non-zero number');
+  return {
+    ...book,
+    flows: (book.flows ?? []).map((f) => (f.id === flowId
+      ? { id: f.id, accountId: f.accountId, date: patch.date, amount: patch.amount, ...(patch.note ? { note: patch.note } : {}) }
+      : f)),
+  };
+}
+
 export function removeFlow(book: WealthBook, flowId: string): WealthBook {
   return { ...book, flows: (book.flows ?? []).filter((f) => f.id !== flowId) };
 }

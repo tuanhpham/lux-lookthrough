@@ -17,6 +17,7 @@
 import {
   accountStatus,
   addFlow,
+  editFlow as editWealthFlow,
   balancesOf,
   flowsOf,
   removeFlow,
@@ -35,6 +36,7 @@ import {
   type WealthAccount,
   type WealthBalance,
   type WealthBook,
+  type WealthFlow,
   type WealthCurrency,
   type WealthKind,
   type WealthSeries,
@@ -742,7 +744,7 @@ function readingsHtml(a: WealthAccount): string {
         <td class="w-delta" data-sort-value="${f.amount}"><span style="color:${tone(f.amount)}">${dep ? '+' : '−'}${fmt(Math.abs(f.amount), a.currency)}</span></td>
         <td class="muted w-delta">${then == null ? '—' : eur(Math.abs(then))}</td>
         <td class="muted">${esc(f.note ?? '')}</td>
-        <td><div class="row-acts"><button class="pf-icon-btn pf-icon-danger" data-w-flowdel="${f.id}" title="${vi ? 'Xoá giao dịch' : 'Delete the transaction'}">${cbIcon('trash', 14)}</button></div></td>
+        <td><div class="row-acts"><button class="pf-icon-btn" data-w-flowedit="${f.id}" title="${vi ? 'Sửa giao dịch' : 'Edit the transaction'}">${cbIcon('edit', 14)}</button><button class="pf-icon-btn pf-icon-danger" data-w-flowdel="${f.id}" title="${vi ? 'Xoá giao dịch' : 'Delete the transaction'}">${cbIcon('trash', 14)}</button></div></td>
       </tr>`;
   };
   const readingRows = asc
@@ -942,32 +944,35 @@ const FLOW_ICON = '<svg class="cb-ic" viewBox="0 0 24 24" width="14" height="14"
  * wrong way. The dialog shows the balance it will leave, live, so a wrong direction is visible
  * before saving. Stored as a flow (`addFlow`): see the core module on how flows and readings add up.
  */
-async function transactionFlow(ctx: AppContext, a: WealthAccount): Promise<void> {
+async function transactionFlow(ctx: AppContext, a: WealthAccount, editing?: WealthFlow): Promise<void> {
   const vi = getLang() === 'vi';
   const st = accountStatus(book, a.id, today());
+  // Editing: the balance the flow starts from is the one WITHOUT it, or the preview double-counts.
+  const base0 = editing ? removeFlow(book, editing.id) : book;
   const after = (v: Record<string, string>): string => {
     const amt = parseAmount(v.amount ?? '');
     const date = v.date || today();
-    const base = valueOn(balancesOf(book, a.id), flowsOf(book, a.id), date) ?? 0;
+    const base = valueOn(balancesOf(base0, a.id), flowsOf(base0, a.id), date) ?? 0;
     if (amt == null || amt === 0) return `<span class="muted">${vi ? 'Số dư hiện tại' : 'Balance now'}: <b>${fmt(base, a.currency)}</b></span>`;
     const next = base + (v.kind === 'out' ? -Math.abs(amt) : Math.abs(amt));
     return `<span class="muted">${vi ? `Số dư ngày ${date}` : `Balance on ${date}`}: ${fmt(base, a.currency)} → </span><b style="color:${tone(next - base)}">${fmt(next, a.currency)}</b>`;
   };
   const res = await formDialog(`${esc(a.name)} · ${a.currency}`, [
-    { key: 'kind', label: vi ? 'Loại' : 'Type', type: 'select', value: 'in', options: [
+    { key: 'kind', label: vi ? 'Loại' : 'Type', type: 'select', value: editing && editing.amount < 0 ? 'out' : 'in', options: [
       { value: 'in', label: vi ? '↓ Nạp tiền (deposit)' : '↓ Deposit' },
       { value: 'out', label: vi ? '↑ Rút tiền (withdrawal)' : '↑ Withdrawal' },
     ] },
-    { key: 'date', label: t('wealth.col.date'), type: 'date', value: today() },
-    { key: 'amount', label: `${vi ? 'Số tiền' : 'Amount'} (${a.currency})`, raw: true, placeholder: '0' },
-    { key: 'note', label: t('wealth.col.note'), placeholder: vi ? 'Lương, chuyển khoản, rút ATM…' : 'Salary, transfer, ATM…' },
-    { key: '__after', label: '', type: 'info', value: st.latest ? after({}) : '' },
+    { key: 'date', label: t('wealth.col.date'), type: 'date', value: editing?.date ?? today() },
+    { key: 'amount', label: `${vi ? 'Số tiền' : 'Amount'} (${a.currency})`, raw: true, placeholder: '0', value: editing ? String(Math.abs(editing.amount)) : '' },
+    { key: 'note', label: t('wealth.col.note'), placeholder: vi ? 'Lương, chuyển khoản, rút ATM…' : 'Salary, transfer, ATM…', value: editing?.note ?? '' },
+    { key: '__after', label: '', type: 'info', value: st.latest || editing ? after(editing ? { kind: editing.amount < 0 ? 'out' : 'in', date: editing.date, amount: String(Math.abs(editing.amount)) } : {}) : '' },
   ], { onChange: (v) => ({ __after: after(v) }) });
   if (!res || !res.date) return;
   const amount = parseOrWarn(res.amount ?? '');
   if (amount == null || amount === 0) return;
   const signed = res.kind === 'out' ? -Math.abs(amount) : Math.abs(amount);
-  await commit(ctx, addFlow(book, { accountId: a.id, date: res.date, amount: signed, note: res.note?.trim() || undefined }, uuid));
+  const input = { date: res.date, amount: signed, note: res.note?.trim() || undefined };
+  await commit(ctx, editing ? editWealthFlow(book, editing.id, input) : addFlow(book, { accountId: a.id, ...input }, uuid));
 }
 
 /** The monthly routine: one date, one field per account, blanks skipped. */
@@ -1300,6 +1305,13 @@ function wire(ctx: AppContext, root: HTMLElement, s: WealthSeries): void {
       e.stopPropagation();
       const a = byId(b.dataset.wFlow);
       if (a) void transactionFlow(ctx, a);
+    }),
+  );
+  root.querySelectorAll<HTMLElement>('[data-w-flowedit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const f = book.flows.find((x) => x.id === b.dataset.wFlowedit);
+      const a = f ? byId(f.accountId) : undefined;
+      if (f && a) void transactionFlow(ctx, a, f);
     }),
   );
   root.querySelectorAll<HTMLElement>('[data-w-flowdel]').forEach((b) =>

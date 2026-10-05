@@ -20,7 +20,7 @@
  * · Short selling is reserved (a disabled tab), not built.
  */
 import type { Bar, ConvictionRating, GradeResult, SetupKey } from '@screener/core';
-import { computeCash, computeEquity, quoteCurrencyOf, SETUP_KEYS } from '@screener/core';
+import { computeCash, computeEquity, parseAmount, quoteCurrencyOf, SETUP_KEYS } from '@screener/core';
 import type { AppContext } from '../context.js';
 import { getLang } from '../ui/i18n.js';
 import { drawCandles, EMA_CONFIG, type CandleChart } from '../ui/charts.js';
@@ -70,9 +70,11 @@ const SYM: Record<string, string> = { EUR: '€', USD: '$' };
 const fmt = (v: number | null | undefined, d = 2): string =>
   v === null || v === undefined || !Number.isFinite(v) ? '—' : v.toLocaleString(vi() ? 'vi-VN' : 'en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const cash = (v: number | null | undefined, ccy: string): string => (v === null || v === undefined ? '—' : `${SYM[ccy] ?? ''}${fmt(v)}`);
+// "185,50", "185.50" and "1.234,5" all mean what they say (core `parseAmount`): a bare
+// Number() turned "1.234,5" into NaN and "185," into nothing.
 const posNum = (s: string | undefined): number | null => {
-  const v = Number(String(s ?? '').replace(',', '.'));
-  return Number.isFinite(v) && v > 0 ? v : null;
+  const v = parseAmount(String(s ?? ''));
+  return v !== null && Number.isFinite(v) && v > 0 ? v : null;
 };
 
 // ── state, kept outside the DOM so a re-render (language, theme) keeps the ticket ─────────
@@ -1153,12 +1155,21 @@ function bindKeys(): void {
 function repaintLive(ctx: AppContext, root: HTMLElement, focusKey?: string): void {
   const t = root.querySelector<HTMLElement>('#stn-ticket');
   if (t) {
-    const caret = focusKey ? (root.querySelector<HTMLInputElement>(`[data-stn="${focusKey}"]`)?.selectionStart ?? null) : null;
+    const was = focusKey ? root.querySelector<HTMLInputElement>(`[data-stn="${focusKey}"]`) : null;
+    const caret = was?.selectionStart ?? null;
+    // The text as TYPED, put back after the redraw. The ticket re-renders on every keystroke and
+    // drew the field from the parsed number, so "185." came back as "185" and "185,5" never
+    // got past the comma — a decimal could not be typed at all (CHAT-100).
+    const typed = was && was.type !== 'range' && was.type !== 'date' && was.type !== 'checkbox' ? was.value : null;
     t.innerHTML = ticketHtml();
     wireTicket(ctx, root);
     if (focusKey) {
       const f = root.querySelector<HTMLInputElement>(`[data-stn="${focusKey}"]`);
-      if (f) { f.focus(); if (caret !== null && 'setSelectionRange' in f && f.type !== 'range') { try { f.setSelectionRange(caret, caret); } catch { /* date inputs */ } } }
+      if (f) {
+        if (typed !== null && f.type !== 'range') f.value = typed;
+        f.focus();
+        if (caret !== null && 'setSelectionRange' in f && f.type !== 'range') { try { f.setSelectionRange(caret, caret); } catch { /* date inputs */ } }
+      }
     }
   }
   const lad = root.querySelector<HTMLElement>('.stn-ladder');

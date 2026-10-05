@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  accountStatus, addFlow, balancesOf, flowsOf, makeFxTable, normalizeBook, removeFlow, removeWealthAccount,
+  accountStatus, addFlow, balancesOf, editFlow, flowsOf, makeFxTable, normalizeBook, removeFlow, removeWealthAccount,
   setBalance, valueOn, wealthSeries, type WealthBook,
 } from '../../src/wealth/index.js';
 
@@ -61,5 +61,13 @@ describe('wealth flows (deposits / withdrawals)', () => {
     expect(removeFlow(b, b.flows[0]!.id).flows).toEqual([]);
     b = removeWealthAccount(b, 'n26');
     expect(b.flows).toEqual([]);
+  });
+  it('corrects a flow in place, keeping its id', () => {
+    const b = addFlow(book(), { accountId: 'n26', date: '2026-03-01', amount: 500 }, id);
+    const fid = b.flows[0]!.id;
+    const c = editFlow(b, fid, { date: '2026-03-02', amount: -50, note: 'fix' });
+    expect(c.flows).toEqual([{ id: fid, accountId: 'n26', date: '2026-03-02', amount: -50, note: 'fix' }]);
+    expect(() => editFlow(b, fid, { date: '2026-03-02', amount: 0 })).toThrow();
+    expect(() => editFlow(b, 'nope', { date: '2026-03-02', amount: 5 })).toThrow();
   });
 });

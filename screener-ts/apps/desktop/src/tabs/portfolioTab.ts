@@ -13,6 +13,10 @@ import {
   deleteLot,
   addCashFlow,
   deleteCashFlow,
+  editCashFlow,
+  editLot,
+  editSell,
+  parseAmount,
   capitalAsOf,
   createOrder,
   runUpdate,
@@ -2354,6 +2358,102 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       }),
     );
 
+    // ✎ correct a transaction in place — the user's "we might mistakenly save some wrong
+    // transaction with a little change needed" (CHAT-100). Deleting and re-entering also lost the
+    // note, setup, rating and the frozen plan keyed by the lot id; these keep the ids.
+    const vi0 = getLang() === 'vi';
+    const L0 = (en: string, v: string): string => (vi0 ? v : en);
+    const ccy0 = (): string => active().account.currency;
+    const numOrNull = (raw: string | undefined): number | null => {
+      const t = (raw ?? '').trim();
+      return t ? parseAmount(t) : null;
+    };
+    const afterEdit = async (): Promise<void> => {
+      snapshotNow(active());
+      await save(ctx);
+      draw(ctx);
+      void update(ctx);
+    };
+    const tryEdit = async (fn: () => void): Promise<void> => {
+      try { fn(); } catch (e) { alert((e as Error).message.replace(/^edit\w+: /, '')); return; }
+      await afterEdit();
+    };
+    root.querySelectorAll<HTMLElement>('[data-edit-lot]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const st = active();
+        const lot = st.lots.find((l) => l.id === b.dataset.editLot);
+        if (!lot) return;
+        const sold = lot.shares - lot.remainingShares;
+        const res = await formDialog(`${L0('Edit buy', 'Sửa lệnh mua')} · ${lot.ticker}`, [
+          { key: 'date', label: L0('Buy date', 'Ngày mua'), type: 'date', value: lot.buyDate },
+          { key: 'price', label: `${L0('Buy price', 'Giá mua')} (${ccy0()})`, raw: true, value: String(lot.buyPrice) },
+          { key: 'shares', label: `${L0('Shares', 'Số lượng')}${sold ? ` · ${L0('sold', 'đã bán')} ${sold}` : ''}`, raw: true, value: String(lot.shares) },
+          { key: 'stop', label: L0('Stop (blank = none)', 'Cắt lỗ (để trống = không)'), raw: true, value: lot.stop != null ? String(lot.stop) : '' },
+          { key: 'target', label: L0('Target (blank = none)', 'Mục tiêu (để trống = không)'), raw: true, value: lot.target != null ? String(lot.target) : '' },
+          { key: 'fee', label: `${L0('Fee', 'Phí')} (${ccy0()})`, raw: true, value: lot.fee ? String(lot.fee) : '' },
+          ...(sold ? [{ key: '__i', label: '', type: 'info' as const, value: `<span class="muted">${L0('A new price re-prices the sales already made from this lot.', 'Đổi giá mua sẽ tính lại lãi/lỗ của các lần đã bán từ lô này.')}</span>` }] : []),
+        ]);
+        if (!res) return;
+        const price = numOrNull(res.price), shares = numOrNull(res.shares);
+        if (price === null || shares === null) { alert(L0('Price and shares are needed.', 'Cần nhập giá và số lượng.')); return; }
+        await tryEdit(() => editLot(st, lot.id, {
+          buyDate: res.date || lot.buyDate, buyPrice: price, shares: Math.round(shares),
+          stop: numOrNull(res.stop), target: numOrNull(res.target), fee: numOrNull(res.fee),
+        }));
+      }),
+    );
+    root.querySelectorAll<HTMLElement>('[data-edit-sell]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const st = active();
+        const rec = st.sells.find((s) => s.id === b.dataset.editSell);
+        if (!rec) return;
+        const lot = st.lots.find((l) => l.id === rec.lotId);
+        const res = await formDialog(`${L0('Edit sale', 'Sửa lệnh bán')} · ${rec.ticker}`, [
+          { key: 'date', label: L0('Sell date', 'Ngày bán'), type: 'date', value: rec.sellDate },
+          { key: 'price', label: `${L0('Sell price', 'Giá bán')} (${ccy0()})`, raw: true, value: String(rec.sellPrice) },
+          { key: 'shares', label: `${L0('Shares', 'Số lượng')}${lot ? ` · max ${lot.remainingShares + rec.shares}` : ''}`, raw: true, value: String(rec.shares) },
+          { key: 'fee', label: `${L0('Fee', 'Phí')} (${ccy0()})`, raw: true, value: rec.fee ? String(rec.fee) : '' },
+          ...(lot ? [
+            { key: '__h', label: '', type: 'info' as const, value: `<span class="muted">${L0('The buy this sale came from — a change applies to the whole lot:', 'Lệnh mua của lần bán này — sửa ở đây áp dụng cho cả lô:')}</span>` },
+            { key: 'bdate', label: L0('Buy date', 'Ngày mua'), type: 'date' as const, value: lot.buyDate },
+            { key: 'bprice', label: `${L0('Buy price', 'Giá mua')} (${ccy0()})`, raw: true, value: String(lot.buyPrice) },
+          ] : []),
+        ]);
+        if (!res) return;
+        const price = numOrNull(res.price), shares = numOrNull(res.shares);
+        if (price === null || shares === null) { alert(L0('Price and shares are needed.', 'Cần nhập giá và số lượng.')); return; }
+        await tryEdit(() => {
+          if (lot) {
+            const bp = numOrNull(res.bprice);
+            if (bp !== null && (bp !== lot.buyPrice || (res.bdate && res.bdate !== lot.buyDate))) {
+              editLot(st, lot.id, { buyPrice: bp, ...(res.bdate && res.bdate <= (res.date || rec.sellDate) ? { buyDate: res.bdate } : {}) });
+            }
+          }
+          editSell(st, rec.id, { sellDate: res.date || rec.sellDate, sellPrice: price, shares: Math.round(shares), fee: numOrNull(res.fee) });
+        });
+      }),
+    );
+    root.querySelectorAll<HTMLElement>('[data-edit-cash]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const st = active();
+        const f = st.cashFlows?.find((x) => x.id === b.dataset.editCash);
+        if (!f) return;
+        const res = await formDialog(L0('Edit cash', 'Sửa giao dịch tiền'), [
+          { key: 'kind', label: L0('Type', 'Loại'), type: 'select', value: f.amount >= 0 ? 'in' : 'out', options: [
+            { value: 'in', label: L0('↓ Deposit', '↓ Nạp tiền') }, { value: 'out', label: L0('↑ Withdrawal', '↑ Rút tiền') }] },
+          { key: 'date', label: L0('Date', 'Ngày'), type: 'date', value: f.date },
+          { key: 'amount', label: `${L0('Amount', 'Số tiền')} (${ccy0()})`, raw: true, value: String(Math.abs(f.amount)) },
+          { key: 'note', label: L0('Note', 'Ghi chú'), value: f.note ?? '' },
+        ]);
+        if (!res) return;
+        const amt = numOrNull(res.amount);
+        if (!amt) { alert(L0('Give an amount.', 'Nhập số tiền.')); return; }
+        await tryEdit(() => editCashFlow(st, f.id, {
+          date: res.date || f.date, amount: res.kind === 'out' ? -Math.abs(amt) : Math.abs(amt), note: res.note?.trim() || undefined,
+        }));
+      }),
+    );
+
     // delete a cash deposit / withdrawal
     root.querySelectorAll<HTMLElement>('[data-del-cash]').forEach((b) =>
       b.addEventListener('click', async () => {
@@ -2553,6 +2653,8 @@ function transactionHistoryHtml(st: AccountState): string {
   const summaryLine = chips.length ? `<div class="hold-chips">${chips.join('')}</div>` : '';
 
   rows.sort((a, b) => (a.sortDate < b.sortDate ? 1 : a.sortDate > b.sortDate ? -1 : 0));
+  const editBtn = (kind: string, id: string): string =>
+    `<button class="pf-icon-btn" title="${getLang() === 'vi' ? 'Sửa giao dịch' : 'Edit the transaction'}" data-edit-${kind}="${id}">${cbIcon('edit', 13)}</button>`;
   const delBtn = (kind: string, id: string): string =>
     `<button class="del-btn" title="Delete this transaction" data-del-${kind}="${id}">${cbIcon('trash', 13)}</button>`;
   const signed = (v: number, dateForFx: string): string =>
@@ -2608,7 +2710,7 @@ function transactionHistoryHtml(st: AccountState): string {
           <td>—</td>
           <td>—</td>
           <td>—</td>
-          <td><div class="row-acts">${delBtn('cash', r.delId)}</div></td>
+          <td><div class="row-acts">${editBtn('cash', r.delId)}${delBtn('cash', r.delId)}</div></td>
         </tr>`;
       }
 
@@ -2650,7 +2752,7 @@ function transactionHistoryHtml(st: AccountState): string {
         <td>${pnlPctCap}</td>
         ${setupCell(r)}
         ${noteCell(r.noteKind!, r.noteId!, r.note)}
-        <td><div class="row-acts">${chartBtn}${planBtn}${delBtn(r.delKind, r.delId)}</div></td>
+        <td><div class="row-acts">${chartBtn}${planBtn}${editBtn(r.delKind, r.delId)}${delBtn(r.delKind, r.delId)}</div></td>
       </tr>`;
     })
     .join('');
