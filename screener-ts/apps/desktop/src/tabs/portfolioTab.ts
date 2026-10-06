@@ -1,4 +1,6 @@
 import { openStation } from './stationTab.js';
+import { combineAccounts, periodPerformance } from '@screener/core';
+import { perfMatrixHtml, perfPanelHtml } from '../portfolio/perfPanel.js';
 import { feeOf, loadBrokerFees } from '../portfolio/brokerFees.js';
 import {
   createAccount,
@@ -1307,6 +1309,8 @@ function draw(ctx: AppContext): void {
       <div class="stat"><div class="k">${t('pf.stat.hold')}</div><div class="v">${avgHold.count ? num(avgHold.days, 0) + ' days' : '—'}</div></div>
       </div>
     </div>
+
+    ${perfPanelHtml(periodPerformance(st), (v) => money(toDisplay(v), dispSymbol()))}
 
     <div class="card" style="margin-bottom:14px;padding:8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 6px 8px">
@@ -3424,6 +3428,21 @@ function kpiDonut(opts: {
     </div>`;
 }
 
+/**
+ * The overview's performance: the combined card (every account as one, a later account's opening
+ * capital counted as a deposit) and, with two or more accounts, the accounts × periods matrix.
+ */
+function overviewPerfHtml(): string {
+  const vi = getLang() === 'vi';
+  const fmt = (v: number): string => money(toDisplay(v), dispSymbol());
+  const all = combineAccounts(accounts);
+  const total = all ? periodPerformance(all) : null;
+  const rows = accounts.map((a) => ({ id: a.account.id, name: a.account.name, summary: periodPerformance(a) }));
+  return `${total ? perfPanelHtml(total, fmt, vi ? 'Hiệu suất · tất cả tài khoản' : 'Performance · all accounts') : ''}
+    ${rows.length > 1 && total ? `${sectionHead(vi ? 'Hiệu suất từng tài khoản' : 'Performance by account', [], { sub: vi ? 'TWR theo kỳ. Bấm tiêu đề cột để xếp hạng.' : 'Time-weighted, by period. Click a column to rank.' })}
+    ${perfMatrixHtml([{ id: 'all', name: vi ? 'Tất cả' : 'All accounts', summary: total, total: true }, ...rows])}` : ''}`;
+}
+
 /** The account's own risk profile, or "playbook" — shown beside the results it produced. */
 function riskProfileCell(accountId: string): string {
   const a = accounts.find((x) => x.account.id === accountId)?.account;
@@ -3519,6 +3538,8 @@ function buildOverviewHtml(): string {
       <div class="stat"><div class="k">${t('pf.stat.avghold')}</div><div class="v">${holdShares > 0 ? num(avgHoldDays, 0) + ' days' : '—'}</div></div>
       </div>
     </div>
+
+    ${overviewPerfHtml()}
 
     ${sectionHead(t('pf.overview.compare'),
       [countChip(compareRows.length, undefined, t('pf.unit.accounts'))],

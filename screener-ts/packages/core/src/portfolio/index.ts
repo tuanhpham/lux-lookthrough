@@ -15,6 +15,8 @@ export type { PriceMap } from './metrics.js';
 export { buildPositionsDigest } from './positionsDigest.js';
 export type { PositionsDigest, PositionsRow, PositionsFx } from './positionsDigest.js';
 export { computeTwr } from './twr.js';
+export { PERIODS, periodPerformance, combineAccounts } from './performance.js';
+export type { PeriodKey, PeriodResult, PerformanceSummary } from './performance.js';
 export type { TwrPoint, TwrResult } from './twr.js';
 export { createOrder, cancelOrder, processOrders } from './orders.js';
 export type { CreateOrderInput, FillEvent } from './orders.js';

@@ -807,6 +807,28 @@ page (a MutationObserver plus a rAF debounce) and upgrades every table it finds:
     on top with the plan under; a phone stacks them in the order the decisions are made
     (bar → steps → subject → decisions → action).
   - A 13–16" MacBook is 1440–1728 CSS px wide, so three columns must already work at 1200px.
+- **Performance by period** (any account / fund / project with a value over time): one glass
+  card of ten tiles **1D · 1W · 1M · 3M · 6M · YTD · 1Y · 3Y · 5Y · SI**, 10 across (5 below
+  1240px, 2 on phones).
+  - **Tile content:** the code in mono 800 12px with its words in 10.5px `--faint`, the % in
+    `650 19px` tabular in gain/loss colour, the money earned below it in mono, a 4px track
+    whose fill length is |%| ÷ the largest |%| on the card (fill gradient to the tone with a
+    soft glow), and "≈ +17.3% / yr" for periods of 3Y or more.
+  - **Tile frame:** a 2px top edge in the tone, a 9% tone wash fading down the tile, and an
+    accent border on YTD and SI.
+  - **Missing periods:** a period the account is too young for stays in place, dimmed to 55%,
+    with "—" and a tooltip "data starts <date>". Never leave a gap, never extrapolate.
+  - **Header:** a title, one line saying the % is time-weighted (deposits removed) while the
+    money is what was earned, and "as of <date>" plus an SI pill on the right.
+  - **The maths:** % = TWR index ratio (end ÷ the last point on or before the period start). A
+    period starting before the first data point is not available. YTD for an entity opened this
+    year = since inception. Money = Δvalue − net flows in the window. Annualize only spans of a
+    year or more.
+  - **Several entities:** a matrix below — rows = entities with an "All" total row pinned first,
+    columns = the ten codes. Each cell is mono % in tone with a 3px bar under it, scaled to the
+    whole matrix, and its value in `data-sort-value` so the columns rank.
+  - **Combining entities:** carry each one's value forward, sum per date, and book a later
+    entity's opening capital as a deposit on its first day, or opening it reads as performance.
 - **Card grids** use `repeat(auto-fit, minmax(min(100%, 380px), 1fr))`. Use auto-FIT, not
   auto-FILL: auto-fill keeps empty tracks, so a single card sits in half the row.
 - **Quick cards** (a compact summary of something with a full editor elsewhere): a header with
