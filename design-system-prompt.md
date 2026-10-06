@@ -6,7 +6,7 @@
 >
 > **Nguồn:** mọi giá trị lấy thẳng từ `screener-ts/apps/desktop/src/styles.css`, `ui/transition.ts`,
 > `ui/pageHero.ts`, `ui/sectionHead.ts`, `ui/pages.ts`, `ui/theme.ts`, `tabs/stationTab.ts`,
-> `index.html`. Bản viết lại ngày 2026-10-05: gồm hiệu ứng chuyển trang "vén màn", ngôn ngữ nút kính
+> `index.html`. Bản viết lại ngày 2026-10-05, cập nhật 2026-10-06 (mục 2b Appearance): gồm hiệu ứng chuyển trang "vén màn", ngôn ngữ nút kính
 > duy nhất, thanh các bước, nút cuối hàng có màu theo nghĩa, và các bẫy di động đã gặp.
 >
 > **Giữ đồng bộ:** đổi `styles.css` ở phần nào thì sửa mục tương ứng ở đây.
@@ -128,7 +128,7 @@ html.light {
 - **Light mode stays warm and readable.** Check every new light-mode colour against `--card`
   (#fffdf9) at ≥ 4.5:1 for text. Keep it warm all the way through: no cool blue-grey ink on
   cream.
-- **Accent picker** (Settings › Appearance):
+- **Accent picker** (Settings › Appearance; the whole Appearance system is §2b):
   - Presets are pairs of `[accent, accent2]` for dark and for light:
 
     | Preset | Dark | Light |
@@ -144,10 +144,7 @@ html.light {
   - Apply a preset by injecting `<style id="accent-css">:root:root{…} :root:root.light{…}</style>`.
     The doubled `:root` beats the base tokens without `!important`.
   - Because buy/primary are built on `--cta-bg`, every CTA follows the user's colour.
-- **Background brightness** (optional sliders, one per theme): a `<style id="tone-css">` that
-  lifts `--bg`/`--surface` with `color-mix(…, #fff, N%)` and lays a white veil
-  `body::after { position: fixed; inset: 0; background: rgba(255,255,255,.45·t) }` in light.
-  Store the value per device.
+- **Background colour and brightness** are the user's too: see §2b.
 
 **Fonts** (Google Fonts, `display=swap`): IBM Plex Sans 400/500/600/700, JetBrains Mono 400–700,
 Source Serif 4 300/400 (+ italic 300), Hanken Grotesk 300–800 as a fallback, and
@@ -205,6 +202,142 @@ html.light body::before { background:
   radial-gradient(28% 26% at 36% 70%, rgba(255,255,255,.6),  transparent 70%),
   linear-gradient(160deg, #f3e9de, #e6ddd2); }
 ```
+
+## 2b. Appearance settings — the user owns the look
+
+One Settings section ("Appearance & colours") lets the user change four things:
+- light or dark
+- the accent colour
+- the background colour (the room behind the glass)
+- the brightness of that room
+
+Each can be set for **both themes at once, or for dark and light separately**. The whole look
+can also be saved as **the user's own default**. Everything below is painted by injected
+`<style>` blocks, so no component ever reads a setting.
+
+**Layering.** Three injected blocks, always in this order in `<head>`, after the stylesheet:
+```
+<style id="accent-css">    :root:root{--accent…}  :root:root.light{--accent…}
+<style id="backdrop-css">  html:root:not(.light) body::before{…}  html:root.light body::before{…}
+<style id="tone-css">      brightness: token mixes + a veil (must come LAST so it lays over any colour)
+```
+- Each block is removed and rebuilt on change; an empty choice (the shipped look) writes nothing.
+- `:root:root` and `html:root` double the specificity, so the blocks beat the base tokens and
+  the stylesheet's own room whatever order `<head>` ends up in. No `!important`.
+- Read every choice from localStorage and paint all three in the boot script, BEFORE first
+  paint, so a reload never flashes the default.
+
+**"Apply to" (scope).** A segmented control at the top of the section:
+**Both themes · 🌙 Dark · ☀️ Light**.
+- Picking Dark or Light **switches the screen to that theme** (with the curtain), so what is
+  being chosen is what is seen.
+- The brightness area then shows only that theme's slider.
+- A one-line note under the control says what will happen:
+  - Both, while the two differ: "Dark and light differ now — picking here sets both to the same."
+  - Dark: "Only the dark theme changes; light keeps its own."
+  - Light: "Only the light theme changes; dark keeps its own."
+
+**Storage (per device, localStorage).** Backwards compatible: the original key is "both",
+and light reads its own key first.
+
+| Setting | Both / dark | Light override | Default |
+|---|---|---|---|
+| theme | `theme` = dark/light | — | `prefers-color-scheme` |
+| accent | `accent` = preset id or `#rrggbb` | `accent_light` | `violet` |
+| background | `ui_backdrop` = preset id or `#rrggbb` | `ui_backdrop_light` | `aurora` |
+| brightness | `ui_tone_dark` (0…100) | `ui_tone_light` (−50…+50) | 0 |
+
+Saving for a scope:
+- **both:** write the shared key, delete the light key.
+- **dark:** FIRST copy what light shows now into the light key, then write the shared key.
+  Changing one theme must never drag the other along.
+- **light:** write the light key only.
+
+**Accent: presets and "your own".**
+- **Swatches:** one per preset (table in §1), each a 22px dot painted
+  `linear-gradient(135deg, accent, accent2)` in the theme on screen, with an "in use" tag on
+  the saved one.
+- **"Your own":** a native `<input type=color>`.
+- **Preview first:** picks update a live preview strip (a primary button, a secondary button, a
+  chip, a ticker in the accent and a progress bar) through inline CSS variables. Nothing changes
+  until **Save colour**; "Back to default" sits beside it.
+- **How a custom colour becomes a pair:**
+  - Dark uses it as typed.
+  - Light darkens it in steps of ×0.85 until its WCAG luminance is ≤ 0.2, i.e. ≥ 4:1 as text
+    on the cream card.
+  - `accent2` = 60% the colour + 40% the theme's blue (`#5b8cff` dark / `#3a6fe0` light), so
+    gradients keep two tones.
+  - `--accent-ink` (text on an accent fill) is `#0d0d12` when the fill's luminance > 0.36,
+    else white.
+- **P&L clash:** warn when the hue sits inside 85–170° (reads as gain) or ≤ 12° / ≥ 348° (reads
+  as loss).
+
+**Background colour: six rooms and "your own".**
+- **The rooms:** the canvas in §2 is six radial glows at fixed spots plus a 160° base
+  gradient. A preset only swaps their colours; the geometry stays:
+  - **dark spots:** `42% 38% at 12% 8%`, `36% 34% at 88% 12%`, `30% 30% at 56% 40%`,
+    `44% 40% at 82% 92%`, `38% 36% at 8% 88%`, `26% 24% at 40% 96%`
+  - **light spots:** `44% 40% at 10% 6%`, `40% 38% at 90% 10%`, `34% 32% at 58% 42%`,
+    `46% 42% at 78% 94%`, `40% 40% at 6% 92%`, `28% 26% at 36% 70%`
+  - each glow is `radial-gradient(<spot>, rgba(<r,g,b,a>), transparent 70%)`
+- **Six glows (r,g,b,alpha) + base, per theme:**
+
+| Preset | Dark glows | Dark base | Light glows | Light base |
+|---|---|---|---|---|
+| Aurora (default) | 132,96,255,.46 · 52,128,255,.34 · 110,70,230,.16 · 20,200,176,.26 · 226,70,168,.24 · 255,150,80,.12 | #0e0c1a → #07070c | 255,196,150,.92 · 176,226,196,.88 · 216,204,255,.55 · 180,206,252,.92 · 250,190,214,.78 · 255,255,255,.6 | #f3e9de → #e6ddd2 |
+| Ocean | 40,120,255,.44 · 20,190,230,.32 · 60,90,230,.18 · 20,180,170,.26 · 90,80,240,.2 · 80,170,255,.12 | #0a1020 → #05070d | 180,210,255,.92 · 186,236,240,.88 · 210,220,255,.6 · 170,214,246,.92 · 200,206,255,.75 · 255,255,255,.6 | #e8eef6 → #dbe4ee |
+| Jade forest | 30,190,120,.4 · 20,160,170,.3 · 60,140,90,.16 · 120,200,80,.22 · 20,120,140,.22 · 200,190,80,.1 | #08140f → #050a08 | 190,234,200,.92 · 186,226,222,.86 · 214,236,200,.6 · 206,236,184,.9 · 180,220,214,.78 · 255,255,255,.6 | #ecf2e8 → #dfe8dc |
+| Sunset | 255,120,60,.36 · 230,70,120,.3 · 180,60,120,.16 · 255,170,60,.22 · 150,60,200,.24 · 255,200,120,.12 | #160c0c → #0a0607 | 255,200,160,.94 · 255,184,196,.86 · 255,214,190,.6 · 255,220,170,.92 · 236,196,236,.76 · 255,255,255,.6 | #f6ebe2 → #ecdfd4 |
+| Rose | 236,72,153,.38 · 168,85,247,.3 · 200,60,120,.16 · 244,114,182,.22 · 120,70,230,.22 · 255,160,180,.12 | #150a12 → #09060a | 252,196,222,.92 · 226,200,250,.86 · 250,210,226,.6 · 250,206,230,.9 · 214,204,252,.76 · 255,255,255,.6 | #f6eaef → #ecdfe6 |
+| Graphite | 150,150,170,.18 · 120,130,150,.14 · 100,100,120,.08 · 130,140,150,.12 · 140,130,150,.1 · 170,170,180,.06 | #0f0f12 → #08080a | 226,224,220,.9 · 218,220,222,.85 · 230,228,232,.5 · 214,218,222,.88 · 226,222,226,.7 · 255,255,255,.6 | #efedea → #e4e2de |
+
+- **"Your own"** builds a room from one colour C. Let A = C rotated +40° in hue and B = C
+  rotated −35°.
+  - **dark glows:** C .42 · A .3 · C .15 · B .24 · A .2 · B .1; base = (C × 0.1 + 8) → `#07070c`.
+  - **light glows:** pastel versions, each channel moved towards 255 by k: C k=.62 at .92 ·
+    A k=.66 at .86 · C k=.75 at .55 · B k=.64 at .9 · A k=.72 at .75 · white .6. The base is
+    `242 + (C − 242) × 0.06` → `228 + (C − 228) × 0.08`.
+- **Swatch dot:** three of the preset's glows over its base, so a dot looks like its room.
+- **No Save step:** a tap applies and saves at once, because the whole page is the preview.
+  Dragging the custom picker previews without saving and saves on `change`. A "Default
+  background" button appears once a non-default room is chosen.
+
+**Brightness (one slider per theme).**
+- **Dark, 0…100** (only lighter; the shipped room is the darkest it should be). With t = v/100:
+  - mix toward `#fff`: `--bg` 14%·t, `--surface` 13%·t, `--card` 13%·t, `--cardhover` 14%·t,
+    `--border` 16%·t, `--border-soft` 14%·t, `--subtext` 12%·t, `--faint` 18%·t, body 18%·t
+  - veil: `body::after { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: rgba(170,168,210,.2·t) }` — over the canvas, under the app (`#app > *` is
+    z-index 1), so every translucent glass panel lifts with it for free
+- **Light, −50…+50, both ways:**
+  - **dimmer** (t = −v/50): `--bg` toward `#8a7f70` 18%·t, `--surface` 12%·t, `--card` 11%·t;
+    veil `rgba(70,58,40,.28·t)`
+  - **brighter** (t = v/50): `--bg` toward white 45%·t, `--surface` 50%·t; veil
+    `rgba(255,255,255,.45·t)`
+- **Behaviour:** the slider of the theme on screen previews live while dragged and saves on
+  release; the other theme's slider saves and says "switch theme to see it". The light slider
+  snaps to 0 within ±2 so the shipped look is easy to find again. One "Default brightness"
+  button covers both.
+
+**"Set as default" — the user's own default look.**
+- **The block:** at the end of the section, "⭐ Your default look".
+- **Saving:** stores `{ theme, accent, backdrop, accentLight, backdropLight, toneDark, toneLight,
+  at }` under a SYNCED key (`ui_look_default`), plus a raw localStorage mirror that can be read
+  before sync answers.
+- **The summary:** chips for 🌙/☀️ theme, the accent (a coloured dot plus its name), 🖼 the
+  room, ☀️ light's own pair when it differs, 🔆 the two brightness values, and "set at
+  <date time>".
+- **The buttons:**
+  - **⭐ Set this look as default** (primary)
+  - **↺ Use my default** — applies all of it
+  - **Remove default** — confirms; the current look stays
+- **Applied once on every device:** each device keeps `ui_look_applied = <at of the default it
+  applied>`. On the first sync after a NEWER default appears, it applies it once. A later change
+  on one device stays that device's own until the next "Set as default".
+- **Every "back to default" button** (colour, background, brightness, per scope) returns to
+  the user's default when there is one, and to the shipped look otherwise.
+- **A settings overview tile** at the top of Settings shows the accent in use for the theme on
+  screen.
 
 ## 3. Motion — the part that makes it feel premium
 
@@ -562,6 +695,14 @@ looks, never a hidden side effect.
   "Undo".
 - **Changed since confirmed:** amber, with "Confirm again".
 
+**When the app changes a number the user gave, it says so.** A cap or a correction (not enough
+cash for the size, a value clamped to a rule) shows a note right under the form, in warn
+colours, with the before → after in bold mono: "Not enough cash for 1,174 shares (needs
+€217,836, the account has €14,000): shares cut from **1,174** to **75**." If nothing at all is
+possible, the note turns red, explains why ("1 share costs €186 with the fee"), and the primary
+button is disabled. A number typed by the user is kept as typed; one the app suggested follows
+the inputs it came from.
+
 **Horizontal switchers** (several lists, several tabs): one row of capsules that scrolls
 sideways (`overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; scroll-snap-type: x
 proximity`). Each item shows its count in a small mono figure; the active one gets the thumb
@@ -684,6 +825,13 @@ A 54px glass lens at the bottom right (44–48px on phones):
 - **Hover:** lifts 2px, the halo goes to .9, the core scales 1.05 and the spark turns 90°.
 - It moves up to clear any bottom dock (§7).
 
+**Read-only / shared view pill** (when a user views someone else's data): a glass capsule
+fixed bottom-left (`left: 14px; bottom: 14px + safe-area`, radius 999px, `--accent-line`
+border, blur 18px), holding a 24px eye badge on `--accent-wash` and "Viewing **<owner>**'s data
+· read-only", with the owner's name in the accent. A tooltip says how much is shared and that
+changes are not saved. Menus, the palette and the ☰ list show only the shared pages (empty
+groups hidden), and a link to a hidden page lands on the first shared one.
+
 ## 12. Responsive and phone rules
 
 - **Breakpoints:** 1600 · 1200 (3 → 2 columns) · 1100 (top-bar groups ↔ crumb) · 900 (single
@@ -738,7 +886,8 @@ A 54px glass lens at the bottom right (44–48px on phones):
 ## 15. Done when
 
 1. Both themes switch instantly (with the curtain from the toggle), persist, and never flash on
-   load. The accent picker recolours every CTA.
+   load. The accent picker recolours every CTA. Accent, background and brightness can be set
+   for both themes or each alone, and "Set as default" restores the same look on every device.
 2. Every navigation runs the curtain-lift transition from the clicked element, and the new page
    assembles with the staggered fadeUp.
 3. The top bar is 56px glass. The ☰ menu, the groups, the crumb and Ctrl K are all generated
