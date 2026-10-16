@@ -107,6 +107,13 @@ export interface Order {
   lotId?: string;
 }
 
+/**
+ * Why cash moved (CHAT-106). Only `deposit` / `withdraw` are CAPITAL — money from or to the
+ * bank account, kept out of performance. A dividend, interest, a tax withheld and a tax
+ * correction are what the money EARNED (or paid), so they move cash and count as return.
+ */
+export type CashKind = 'deposit' | 'withdraw' | 'dividend' | 'interest' | 'tax' | 'tax_fix';
+
 /** A dated cash deposit (+) or withdrawal (−) in the account currency. */
 export interface CashFlow {
   id: string;
@@ -114,6 +121,8 @@ export interface CashFlow {
   date: string;   // ISO YYYY-MM-DD
   amount: number; // + deposit, − withdrawal
   note?: string;
+  /** Absent = a capital deposit / withdrawal, which is what every flow before CHAT-106 was. */
+  kind?: CashKind;
 }
 
 export interface EquitySnapshot {

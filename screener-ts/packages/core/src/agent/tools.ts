@@ -326,7 +326,7 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
     name: 'record_cash_flow',
     kind: 'write',
     description:
-      'Record a dated cash deposit or withdrawal. Positive deposits, negative withdrawals. This changes the capital base every return figure is measured against.',
+      'Record a dated cash movement. Positive in, negative out. A deposit from or withdrawal to the bank changes the capital base every return figure is measured against; a dividend, interest, tax withheld or a tax correction does not — it counts as return. Pick the reason with `reason`.',
     args: [
       ACCOUNT,
       req('amount', {
@@ -336,6 +336,11 @@ export const AGENT_TOOLS: readonly AgentToolDef[] = [
       }),
       DATE,
       opt('note', { kind: 'richText', description: 'What the transfer was.', maxLength: 240 }),
+      opt('reason', {
+        kind: 'enum',
+        description: 'Why the cash moved: deposit (from the bank), withdraw (to the bank), dividend, interest, tax (withheld or paid, negative), tax_fix (a tax correction or refund, either sign). Defaults to deposit / withdraw by the sign.',
+        values: ['deposit', 'withdraw', 'dividend', 'interest', 'tax', 'tax_fix'],
+      }),
     ],
   },
   {

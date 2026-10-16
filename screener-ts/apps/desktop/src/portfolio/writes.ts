@@ -38,6 +38,7 @@ import {
   sell,
   setStop,
   type AccountState,
+  type CashKind,
   type OrderType,
   setBalance,
   type WealthCurrency,
@@ -193,6 +194,8 @@ export type WritePlan =
       amount: number;
       date: string;
       note?: string;
+      /** Why the cash moved (CHAT-106); absent = deposit / withdrawal by the sign. */
+      cashKind?: CashKind;
     }
   | {
       kind: 'place_order';
@@ -358,7 +361,7 @@ export async function applyWrite(ctx: AppContext, plan: WritePlan): Promise<Writ
         const st = byId(list, plan.account.id);
         addCashFlow(
           st,
-          { date: plan.date, amount: plan.amount, ...(plan.note ? { note: plan.note } : {}) },
+          { date: plan.date, amount: plan.amount, ...(plan.note ? { note: plan.note } : {}), ...(plan.cashKind ? { kind: plan.cashKind } : {}) },
           uuid,
         );
         snapshotNow(st);
@@ -461,7 +464,7 @@ export function describeWrite(plan: WritePlan): string {
     case 'set_stop':
       return `STOP ${plan.ticker} → ${money(plan.stop.stored, plan.account.currency)} · ${plan.lots} lot(s) · ${plan.account.name}`;
     case 'record_cash_flow': {
-      const verb = plan.amount >= 0 ? 'DEPOSIT' : 'WITHDRAW';
+      const verb = plan.cashKind ? plan.cashKind.toUpperCase() : plan.amount >= 0 ? 'DEPOSIT' : 'WITHDRAW';
       return `${verb} ${money(Math.abs(plan.amount), plan.account.currency)} · ${plan.date} · ${plan.account.name}`;
     }
     case 'record_balance':

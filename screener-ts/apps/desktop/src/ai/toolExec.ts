@@ -34,6 +34,7 @@
  * account resolution, the currency reading, and the sentences the model reads back.
  */
 import { feeOf } from '../portfolio/brokerFees.js';
+import { isCashKind } from '../portfolio/cashKinds.js';
 import {
   buildPositions,
   closedTradePnls,
@@ -43,6 +44,7 @@ import {
   riskStageOf,
   quoteCurrencyOf,
   type AccountState,
+  type CashKind,
   type OrderType,
   type ToolArgs,
   accountStatus,
@@ -293,7 +295,7 @@ function listTransactions(args: ToolArgs): ToolOutcome {
             .slice()
             .sort((a, b) => (a.date < b.date ? 1 : -1))
             .slice(0, 20)
-            .map((c) => ({ date: c.date, amount: m2(c.amount) })),
+            .map((c) => ({ date: c.date, amount: m2(c.amount), ...(c.kind ? { reason: c.kind } : {}) })),
         }
       : {}),
   });
@@ -989,6 +991,7 @@ export async function planWrite(
           amount: numArg(args, 'amount')!,
           date,
           ...(str(args, 'note') ? { note: str(args, 'note')! } : {}),
+          ...(isCashKind(str(args, 'reason')) ? { cashKind: str(args, 'reason') as CashKind } : {}),
         },
       };
     }

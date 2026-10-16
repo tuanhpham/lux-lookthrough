@@ -1,5 +1,6 @@
 import type { AccountState } from '../types/index.js';
 import { pyRound } from '../util/round.js';
+import { isCapitalFlow } from './account.js';
 
 /** Whole-number day difference between two ISO dates (b - a). */
 function daysBetween(a: string, b: string): number {
@@ -56,7 +57,9 @@ export function computeTwr(state: AccountState): TwrResult {
   if (!dates.length) return EMPTY;
 
   const flowOn = new Map<string, number>();
+  // Capital only: a dividend or a tax payment is return, so it stays inside the period's result.
   for (const f of state.cashFlows ?? []) {
+    if (!isCapitalFlow(f)) continue;
     flowOn.set(f.date, (flowOn.get(f.date) ?? 0) + f.amount);
   }
 

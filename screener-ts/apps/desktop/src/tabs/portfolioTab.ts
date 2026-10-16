@@ -2,6 +2,7 @@ import { openStation } from './stationTab.js';
 import { combineAccounts, periodPerformance } from '@screener/core';
 import { perfMatrixHtml, perfPanelHtml } from '../portfolio/perfPanel.js';
 import { feeOf, loadBrokerFees } from '../portfolio/brokerFees.js';
+import { cashKindLabel, cashKindOptions, isCashKind, kindOf, signFor } from '../portfolio/cashKinds.js';
 import {
   createAccount,
   buy,
@@ -42,6 +43,7 @@ import {
   qmGradeEvidence,
   gradeTrade,
   type AccountState,
+  type CashKind,
   type ConvictionRating,
   type GradeResult,
   type PriceMap,
@@ -1499,7 +1501,11 @@ function draw(ctx: AppContext): void {
           ${richEditorHtml('buy-note', buyNoteDraft, { lang: getLang() === 'vi' ? 'vi' : 'en', minHeight: 70 })}
         </div>
         <div class="row" style="margin-top:8px"><input id="b-stop" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Stop (optional)" style="width:130px" />
-          <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" /></div>
+          <input id="b-target" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="Target (optional)" style="width:130px" />
+          <!-- The broker fee, visible and editable (CHAT-106). Prefilled from the broker table by
+               account name; it was charged before too, only nobody could see or change it. -->
+          <label class="b-fee" title="${t('pf.fee.title')}"><span class="muted" style="font-size:12px">${t('pf.fee.label')} (${active().account.currency})</span>
+            <input id="b-fee" class="field" type="text" inputmode="decimal" autocorrect="off" autocapitalize="off" placeholder="0" value="${feeOf(active().account) || ''}" style="width:80px" /></label></div>
 
         <!-- The gate. Ticking this is the "xac nhan xem co ok khong thi moi buy" step, and it
              un-ticks itself whenever the ticker, the entry or the setup moves — see
@@ -1946,6 +1952,14 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       void openExitReasonsDialog(ctx);
     });
 
+    /** The fee box: blank or 0 = no fee, anything unreadable falls back to the broker table's. */
+    const formFee = (): number => {
+      const raw = (($('#b-fee') as HTMLInputElement | null)?.value ?? '').trim();
+      if (!raw) return 0;
+      const v = parseAmount(raw);
+      return v != null && Number.isFinite(v) && v >= 0 ? v : feeOf(active().account);
+    };
+
     // Buy note — always-visible inline rich editor (wired before the buy click).
     const buyNoteGet = wireRichEditor(root, 'buy-note');
 
@@ -1969,8 +1983,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
       const rating = (isRating(shown) ? shown : undefined) as Rating | undefined;
       if (!t || shares <= 0 || price <= 0) return;
       const fxAtBuy = eurUsdForDate(date);
-      // The broker's fee (Trade Republic 1, …) from the account name — see brokerFees.ts.
-      const fee = feeOf(active().account);
+      // The fee box, prefilled with the broker's (Trade Republic 1, …) — see brokerFees.ts.
+      const fee = formFee();
       const lot = buy(active(), { ticker: t, buyDate: date, buyPrice: price, shares, stop, target, reason: note, setupType, rating, ...(fee ? { fee } : {}) }, uuid);
       lot.priceCurrency = priceCcy;
       lot.fxRateAtBuy = fxAtBuy;
@@ -2006,7 +2020,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const fxAtSell = eurUsdForDate(date);
         const normSellPrice = (active().account.currency === 'EUR' && priceCcy === 'USD' && fxAtSell > 1)
           ? price / fxAtSell : price;
-        const fee = feeOf(active().account);
+        const fee = formFee();
         const recs = sell(active(), { ticker: t, sellDate: date, sellPrice: normSellPrice, shares, ...(fee ? { fee } : {}) }, uuid);
         for (const r of recs) { r.priceCurrency = priceCcy; r.fxRateAtSell = fxAtSell; }
         seedPrice(active().account.id, t, normSellPrice);
@@ -2021,16 +2035,28 @@ function wire(ctx: AppContext, root: HTMLElement): void {
 
     // adjust cash (dated deposit / withdrawal)
     $('#cash-go')!.addEventListener('click', async () => {
+      const cvi = getLang() === 'vi';
+      // The reason sets the direction (a dividend comes in, a tax goes out); the direction stays
+      // editable for the cases that run the other way — a tax correction, a reversed dividend.
+      let prevKind = 'deposit';
       const res = await formDialog(t('pf.cash.adjust'), [
+        { key: 'reason', label: t('pf.cash.reason'), type: 'select', value: 'deposit', options: cashKindOptions(cvi) },
         { key: 'kind', label: t('pf.cash.type'), type: 'select', value: 'deposit',
           options: [
-            { value: 'deposit', label: t('pf.cash.deposit') },
-            { value: 'withdraw', label: t('pf.cash.withdraw') },
+            { value: 'deposit', label: `↓ ${t('pf.cash.in')}` },
+            { value: 'withdraw', label: `↑ ${t('pf.cash.out')}` },
           ] },
         { key: 'amount', label: `${t('pf.cash.amount')} (${dispSymbol()})`, type: 'number', value: '' },
         { key: 'date', label: t('pf.cash.date'), type: 'date', value: today() },
         { key: 'note', label: t('pf.cash.note'), type: 'text', value: '' },
-      ]);
+        { key: '_why', label: '', type: 'info', value: `<span class="muted" style="font-size:12px">${t('pf.cash.reasonhint')}</span>` },
+      ], {
+        onChange: (vals) => {
+          if (vals.reason === prevKind || !isCashKind(vals.reason)) return {};
+          prevKind = vals.reason;
+          return { kind: signFor(vals.reason, vals.kind === 'withdraw' ? 'out' : 'in') < 0 ? 'withdraw' : 'deposit' };
+        },
+      });
       if (!res) return;
       const raw = Number((res.amount ?? '').replace(',', '.'));
       if (!raw || isNaN(raw) || raw <= 0) {
@@ -2045,7 +2071,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         if (fx > 1) amount = raw / fx;
       }
       const signedAmt = res.kind === 'withdraw' ? -amount : amount;
-      addCashFlow(active(), { date, amount: signedAmt, note: (res.note ?? '').trim() || undefined }, uuid);
+      const reason = isCashKind(res.reason) ? res.reason : undefined;
+      addCashFlow(active(), { date, amount: signedAmt, note: (res.note ?? '').trim() || undefined, ...(reason ? { kind: reason } : {}) }, uuid);
       snapshotNow(active());
       await save(ctx);
       draw(ctx);
@@ -2119,6 +2146,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           { key: 'shares', label: 'Shares to sell', type: 'number', value: openShares > 0 ? String(openShares) : '' },
           { key: 'price', label: 'Sell price', type: 'number', value: initPrice },
           { key: 'date', label: 'Date', type: 'date', value: today() },
+          { key: 'fee', label: `${svi ? 'Phí' : 'Fee'} (${active().account.currency})`, raw: true, value: String(feeOf(active().account) || '') },
           // Grouped and optional. A required reason would get the first option picked to get past
           // it, and a journal of thirty "Stop hit"s that were nothing of the kind is worse than
           // one with blanks in it.
@@ -2163,7 +2191,8 @@ function wire(ctx: AppContext, root: HTMLElement): void {
           const normSellPrice = (active().account.currency === 'EUR' && res.ccy === 'USD' && fxAtSell > 1)
             ? priceEntered / fxAtSell : priceEntered;
           const sellNote = isNoteEmpty(sellNoteHtml) ? '' : sellNoteHtml;
-          const fee = feeOf(active().account);
+          const feeTyped = (res.fee ?? '').trim() ? parseAmount(res.fee!) : 0;
+          const fee = feeTyped != null && Number.isFinite(feeTyped) && feeTyped >= 0 ? feeTyped : feeOf(active().account);
           const recs = sell(active(), { ticker: t, sellDate: res.date || today(), sellPrice: normSellPrice, shares, ...(fee ? { fee } : {}) }, uuid);
           // One sell can close several lots, and they were all closed for the same reason — it is
           // a fact about the decision, not about the bookkeeping, so it goes on every record.
@@ -2456,6 +2485,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         const f = st.cashFlows?.find((x) => x.id === b.dataset.editCash);
         if (!f) return;
         const res = await formDialog(L0('Edit cash', 'Sửa giao dịch tiền'), [
+          { key: 'reason', label: t('pf.cash.reason'), type: 'select', value: kindOf(f), options: cashKindOptions(vi0) },
           { key: 'kind', label: L0('Type', 'Loại'), type: 'select', value: f.amount >= 0 ? 'in' : 'out', options: [
             { value: 'in', label: L0('↓ Deposit', '↓ Nạp tiền') }, { value: 'out', label: L0('↑ Withdrawal', '↑ Rút tiền') }] },
           { key: 'date', label: L0('Date', 'Ngày'), type: 'date', value: f.date },
@@ -2467,6 +2497,7 @@ function wire(ctx: AppContext, root: HTMLElement): void {
         if (!amt) { alert(L0('Give an amount.', 'Nhập số tiền.')); return; }
         await tryEdit(() => editCashFlow(st, f.id, {
           date: res.date || f.date, amount: res.kind === 'out' ? -Math.abs(amt) : Math.abs(amt), note: res.note?.trim() || undefined,
+          ...(isCashKind(res.reason) ? { kind: res.reason } : {}),
         }));
       }),
     );
@@ -2593,7 +2624,7 @@ function transactionHistoryHtml(st: AccountState): string {
     capitalAtOpen: number;
     sortDate: string; delKind: 'sell' | 'lot' | 'cash'; delId: string;
     /** For CASH rows only: the signed amount (+ deposit, − withdrawal). */
-    cashAmount?: number; note?: string;
+    cashAmount?: number; cashKind?: CashKind; note?: string;
     /** Which entity a note edits: a buy lot's `reason` or a sell record's `note`. */
     noteKind?: 'lot' | 'sell'; noteId?: string;
     /** Setup type + rating from the underlying buy lot (for display + editing). */
@@ -2640,7 +2671,7 @@ function transactionHistoryHtml(st: AccountState): string {
       status: 'CASH', ticker: '', shares: 0, buyPrice: 0, sellPrice: null,
       buyDate: f.date, sellDate: null, holdDays: null, pnl: null,
       cost: 0, capitalAtOpen: 0, sortDate: f.date, delKind: 'cash', delId: f.id,
-      cashAmount: f.amount, note: f.note,
+      cashAmount: f.amount, cashKind: kindOf(f), note: f.note,
     });
   }
   if (!rows.length) {
@@ -2714,7 +2745,7 @@ function transactionHistoryHtml(st: AccountState): string {
       // Cash deposit / withdrawal row — spans the trade columns with its amount.
       if (r.status === 'CASH') {
         const amt = r.cashAmount ?? 0;
-        const label = amt >= 0 ? (t('pf.cash.deposit') || 'Deposit') : (t('pf.cash.withdraw') || 'Withdrawal');
+        const label = cashKindLabel(r.cashKind ?? (amt >= 0 ? 'deposit' : 'withdraw'), getLang() === 'vi');
         return `<tr class="tx-cash-row">
           <td><span class="badge" style="background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)">CASH</span></td>
           <td colspan="4"><strong>${label}</strong>${r.note ? ` <span class="muted" style="font-weight:400">— ${escapeHtml(r.note)}</span>` : ''}</td>

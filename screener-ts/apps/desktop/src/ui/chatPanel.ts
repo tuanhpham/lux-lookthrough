@@ -52,7 +52,8 @@ import { getApiKey, loadLlmConfig, isConfigured } from '../ai/llmClient.js';
 import { openLlmSettings, onLlmConfigChange } from './llmSettings.js';
 import { askChatGpt } from './askChatGpt.js';
 import { ASSISTANT_GLYPH } from './emblem.js';
-import { t, onLangChange } from './i18n.js';
+import { t, onLangChange, getLang } from './i18n.js';
+import { cashKindLabel } from '../portfolio/cashKinds.js';
 import { accounts } from '../portfolio/store.js';
 import {
   readAuditLog,
@@ -566,6 +567,7 @@ function planRows(plan: WritePlan): Array<[string, string]> {
         plan.amount >= 0 ? 'chat.write.deposit' : 'chat.write.withdraw',
         esc(money(Math.abs(plan.amount), sym(ccy))),
       );
+      add('chat.write.reason', plan.cashKind ? esc(cashKindLabel(plan.cashKind, getLang() === 'vi')) : undefined);
       add('chat.write.date', esc(plan.date));
       add('chat.write.note', plan.note);
       break;

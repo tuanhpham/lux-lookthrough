@@ -2,6 +2,7 @@ import type {
   AccountState,
   BuyLot,
   CashFlow,
+  CashKind,
   SellRecord,
   SignalType,
 } from '../types/index.js';
@@ -176,6 +177,8 @@ export interface CashFlowInput {
   date: string;
   amount: number; // + deposit, − withdrawal
   note?: string;
+  /** Why the cash moved; absent = a capital deposit / withdrawal. */
+  kind?: CashKind;
 }
 
 /** Record a dated cash deposit (+) or withdrawal (−). Cash recomputes downstream. */
@@ -187,6 +190,7 @@ export function addCashFlow(state: AccountState, input: CashFlowInput, nextId: I
     date: input.date,
     amount: input.amount,
     note: input.note,
+    ...(input.kind ? { kind: input.kind } : {}),
   };
   (state.cashFlows ??= []).push(flow);
   return flow;
@@ -292,5 +296,6 @@ export function editCashFlow(state: AccountState, flowId: string, patch: CashFlo
   f.date = patch.date;
   f.amount = patch.amount;
   f.note = patch.note;
+  if (patch.kind) f.kind = patch.kind; else delete f.kind;
   return f;
 }

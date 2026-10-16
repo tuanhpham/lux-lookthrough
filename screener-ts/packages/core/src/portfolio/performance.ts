@@ -20,6 +20,7 @@
  */
 import type { AccountState } from '../types/index.js';
 import { computeTwr } from './twr.js';
+import { isCapitalFlow } from './account.js';
 import { pyRound } from '../util/round.js';
 
 export type PeriodKey = '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y' | 'SI';
@@ -61,7 +62,8 @@ export function periodPerformance(state: AccountState): PerformanceSummary {
 
   const equityOn = new Map<string, number>();
   for (const s of state.snapshots ?? []) equityOn.set(s.date, s.equity);
-  const flows = (state.cashFlows ?? []).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  // Capital only, as in computeTwr — a dividend is part of the period's money made, not a deposit.
+  const flows = (state.cashFlows ?? []).filter(isCapitalFlow).sort((a, b) => (a.date < b.date ? -1 : 1));
   const first = pts[0]!.date;
   const last = pts[pts.length - 1]!;
   const opening = state.account.initialCapital + flows.filter((f) => f.date < first).reduce((s, f) => s + f.amount, 0);

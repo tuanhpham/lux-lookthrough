@@ -10057,3 +10057,12 @@ tr.w-flow-row { background: color-mix(in srgb, var(--accent) 3%, transparent); }
 .pm-table tr.pm-total td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .pp-m { overflow: hidden; text-overflow: ellipsis; }
 .pp-a { min-height: 13px; font: 600 10.5px var(--font-mono); color: var(--faint); white-space: nowrap; }
+
+/* ══ CHAT-106 — on a laptop the centre column ran over the ticket once a position existed ══
+   `.stn-center` had no column template, so its one implicit track was `auto`, and an auto
+   track grows to the min-content of what it holds: the positions table rows keep 840px
+   (CHAT-94), the centre is ~740px on a 1440-1470 screen, and both cards (tabs and chart) came
+   out 868px wide, sliding ~120px under the ladder and the ticket. A `minmax(0, 1fr)` track
+   is exactly the column, and the table scrolls sideways inside it as CHAT-94 meant it to. */
+.stn-center { grid-template-columns: minmax(0, 1fr); }
+.stn-center > *, .stn-bottom .tbl-fs { min-width: 0; max-width: 100%; }
